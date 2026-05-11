@@ -1,0 +1,91 @@
+.profile-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.profile-overview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  &:hover {
+    border-color: rgba(148, 163, 184, 0.35);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.poc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.poc-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.poc-badge-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.poc-period {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+}
+
+.poc-amounts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+.poc-gross,
+.poc-arrow {
+  color: var(--text-muted);
+}
+.poc-net {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.poc-chart {
+  margin: 0 auto 1rem;
+  max-width: 320px;
+}
+
+.poc-no-slips {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.poc-footer {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .profile-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}

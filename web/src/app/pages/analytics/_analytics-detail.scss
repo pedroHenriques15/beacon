@@ -1,0 +1,125 @@
+@use '../../../_shared' as *;
+@use 'analytics-detail-list' as *;
+
+.detail-panel {
+  @include card;
+  margin-top: 2rem;
+  padding: 1.5rem;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    flex: 1;
+  }
+}
+
+.detail-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.detail-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+}
+
+.stat-row {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+
+  &.debit {
+    color: var(--debit);
+  }
+
+  &.credit {
+    color: var(--credit);
+  }
+}
+
+.detail-trend-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.detail-trend-legend {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.8rem;
+}
+
+.detail-trend-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+}
+
+.detail-trend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.detail-trend-wrap {
+  margin-bottom: 1.5rem;
+
+  canvas {
+    max-height: 200px;
+  }
+}
+
+.detail-section-title {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.6rem;
+  margin-top: 1.25rem;
+}

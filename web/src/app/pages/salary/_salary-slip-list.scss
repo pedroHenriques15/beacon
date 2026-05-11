@@ -1,0 +1,143 @@
+.profile-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.slip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.slip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+  &.expanded {
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+}
+
+.slip-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  cursor: pointer;
+  &:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+}
+
+.slip-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.slip-period {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+.slip-notes {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.slip-amounts {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.gross-amt,
+.arrow-sep {
+  color: var(--text-muted);
+}
+.net-amt {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.slip-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.chevron {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: transform 0.2s;
+  display: inline-block;
+  &.open {
+    transform: rotate(90deg);
+  }
+}
+
+.slip-detail {
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 1.1rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.line-table {
+  td {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+  }
+}
+
+.type-badge-cell {
+  width: 90px;
+}
+.type-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: capitalize;
+  &.income {
+    background: rgba(52, 211, 153, 0.12);
+    color: var(--success);
+  }
+  &.deduction {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+  }
+  &.tax {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+  }
+}
+
+.slip-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.08);
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  svg {
+    flex-shrink: 0;
+  }
+}

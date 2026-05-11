@@ -1,0 +1,366 @@
+<div class="page-header">
+  <div class="header-row">
+    <div>
+      <h1>Categories & Rules</h1>
+      <p class="subtitle">Auto-assign categories based on description patterns</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" (click)="openCreateCat()">+ New category</button>
+      <button class="btn-primary" (click)="showAddRule.set(true)">+ Add rule</button>
+    </div>
+  </div>
+</div>
+
+<div class="search-bar" style="margin-bottom: 1.25rem">
+  <input
+    class="field-input"
+    style="max-width: 300px"
+    type="text"
+    placeholder="Search categories…"
+    [ngModel]="catSearch()"
+    (ngModelChange)="catSearch.set($event)"
+  />
+</div>
+
+@if (catSvc.categories().length === 0) {
+  <div class="empty-state">No categories yet. Upload a statement to get started.</div>
+} @else {
+  <div class="categories-list">
+    @for (
+      cat of catSvc
+        .categories()
+        .filter((c) => !catSearch() || c.name.toLowerCase().includes(catSearch().toLowerCase()));
+      track cat.id
+    ) {
+      <div class="category-block">
+        <div class="category-header">
+          <div class="category-title">
+            <span class="color-dot" [style.background]="cat.color"></span>
+            <span class="cat-name">{{ cat.name }}</span>
+            <span class="rule-count"
+              >{{ catSvc.rules().filter((r) => r.categoryId === cat.id).length }} rules</span
+            >
+          </div>
+          <div class="category-actions">
+            <button class="btn-icon" title="Edit category" (click)="openEdit(cat)">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+            @if (!cat.isProtected) {
+              <button class="btn-icon danger" title="Delete category" (click)="deleteCategory(cat)">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (catSvc.rules().filter((r) => r.categoryId === cat.id).length === 0) {
+          <p class="no-rules">No rules yet for this category.</p>
+        } @else {
+          <div class="rules-list">
+            @for (rule of catSvc.rules().filter((r) => r.categoryId === cat.id); track rule.id) {
+              <div class="rule-row">
+                <span class="pattern">
+                  @if (rule.pattern) {
+                    <span class="rule-part">desc: {{ rule.pattern }}</span>
+                  }
+                  @if (rule.pattern && rule.value != null) {
+                    <span class="rule-sep">+</span>
+                  }
+                  @if (rule.value != null) {
+                    <span class="rule-part">amount: {{ rule.value }}</span>
+                  }
+                </span>
+                <div class="rule-actions">
+                  <button class="btn-icon" title="Edit rule" (click)="openEditRule(rule)">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                  <button class="btn-icon danger" title="Delete rule" (click)="deleteRule(rule.id)">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+
+@if (showAddRule()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Add rule</h3>
+        <button class="modal-close" (click)="showAddRule.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Category</label>
+      <select
+        class="field-select"
+        [ngModel]="newCategoryId()"
+        (ngModelChange)="newCategoryId.set(+$event || null)"
+      >
+        <option [value]="null">Select category…</option>
+        @for (cat of catSvc.categories(); track cat.id) {
+          <option [value]="cat.id">{{ cat.name }}</option>
+        }
+      </select>
+
+      <label class="field-label">Pattern <span class="field-optional">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. TRF MB WAY"
+        [ngModel]="newPattern()"
+        (ngModelChange)="newPattern.set($event)"
+      />
+      <p class="field-hint">Case-sensitive substring match on transaction description.</p>
+
+      <label class="field-label">Value <span class="field-optional">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 1500.00"
+        [ngModel]="newValue()?.toString() ?? ''"
+        (ngModelChange)="newValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)"
+      />
+      <p class="field-hint">
+        Exact match on transaction amount. If both fields are filled, both must match.
+      </p>
+
+      @if (newRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="newRuleMatchCount() === 0">
+          {{ newRuleMatchCount() }} existing transaction{{ newRuleMatchCount() !== 1 ? 's' : '' }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showAddRule.set(false)">Cancel</button>
+        <button
+          class="btn-primary"
+          [disabled]="!newCategoryId() || (!newPattern().trim() && newValue() === null) || saving()"
+          (click)="submitRule()"
+        >
+          {{ saving() ? 'Saving…' : 'Add rule' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (editingCat()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Edit category</h3>
+        <button class="modal-close" (click)="editingCat.set(null)">✕</button>
+      </div>
+
+      <label class="field-label">Name</label>
+      <input
+        class="field-input"
+        type="text"
+        [ngModel]="editName()"
+        (ngModelChange)="editName.set($event)"
+      />
+
+      <label class="field-label">Color</label>
+      <div class="color-row">
+        <input type="color" [ngModel]="editColor()" (ngModelChange)="editColor.set($event)" />
+        <span class="color-preview" [style.background]="editColor()">{{
+          editName() || 'Preview'
+        }}</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="editingCat.set(null)">Cancel</button>
+        <button
+          class="btn-primary"
+          [disabled]="!editName().trim() || editSaving()"
+          (click)="submitEdit()"
+        >
+          {{ editSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (editingRule()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Edit rule</h3>
+        <button class="modal-close" (click)="editingRule.set(null)">✕</button>
+      </div>
+
+      <label class="field-label">Pattern <span class="field-optional">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. TRF MB WAY"
+        [ngModel]="editRulePattern()"
+        (ngModelChange)="editRulePattern.set($event)"
+      />
+      <p class="field-hint">Case-sensitive substring match on transaction description.</p>
+
+      <label class="field-label">Value <span class="field-optional">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 1500.00"
+        [ngModel]="editRuleValue()?.toString() ?? ''"
+        (ngModelChange)="editRuleValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)"
+      />
+      <p class="field-hint">
+        Exact match on transaction amount. If both fields are filled, both must match.
+      </p>
+
+      @if (editRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="editRuleMatchCount() === 0">
+          {{ editRuleMatchCount() }} existing transaction{{ editRuleMatchCount() !== 1 ? 's' : '' }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="editingRule.set(null)">Cancel</button>
+        <button
+          class="btn-primary"
+          [disabled]="(!editRulePattern().trim() && editRuleValue() === null) || editRuleSaving()"
+          (click)="submitEditRule()"
+        >
+          {{ editRuleSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showCreateCatModal()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>New category</h3>
+        <button class="modal-close" (click)="showCreateCatModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Name</label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. MBWay"
+        [ngModel]="createCatName()"
+        (ngModelChange)="createCatName.set($event)"
+      />
+
+      <label class="field-label">Color</label>
+      <div class="color-row">
+        <input
+          type="color"
+          [ngModel]="createCatColor()"
+          (ngModelChange)="createCatColor.set($event)"
+        />
+        <span class="color-preview" [style.background]="createCatColor()">{{
+          createCatName() || 'Preview'
+        }}</span>
+      </div>
+
+      <label class="field-label"
+        >Auto-assign pattern <span class="field-optional">(optional)</span></label
+      >
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. TRF MB WAY"
+        [ngModel]="createCatPattern()"
+        (ngModelChange)="createCatPattern.set($event)"
+      />
+      <p class="field-hint">
+        Transactions whose description contains this text will be auto-categorized.
+      </p>
+
+      <label class="field-label"
+        >Auto-assign value <span class="field-optional">(optional)</span></label
+      >
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 1500.00"
+        [ngModel]="createCatValue()?.toString() ?? ''"
+        (ngModelChange)="
+          createCatValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on transaction amount. If both fields are filled, both must match.
+      </p>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showCreateCatModal.set(false)">Cancel</button>
+        <button
+          class="btn-primary"
+          [disabled]="!createCatName().trim() || createCatLoading()"
+          (click)="submitCreateCat()"
+        >
+          {{ createCatLoading() ? 'Saving…' : 'Create category' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

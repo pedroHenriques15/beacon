@@ -1,0 +1,21 @@
+%btn-surface {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  &:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+}
+
+%error-block {
+  padding: 0.5rem 0.85rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}

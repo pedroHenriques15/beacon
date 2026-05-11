@@ -1,0 +1,580 @@
+<div class="page-header">
+  <h1>Upload</h1>
+  <p class="subtitle">
+    Import bank statements and salary slip PDFs - type is detected automatically
+  </p>
+</div>
+
+@if (state() === 'idle' || state() === 'uploading') {
+  <div
+    class="drop-zone"
+    [ngClass]="{ 'drag-over': dragOver(), busy: state() === 'uploading' }"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave()"
+    (drop)="onDrop($event)"
+  >
+    @if (state() === 'uploading') {
+      <div class="spinner"></div>
+      <p class="drop-label">Processing…</p>
+    } @else {
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="40"
+        height="40"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+      <p class="drop-label">Drag & drop files here, or choose below</p>
+
+      <div class="upload-btns">
+        <label class="btn-upload">
+          Choose PDFs
+          <input type="file" accept=".pdf,.zip" multiple (change)="onFileSelected($event)" hidden />
+        </label>
+        <label class="btn-upload btn-upload--secondary">
+          Choose folder
+          <input
+            type="file"
+            accept=".pdf"
+            webkitdirectory
+            multiple
+            (change)="onFileSelected($event)"
+            hidden
+          />
+        </label>
+      </div>
+
+      <p class="supported">
+        Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Salary slips: CentralGest ·
+        Domirest
+      </p>
+    }
+  </div>
+}
+
+@if (state() === 'success') {
+  @if (batchSummary(); as s) {
+    <div class="result-card success">
+      <div class="result-icon">✓</div>
+      <h2>Bank statements imported</h2>
+
+      <div class="batch-stats">
+        @if (s.imported > 0) {
+          <div class="stat-pill green">{{ s.imported }} imported</div>
+        }
+        @if (s.duplicates > 0) {
+          <div class="stat-pill yellow">{{ s.duplicates }} duplicate</div>
+        }
+        @if (s.errors > 0) {
+          <div class="stat-pill red">{{ s.errors }} failed</div>
+        }
+      </div>
+
+      @if (s.unknownCount > 0) {
+        <div class="unknown-notice">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span
+            ><strong>{{ s.unknownCount }}</strong> transactions have no category.</span
+          >
+        </div>
+      }
+
+      <div class="file-list">
+        @for (item of s.items; track item.fileName) {
+          <div
+            class="file-row"
+            [class.file-ok]="item.success"
+            [class.file-dup]="!item.success && item.result"
+            [class.file-err]="!item.success && !item.result"
+          >
+            <span class="file-icon">{{ item.success ? '✓' : item.result ? '≈' : '✕' }}</span>
+            <span class="file-name">{{ item.fileName }}</span>
+            @if (item.success && item.result) {
+              <span class="file-detail"
+                >{{ item.result.bank }} · {{ item.result.periodFrom | slice: 0 : 7 }} ·
+                {{ item.result.transactionCount }} tx</span
+              >
+            } @else if (!item.success && item.result) {
+              <span class="file-detail">{{ item.result.message }}</span>
+            } @else {
+              <span class="file-detail">{{ item.error }}</span>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+        @if (s.unknownCount > 0) {
+          <button class="btn-primary" (click)="goToCategorize()">Categorize now</button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (salaryQueue().length > 0) {
+    <div class="result-card salary-queue-card">
+      <div class="result-icon salary-icon">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      </div>
+      <h2>Salary slips detected</h2>
+      <p class="salary-queue-hint">Review and save each slip before it is recorded.</p>
+
+      <div class="upload-queue">
+        @for (item of salaryQueue(); track $index; let i = $index) {
+          <div class="queue-item" [class]="'queue-' + item.status">
+            <span class="queue-icon">
+              @if (
+                item.status === 'uploading' ||
+                item.status === 'parsing' ||
+                item.status === 'pending'
+              ) {
+                <span class="spinner-sm"></span>
+              } @else if (item.status === 'ready') {
+                <span class="icon-ok">✓</span>
+              } @else if (item.status === 'saved') {
+                <span class="icon-saved">✓</span>
+              } @else if (item.status === 'error') {
+                <span class="icon-err">✕</span>
+              }
+            </span>
+            <div class="queue-info">
+              <span class="queue-name">{{ item.fileName ?? item.file.name }}</span>
+              <span class="queue-status">
+                @if (item.status === 'pending') {
+                  Waiting…
+                }
+                @if (item.status === 'uploading') {
+                  Uploading…
+                }
+                @if (item.status === 'parsing') {
+                  Extracting text…
+                }
+                @if (item.status === 'ready' && item.parsed) {
+                  {{ item.parsed.employer }} · {{ formatPeriod(item.parsed.period) }} ·
+                  {{ item.parsed.grossAmount | currency: 'EUR' : 'symbol' : '1.0-2' }} gross
+                }
+                @if (item.status === 'saved') {
+                  Saved
+                }
+                @if (item.status === 'error') {
+                  {{ item.error }}
+                }
+              </span>
+            </div>
+            @if (item.status === 'ready') {
+              <button class="btn-review" (click)="reviewSalaryItem(i)">Review &amp; Save</button>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+      </div>
+    </div>
+  }
+
+  @if (!batchSummary() && salaryQueue().length === 0) {
+    <div class="result-card success">
+      <div class="result-icon">✓</div>
+      <h2>Done</h2>
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+      </div>
+    </div>
+  }
+}
+
+@if (state() === 'error') {
+  <div class="status error">{{ message() }}</div>
+  <button class="btn-secondary mt" (click)="resetForm()">Try again</button>
+}
+
+<div class="backup-section">
+  <h2 class="section-title">Meal Card Import</h2>
+  <p class="backup-hint">
+    Paste your meal card transaction history below - one transaction per line.
+  </p>
+
+  @if (mealCardState() === 'idle' || mealCardState() === 'error') {
+    <textarea
+      class="meal-card-textarea"
+      rows="8"
+      placeholder="23/04/2026CONTINENTE BOM DIA PORTO PT-3,54 €&#10;22/04/2026PINGO DOCE BRAGA PT-23,08 €&#10;..."
+      [ngModel]="mealCardText()"
+      (ngModelChange)="mealCardText.set($event)"
+    ></textarea>
+    @if (mealCardState() === 'error') {
+      <div class="status error">{{ mealCardMessage() }}</div>
+    }
+    <button class="btn-primary mt" [disabled]="!mealCardText().trim()" (click)="reviewMealCard()">
+      Review
+    </button>
+  }
+
+  @if (mealCardState() === 'review') {
+    <div class="meal-card-review">
+      <div class="field-row">
+        <div>
+          <label class="field-label">Period from</label>
+          <input
+            class="field-input"
+            type="date"
+            [ngModel]="mealCardPeriodFrom()"
+            (ngModelChange)="mealCardPeriodFrom.set($event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">Period to</label>
+          <input
+            class="field-input"
+            type="date"
+            [ngModel]="mealCardPeriodTo()"
+            (ngModelChange)="mealCardPeriodTo.set($event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">Current balance (€)</label>
+          <input
+            class="field-input"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            [ngModel]="mealCardBalance()"
+            (ngModelChange)="mealCardBalance.set($event !== '' ? +$event : null)"
+          />
+        </div>
+      </div>
+      <div class="meal-card-review-actions">
+        <button class="btn-secondary" (click)="mealCardState.set('idle')">Back</button>
+        <button class="btn-primary" (click)="importMealCard()">Import transactions</button>
+      </div>
+    </div>
+  }
+
+  @if (mealCardState() === 'importing') {
+    <div class="status">Importing…</div>
+  }
+
+  @if (mealCardState() === 'success') {
+    @if (mealCardResult(); as r) {
+      <div class="result-card success">
+        <div class="result-icon">✓</div>
+        <h2>Meal card imported</h2>
+        <div class="batch-stats">
+          <div class="stat-pill green">{{ r.transactionCount }} transactions</div>
+          @if (r.unknownCount > 0) {
+            <div class="stat-pill yellow">{{ r.unknownCount }} uncategorised</div>
+          }
+        </div>
+        <p class="backup-hint">Period: {{ r.periodFrom | slice: 0 : 7 }}</p>
+        <div class="result-actions">
+          <button class="btn-secondary" (click)="resetMealCard()">Import more</button>
+          @if (r.unknownCount > 0) {
+            <button class="btn-primary" (click)="goToCategorize()">Categorize now</button>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<div class="backup-section">
+  <h2 class="section-title">Database Backup</h2>
+  <p class="backup-hint">
+    Creates a full backup of the current database. Any previous backup will be replaced.
+  </p>
+  <div class="backup-actions">
+    <button class="btn-secondary" [disabled]="backupState() === 'running'" (click)="createBackup()">
+      @if (backupState() === 'running') {
+        Backing up…
+      } @else {
+        Backup now
+      }
+    </button>
+    <button
+      class="btn-secondary"
+      [disabled]="restoreState() === 'running'"
+      (click)="restoreBackup()"
+    >
+      @if (restoreState() === 'running') {
+        Restoring…
+      } @else {
+        Restore backup
+      }
+    </button>
+  </div>
+  @if (backupState() === 'done') {
+    <div class="status backup-ok">Backup saved to: {{ backupMessage() }}</div>
+  }
+  @if (backupState() === 'error') {
+    <div class="status error">{{ backupMessage() }}</div>
+  }
+  @if (restoreState() === 'done') {
+    <div class="status backup-ok">{{ restoreMessage() }}</div>
+  }
+  @if (restoreState() === 'error') {
+    <div class="status error">{{ restoreMessage() }}</div>
+  }
+</div>
+
+@if (showTransferReview()) {
+  <div class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Possible internal transfers detected</h3>
+        <button class="modal-close" (click)="showTransferReview.set(false)">✕</button>
+      </div>
+      <p class="modal-sub">
+        These transactions have the same amount and date but opposite directions across different
+        accounts. Select the ones that are actual transfers to hide them from stats.
+      </p>
+
+      <div class="transfer-list">
+        @for (c of transferCandidates(); track $index; let i = $index) {
+          <label class="transfer-row" [class.selected]="isTransferSelected(i)">
+            <input
+              type="checkbox"
+              [checked]="isTransferSelected(i)"
+              (change)="toggleTransferCandidate(i)"
+            />
+            <div class="transfer-info">
+              <span class="transfer-bank debit">{{ c.newBank }}</span>
+              <span class="transfer-desc">{{ c.newDescription }}</span>
+              <span class="transfer-arrow">↔</span>
+              <span class="transfer-bank credit">{{ c.existingBank }}</span>
+              <span class="transfer-desc">{{ c.existingDescription }}</span>
+            </div>
+            <span class="transfer-amount">€{{ c.amount.toFixed(2) }} · {{ c.date }}</span>
+          </label>
+        }
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showTransferReview.set(false)">Skip</button>
+        <button class="btn-primary" (click)="confirmTransfers()">Mark selected as transfers</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showSlipModal()) {
+  <div class="modal-overlay">
+    <div class="modal slip-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Review &amp; save slip</h3>
+        <button class="modal-close" (click)="showSlipModal.set(false)">✕</button>
+      </div>
+
+      @if (slipSourceFile()) {
+        <div class="parsed-banner">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          Pre-filled from <strong>{{ slipSourceFile() }}</strong>
+          @if (hasUnmatchedLineItems()) {
+            &nbsp;·&nbsp;<span class="warn-text">Some line items need a category</span>
+          }
+        </div>
+      }
+
+      <div class="field-row">
+        <div>
+          <label class="field-label">Profile</label>
+          <select
+            class="field-input"
+            [ngModel]="slipProfileId()"
+            (ngModelChange)="onSlipProfileChange($event)"
+          >
+            <option [ngValue]="null">Select profile…</option>
+            @for (p of profiles(); track p.id) {
+              <option [value]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Period</label>
+          <input
+            class="field-input"
+            type="month"
+            [ngModel]="slipPeriod()"
+            (ngModelChange)="slipPeriod.set($event)"
+          />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div>
+          <label class="field-label">Gross amount</label>
+          <input
+            class="field-input"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            [ngModel]="slipGross()"
+            (ngModelChange)="slipGross.set(+$event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">Net amount</label>
+          <input
+            class="field-input"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            [ngModel]="slipNet()"
+            (ngModelChange)="slipNet.set(+$event)"
+          />
+        </div>
+      </div>
+
+      <label class="field-label">Notes <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. includes bonus"
+        [ngModel]="slipNotes()"
+        (ngModelChange)="slipNotes.set($event)"
+      />
+
+      <label class="field-label">PDF <span class="muted">(optional)</span></label>
+      @if (slipSourceFile()) {
+        <div class="pdf-attached">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span class="pdf-name">{{ slipSourceFile() }}</span>
+          <button
+            class="pdf-clear"
+            (click)="slipPdfPath.set(null); slipSourceFile.set(null)"
+            title="Remove PDF"
+          >
+            ✕
+          </button>
+        </div>
+      } @else {
+        <label class="btn-attach-pdf">
+          Attach PDF
+          <input type="file" accept=".pdf" style="display: none" (change)="onPdfSelected($event)" />
+        </label>
+      }
+
+      <div class="line-items-header">
+        <span class="field-label" style="margin: 0"
+          >Line items <span class="muted">(optional)</span></span
+        >
+        <button class="btn-add-line" (click)="addLineItem()">+ Add line</button>
+      </div>
+
+      @for (li of slipLineItems(); track $index; let i = $index) {
+        <div class="line-item-row">
+          <div class="li-cat-wrap">
+            @if (li.hint && li.salaryItemCategoryId === null) {
+              <span class="li-hint" title="Parsed from PDF as: {{ li.hint }}">{{ li.hint }}</span>
+            }
+            <select
+              class="field-input li-cat"
+              [ngModel]="li.salaryItemCategoryId"
+              [class.unmatched]="li.hint && li.salaryItemCategoryId === null"
+              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', +$event)"
+            >
+              <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
+              @for (type of itemTypes; track type.value) {
+                <optgroup [label]="type.label">
+                  @for (c of catsByType(type.value); track c.id) {
+                    <option [value]="c.id">{{ c.name }}</option>
+                  }
+                </optgroup>
+              }
+            </select>
+          </div>
+          <input
+            class="field-input li-amount"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            [ngModel]="li.amount"
+            (ngModelChange)="updateLineItem(i, 'amount', +$event)"
+          />
+          <button class="icon-btn danger li-remove" (click)="removeLineItem(i)">✕</button>
+        </div>
+      }
+
+      @if (slipError()) {
+        <div class="form-error">{{ slipError() }}</div>
+      }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showSlipModal.set(false)" [disabled]="slipLoading()">
+          Cancel
+        </button>
+        <button
+          class="btn-primary"
+          [disabled]="!slipFormValid() || slipLoading()"
+          (click)="submitSlip()"
+        >
+          {{ slipLoading() ? 'Saving…' : 'Save slip' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,143 @@
+@if (finance.loading()) {
+  <div class="loading">Loading financial data…</div>
+} @else if (finance.error()) {
+  <div class="error">{{ finance.error() }}</div>
+} @else {
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Financial overview across all accounts</p>
+  </div>
+
+  <div class="net-worth-card">
+    <span class="label">Total Balance</span>
+    <span class="amount">{{ finance.totalBalance() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+  </div>
+
+  <section class="section">
+    <h2 class="section-title">Accounts</h2>
+    <div class="bank-grid">
+      @for (card of orderedCards(); track card.bank) {
+        <div
+          class="bank-card"
+          [style.--accent]="bankColor(card.bank)"
+          [class.bank-card--selected]="selectedBank() === card.bank"
+          [class.bank-card--dragging]="draggedBank() === card.bank"
+          [class.bank-card--drag-over]="dragOverBank() === card.bank"
+          draggable="true"
+          (dragstart)="onDragStart(card.bank)"
+          (dragover)="onDragOver($event, card.bank)"
+          (drop)="onDrop(card.bank)"
+          (dragend)="onDragEnd()"
+          (click)="toggleBank(card.bank)"
+        >
+          <div class="bank-card__header">
+            <span class="bank-name">{{ card.bank }}</span>
+          </div>
+          <div class="bank-card__balance">
+            {{ card.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}
+          </div>
+          <div class="bank-card__meta">
+            <span>{{ card.txCount }} transactions</span>
+          </div>
+          <div class="bank-card__period">
+            Statement to {{ card.periodTo | date: 'dd MMM yyyy' }}
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Monthly Summary</h2>
+      <div class="bank-filter-bar">
+        @if (selectedBank()) {
+          <span class="bank-filter-label" [style.color]="bankColor(selectedBank()!)">{{
+            selectedBank()
+          }}</span>
+          <button class="btn-clear" (click)="selectedBank.set(null)">Show all</button>
+        }
+      </div>
+    </div>
+    <div class="table-wrapper table-wrapper--scrollable">
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th class="num" style="min-width: 130px">Income</th>
+            <th class="num" style="min-width: 130px">Expenses</th>
+            <th class="num" style="min-width: 130px">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of monthlyTotals(); track row.month) {
+            <tr class="clickable" (click)="navigateToMonth(row.month)">
+              <td>{{ formatMonth(row.month) }}</td>
+              <td class="num credit">{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num debit">{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num" [ngClass]="row.net >= 0 ? 'credit' : 'debit'">
+                {{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Statements</h2>
+    <div class="table-wrapper table-wrapper--scrollable">
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>Bank</th>
+            <th>Period</th>
+            <th class="num">Transactions</th>
+            <th class="num">Closing Balance</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of allStatements(); track s.id) {
+            <tr>
+              <td [style.color]="bankColor(s.bank)">{{ s.bank }}</td>
+              <td>{{ formatPeriod(s.periodFrom, s.periodTo) }}</td>
+              <td class="num">{{ s.transactions.length }}</td>
+              <td class="num">{{ s.closingBalance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="action-cell">
+                <button
+                  class="btn-icon danger"
+                  title="Delete statement"
+                  [disabled]="deleting() === s.id"
+                  (click)="deleteStatement(s.id, $event)"
+                >
+                  @if (deleting() === s.id) {
+                    …
+                  } @else {
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4h6v2" />
+                    </svg>
+                  }
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

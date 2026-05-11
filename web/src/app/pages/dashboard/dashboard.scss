@@ -1,0 +1,32 @@
+@use 'dashboard-cards' as *;
+@use 'dashboard-table' as *;
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.net-worth-card {
+  width: fit-content;
+  background: linear-gradient(135deg, #1e2a4a 0%, #162032 100%);
+  border: 1px solid #2d4a7a;
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  margin-bottom: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  .label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.03em;
+  }
+
+  .amount {
+    font-size: 2.75rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.02em;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  }
+}
