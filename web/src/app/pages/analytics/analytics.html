@@ -1,0 +1,223 @@
+<div class="page-header">
+  <div class="header-row">
+    <div>
+      <h1>Analytics</h1>
+      <p class="subtitle">Spending and income breakdown by category</p>
+    </div>
+    <div class="filters-row">
+      <select
+        class="month-filter"
+        [ngModel]="filterMonth()"
+        (ngModelChange)="filterMonth.set($event)"
+      >
+        <option value="">All time</option>
+        <option value="__averages__">Monthly Averages</option>
+        @for (m of availableMonths(); track m) {
+          <option [value]="m">{{ formatMonth(m) }}</option>
+        }
+      </select>
+      <select
+        class="category-filter"
+        [ngModel]="filterCategory()"
+        (ngModelChange)="onCategoryDropdownChange($event)"
+      >
+        <option value="">All categories</option>
+        @for (cat of allCategories(); track cat.label) {
+          <option [value]="cat.label">{{ cat.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+</div>
+
+@if (finance.loading()) {
+  <div class="loading">Loading…</div>
+} @else {
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2>Spending</h2>
+        <span class="total debit">{{
+          totalSpending() | currency: 'EUR' : 'symbol' : '1.2-2'
+        }}</span>
+      </div>
+      @if (spendingData().length === 0) {
+        <div class="empty">No spending data for this period.</div>
+      } @else {
+        <div class="chart-wrap">
+          <canvas #spendingCanvas></canvas>
+        </div>
+        <div class="legend-table">
+          @for (row of spendingData(); track row.label) {
+            <div
+              class="legend-row"
+              [class.selected]="selectedCategory()?.label === row.label"
+              (mouseenter)="highlightSlice('spending', row.label)"
+              (mouseleave)="clearHighlight('spending')"
+              (click)="selectCategory(row.label, row.color, 'debit')"
+            >
+              <span class="legend-dot" [style.background]="row.color"></span>
+              <span class="legend-label">{{ row.label }}</span>
+              <span class="legend-pct"
+                >{{ ((row.total / totalSpending()) * 100).toFixed(1) }}%</span
+              >
+              <span class="legend-val debit">{{
+                row.total | currency: 'EUR' : 'symbol' : '1.2-2'
+              }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2>Income</h2>
+        <span class="total credit">{{ totalIncome() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+      </div>
+      @if (incomeData().length === 0) {
+        <div class="empty">No income data for this period.</div>
+      } @else {
+        <div class="chart-wrap">
+          <canvas #incomeCanvas></canvas>
+        </div>
+        <div class="legend-table">
+          @for (row of incomeData(); track row.label) {
+            <div
+              class="legend-row"
+              [class.selected]="selectedCategory()?.label === row.label"
+              (mouseenter)="highlightSlice('income', row.label)"
+              (mouseleave)="clearHighlight('income')"
+              (click)="selectCategory(row.label, row.color, 'credit')"
+            >
+              <span class="legend-dot" [style.background]="row.color"></span>
+              <span class="legend-label">{{ row.label }}</span>
+              <span class="legend-pct">{{ ((row.total / totalIncome()) * 100).toFixed(1) }}%</span>
+              <span class="legend-val credit">{{
+                row.total | currency: 'EUR' : 'symbol' : '1.2-2'
+              }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <section class="detail-panel">
+    @if (selectedCategory(); as sel) {
+      <div class="detail-header">
+        <span class="detail-dot" [style.background]="sel.color"></span>
+        <h2>{{ sel.label }}</h2>
+        <button class="detail-dismiss" (click)="clearCategory()">×</button>
+      </div>
+
+      @if (categoryStats(); as stats) {
+        <div class="stat-row">
+          <div class="stat-item">
+            <span class="stat-label">Avg / month</span>
+            <span class="stat-value">{{
+              stats.avgMonthly | currency: 'EUR' : 'symbol' : '1.2-2'
+            }}</span>
+          </div>
+          @if (filterMonth() && filterMonth() !== '__averages__') {
+            <div class="stat-item">
+              <span class="stat-label">This period</span>
+              <span class="stat-value" [class]="selectedCategory()!.dominantType">{{
+                stats.currentTotal | currency: 'EUR' : 'symbol' : '1.2-2'
+              }}</span>
+            </div>
+            @if (stats.delta !== null) {
+              <div class="stat-item">
+                <span class="stat-label">vs last month</span>
+                <span
+                  class="stat-value"
+                  [class.debit]="
+                    selectedCategory()!.dominantType === 'debit' ? stats.delta > 0 : stats.delta < 0
+                  "
+                  [class.credit]="
+                    selectedCategory()!.dominantType === 'debit' ? stats.delta < 0 : stats.delta > 0
+                  "
+                  >{{ stats.delta > 0 ? '+' : ''
+                  }}{{ stats.delta | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
+                >
+              </div>
+            }
+          }
+        </div>
+      }
+
+      @if (categoryTrendData().length) {
+        <div class="detail-trend-header">
+          <span class="detail-section-title">Monthly trend</span>
+          <div class="detail-trend-legend">
+            <span class="detail-trend-legend-item">
+              <span class="detail-trend-dot" style="background: #f87171"></span>Spending
+            </span>
+            <span class="detail-trend-legend-item">
+              <span class="detail-trend-dot" style="background: #34d399"></span>Income
+            </span>
+          </div>
+        </div>
+        <div class="detail-trend-wrap">
+          <canvas #categoryTrendCanvas></canvas>
+        </div>
+      }
+
+      @if (categoryTopMerchants().length) {
+        <div class="detail-section-title">Top merchants (this period)</div>
+        <div class="merchant-table">
+          @for (m of categoryTopMerchants(); track m.description) {
+            <div class="merchant-row">
+              <span class="merchant-desc">{{ m.description }}</span>
+              <span
+                class="merchant-amt"
+                [class.debit]="m.type === 'debit'"
+                [class.credit]="m.type === 'credit'"
+                >{{ m.total | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
+              >
+            </div>
+          }
+        </div>
+      }
+
+      @if (categoryPeriodTransactions().length) {
+        <div class="detail-section-title">Transactions (this period)</div>
+        <div class="detail-tx-list">
+          @for (tx of categoryPeriodTransactions(); track tx.id) {
+            <div class="detail-tx-row">
+              <span class="detail-tx-date">{{ tx.datePosting | slice: 0 : 10 }}</span>
+              <span class="detail-tx-desc">{{ tx.description }}</span>
+              <span
+                class="detail-tx-amt"
+                [class.credit]="tx.type === 'credit'"
+                [class.debit]="tx.type === 'debit'"
+                >{{ tx.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
+              >
+            </div>
+          }
+        </div>
+      }
+
+      <div class="detail-footer">
+        <button class="btn-show-all" (click)="navigateToCategory(sel.label, sel.dominantType)">
+          View all transactions →
+        </button>
+      </div>
+    } @else {
+      <div class="detail-header">
+        <h2>Income vs Expenses</h2>
+        <div class="detail-trend-legend">
+          <span class="detail-trend-legend-item">
+            <span class="detail-trend-dot" style="background: #34d399"></span>Income
+          </span>
+          <span class="detail-trend-legend-item">
+            <span class="detail-trend-dot" style="background: #f87171"></span>Expenses
+          </span>
+        </div>
+      </div>
+      <div class="detail-trend-wrap">
+        <canvas #trendCanvas></canvas>
+      </div>
+    }
+  </section>
+}

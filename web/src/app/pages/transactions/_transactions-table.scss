@@ -1,0 +1,150 @@
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.tx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th {
+    background: var(--surface);
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+      &:hover {
+        color: var(--text-primary);
+      }
+    }
+  }
+
+  td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-body);
+    vertical-align: middle;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+  tr:hover td {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .date {
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+  .desc {
+    max-width: 300px;
+  }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .amount {
+    font-weight: 600;
+    &.credit {
+      color: var(--credit);
+    }
+    &.debit {
+      color: var(--debit);
+    }
+  }
+  .balance {
+    color: var(--text-secondary);
+  }
+  .empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+  }
+}
+
+.bank-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  &[data-bank='ACTIVOBANK'] {
+    background: rgba(0, 180, 216, 0.15);
+    color: #00b4d8;
+  }
+  &[data-bank='REVOLUT'] {
+    background: rgba(108, 99, 255, 0.15);
+    color: var(--primary);
+  }
+  &[data-bank='BPI'] {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+  }
+}
+
+.act-col {
+  width: 90px;
+  text-align: center;
+  padding: 0 0.25rem !important;
+  white-space: nowrap;
+}
+
+.tx-transfer-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #2d3f55;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 0.15s;
+  &:hover {
+    color: var(--primary);
+  }
+}
+
+.tx-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #2d3f55;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 0.15s;
+
+  &:hover {
+    color: #a5b4fc;
+  }
+}
+
+.tx-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #2d3f55;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 0.15s;
+
+  &:hover {
+    color: var(--debit);
+  }
+}

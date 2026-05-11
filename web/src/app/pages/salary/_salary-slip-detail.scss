@@ -1,0 +1,94 @@
+.slip-card-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  cursor: pointer;
+  &:hover {
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+}
+
+.slip-row-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.slip-mini-chart {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.slip-row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.slip-detail-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.slip-detail-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+.slip-chart-section,
+.slip-items-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.muted-text {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.slip-notes-block {
+  margin-top: 1rem;
+  .slip-notes-text {
+    font-size: 0.875rem;
+    color: var(--text-body);
+    margin: 0.25rem 0 0;
+    line-height: 1.5;
+  }
+}
+
+.line-item-name-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+
+  .line-detail {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+}
+
+@media (max-width: 700px) {
+  .slip-detail-body {
+    grid-template-columns: 1fr;
+  }
+  .slip-card-row {
+    flex-wrap: wrap;
+  }
+  .slip-mini-chart {
+    width: 120px;
+  }
+}

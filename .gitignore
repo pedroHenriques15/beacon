@@ -1,0 +1,66 @@
+# ─── .NET build output ──────────────────────────────────────────────────────
+**/bin/
+**/obj/
+**/TestResults/
+coverage/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider / JetBrains
+.idea/
+*.iml
+
+# ─── Environment & secrets ──────────────────────────────────────────────────
+.env
+.env.*
+*.env
+
+# ─── ASP.NET secrets / local overrides ──────────────────────────────────────
+appsettings.json
+appsettings.*.json
+!appsettings.template.json
+api/FinanceHub.Api/Properties/launchSettings.json
+
+# ─── Certificates ────────────────────────────────────────────────────────────
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
+
+# ─── Uploaded PDFs — never commit ───────────────────────────────────────────
+*.pdf
+
+# ─── Local runtime data (secrets + backups) — never commit ───────────────────
+local/
+
+# ─── Angular / Node ─────────────────────────────────────────────────────────
+web/node_modules/
+web/dist/
+web/.angular/
+npm-debug.log*
+yarn-error.log*
+
+# ─── Deploy build staging ───────────────────────────────────────────────────
+.build/
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ─── OS artifacts ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Editor swap files ───────────────────────────────────────────────────────
+*.swp
+*.swo
+*~

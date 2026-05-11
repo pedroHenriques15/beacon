@@ -1,0 +1,147 @@
+@use 'salary-base' as *;
+
+.upload-dialog {
+  width: min(520px, 95vw);
+}
+
+.upload-dialog-btns {
+  display: flex;
+  gap: 0.75rem;
+  margin: 1rem 0 0.25rem;
+}
+
+.btn-upload-choice {
+  @extend %btn-surface;
+  gap: 0.5rem;
+  flex: 1;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  border: 1px dashed var(--border);
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+  &:hover {
+    border-color: var(--primary);
+  }
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.upload-dialog-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0.75rem 0 0;
+  line-height: 1.5;
+}
+
+.upload-queue {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+
+  &.queue-ready,
+  &.queue-saved {
+    background: rgba(52, 211, 153, 0.04);
+  }
+  &.queue-ready {
+    border-color: rgba(52, 211, 153, 0.3);
+  }
+  &.queue-saved {
+    border-color: rgba(52, 211, 153, 0.25);
+  }
+  &.queue-error {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.04);
+  }
+}
+
+.queue-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+
+.icon-ok,
+.icon-saved,
+.icon-err {
+  font-weight: 700;
+}
+.icon-ok {
+  color: var(--success);
+}
+.icon-saved {
+  color: #a5b4fc;
+}
+.icon-err {
+  color: var(--danger);
+}
+
+.queue-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.queue-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-status {
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-review {
+  flex-shrink: 0;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  transition: opacity 0.15s;
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}

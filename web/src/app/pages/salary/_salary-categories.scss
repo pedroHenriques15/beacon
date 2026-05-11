@@ -1,0 +1,110 @@
+.cat-group {
+  margin-bottom: 1.5rem;
+}
+.cat-group-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  &:hover {
+    border-color: #334155;
+  }
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.item-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.item-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.item-count {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.item-btns {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.cat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  margin-right: 0.35rem;
+}
+
+.cat-dot-lg {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.empty-state {
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  p {
+    margin: 0 0 1rem;
+  }
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+  &:hover {
+    color: #a5b4fc;
+  }
+  &.danger:hover {
+    color: var(--danger);
+  }
+}
+
+.item-row:hover .icon-btn,
+.slip-actions .icon-btn {
+  opacity: 1;
+}
+
+.icon-btn.show {
+  opacity: 1;
+}

@@ -1,0 +1,136 @@
+@use '../../../_shared' as *;
+@use 'analytics-detail' as *;
+
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.filters-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.month-filter,
+.category-filter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 0.5rem 0.85rem;
+  font-size: 0.875rem;
+  outline: none;
+  align-self: flex-start;
+  &:focus {
+    border-color: #4f8cff;
+  }
+  option {
+    background: var(--surface);
+  }
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1.5rem;
+}
+
+.chart-card {
+  @include card(14px);
+  padding: 1.5rem;
+}
+
+.chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+}
+
+.total {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  &.credit {
+    color: var(--credit);
+  }
+  &.debit {
+    color: var(--debit);
+  }
+}
+
+.chart-wrap {
+  max-width: 340px;
+  margin: 0 auto 1.5rem;
+  canvas {
+    cursor: pointer;
+  }
+}
+
+.empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.legend-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.83rem;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.15rem 0.25rem;
+  &:hover {
+    opacity: 0.85;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  &.selected {
+    background: rgba(255, 255, 255, 0.07);
+    font-weight: 600;
+  }
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: var(--text-body);
+}
+.legend-pct {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.legend-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  &.credit {
+    color: var(--credit);
+  }
+  &.debit {
+    color: var(--debit);
+  }
+}

@@ -1,0 +1,89 @@
+.modal {
+  width: min(600px, 94vw);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  margin-bottom: 0.5rem;
+}
+
+.modal-sub {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+
+.transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.transfer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+
+  &.selected {
+    border-color: var(--primary);
+    background: rgba(108, 99, 255, 0.06);
+  }
+  &:hover {
+    border-color: #475569;
+  }
+
+  input[type='checkbox'] {
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+}
+
+.transfer-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+
+.transfer-bank {
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  &.debit {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+  }
+  &.credit {
+    background: rgba(52, 211, 153, 0.12);
+    color: var(--success);
+  }
+}
+
+.transfer-desc {
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.transfer-arrow {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.transfer-amount {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}

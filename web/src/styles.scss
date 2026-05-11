@@ -1,0 +1,60 @@
+@use 'shared' as *;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Fira+Code:wght@400;500&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #0f1623;
+  --surface: #161f2e;
+  --border: #1e2d42;
+  --text-muted: #64748b;
+  --text-secondary: #94a3b8;
+  --text-primary: #e2e8f0;
+  --text-body: #cbd5e1;
+  --primary: #6c63ff;
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --credit: #34d399;
+  --debit: #f87171;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: var(--bg);
+  color: #e2e8f0;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
