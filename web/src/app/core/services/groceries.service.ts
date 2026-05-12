@@ -47,7 +47,10 @@ export class GroceriesService {
       })
       .subscribe({
         next: (res) => this.allItems.set(res.items),
-        error: (err) => console.error(err),
+        error: (err) => {
+          this.error.set('Failed to load grocery items. Is the API running?');
+          console.error(err);
+        },
       });
   }
 

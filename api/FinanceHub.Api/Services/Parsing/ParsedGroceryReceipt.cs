@@ -10,5 +10,6 @@ public record ParsedGroceryReceipt(
 public record ParsedGroceryItem(
     string Description,
     decimal Amount,
-    decimal Quantity
+    decimal Quantity,
+    string? ReceiptCategory = null
 );

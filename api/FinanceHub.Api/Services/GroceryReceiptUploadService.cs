@@ -12,7 +12,8 @@ public record GroceryReceiptUploadResult(
     DateOnly ReceiptDate,
     decimal Total,
     int ItemCount,
-    bool WasDuplicate);
+    bool WasDuplicate,
+    IReadOnlyList<string> NewReceiptCategories);
 
 public class GroceryReceiptUploadService(
     AppDbContext db,
@@ -47,7 +48,8 @@ public class GroceryReceiptUploadService(
                     existing.ReceiptDate,
                     existing.Total,
                     existing.Items.Count,
-                    WasDuplicate: true);
+                    WasDuplicate: true,
+                    NewReceiptCategories: []);
             }
 
             var pages    = await extractor.ExtractPagesAsync(tempPath);
@@ -55,7 +57,8 @@ public class GroceryReceiptUploadService(
             var parser   = parserFactory.DetectParser(fullText);
             var parsed   = parser.Parse(file.FileName, pages);
 
-            var rules = await db.GroceryCategoryRules.ToListAsync();
+            var rules            = await db.GroceryCategoryRules.ToListAsync();
+            var categoryMappings = await db.GroceryReceiptCategoryMappings.ToListAsync();
 
             savedPath = await fileStorage.SaveAsync(file);
 
@@ -67,16 +70,27 @@ public class GroceryReceiptUploadService(
                         (!string.IsNullOrEmpty(r.Pattern) && pi.Description.Contains(r.Pattern, StringComparison.Ordinal)) ||
                         (r.Value.HasValue && pi.Amount == r.Value.Value));
 
+                var mapping = categoryMappings.FirstOrDefault(m => m.ReceiptCategoryName == pi.ReceiptCategory);
+
                 return new GroceryItem
                 {
                     Description          = pi.Description,
                     Amount               = pi.Amount,
                     Quantity             = pi.Quantity,
-                    CategoryId           = matchedRule?.CategoryId,
+                    ReceiptCategory      = pi.ReceiptCategory,
+                    CategoryId           = matchedRule?.CategoryId ?? mapping?.GroceryCategoryId,
                     CategoryRuleId       = matchedRule?.Id,
                     CategorySetManually  = false
                 };
             }).ToList();
+
+            var newCategories = parsed.Items
+                .Where(pi => !string.IsNullOrEmpty(pi.ReceiptCategory))
+                .Select(pi => pi.ReceiptCategory!)
+                .Distinct()
+                .Where(cat => !categoryMappings.Any(m => m.ReceiptCategoryName == cat))
+                .OrderBy(c => c)
+                .ToList();
 
             var receipt = new GroceryReceipt
             {
@@ -102,7 +116,8 @@ public class GroceryReceiptUploadService(
                 receipt.ReceiptDate,
                 receipt.Total,
                 items.Count,
-                WasDuplicate: false);
+                WasDuplicate: false,
+                NewReceiptCategories: newCategories);
         }
         catch
         {

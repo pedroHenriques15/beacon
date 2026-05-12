@@ -1,7 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
-import { GroceryCategory, GroceryCategoryRule } from '../models/grocery.model';
+import {
+  GroceryCategory,
+  GroceryCategoryRule,
+  GroceryReceiptCategoryMapping,
+} from '../models/grocery.model';
 
 @Injectable({ providedIn: 'root' })
 export class GroceryCategoriesService {
@@ -84,5 +88,25 @@ export class GroceryCategoriesService {
       categoryId,
       deleteRuleId: deleteRuleId ?? null,
     });
+  }
+
+  getReceiptMappings(): Observable<GroceryReceiptCategoryMapping[]> {
+    return this.http.get<GroceryReceiptCategoryMapping[]>(
+      '/api/grocery-categories/receipt-mappings',
+    );
+  }
+
+  createReceiptMapping(
+    receiptCategoryName: string,
+    groceryCategoryId: number,
+  ): Observable<GroceryReceiptCategoryMapping> {
+    return this.http.post<GroceryReceiptCategoryMapping>(
+      '/api/grocery-categories/receipt-mappings',
+      { receiptCategoryName, groceryCategoryId },
+    );
+  }
+
+  deleteReceiptMapping(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/grocery-categories/receipt-mappings/${id}`);
   }
 }

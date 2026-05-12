@@ -34,6 +34,7 @@ export interface GroceryItem {
   categoryName: string | null;
   categoryColor: string | null;
   categorySetManually: boolean;
+  receiptCategory?: string;
 }
 
 export interface PagedGroceryItemsResult {
@@ -55,4 +56,12 @@ export interface GroceryReceiptUploadResult {
   total: number;
   itemCount: number;
   wasDuplicate: boolean;
+  newReceiptCategories: string[];
+}
+
+export interface GroceryReceiptCategoryMapping {
+  id: number;
+  receiptCategoryName: string;
+  groceryCategoryId: number;
+  categoryName: string;
 }

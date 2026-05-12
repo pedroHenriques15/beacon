@@ -1,3 +1,5 @@
+import { GroceryReceiptUploadResult } from './grocery.model';
+
 export interface Category {
   id: number;
   name: string;
@@ -152,6 +154,23 @@ export interface ParsedLineItemResponse {
   unitValue: number | null;
   percentage: number | null;
   incidenciaBase: number | null;
+}
+
+export interface UnifiedSalaryResult {
+  pdfPath: string;
+  fileName: string;
+  parsed: ParsedSlipResponse;
+}
+
+export interface UnifiedUploadItemResult {
+  fileName: string;
+  documentType: 'BankStatement' | 'GroceryReceipt' | 'SalarySlip' | 'Unknown';
+  success: boolean;
+  wasDuplicate: boolean;
+  error: string | null;
+  statementResult: UploadResult | null;
+  groceryResult: GroceryReceiptUploadResult | null;
+  salaryResult: UnifiedSalaryResult | null;
 }
 
 export interface ParsedSlipResponse {
