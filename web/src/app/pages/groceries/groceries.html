@@ -21,30 +21,9 @@
       </div>
       <div class="header-actions">
         <button class="btn-secondary" (click)="openCreateItem()">+ Add item</button>
-        <button class="btn-primary" (click)="openUpload()">Upload receipt</button>
       </div>
     </div>
   </div>
-
-  @if (groceriesSvc.receipts().length > 0) {
-    <div class="receipts-bar">
-      <span class="receipts-label">Receipts:</span>
-      @for (receipt of groceriesSvc.receipts(); track receipt.id) {
-        <span class="receipt-chip">
-          <span class="receipt-store">{{ receipt.storeName }}</span>
-          <span class="receipt-date">{{ receipt.receiptDate | date: 'dd MMM yyyy' }}</span>
-          <span class="receipt-count">{{ receipt.itemCount }} items</span>
-          <button
-            class="receipt-delete"
-            title="Delete receipt"
-            (click)="requestDeleteReceipt(receipt, $event)"
-          >
-            ✕
-          </button>
-        </span>
-      }
-    </div>
-  }
 
   <div class="filters">
     <input
@@ -468,38 +447,6 @@
           (click)="submitCreate()"
         >
           {{ createLoading() ? 'Saving…' : 'Create & assign' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-@if (showUploadModal()) {
-  <div class="modal-overlay">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h3>Upload receipt</h3>
-        <button class="modal-close" (click)="showUploadModal.set(false)">✕</button>
-      </div>
-      <p>Select a receipt file to upload and parse.</p>
-      @if (uploadError()) {
-        <p class="upload-error">{{ uploadError() }}</p>
-      }
-      <label class="field-label">Receipt file</label>
-      <input
-        class="field-input upload-input"
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
-        [disabled]="uploadLoading()"
-        (change)="onFileSelected($event)"
-      />
-      <div class="modal-actions">
-        <button
-          class="btn-secondary"
-          (click)="showUploadModal.set(false)"
-          [disabled]="uploadLoading()"
-        >
-          {{ uploadLoading() ? 'Uploading…' : 'Cancel' }}
         </button>
       </div>
     </div>

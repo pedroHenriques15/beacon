@@ -51,8 +51,12 @@ using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryCategory;
 using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryCategoryRule;
 using FinanceHub.Api.Features.GroceryCategories.Commands.UpdateGroceryCategory;
 using FinanceHub.Api.Features.GroceryCategories.Commands.UpdateGroceryCategoryRule;
+using FinanceHub.Api.Features.GroceryCategories.Commands.CreateGroceryReceiptCategoryMapping;
+using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryReceiptCategoryMapping;
 using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryCategories;
 using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryCategoryRules;
+using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
+using FinanceHub.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using FinanceHub.Api.Middleware;
 using FinanceHub.Api.Services;
 using FinanceHub.Api.Services.Parsing;
@@ -73,7 +77,7 @@ builder.Services.AddSingleton<IBankStatementParser, BpiParser>();
 builder.Services.AddSingleton<IBankStatementParser, RevolutParser>();
 builder.Services.AddSingleton<BankStatementParserFactory>();
 
-builder.Services.AddSingleton<IGroceryReceiptParser, PlaceholderGroceryParser>();
+builder.Services.AddSingleton<IGroceryReceiptParser, ContinenteParser>();
 builder.Services.AddSingleton<GroceryReceiptParserFactory>();
 
 builder.Services.AddSingleton<ISalarySlipParser, CentralGestParser>();
@@ -128,6 +132,11 @@ builder.Services.AddScoped<DeleteGroceryCategoryCommandHandler>();
 builder.Services.AddScoped<CreateGroceryCategoryRuleCommandHandler>();
 builder.Services.AddScoped<UpdateGroceryCategoryRuleCommandHandler>();
 builder.Services.AddScoped<DeleteGroceryCategoryRuleCommandHandler>();
+builder.Services.AddScoped<GetGroceryReceiptCategoryMappingsQueryHandler>();
+builder.Services.AddScoped<CreateGroceryReceiptCategoryMappingCommandHandler>();
+builder.Services.AddScoped<DeleteGroceryReceiptCategoryMappingCommandHandler>();
+
+builder.Services.AddScoped<UnifiedUploadBatchCommandHandler>();
 
 builder.Services.AddScoped<CreateBackupCommandHandler>();
 builder.Services.AddScoped<RestoreBackupCommandHandler>();

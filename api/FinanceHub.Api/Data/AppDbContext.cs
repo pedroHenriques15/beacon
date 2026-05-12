@@ -13,10 +13,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SalarySlip>        SalarySlips        => Set<SalarySlip>();
     public DbSet<SalaryLineItem>    SalaryLineItems    => Set<SalaryLineItem>();
     public DbSet<SalaryItemCategory> SalaryItemCategories => Set<SalaryItemCategory>();
-    public DbSet<GroceryReceipt>      GroceryReceipts      => Set<GroceryReceipt>();
-    public DbSet<GroceryItem>         GroceryItems         => Set<GroceryItem>();
-    public DbSet<GroceryCategory>     GroceryCategories    => Set<GroceryCategory>();
-    public DbSet<GroceryCategoryRule> GroceryCategoryRules => Set<GroceryCategoryRule>();
+    public DbSet<GroceryReceipt>                GroceryReceipts                => Set<GroceryReceipt>();
+    public DbSet<GroceryItem>                   GroceryItems                   => Set<GroceryItem>();
+    public DbSet<GroceryCategory>               GroceryCategories              => Set<GroceryCategory>();
+    public DbSet<GroceryCategoryRule>           GroceryCategoryRules           => Set<GroceryCategoryRule>();
+    public DbSet<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings => Set<GroceryReceiptCategoryMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -148,6 +149,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(i => i.Description).HasMaxLength(500).IsRequired();
             e.Property(i => i.Amount).HasColumnType("decimal(18,2)");
             e.Property(i => i.Quantity).HasColumnType("decimal(18,4)");
+            e.Property(i => i.ReceiptCategory).HasMaxLength(200);
             e.HasOne(i => i.Category)
              .WithMany()
              .HasForeignKey(i => i.CategoryId)
@@ -172,6 +174,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(r => r.Id);
             e.Property(r => r.Pattern).HasMaxLength(200).IsRequired(false);
             e.Property(r => r.Value).HasColumnType("decimal(18,2)");
+        });
+
+        modelBuilder.Entity<GroceryReceiptCategoryMapping>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.ReceiptCategoryName).HasMaxLength(200).IsRequired();
+            e.HasIndex(m => m.ReceiptCategoryName).IsUnique();
+            e.HasOne(m => m.Category)
+             .WithMany()
+             .HasForeignKey(m => m.GroceryCategoryId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

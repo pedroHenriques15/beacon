@@ -97,10 +97,6 @@ export class GroceriesComponent implements OnInit, OnDestroy {
 
   confirmDeleteItem = signal<GroceryItem | null>(null);
 
-  showUploadModal = signal(false);
-  uploadLoading = signal(false);
-  uploadError = signal<string | null>(null);
-
   confirmDeleteReceipt = signal<GroceryReceiptSummary | null>(null);
 
   showItemModal = signal(false);
@@ -460,32 +456,6 @@ export class GroceriesComponent implements OnInit, OnDestroy {
         },
         error: () => this.newItemLoading.set(false),
       });
-  }
-
-  openUpload(): void {
-    this.uploadError.set(null);
-    this.showUploadModal.set(true);
-  }
-
-  onFileSelected(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    this.uploadLoading.set(true);
-    this.uploadError.set(null);
-    this.groceriesSvc.upload(file).subscribe({
-      next: () => {
-        this.uploadLoading.set(false);
-        this.showUploadModal.set(false);
-        this.groceriesSvc.reload();
-        this.groceriesSvc.loadAllItems();
-        this._resetAndLoad();
-      },
-      error: (err) => {
-        this.uploadLoading.set(false);
-        this.uploadError.set(err?.error?.message ?? 'Upload failed. Please try again.');
-      },
-    });
   }
 
   requestDeleteReceipt(receipt: GroceryReceiptSummary, e: MouseEvent): void {

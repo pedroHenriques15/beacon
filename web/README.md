@@ -16,13 +16,13 @@ Open http://localhost:4200. The API must be running separately — see the root 
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `npx ng serve` | Dev server with hot reload |
-| `npm run build` | Production build → `dist/browser/` |
-| `npm test -- --run` | Vitest unit tests (one-shot) |
-| `npm test` | Vitest with watcher |
-| `npx prettier --write .` | Format before committing |
+| Command                  | Description                        |
+| ------------------------ | ---------------------------------- |
+| `npx ng serve`           | Dev server with hot reload         |
+| `npm run build`          | Production build → `dist/browser/` |
+| `npm test -- --run`      | Vitest unit tests (one-shot)       |
+| `npm test`               | Vitest with watcher                |
+| `npx prettier --write .` | Format before committing           |
 
 ## Architecture
 
