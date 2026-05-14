@@ -1,6 +1,43 @@
 @use '../../../_shared' as *;
 @use 'analytics-detail' as *;
 
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.75rem;
+
+  &.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+
+  &:hover:not(.active) {
+    color: var(--text-secondary);
+  }
+}
+
+.tab-filters {
+  margin-bottom: 1.5rem;
+}
+
+.detail-hint {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
 .header-row {
   display: flex;
   align-items: flex-start;
