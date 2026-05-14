@@ -43,7 +43,7 @@ export class GroceriesService {
   loadAllItems(): void {
     this.http
       .get<PagedGroceryItemsResult>('/api/groceries/items', {
-        params: buildParams({ take: 500 }),
+        params: buildParams({ take: 5000 }),
       })
       .subscribe({
         next: (res) => this.allItems.set(res.items),

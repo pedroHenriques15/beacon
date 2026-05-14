@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
@@ -41,6 +42,7 @@ type SortCol = 'date' | 'store' | 'description' | 'category' | 'amount' | 'quant
 export class GroceriesComponent implements OnInit, OnDestroy {
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
+  private route = inject(ActivatedRoute);
 
   filterStore = signal('');
   filterMonth = signal('');
@@ -199,6 +201,11 @@ export class GroceriesComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const qp = this.route.snapshot.queryParamMap;
+    const cat = qp.get('categoryId');
+    const mon = qp.get('month');
+    if (cat) this.filterCategory.set(cat);
+    if (mon) this.filterMonth.set(mon);
     this._filtersReady = true;
     this._resetAndLoad();
   }

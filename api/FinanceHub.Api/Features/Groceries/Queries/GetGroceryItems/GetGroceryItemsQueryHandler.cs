@@ -30,7 +30,7 @@ public class GetGroceryItemsQueryHandler(AppDbContext db, ILogger<GetGroceryItem
         if (!string.IsNullOrEmpty(query.Search))
             q = q.Where(i => i.Description.Contains(query.Search));
 
-        var take       = Math.Clamp(query.Take, 1, 500);
+        var take       = Math.Clamp(query.Take, 1, 5000);
         var totalCount = await q.CountAsync(ct);
         var totalAmount = await q.SumAsync(i => i.Amount, ct);
 
