@@ -229,7 +229,6 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
       .map(([month, data]) => ({ month, ...data }));
   });
 
-  // --- Groceries tab state ---
   gFilterMonth = signal('');
   gFilterCategory = signal('');
   gSelectedCategory = signal<{ label: string; color: string } | null>(null);
@@ -524,7 +523,7 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
     if (cat) params['categoryId'] = String(cat.id);
     else if (label === CATEGORY_UNKNOWN) params['categoryId'] = 'unknown';
     if (month) params['month'] = month;
-    this.router.navigate(['/groceries'], { queryParams: params });
+    this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
   }
 
   highlightGrocerySlice(label: string): void {

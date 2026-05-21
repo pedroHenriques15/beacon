@@ -229,7 +229,9 @@
 
       <div class="result-actions">
         <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-        <a class="btn-primary" routerLink="/groceries">View groceries</a>
+        <a class="btn-primary" routerLink="/transactions" [queryParams]="{ tab: 'groceries' }"
+          >View groceries</a
+        >
       </div>
     </div>
   }

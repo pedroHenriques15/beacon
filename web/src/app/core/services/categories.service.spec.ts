@@ -59,7 +59,12 @@ describe('CategoriesService', () => {
 
     const req = controller.expectOne('/api/categories');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ name: 'Transport', color: '#00ff00', pattern: undefined, value: null });
+    expect(req.request.body).toEqual({
+      name: 'Transport',
+      color: '#00ff00',
+      pattern: undefined,
+      value: null,
+    });
     req.flush({ id: 3, name: 'Transport', color: '#00ff00', rules: [] });
 
     flushLoad(controller);
