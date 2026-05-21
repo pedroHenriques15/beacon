@@ -14,6 +14,9 @@ import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { FinanceService, EnrichedTransaction } from '../../core/services/finance.service';
 import { CategoriesService } from '../../core/services/categories.service';
+import { GroceriesService } from '../../core/services/groceries.service';
+import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
+import { GroceryItem, GroceryReceiptSummary } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
 import { availableMonths } from '../../core/utils/date-utils';
 import { CATEGORY_INTERNAL_TRANSFER } from '../../core/constants/categories';
@@ -33,6 +36,21 @@ interface PendingRuleCreate {
 
 type SortCol = 'date' | 'bank' | 'description' | 'category' | 'amount' | 'balance';
 
+interface GPendingChange {
+  item: GroceryItem;
+  newCategoryId: number | null;
+  ruleId: number;
+  pattern: string;
+}
+
+interface GPendingRuleCreate {
+  item: GroceryItem;
+  categoryId: number;
+  categoryName: string;
+}
+
+type GrocerySortCol = 'date' | 'store' | 'description' | 'category' | 'amount' | 'quantity';
+
 @Component({
   selector: 'app-transactions',
   standalone: true,
@@ -44,6 +62,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   finance = inject(FinanceService);
   catSvc = inject(CategoriesService);
+  groceriesSvc = inject(GroceriesService);
+  groceryCatSvc = inject(GroceryCategoriesService);
+
+  activeTab = signal<'transactions' | 'groceries'>('transactions');
 
   filterBank = signal('');
   filterMonth = signal('');
@@ -183,11 +205,146 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   availableMonths = computed(() => availableMonths(this.finance.allTransactionsRaw()));
 
+  gFilterStore = signal('');
+  gFilterMonth = signal('');
+  gFilterCategory = signal('');
+  gSearch = signal('');
+
+  gSortCol = signal<GrocerySortCol>('date');
+  gSortDir = signal<'asc' | 'desc'>('desc');
+
+  gLoadedItems = signal<GroceryItem[]>([]);
+  gTotalCount = signal(0);
+  gTotalAmount = signal(0);
+  gPageLoading = signal(false);
+  private _gSkip = 0;
+  private _gVisibleTarget = 20;
+  private _gFiltersReady = false;
+  private _gCurrentSub?: Subscription;
+  private _paramsSub?: Subscription;
+
+  gOpenDropdownId = signal<number | null>(null);
+  gDropdownPos = signal<{ top: number; left: number } | null>(null);
+  gCatSearch = signal('');
+  gFilteredCats = computed(() => {
+    const q = this.gCatSearch().toLowerCase();
+    return this.groceryCatSvc.categories().filter((c) => !q || c.name.toLowerCase().includes(q));
+  });
+
+  gPendingChange = signal<GPendingChange | null>(null);
+
+  gPendingRuleCreate = signal<GPendingRuleCreate | null>(null);
+  gRuleCreatePattern = signal('');
+  gRuleCreateValue = signal<number | null>(null);
+  gRuleCreateLoading = signal(false);
+
+  gShowCreateModal = signal(false);
+  gCreateItem = signal<GroceryItem | null>(null);
+  gCreateName = signal('');
+  gCreateColor = signal('#a855f7');
+  gCreatePattern = signal('');
+  gCreateValue = signal<number | null>(null);
+  gCreateLoading = signal(false);
+
+  gRuleCreateMatchCount = computed(() => {
+    const pat = this.gRuleCreatePattern().trim();
+    const val = this.gRuleCreateValue();
+    if (!pat && val === null) return null;
+    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+  });
+
+  gCreateMatchCount = computed(() => {
+    const pat = this.gCreatePattern().trim();
+    const val = this.gCreateValue();
+    if (!pat && val === null) return null;
+    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+  });
+
+  gConfirmDeleteItem = signal<GroceryItem | null>(null);
+  gConfirmDeleteReceipt = signal<GroceryReceiptSummary | null>(null);
+
+  gShowItemModal = signal(false);
+  gEditingItemId = signal<number | null>(null);
+  gItemDescription = signal('');
+  gItemAmount = signal<number | null>(null);
+  gItemQuantity = signal<number>(1);
+  gItemLoading = signal(false);
+
+  gShowCreateItemModal = signal(false);
+  gNewItemReceiptId = signal<number | null>(null);
+  gNewItemDescription = signal('');
+  gNewItemAmount = signal<number | null>(null);
+  gNewItemQuantity = signal<number>(1);
+  gNewItemLoading = signal(false);
+
+  gItemFormValid = computed(() => {
+    const amount = this.gItemAmount();
+    return !!(this.gItemDescription().trim() && amount !== null && !isNaN(amount) && amount >= 0);
+  });
+
+  gNewItemFormValid = computed(() => {
+    const amount = this.gNewItemAmount();
+    return !!(
+      this.gNewItemReceiptId() !== null &&
+      this.gNewItemDescription().trim() &&
+      amount !== null &&
+      !isNaN(amount) &&
+      amount >= 0
+    );
+  });
+
+  gAvailableMonths = computed(() => {
+    const months = this.groceriesSvc.allItems().map((item) => item.receiptDate.slice(0, 7));
+    return [...new Set(months)].sort().reverse();
+  });
+
+  gUnknownCount = computed(
+    () => this.groceriesSvc.allItems().filter((item) => item.categoryId === null).length,
+  );
+
+  gFiltered = computed<GroceryItem[]>(() => {
+    let items = this.gLoadedItems();
+    if (this.gFilterCategory() === 'unknown') {
+      items = items.filter((item) => item.categoryId === null);
+    }
+    const col = this.gSortCol(),
+      dir = this.gSortDir();
+    return [...items].sort((a, b) => {
+      let cmp = 0;
+      switch (col) {
+        case 'date':
+          cmp = a.receiptDate.localeCompare(b.receiptDate);
+          break;
+        case 'store':
+          cmp = a.storeName.localeCompare(b.storeName);
+          break;
+        case 'description':
+          cmp = a.description.localeCompare(b.description);
+          break;
+        case 'category':
+          cmp = (a.categoryName ?? 'zzz').localeCompare(b.categoryName ?? 'zzz');
+          break;
+        case 'amount':
+          cmp = a.amount - b.amount;
+          break;
+        case 'quantity':
+          cmp = a.quantity - b.quantity;
+          break;
+      }
+      return dir === 'asc' ? cmp : -cmp;
+    });
+  });
+
+  gHasMore = computed(() => this.gLoadedItems().length < this.gTotalCount());
+
   @HostListener('document:click')
   onDocumentClick(): void {
     this.openDropdownId.set(null);
     this.dropdownPos.set(null);
     this.catSearch.set('');
+    this.gOpenDropdownId.set(null);
+    this.gDropdownPos.set(null);
+    this.gCatSearch.set('');
   }
 
   constructor() {
@@ -208,22 +365,52 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       },
       { allowSignalWrites: true },
     );
+
+    effect(
+      () => {
+        void (
+          this.gFilterStore() +
+          this.gFilterMonth() +
+          this.gFilterCategory() +
+          this.gSearch() +
+          this.gSortCol() +
+          this.gSortDir()
+        );
+        if (!this._gFiltersReady) return;
+        this._gResetAndLoad();
+      },
+      { allowSignalWrites: true },
+    );
   }
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe((params) => {
-      if (params['filter'] === 'unknown') this.filterCategory.set('unknown');
-      if (params['category']) this.filterCategory.set(params['category']);
-      if (params['bank']) this.filterBank.set(params['bank']);
-      if (params['month']) this.filterMonth.set(params['month']);
-      if (params['type']) this.filterType.set(params['type']);
+    this._paramsSub = this.route.queryParams.subscribe((params) => {
+      if (params['tab'] === 'groceries') {
+        this.activeTab.set('groceries');
+        if (params['categoryId']) this.gFilterCategory.set(params['categoryId']);
+        if (params['month']) this.gFilterMonth.set(params['month']);
+      } else {
+        if (params['filter'] === 'unknown') this.filterCategory.set('unknown');
+        if (params['category']) this.filterCategory.set(params['category']);
+        if (params['bank']) this.filterBank.set(params['bank']);
+        if (params['month']) this.filterMonth.set(params['month']);
+        if (params['type']) this.filterType.set(params['type']);
+      }
     });
     this._filtersReady = true;
     this._resetAndLoad();
+    this._gFiltersReady = true;
+    this._gResetAndLoad();
   }
 
   ngOnDestroy(): void {
     this._currentSub?.unsubscribe();
+    this._gCurrentSub?.unsubscribe();
+    this._paramsSub?.unsubscribe();
+  }
+
+  gFindReceipt(receiptId: number): GroceryReceiptSummary | null {
+    return this.groceriesSvc.receipts().find((r) => r.id === receiptId) ?? null;
   }
 
   loadMore(): void {
@@ -489,5 +676,280 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.finance.reload();
         this._resetAndLoad();
       });
+  }
+
+  gSort(col: GrocerySortCol): void {
+    if (this.gSortCol() === col) {
+      this.gSortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.gSortCol.set(col);
+      this.gSortDir.set('asc');
+    }
+  }
+
+  gSortIcon(col: GrocerySortCol): string {
+    if (this.gSortCol() !== col) return '';
+    return this.gSortDir() === 'asc' ? ' ↑' : ' ↓';
+  }
+
+  gToggleDropdown(itemId: number, e: MouseEvent): void {
+    e.stopPropagation();
+    const willClose = this.gOpenDropdownId() === itemId;
+    if (willClose) {
+      this.gOpenDropdownId.set(null);
+      this.gDropdownPos.set(null);
+      this.gCatSearch.set('');
+    } else {
+      const btn = e.currentTarget as HTMLElement;
+      const rect = btn.getBoundingClientRect();
+      const estimatedHeight = 360;
+      const top =
+        window.innerHeight - rect.bottom >= estimatedHeight
+          ? rect.bottom + 4
+          : rect.top - estimatedHeight - 4;
+      this.gDropdownPos.set({ top, left: rect.left });
+      this.gOpenDropdownId.set(itemId);
+    }
+  }
+
+  gSelectCategory(item: GroceryItem, categoryId: number | null, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gOpenDropdownId.set(null);
+    if (categoryId === item.categoryId) return;
+    const wasAutoAssigned = !item.categorySetManually && item.categoryId !== null;
+    const ruleForItem = wasAutoAssigned
+      ? this.groceryCatSvc
+          .rules()
+          .find((r) => r.categoryId === item.categoryId && matchesRule(item, r.pattern, r.value))
+      : null;
+
+    if (wasAutoAssigned && ruleForItem) {
+      this.gPendingChange.set({
+        item,
+        newCategoryId: categoryId,
+        ruleId: ruleForItem.id,
+        pattern: ruleForItem.pattern ?? '',
+      });
+    } else if (categoryId !== null) {
+      const cat = this.groceryCatSvc.categories().find((c) => c.id === categoryId);
+      this.gRuleCreatePattern.set(item.description);
+      this.gRuleCreateValue.set(null);
+      this.gPendingRuleCreate.set({ item, categoryId, categoryName: cat?.name ?? '' });
+    } else {
+      this._gApplyCategory(item.id, null, null);
+    }
+  }
+
+  gConfirmPending(deleteRule: boolean): void {
+    const p = this.gPendingChange();
+    if (!p) return;
+    this.gPendingChange.set(null);
+    this._gApplyCategory(p.item.id, p.newCategoryId, deleteRule ? p.ruleId : null);
+  }
+
+  gCancelRuleCreate(): void {
+    this.gPendingRuleCreate.set(null);
+  }
+
+  gConfirmRuleCreate(createRule: boolean): void {
+    const p = this.gPendingRuleCreate();
+    if (!p) return;
+    this.gPendingRuleCreate.set(null);
+    if (createRule && (this.gRuleCreatePattern().trim() || this.gRuleCreateValue() !== null)) {
+      this.gRuleCreateLoading.set(true);
+      this.groceryCatSvc
+        .createRule(p.categoryId, this.gRuleCreatePattern().trim(), this.gRuleCreateValue())
+        .subscribe(() => {
+          this.groceryCatSvc.setItemCategory(p.item.id, p.categoryId).subscribe(() => {
+            this.gRuleCreateLoading.set(false);
+            this.groceriesSvc.loadAllItems();
+            this._gResetAndLoad();
+          });
+        });
+    } else {
+      this._gApplyCategory(p.item.id, p.categoryId, null);
+    }
+  }
+
+  gOpenCreate(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gOpenDropdownId.set(null);
+    this.gCreateItem.set(item);
+    this.gCreateName.set('');
+    this.gCreateColor.set('#a855f7');
+    this.gCreatePattern.set(item.description);
+    this.gCreateValue.set(null);
+    this.gShowCreateModal.set(true);
+  }
+
+  gSubmitCreate(): void {
+    const item = this.gCreateItem();
+    if (!item || !this.gCreateName().trim()) return;
+    this.gCreateLoading.set(true);
+    this.groceryCatSvc
+      .createCategory(
+        this.gCreateName().trim(),
+        this.gCreateColor(),
+        this.gCreatePattern().trim() || undefined,
+        this.gCreateValue(),
+      )
+      .subscribe((cat) => {
+        this.groceryCatSvc.setItemCategory(item.id, cat.id).subscribe(() => {
+          this.gCreateLoading.set(false);
+          this.gShowCreateModal.set(false);
+          this.groceriesSvc.loadAllItems();
+          this._gResetAndLoad();
+        });
+      });
+  }
+
+  gRequestDeleteItem(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gConfirmDeleteItem.set(item);
+  }
+
+  gConfirmDelete(): void {
+    const item = this.gConfirmDeleteItem();
+    if (!item) return;
+    this.gConfirmDeleteItem.set(null);
+    this.groceriesSvc.deleteItem(item.id).subscribe(() => {
+      this.groceriesSvc.reload();
+      this.groceriesSvc.loadAllItems();
+      this._gResetAndLoad();
+    });
+  }
+
+  gOpenItemEdit(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gEditingItemId.set(item.id);
+    this.gItemDescription.set(item.description);
+    this.gItemAmount.set(item.amount);
+    this.gItemQuantity.set(item.quantity);
+    this.gShowItemModal.set(true);
+  }
+
+  gSubmitItemModal(): void {
+    if (!this.gItemFormValid()) return;
+    this.gItemLoading.set(true);
+    this.groceriesSvc
+      .updateItem(this.gEditingItemId()!, {
+        description: this.gItemDescription().trim(),
+        amount: this.gItemAmount()!,
+        quantity: this.gItemQuantity(),
+      })
+      .subscribe({
+        next: () => {
+          this.gItemLoading.set(false);
+          this.gShowItemModal.set(false);
+          this.groceriesSvc.loadAllItems();
+          this._gResetAndLoad();
+        },
+        error: () => this.gItemLoading.set(false),
+      });
+  }
+
+  gOpenCreateItem(): void {
+    this.gNewItemReceiptId.set(null);
+    this.gNewItemDescription.set('');
+    this.gNewItemAmount.set(null);
+    this.gNewItemQuantity.set(1);
+    this.gShowCreateItemModal.set(true);
+  }
+
+  gSubmitNewItem(): void {
+    if (!this.gNewItemFormValid()) return;
+    this.gNewItemLoading.set(true);
+    this.groceriesSvc
+      .createItem({
+        receiptId: this.gNewItemReceiptId()!,
+        description: this.gNewItemDescription().trim(),
+        amount: this.gNewItemAmount()!,
+        quantity: this.gNewItemQuantity(),
+      })
+      .subscribe({
+        next: () => {
+          this.gNewItemLoading.set(false);
+          this.gShowCreateItemModal.set(false);
+          this.groceriesSvc.reload();
+          this.groceriesSvc.loadAllItems();
+          this._gResetAndLoad();
+        },
+        error: () => this.gNewItemLoading.set(false),
+      });
+  }
+
+  gRequestDeleteReceipt(receipt: GroceryReceiptSummary, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gConfirmDeleteReceipt.set(receipt);
+  }
+
+  gConfirmReceiptDelete(): void {
+    const receipt = this.gConfirmDeleteReceipt();
+    if (!receipt) return;
+    this.gConfirmDeleteReceipt.set(null);
+    this.groceriesSvc.deleteReceipt(receipt.id).subscribe(() => {
+      this.groceriesSvc.reload();
+      this.groceriesSvc.loadAllItems();
+      this._gResetAndLoad();
+    });
+  }
+
+  private _gApplyCategory(
+    itemId: number,
+    categoryId: number | null,
+    deleteRuleId: number | null,
+  ): void {
+    this.groceryCatSvc
+      .setItemCategory(itemId, categoryId, deleteRuleId ?? undefined)
+      .subscribe(() => {
+        this.groceriesSvc.loadAllItems();
+        this._gResetAndLoad();
+      });
+  }
+
+  gLoadMore(): void {
+    const toLoad = 100;
+    this._gVisibleTarget = this._gSkip + toLoad;
+    this._gFetchPage(this._gSkip, toLoad);
+  }
+
+  gShowLess(): void {
+    this._gVisibleTarget = 20;
+    this._gSkip = 20;
+    this.gLoadedItems.update((items) => items.slice(0, 20));
+  }
+
+  private _gResetAndLoad(): void {
+    this._gCurrentSub?.unsubscribe();
+    this.gLoadedItems.set([]);
+    this.gTotalCount.set(0);
+    this.gTotalAmount.set(0);
+    this._gSkip = 0;
+    this._gFetchPage(0, this._gVisibleTarget);
+  }
+
+  private _gFetchPage(skip: number, take: number): void {
+    this.gPageLoading.set(true);
+    const params: Record<string, string | number> = { skip, take };
+    if (this.gFilterStore()) params['store'] = this.gFilterStore();
+    if (this.gFilterMonth()) params['month'] = this.gFilterMonth();
+    const cat = this.gFilterCategory();
+    if (cat && cat !== 'unknown') params['categoryId'] = cat;
+    if (this.gSearch()) params['search'] = this.gSearch();
+    params['sortCol'] = this.gSortCol();
+    params['sortDir'] = this.gSortDir();
+
+    this._gCurrentSub = this.groceriesSvc.getItems(params).subscribe({
+      next: (res) => {
+        this.gLoadedItems.update((items) => [...items, ...res.items]);
+        this.gTotalCount.set(res.totalCount);
+        if (skip === 0) {
+          this.gTotalAmount.set(res.totalAmount);
+        }
+        this._gSkip = this.gLoadedItems().length;
+        this.gPageLoading.set(false);
+      },
+      error: () => this.gPageLoading.set(false),
+    });
   }
 }

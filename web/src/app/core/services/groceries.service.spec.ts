@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { GroceriesService } from './groceries.service';
-import { GroceryItem, GroceryReceiptSummary, PagedGroceryItemsResult } from '../models/grocery.model';
+import {
+  GroceryItem,
+  GroceryReceiptSummary,
+  PagedGroceryItemsResult,
+} from '../models/grocery.model';
 
 function makeItem(overrides: Partial<GroceryItem> = {}): GroceryItem {
   return {
@@ -46,10 +50,7 @@ describe('GroceriesService', () => {
   let service: GroceriesService;
   let controller: HttpTestingController;
 
-  function flushInit(
-    receipts: GroceryReceiptSummary[] = [],
-    items: GroceryItem[] = [],
-  ): void {
+  function flushInit(receipts: GroceryReceiptSummary[] = [], items: GroceryItem[] = []): void {
     controller.expectOne('/api/groceries/receipts').flush(receipts);
     const req = controller.expectOne((r) => r.url === '/api/groceries/items');
     expect(req.request.params.get('take')).toBe('5000');
@@ -100,9 +101,7 @@ describe('GroceriesService', () => {
 
   it('loadAllItems() sets error signal on failure', () => {
     service.loadAllItems();
-    controller
-      .expectOne((r) => r.url === '/api/groceries/items')
-      .error(new ProgressEvent('error'));
+    controller.expectOne((r) => r.url === '/api/groceries/items').error(new ProgressEvent('error'));
     expect(service.error()).toBe('Failed to load grocery items. Is the API running?');
   });
 
@@ -135,11 +134,13 @@ describe('GroceriesService', () => {
 
   it('stores() returns sorted unique store names', () => {
     service.reload();
-    controller.expectOne('/api/groceries/receipts').flush([
-      makeReceipt({ id: 1, storeName: 'Pingo Doce' }),
-      makeReceipt({ id: 2, storeName: 'Continente' }),
-      makeReceipt({ id: 3, storeName: 'Pingo Doce' }),
-    ]);
+    controller
+      .expectOne('/api/groceries/receipts')
+      .flush([
+        makeReceipt({ id: 1, storeName: 'Pingo Doce' }),
+        makeReceipt({ id: 2, storeName: 'Continente' }),
+        makeReceipt({ id: 3, storeName: 'Pingo Doce' }),
+      ]);
     expect(service.stores()).toEqual(['Continente', 'Pingo Doce']);
   });
 
@@ -149,13 +150,15 @@ describe('GroceriesService', () => {
 
   it('monthlySummaries() groups items by month and store', () => {
     service.loadAllItems();
-    controller.expectOne((r) => r.url === '/api/groceries/items').flush(
-      makePagedResult([
-        makeItem({ id: 1, storeName: 'Continente', receiptDate: '2024-01-15', amount: 10 }),
-        makeItem({ id: 2, storeName: 'Continente', receiptDate: '2024-01-20', amount: 5 }),
-        makeItem({ id: 3, storeName: 'Pingo Doce', receiptDate: '2024-01-10', amount: 8 }),
-      ]),
-    );
+    controller
+      .expectOne((r) => r.url === '/api/groceries/items')
+      .flush(
+        makePagedResult([
+          makeItem({ id: 1, storeName: 'Continente', receiptDate: '2024-01-15', amount: 10 }),
+          makeItem({ id: 2, storeName: 'Continente', receiptDate: '2024-01-20', amount: 5 }),
+          makeItem({ id: 3, storeName: 'Pingo Doce', receiptDate: '2024-01-10', amount: 8 }),
+        ]),
+      );
     const summaries = service.monthlySummaries();
     const continente = summaries.find((s) => s.store === 'Continente' && s.month === '2024-01');
     const pingodoce = summaries.find((s) => s.store === 'Pingo Doce' && s.month === '2024-01');
@@ -165,12 +168,14 @@ describe('GroceriesService', () => {
 
   it('monthlySummaries() returns entries sorted by month then store', () => {
     service.loadAllItems();
-    controller.expectOne((r) => r.url === '/api/groceries/items').flush(
-      makePagedResult([
-        makeItem({ id: 1, storeName: 'Continente', receiptDate: '2024-02-01', amount: 1 }),
-        makeItem({ id: 2, storeName: 'Continente', receiptDate: '2024-01-01', amount: 1 }),
-      ]),
-    );
+    controller
+      .expectOne((r) => r.url === '/api/groceries/items')
+      .flush(
+        makePagedResult([
+          makeItem({ id: 1, storeName: 'Continente', receiptDate: '2024-02-01', amount: 1 }),
+          makeItem({ id: 2, storeName: 'Continente', receiptDate: '2024-01-01', amount: 1 }),
+        ]),
+      );
     const months = service.monthlySummaries().map((s) => s.month);
     expect(months).toEqual(['2024-01', '2024-02']);
   });

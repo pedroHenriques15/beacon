@@ -213,20 +213,20 @@ describe('AnalyticsComponent', () => {
     expect(component.gCategoryStats()?.avgMonthly).toBeCloseTo(10.0);
   });
 
-  it('navigateToGroceryCategory navigates to /groceries with categoryId from service', () => {
+  it('navigateToGroceryCategory navigates to /transactions with tab=groceries and categoryId from service', () => {
     const spy = vi.spyOn(router, 'navigate');
     groceryCatsSignal.set([{ id: 7, name: 'Food', color: '#fff', isProtected: false, rules: [] }]);
     component.navigateToGroceryCategory('Food');
-    expect(spy).toHaveBeenCalledWith(['/groceries'], {
-      queryParams: expect.objectContaining({ categoryId: '7' }),
+    expect(spy).toHaveBeenCalledWith(['/transactions'], {
+      queryParams: expect.objectContaining({ categoryId: '7', tab: 'groceries' }),
     });
   });
 
   it('navigateToGroceryCategory uses categoryId=unknown for Unknown label', () => {
     const spy = vi.spyOn(router, 'navigate');
     component.navigateToGroceryCategory(CATEGORY_UNKNOWN);
-    expect(spy).toHaveBeenCalledWith(['/groceries'], {
-      queryParams: expect.objectContaining({ categoryId: 'unknown' }),
+    expect(spy).toHaveBeenCalledWith(['/transactions'], {
+      queryParams: expect.objectContaining({ categoryId: 'unknown', tab: 'groceries' }),
     });
   });
 
@@ -234,8 +234,8 @@ describe('AnalyticsComponent', () => {
     const spy = vi.spyOn(router, 'navigate');
     component.gFilterMonth.set('2024-01');
     component.navigateToGroceryCategory(CATEGORY_UNKNOWN);
-    expect(spy).toHaveBeenCalledWith(['/groceries'], {
-      queryParams: expect.objectContaining({ month: '2024-01' }),
+    expect(spy).toHaveBeenCalledWith(['/transactions'], {
+      queryParams: expect.objectContaining({ month: '2024-01', tab: 'groceries' }),
     });
   });
 
@@ -245,5 +245,6 @@ describe('AnalyticsComponent', () => {
     component.navigateToGroceryCategory(CATEGORY_UNKNOWN);
     const call = spy.mock.calls[0];
     expect((call[1] as any).queryParams).not.toHaveProperty('month');
+    expect((call[1] as any).queryParams).toHaveProperty('tab', 'groceries');
   });
 });

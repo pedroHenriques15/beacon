@@ -1,24 +1,45 @@
-@if (finance.loading()) {
-  <div class="loading">Loading transactions…</div>
-} @else {
-  <div class="page-header">
-    <div class="header-row">
-      <div>
-        <h1>Transactions</h1>
-        <p class="subtitle">
-          Showing {{ filtered().length }}
-          @if (totalCount() > filtered().length) {
-            of {{ totalCount() }}
-          }
-          transactions
-          @if (unknownCount() > 0) {
-            ·
-            <span class="unknown-hint" (click)="filterCategory.set('unknown')"
-              >{{ unknownCount() }} uncategorized</span
-            >
-          }
-        </p>
-      </div>
+<div class="page-header">
+  <div class="header-row">
+    <div>
+      <h1>Transactions</h1>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <button
+      class="tab-btn"
+      [class.active]="activeTab() === 'transactions'"
+      (click)="activeTab.set('transactions')"
+    >
+      Transactions
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab() === 'groceries'"
+      (click)="activeTab.set('groceries')"
+    >
+      Groceries
+    </button>
+  </div>
+</div>
+
+@if (activeTab() === 'transactions') {
+  @if (finance.loading()) {
+    <div class="loading">Loading transactions…</div>
+  } @else {
+    <div class="tab-content-header">
+      <p class="subtitle">
+        Showing {{ filtered().length }}
+        @if (totalCount() > filtered().length) {
+          of {{ totalCount() }}
+        }
+        transactions
+        @if (unknownCount() > 0) {
+          ·
+          <span class="unknown-hint" (click)="filterCategory.set('unknown')"
+            >{{ unknownCount() }} uncategorized</span
+          >
+        }
+      </p>
       <div class="header-actions">
         @if (transferCount() > 0) {
           <button
@@ -32,119 +53,343 @@
         }
       </div>
     </div>
-  </div>
 
-  <div class="filters">
-    <input
-      class="search"
-      type="text"
-      placeholder="Search description…"
-      [ngModel]="search()"
-      (ngModelChange)="search.set($event)"
-    />
+    <div class="filters">
+      <input
+        class="search"
+        type="text"
+        placeholder="Search description…"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
 
-    <select [ngModel]="filterBank()" (ngModelChange)="filterBank.set($event)">
-      <option value="">All banks</option>
-      @for (bank of finance.banks(); track bank) {
-        <option [value]="bank">{{ bank }}</option>
-      }
-    </select>
-
-    <select [ngModel]="filterMonth()" (ngModelChange)="filterMonth.set($event)">
-      <option value="">All months</option>
-      @for (m of availableMonths(); track m) {
-        <option [value]="m">{{ formatMonth(m) }}</option>
-      }
-    </select>
-
-    <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event)">
-      <option value="">All types</option>
-      <option value="credit">Credit</option>
-      <option value="debit">Debit</option>
-    </select>
-
-    <select [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event)">
-      <option value="">All categories</option>
-      <option value="unknown">Unknown</option>
-      @for (cat of catSvc.categories(); track cat.id) {
-        <option [value]="cat.id">{{ cat.name }}</option>
-      }
-    </select>
-  </div>
-
-  <div class="summary-bar">
-    <div class="summary-item">
-      <span class="label">In</span>
-      <span class="credit">{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
-    </div>
-    <div class="summary-item">
-      <span class="label">Out</span>
-      <span class="debit">{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
-    </div>
-    <div class="summary-item">
-      <span class="label">Net</span>
-      <span [ngClass]="totalCredit() - totalDebit() >= 0 ? 'credit' : 'debit'">
-        {{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
-      </span>
-    </div>
-  </div>
-
-  <div class="table-wrapper">
-    <table class="tx-table">
-      <thead>
-        <tr>
-          <th class="sortable" (click)="sort('date')">Date{{ sortIcon('date') }}</th>
-          <th class="sortable" (click)="sort('bank')">Bank{{ sortIcon('bank') }}</th>
-          <th class="sortable" (click)="sort('description')">
-            Description{{ sortIcon('description') }}
-          </th>
-          <th class="sortable" (click)="sort('category')">Category{{ sortIcon('category') }}</th>
-          <th class="num sortable" (click)="sort('amount')">Amount{{ sortIcon('amount') }}</th>
-          <th class="num sortable" (click)="sort('balance')">Balance{{ sortIcon('balance') }}</th>
-          <th class="act-col"></th>
-        </tr>
-      </thead>
-      <tbody>
-        @if (pageLoading() && loadedItems().length === 0) {
-          <tr>
-            <td colspan="7" class="empty">Loading…</td>
-          </tr>
+      <select [ngModel]="filterBank()" (ngModelChange)="filterBank.set($event)">
+        <option value="">All banks</option>
+        @for (bank of finance.banks(); track bank) {
+          <option [value]="bank">{{ bank }}</option>
         }
-        @for (tx of filtered(); track tx.id) {
-          <tr
-            [ngClass]="{
-              credit: tx.type === 'credit',
-              debit: tx.type === 'debit',
-              'transfer-row': tx.isInternalTransfer,
-            }"
-          >
-            <td class="date">{{ tx.datePosting | date: 'dd MMM yyyy' }}</td>
-            <td>
-              <span class="bank-badge" [attr.data-bank]="tx.bank">{{ tx.bank }}</span>
-            </td>
-            <td class="desc">
-              {{ tx.description }}
-              @if (tx.isInternalTransfer) {
-                <span
-                  class="transfer-badge"
-                  title="Internal transfer - click to unmark"
-                  (click)="unmarkTransfer(tx, $event)"
-                  >⇄ transfer</span
+      </select>
+
+      <select [ngModel]="filterMonth()" (ngModelChange)="filterMonth.set($event)">
+        <option value="">All months</option>
+        @for (m of availableMonths(); track m) {
+          <option [value]="m">{{ formatMonth(m) }}</option>
+        }
+      </select>
+
+      <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event)">
+        <option value="">All types</option>
+        <option value="credit">Credit</option>
+        <option value="debit">Debit</option>
+      </select>
+
+      <select [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event)">
+        <option value="">All categories</option>
+        <option value="unknown">Unknown</option>
+        @for (cat of catSvc.categories(); track cat.id) {
+          <option [value]="cat.id">{{ cat.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="summary-bar">
+      <div class="summary-item">
+        <span class="label">In</span>
+        <span class="credit">{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">Out</span>
+        <span class="debit">{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">Net</span>
+        <span [ngClass]="totalCredit() - totalDebit() >= 0 ? 'credit' : 'debit'">
+          {{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+        </span>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="sort('date')">Date{{ sortIcon('date') }}</th>
+            <th class="sortable" (click)="sort('bank')">Bank{{ sortIcon('bank') }}</th>
+            <th class="sortable" (click)="sort('description')">
+              Description{{ sortIcon('description') }}
+            </th>
+            <th class="sortable" (click)="sort('category')">Category{{ sortIcon('category') }}</th>
+            <th class="num sortable" (click)="sort('amount')">Amount{{ sortIcon('amount') }}</th>
+            <th class="num sortable" (click)="sort('balance')">Balance{{ sortIcon('balance') }}</th>
+            <th class="act-col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (pageLoading() && loadedItems().length === 0) {
+            <tr>
+              <td colspan="7" class="empty">Loading…</td>
+            </tr>
+          }
+          @for (tx of filtered(); track tx.id) {
+            <tr
+              [ngClass]="{
+                credit: tx.type === 'credit',
+                debit: tx.type === 'debit',
+                'transfer-row': tx.isInternalTransfer,
+              }"
+            >
+              <td class="date">{{ tx.datePosting | date: 'dd MMM yyyy' }}</td>
+              <td>
+                <span class="bank-badge" [attr.data-bank]="tx.bank">{{ tx.bank }}</span>
+              </td>
+              <td class="desc">
+                {{ tx.description }}
+                @if (tx.isInternalTransfer) {
+                  <span
+                    class="transfer-badge"
+                    title="Internal transfer - click to unmark"
+                    (click)="unmarkTransfer(tx, $event)"
+                    >⇄ transfer</span
+                  >
+                }
+              </td>
+              <td class="cat-cell">
+                @if (!tx.isInternalTransfer) {
+                  <div class="cat-wrap">
+                    <button
+                      class="cat-badge"
+                      [class.unknown]="!tx.categoryId"
+                      [style.--cat-color]="tx.category?.color ?? '#64748b'"
+                      (click)="toggleDropdown(tx.id, $event)"
+                    >
+                      @if (tx.category) {
+                        <span class="cat-dot" [style.background]="tx.category.color"></span>
+                        {{ tx.category.name }}
+                      } @else {
+                        Unknown
+                      }
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+
+                    @if (openDropdownId() === tx.id) {
+                      <div
+                        class="cat-dropdown"
+                        [style.top.px]="dropdownPos()?.top"
+                        [style.left.px]="dropdownPos()?.left"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <input
+                          class="cat-search"
+                          type="text"
+                          placeholder="Search categories…"
+                          [ngModel]="catSearch()"
+                          (ngModelChange)="catSearch.set($event)"
+                          (click)="$event.stopPropagation()"
+                        />
+                        <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
+                          + Create new…
+                        </button>
+                        <div class="cat-divider"></div>
+                        <button
+                          class="cat-option none-opt"
+                          (click)="selectCategory(tx, null, $event)"
+                        >
+                          Unknown
+                        </button>
+                        <div class="cat-scroll">
+                          @for (cat of filteredCats(); track cat.id) {
+                            <button
+                              class="cat-option"
+                              [class.active]="tx.categoryId === cat.id"
+                              (click)="selectCategory(tx, cat.id, $event)"
+                            >
+                              <span class="cat-dot" [style.background]="cat.color"></span>
+                              {{ cat.name }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </td>
+              <td class="num amount" [ngClass]="tx.type">
+                {{ tx.type === 'debit' ? '-' : '+'
+                }}{{ tx.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
+              </td>
+              <td class="num balance">{{ tx.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="act-col">
+                @if (!tx.isInternalTransfer) {
+                  <button
+                    class="tx-transfer-btn"
+                    title="Mark as internal transfer"
+                    (click)="markTransfer(tx, $event)"
+                  >
+                    ⇄
+                  </button>
+                }
+                <button
+                  class="tx-edit-btn"
+                  title="Edit transaction"
+                  (click)="openTxEdit(tx, $event)"
                 >
-              }
-            </td>
-            <td class="cat-cell">
-              @if (!tx.isInternalTransfer) {
+                  ✏
+                </button>
+                <button
+                  class="tx-delete-btn"
+                  title="Delete transaction"
+                  (click)="requestDeleteTransfer(tx, $event)"
+                >
+                  ✕
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            @if (!pageLoading()) {
+              <tr>
+                <td colspan="7" class="empty">No transactions match the current filters.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (hasMore() || pageLoading() || (!hasMore() && loadedItems().length > 20)) {
+      <div class="show-more-row">
+        @if (pageLoading() && loadedItems().length > 0) {
+          <span class="loading-inline">Loading…</span>
+        } @else if (hasMore()) {
+          <button class="btn-show-more" (click)="loadMore()">
+            Show more
+            <span class="show-more-hint">{{ totalCount() - loadedItems().length }} remaining</span>
+          </button>
+        } @else if (loadedItems().length > 20) {
+          <button class="btn-show-more" (click)="showLess()">Show less</button>
+        }
+      </div>
+    }
+  }
+}
+
+@if (activeTab() === 'groceries') {
+  @if (groceriesSvc.loading()) {
+    <div class="loading">Loading grocery items…</div>
+  } @else {
+    <div class="tab-content-header">
+      <p class="subtitle">
+        Showing {{ gFiltered().length }}
+        @if (gTotalCount() > gFiltered().length && gFilterCategory() !== 'unknown') {
+          of {{ gTotalCount() }}
+        }
+        items
+        @if (gUnknownCount() > 0) {
+          ·
+          <span class="unknown-hint" (click)="gFilterCategory.set('unknown')"
+            >{{ gUnknownCount() }} uncategorized</span
+          >
+        }
+      </p>
+      <div class="header-actions">
+        <button class="btn-secondary" (click)="gOpenCreateItem()">+ Add item</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <input
+        class="search"
+        type="text"
+        placeholder="Search description…"
+        [ngModel]="gSearch()"
+        (ngModelChange)="gSearch.set($event)"
+      />
+
+      <select [ngModel]="gFilterStore()" (ngModelChange)="gFilterStore.set($event)">
+        <option value="">All stores</option>
+        @for (store of groceriesSvc.stores(); track store) {
+          <option [value]="store">{{ store }}</option>
+        }
+      </select>
+
+      <select [ngModel]="gFilterMonth()" (ngModelChange)="gFilterMonth.set($event)">
+        <option value="">All months</option>
+        @for (m of gAvailableMonths(); track m) {
+          <option [value]="m">{{ formatMonth(m) }}</option>
+        }
+      </select>
+
+      <select [ngModel]="gFilterCategory()" (ngModelChange)="gFilterCategory.set($event)">
+        <option value="">All categories</option>
+        <option value="unknown">Unknown</option>
+        @for (cat of groceryCatSvc.categories(); track cat.id) {
+          <option [value]="cat.id">{{ cat.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="summary-bar">
+      <div class="summary-item">
+        <span class="label">Total spent</span>
+        <span class="amount-total">{{
+          gTotalAmount() | currency: 'EUR' : 'symbol' : '1.2-2'
+        }}</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">Items</span>
+        <span class="count-total">{{ gTotalCount() }}</span>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="gSort('date')">Date{{ gSortIcon('date') }}</th>
+            <th class="sortable" (click)="gSort('store')">Store{{ gSortIcon('store') }}</th>
+            <th class="sortable" (click)="gSort('description')">
+              Description{{ gSortIcon('description') }}
+            </th>
+            <th class="sortable" (click)="gSort('category')">
+              Category{{ gSortIcon('category') }}
+            </th>
+            <th class="num sortable" (click)="gSort('quantity')">Qty{{ gSortIcon('quantity') }}</th>
+            <th class="num sortable" (click)="gSort('amount')">Amount{{ gSortIcon('amount') }}</th>
+            <th class="act-col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (gPageLoading() && gLoadedItems().length === 0) {
+            <tr>
+              <td colspan="7" class="empty">Loading…</td>
+            </tr>
+          }
+          @for (item of gFiltered(); track item.id) {
+            <tr>
+              <td class="date">{{ item.receiptDate | date: 'dd MMM yyyy' }}</td>
+              <td>
+                <span class="store-badge">{{ item.storeName }}</span>
+              </td>
+              <td class="desc">{{ item.description }}</td>
+              <td class="cat-cell">
                 <div class="cat-wrap">
                   <button
                     class="cat-badge"
-                    [class.unknown]="!tx.categoryId"
-                    [style.--cat-color]="tx.category?.color ?? '#64748b'"
-                    (click)="toggleDropdown(tx.id, $event)"
+                    [class.unknown]="!item.categoryId"
+                    [style.--cat-color]="item.categoryColor ?? '#64748b'"
+                    (click)="gToggleDropdown(item.id, $event)"
                   >
-                    @if (tx.category) {
-                      <span class="cat-dot" [style.background]="tx.category.color"></span>
-                      {{ tx.category.name }}
+                    @if (item.categoryName) {
+                      <span class="cat-dot" [style.background]="item.categoryColor"></span>
+                      {{ item.categoryName }}
                     } @else {
                       Unknown
                     }
@@ -160,37 +405,37 @@
                     </svg>
                   </button>
 
-                  @if (openDropdownId() === tx.id) {
+                  @if (gOpenDropdownId() === item.id) {
                     <div
                       class="cat-dropdown"
-                      [style.top.px]="dropdownPos()?.top"
-                      [style.left.px]="dropdownPos()?.left"
+                      [style.top.px]="gDropdownPos()?.top"
+                      [style.left.px]="gDropdownPos()?.left"
                       (click)="$event.stopPropagation()"
                     >
                       <input
                         class="cat-search"
                         type="text"
                         placeholder="Search categories…"
-                        [ngModel]="catSearch()"
-                        (ngModelChange)="catSearch.set($event)"
+                        [ngModel]="gCatSearch()"
+                        (ngModelChange)="gCatSearch.set($event)"
                         (click)="$event.stopPropagation()"
                       />
-                      <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
+                      <button class="cat-option create-opt" (click)="gOpenCreate(item, $event)">
                         + Create new…
                       </button>
                       <div class="cat-divider"></div>
                       <button
                         class="cat-option none-opt"
-                        (click)="selectCategory(tx, null, $event)"
+                        (click)="gSelectCategory(item, null, $event)"
                       >
                         Unknown
                       </button>
                       <div class="cat-scroll">
-                        @for (cat of filteredCats(); track cat.id) {
+                        @for (cat of gFilteredCats(); track cat.id) {
                           <button
                             class="cat-option"
-                            [class.active]="tx.categoryId === cat.id"
-                            (click)="selectCategory(tx, cat.id, $event)"
+                            [class.active]="item.categoryId === cat.id"
+                            (click)="gSelectCategory(item, cat.id, $event)"
                           >
                             <span class="cat-dot" [style.background]="cat.color"></span>
                             {{ cat.name }}
@@ -200,59 +445,66 @@
                     </div>
                   }
                 </div>
-              }
-            </td>
-            <td class="num amount" [ngClass]="tx.type">
-              {{ tx.type === 'debit' ? '-' : '+'
-              }}{{ tx.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </td>
-            <td class="num balance">{{ tx.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-            <td class="act-col">
-              @if (!tx.isInternalTransfer) {
-                <button
-                  class="tx-transfer-btn"
-                  title="Mark as internal transfer"
-                  (click)="markTransfer(tx, $event)"
-                >
-                  ⇄
+              </td>
+              <td class="num qty-cell">
+                @if (item.quantity > 1) {
+                  <span class="qty-badge">×{{ item.quantity }}</span>
+                } @else {
+                  <span class="qty-one">1</span>
+                }
+              </td>
+              <td class="num amount debit">
+                {{ item.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
+              </td>
+              <td class="act-col">
+                <button class="tx-edit-btn" title="Edit item" (click)="gOpenItemEdit(item, $event)">
+                  ✏
                 </button>
-              }
-              <button class="tx-edit-btn" title="Edit transaction" (click)="openTxEdit(tx, $event)">
-                ✏
-              </button>
-              <button
-                class="tx-delete-btn"
-                title="Delete transaction"
-                (click)="requestDeleteTransfer(tx, $event)"
-              >
-                ✕
-              </button>
-            </td>
-          </tr>
-        } @empty {
-          @if (!pageLoading()) {
-            <tr>
-              <td colspan="7" class="empty">No transactions match the current filters.</td>
+                <button
+                  class="tx-delete-btn"
+                  title="Delete item"
+                  (click)="gRequestDeleteItem(item, $event)"
+                >
+                  ✕
+                </button>
+                @if (gFindReceipt(item.receiptId); as receipt) {
+                  <button
+                    class="tx-delete-btn"
+                    title="Delete receipt (removes all {{ receipt.itemCount }} items)"
+                    (click)="gRequestDeleteReceipt(receipt, $event)"
+                  >
+                    🗑
+                  </button>
+                }
+              </td>
             </tr>
+          } @empty {
+            @if (!gPageLoading()) {
+              <tr>
+                <td colspan="7" class="empty">No items match the current filters.</td>
+              </tr>
+            }
           }
-        }
-      </tbody>
-    </table>
-  </div>
-
-  @if (hasMore() || pageLoading() || (!hasMore() && loadedItems().length > 20)) {
-    <div class="show-more-row">
-      @if (pageLoading() && loadedItems().length > 0) {
-        <span class="loading-inline">Loading…</span>
-      } @else if (hasMore()) {
-        <button class="btn-show-more" (click)="loadMore()">
-          Show more
-          <span class="show-more-hint">{{ totalCount() - loadedItems().length }} remaining</span>
-        </button>
-      } @else if (loadedItems().length > 20) {
-        <button class="btn-show-more" (click)="showLess()">Show less</button>
-      }
+        </tbody>
+      </table>
     </div>
+
+    @if (gHasMore() || gPageLoading() || (!gHasMore() && gLoadedItems().length > 20)) {
+      <div class="show-more-row">
+        @if (gPageLoading() && gLoadedItems().length > 0) {
+          <span class="loading-inline">Loading…</span>
+        } @else if (gHasMore()) {
+          <button class="btn-show-more" (click)="gLoadMore()">
+            Show more
+            <span class="show-more-hint"
+              >{{ gTotalCount() - gLoadedItems().length }} remaining</span
+            >
+          </button>
+        } @else if (gLoadedItems().length > 20) {
+          <button class="btn-show-more" (click)="gShowLess()">Show less</button>
+        }
+      </div>
+    }
   }
 }
 
@@ -534,6 +786,349 @@
           (click)="submitCreate()"
         >
           {{ createLoading() ? 'Saving…' : 'Create & assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gPendingChange(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Auto-assigned category</h3>
+        <button class="modal-close" (click)="gConfirmPending(false)">✕</button>
+      </div>
+      <p>
+        This category was assigned automatically by rule <strong>"{{ p.pattern }}"</strong>.
+      </p>
+      <p>
+        Do you want to delete this rule so future items with this pattern are no longer
+        auto-categorized?
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="gConfirmPending(false)">Keep rule</button>
+        <button class="btn-danger" (click)="gConfirmPending(true)">Delete rule</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gPendingRuleCreate(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Create auto-assign rule?</h3>
+        <button class="modal-close" (click)="gCancelRuleCreate()">✕</button>
+      </div>
+      <p>
+        You assigned <strong>{{ p.categoryName }}</strong> to this item. Do you want to create a
+        rule so future items containing this pattern are categorized automatically?
+      </p>
+
+      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Milk"
+        [ngModel]="gRuleCreatePattern()"
+        (ngModelChange)="gRuleCreatePattern.set($event)"
+      />
+      <p class="field-hint">
+        Items whose description contains this text will be auto-categorized as
+        <strong>{{ p.categoryName }}</strong
+        >.
+      </p>
+
+      <label class="field-label">Value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 2.99"
+        [ngModel]="gRuleCreateValue()?.toString() ?? ''"
+        (ngModelChange)="
+          gRuleCreateValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on item amount. If both fields are filled, both must match.
+      </p>
+
+      @if (gRuleCreateMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="gRuleCreateMatchCount() === 0">
+          {{ gRuleCreateMatchCount() }} existing item{{ gRuleCreateMatchCount() !== 1 ? 's' : '' }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="gConfirmRuleCreate(false)"
+          [disabled]="gRuleCreateLoading()"
+        >
+          Just this item
+        </button>
+        <button
+          class="btn-primary"
+          (click)="gConfirmRuleCreate(true)"
+          [disabled]="
+            (!gRuleCreatePattern().trim() && gRuleCreateValue() === null) || gRuleCreateLoading()
+          "
+        >
+          {{ gRuleCreateLoading() ? 'Saving…' : 'Create rule & assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gShowItemModal()) {
+  <div class="modal-overlay">
+    <div class="modal tx-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Edit item</h3>
+        <button class="modal-close" (click)="gShowItemModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Description</label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="Description"
+        [ngModel]="gItemDescription()"
+        (ngModelChange)="gItemDescription.set($event)"
+      />
+
+      <div class="field-row">
+        <div>
+          <label class="field-label">Amount</label>
+          <input
+            class="field-input"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            [ngModel]="gItemAmount()"
+            (ngModelChange)="gItemAmount.set(+$event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">Quantity</label>
+          <input
+            class="field-input"
+            type="number"
+            step="1"
+            min="1"
+            placeholder="1"
+            [ngModel]="gItemQuantity()"
+            (ngModelChange)="gItemQuantity.set(+$event)"
+          />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="gShowItemModal.set(false)"
+          [disabled]="gItemLoading()"
+        >
+          Cancel
+        </button>
+        <button
+          class="btn-primary"
+          [disabled]="!gItemFormValid() || gItemLoading()"
+          (click)="gSubmitItemModal()"
+        >
+          {{ gItemLoading() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gConfirmDeleteItem(); as item) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete item</h3>
+        <button class="modal-close" (click)="gConfirmDeleteItem.set(null)">✕</button>
+      </div>
+      <p>
+        Are you sure you want to delete <strong>{{ item.description }}</strong
+        >?
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="gConfirmDeleteItem.set(null)">Cancel</button>
+        <button class="btn-danger" (click)="gConfirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gShowCreateModal()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>New category</h3>
+        <button class="modal-close" (click)="gShowCreateModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Name</label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Dairy"
+        [ngModel]="gCreateName()"
+        (ngModelChange)="gCreateName.set($event)"
+      />
+
+      <label class="field-label">Color</label>
+      <div class="color-row">
+        <input type="color" [ngModel]="gCreateColor()" (ngModelChange)="gCreateColor.set($event)" />
+        <span class="color-preview" [style.background]="gCreateColor()">{{
+          gCreateName() || 'Preview'
+        }}</span>
+      </div>
+
+      <label class="field-label">Auto-assign pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Milk"
+        [ngModel]="gCreatePattern()"
+        (ngModelChange)="gCreatePattern.set($event)"
+      />
+      <p class="field-hint">Items whose description contains this text will be auto-categorized.</p>
+
+      <label class="field-label">Auto-assign value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 2.99"
+        [ngModel]="gCreateValue()?.toString() ?? ''"
+        (ngModelChange)="gCreateValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)"
+      />
+      <p class="field-hint">
+        Exact match on item amount. If both fields are filled, both must match.
+      </p>
+
+      @if (gCreateMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="gCreateMatchCount() === 0">
+          {{ gCreateMatchCount() }} existing item{{ gCreateMatchCount() !== 1 ? 's' : '' }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="gShowCreateModal.set(false)">Cancel</button>
+        <button
+          class="btn-primary"
+          [disabled]="!gCreateName().trim() || gCreateLoading()"
+          (click)="gSubmitCreate()"
+        >
+          {{ gCreateLoading() ? 'Saving…' : 'Create & assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gConfirmDeleteReceipt(); as receipt) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete receipt</h3>
+        <button class="modal-close" (click)="gConfirmDeleteReceipt.set(null)">✕</button>
+      </div>
+      <p>
+        Are you sure you want to delete the receipt from
+        <strong>{{ receipt.storeName }}</strong> dated
+        <strong>{{ receipt.receiptDate | date: 'dd MMM yyyy' }}</strong
+        >? All {{ receipt.itemCount }} items will be removed.
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="gConfirmDeleteReceipt.set(null)">Cancel</button>
+        <button class="btn-danger" (click)="gConfirmReceiptDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gShowCreateItemModal()) {
+  <div class="modal-overlay">
+    <div class="modal tx-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Add item</h3>
+        <button class="modal-close" (click)="gShowCreateItemModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Receipt</label>
+      <select
+        class="field-input"
+        [ngModel]="gNewItemReceiptId()"
+        (ngModelChange)="gNewItemReceiptId.set(+$event || null)"
+      >
+        <option [value]="null">Select receipt…</option>
+        @for (receipt of groceriesSvc.receipts(); track receipt.id) {
+          <option [value]="receipt.id">
+            {{ receipt.storeName }} - {{ receipt.receiptDate | date: 'dd MMM yyyy' }}
+          </option>
+        }
+      </select>
+
+      <label class="field-label">Description</label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Whole Milk 1L"
+        [ngModel]="gNewItemDescription()"
+        (ngModelChange)="gNewItemDescription.set($event)"
+      />
+
+      <div class="field-row">
+        <div>
+          <label class="field-label">Amount</label>
+          <input
+            class="field-input"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            [ngModel]="gNewItemAmount()"
+            (ngModelChange)="gNewItemAmount.set(+$event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">Quantity</label>
+          <input
+            class="field-input"
+            type="number"
+            step="1"
+            min="1"
+            placeholder="1"
+            [ngModel]="gNewItemQuantity()"
+            (ngModelChange)="gNewItemQuantity.set(+$event)"
+          />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="gShowCreateItemModal.set(false)"
+          [disabled]="gNewItemLoading()"
+        >
+          Cancel
+        </button>
+        <button
+          class="btn-primary"
+          [disabled]="!gNewItemFormValid() || gNewItemLoading()"
+          (click)="gSubmitNewItem()"
+        >
+          {{ gNewItemLoading() ? 'Saving…' : 'Add item' }}
         </button>
       </div>
     </div>

@@ -6,8 +6,20 @@
     </div>
   </div>
   <div class="tab-bar">
-    <button class="tab-btn" [class.active]="activeTab() === 'transactions'" (click)="activeTab.set('transactions')">Transactions</button>
-    <button class="tab-btn" [class.active]="activeTab() === 'groceries'" (click)="activeTab.set('groceries')">Groceries</button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab() === 'transactions'"
+      (click)="activeTab.set('transactions')"
+    >
+      Transactions
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab() === 'groceries'"
+      (click)="activeTab.set('groceries')"
+    >
+      Groceries
+    </button>
   </div>
 </div>
 
@@ -79,7 +91,9 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2>Income</h2>
-          <span class="total credit">{{ totalIncome() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+          <span class="total credit">{{
+            totalIncome() | currency: 'EUR' : 'symbol' : '1.2-2'
+          }}</span>
         </div>
         @if (incomeData().length === 0) {
           <div class="empty">No income data for this period.</div>
@@ -98,7 +112,9 @@
               >
                 <span class="legend-dot" [style.background]="row.color"></span>
                 <span class="legend-label">{{ row.label }}</span>
-                <span class="legend-pct">{{ ((row.total / totalIncome()) * 100).toFixed(1) }}%</span>
+                <span class="legend-pct"
+                  >{{ ((row.total / totalIncome()) * 100).toFixed(1) }}%</span
+                >
                 <span class="legend-val credit">{{
                   row.total | currency: 'EUR' : 'symbol' : '1.2-2'
                 }}</span>
@@ -138,10 +154,14 @@
                   <span
                     class="stat-value"
                     [class.debit]="
-                      selectedCategory()!.dominantType === 'debit' ? stats.delta > 0 : stats.delta < 0
+                      selectedCategory()!.dominantType === 'debit'
+                        ? stats.delta > 0
+                        : stats.delta < 0
                     "
                     [class.credit]="
-                      selectedCategory()!.dominantType === 'debit' ? stats.delta < 0 : stats.delta > 0
+                      selectedCategory()!.dominantType === 'debit'
+                        ? stats.delta < 0
+                        : stats.delta > 0
                     "
                     >{{ stats.delta > 0 ? '+' : ''
                     }}{{ stats.delta | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
