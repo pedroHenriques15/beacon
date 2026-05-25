@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { DatePipe } from '@angular/common';
@@ -14,9 +15,10 @@ export class SettingsComponent implements OnInit {
   googleAuth = inject(GoogleAuthService);
   errorMessage = signal<string | null>(null);
   private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe((params) => {
+    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       if (params['google'] === 'connected' || params['google'] === 'error') {
         this.googleAuth.loadStatus();
       }

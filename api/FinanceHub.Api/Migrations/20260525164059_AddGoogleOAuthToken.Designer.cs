@@ -89,8 +89,7 @@ namespace FinanceHub.Api.Migrations
 
                     b.Property<string>("AccessToken")
                         .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("nvarchar(2048)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("ConnectedAt")
                         .HasColumnType("datetime2");
@@ -109,6 +108,8 @@ namespace FinanceHub.Api.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.HasKey("Id");
+
+                    b.HasCheckConstraint("CK_SingleToken", "Id = 1");
 
                     b.ToTable("GoogleOAuthTokens");
                 });

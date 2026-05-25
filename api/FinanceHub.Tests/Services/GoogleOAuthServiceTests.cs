@@ -226,7 +226,38 @@ public class GoogleOAuthServiceTests
         Assert.Empty(await db.GoogleOAuthTokens.ToListAsync());
     }
 
+    // --- GetValidAccessTokenAsync: valid token fast path ---
+
+    [Fact]
+    public async Task GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall()
+    {
+        using var db = CreateDb(nameof(GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall));
+        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
+        {
+            AccessToken  = "still-valid",
+            RefreshToken = "refresh",
+            ExpiresAt    = DateTime.UtcNow.AddHours(1),
+            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+        });
+        await db.SaveChangesAsync();
+
+        var factory = new FakeHttpClientFactory(new ThrowingHttpMessageHandler());
+        using var cache = CreateCache();
+        var svc         = CreateService(db, cache, factory);
+
+        var result = await svc.GetValidAccessTokenAsync();
+
+        Assert.Equal("still-valid", result);
+    }
+
     // --- Helpers ---
+
+    private sealed class ThrowingHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No HTTP calls expected for a valid token.");
+    }
 
     private sealed class FakeHttpMessageHandler(System.Net.HttpStatusCode status, string body)
         : HttpMessageHandler

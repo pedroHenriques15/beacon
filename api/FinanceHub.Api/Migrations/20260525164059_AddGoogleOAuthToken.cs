@@ -17,7 +17,7 @@ namespace FinanceHub.Api.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AccessToken = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    AccessToken = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RefreshToken = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Scopes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
@@ -26,6 +26,7 @@ namespace FinanceHub.Api.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_GoogleOAuthTokens", x => x.Id);
+                    table.CheckConstraint("CK_SingleToken", "Id = 1");
                 });
         }
 
