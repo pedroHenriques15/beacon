@@ -7,7 +7,9 @@ namespace FinanceHub.Api.Controllers;
 [Route("api/auth/google")]
 public class GoogleAuthController(GoogleOAuthService googleOAuth, IConfiguration config) : ControllerBase
 {
-    private string FrontendUrl => config["GoogleServices:FrontendUrl"] ?? "";
+    private string FrontendUrl => config["GoogleServices:FrontendUrl"] is { Length: > 0 } url
+        ? url
+        : throw new InvalidOperationException("GoogleServices:FrontendUrl is not configured.");
 
     [HttpGet("login")]
     public IActionResult Login()
@@ -17,13 +19,24 @@ public class GoogleAuthController(GoogleOAuthService googleOAuth, IConfiguration
     }
 
     [HttpGet("callback")]
-    public async Task<IActionResult> Callback([FromQuery] string? code, [FromQuery] string? error, CancellationToken ct)
+    public async Task<IActionResult> Callback(
+        [FromQuery] string? code,
+        [FromQuery] string? error,
+        [FromQuery] string? state,
+        CancellationToken ct)
     {
-        if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code))
+        if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
             return Redirect($"{FrontendUrl}/settings?google=error");
 
-        await googleOAuth.ExchangeCodeAsync(code, ct);
-        return Redirect($"{FrontendUrl}/settings?google=connected");
+        try
+        {
+            await googleOAuth.ExchangeCodeAsync(code, state, ct);
+            return Redirect($"{FrontendUrl}/settings?google=connected");
+        }
+        catch
+        {
+            return Redirect($"{FrontendUrl}/settings?google=error");
+        }
     }
 
     [HttpGet("status")]

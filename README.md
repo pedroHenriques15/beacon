@@ -162,6 +162,10 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `ConnectionStrings__DefaultConnection` | SQL Server connection string |
 | `Python__Executable` | Python binary (`python` or `python3`) |
 | `Python__ExtractorScript` | Absolute path to `scripts/pdfExtractor.py` |
+| `GoogleServices__ClientId` | Google OAuth 2.0 client ID (optional — only needed for Google Calendar/Tasks sync) |
+| `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
+| `GoogleServices__RedirectUri` | OAuth redirect URI registered in Google Cloud Console |
+| `GoogleServices__FrontendUrl` | Base URL of the Angular frontend, used to redirect after OAuth (e.g. `http://localhost:4200`) |
 
 ---
 

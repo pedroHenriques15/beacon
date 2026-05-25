@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { DatePipe } from '@angular/common';
@@ -12,6 +12,7 @@ import { DatePipe } from '@angular/common';
 })
 export class SettingsComponent implements OnInit {
   googleAuth = inject(GoogleAuthService);
+  errorMessage = signal<string | null>(null);
   private route = inject(ActivatedRoute);
 
   ngOnInit(): void {
@@ -19,10 +20,14 @@ export class SettingsComponent implements OnInit {
       if (params['google'] === 'connected' || params['google'] === 'error') {
         this.googleAuth.loadStatus();
       }
+      if (params['google'] === 'error') {
+        this.errorMessage.set('Could not connect to Google. Please try again.');
+      }
     });
   }
 
   connectGoogle(): void {
+    this.errorMessage.set(null);
     this.googleAuth.connect();
   }
 

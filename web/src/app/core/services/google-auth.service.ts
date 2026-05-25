@@ -14,9 +14,7 @@ export class GoogleAuthService {
   }
 
   loadStatus(): void {
-    this.http
-      .get<GoogleAuthStatus>('/api/auth/google/status')
-      .subscribe((s) => this.status.set(s));
+    this.http.get<GoogleAuthStatus>('/api/auth/google/status').subscribe((s) => this.status.set(s));
   }
 
   connect(): void {
