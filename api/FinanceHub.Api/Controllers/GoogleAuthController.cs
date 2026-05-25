@@ -5,7 +5,7 @@ namespace FinanceHub.Api.Controllers;
 
 [ApiController]
 [Route("api/auth/google")]
-public class GoogleAuthController(GoogleOAuthService googleOAuth, IConfiguration config) : ControllerBase
+public class GoogleAuthController(GoogleOAuthService googleOAuth, IConfiguration config, ILogger<GoogleAuthController> logger) : ControllerBase
 {
     private string FrontendUrl => config["GoogleServices:FrontendUrl"] is { Length: > 0 } url
         ? url
@@ -33,8 +33,9 @@ public class GoogleAuthController(GoogleOAuthService googleOAuth, IConfiguration
             await googleOAuth.ExchangeCodeAsync(code, state, ct);
             return Redirect($"{FrontendUrl}/settings?google=connected");
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogError(ex, "Google OAuth callback exchange failed.");
             return Redirect($"{FrontendUrl}/settings?google=error");
         }
     }

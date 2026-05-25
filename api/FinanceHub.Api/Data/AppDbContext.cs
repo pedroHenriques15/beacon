@@ -191,10 +191,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<GoogleOAuthToken>(e =>
         {
             e.HasKey(t => t.Id);
-            e.Property(t => t.AccessToken).HasMaxLength(4096).IsRequired();
+            e.Property(t => t.AccessToken).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
             e.Property(t => t.Scopes).HasMaxLength(500);
-            e.HasCheckConstraint("CK_SingleToken", "Id = 1");
+            e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", "Id = 1"));
         });
     }
 }
