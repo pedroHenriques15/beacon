@@ -85,6 +85,8 @@ builder.Services.AddSingleton<ISalarySlipParser, DomirestParser>();
 builder.Services.AddSingleton<SalarySlipParserFactory>();
 
 builder.Services.AddSingleton<FileStorageService>();
+builder.Services.AddHttpClient("google-oauth");
+builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
 
