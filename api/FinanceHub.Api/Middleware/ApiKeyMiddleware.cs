@@ -9,7 +9,8 @@ public class ApiKeyMiddleware(RequestDelegate next, IConfiguration config, IHost
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Path.StartsWithSegments("/swagger"))
+        if (context.Request.Path.StartsWithSegments("/swagger") ||
+            context.Request.Path.StartsWithSegments("/api/auth/google/callback"))
         {
             await next(context);
             return;

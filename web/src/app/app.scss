@@ -112,6 +112,10 @@
       border-left-color: var(--primary);
       background: rgba(108, 99, 255, 0.08);
     }
+
+    &--bottom {
+      margin-top: auto;
+    }
   }
 }
 

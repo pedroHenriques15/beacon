@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<GroceryCategory>               GroceryCategories              => Set<GroceryCategory>();
     public DbSet<GroceryCategoryRule>           GroceryCategoryRules           => Set<GroceryCategoryRule>();
     public DbSet<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings => Set<GroceryReceiptCategoryMapping>();
+    public DbSet<GoogleOAuthToken>              GoogleOAuthTokens              => Set<GoogleOAuthToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -185,6 +186,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(m => m.GroceryCategoryId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleOAuthToken>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.AccessToken).HasMaxLength(2048).IsRequired();
+            e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
+            e.Property(t => t.Scopes).HasMaxLength(500);
         });
     }
 }
