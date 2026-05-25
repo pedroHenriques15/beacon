@@ -120,7 +120,7 @@ public class GoogleOAuthService(
                 ?? throw new InvalidOperationException("Empty refresh response from Google.");
 
             token.AccessToken = body.AccessToken;
-            token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds);
+            token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn);
             await db.SaveChangesAsync(ct);
 
             return token.AccessToken;
@@ -145,7 +145,7 @@ public class GoogleOAuthService(
                 Id = 1,
                 AccessToken = body.AccessToken,
                 RefreshToken = body.RefreshToken,
-                ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds),
+                ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn),
                 Scopes = string.Join(" ", DefaultScopes),
                 ConnectedAt = DateTime.UtcNow,
             });
@@ -155,7 +155,7 @@ public class GoogleOAuthService(
             existing.AccessToken = body.AccessToken;
             if (!string.IsNullOrEmpty(body.RefreshToken))
                 existing.RefreshToken = body.RefreshToken;
-            existing.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds);
+            existing.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn);
         }
 
         await db.SaveChangesAsync(ct);
