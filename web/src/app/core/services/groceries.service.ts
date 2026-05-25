@@ -43,11 +43,14 @@ export class GroceriesService {
   loadAllItems(): void {
     this.http
       .get<PagedGroceryItemsResult>('/api/groceries/items', {
-        params: buildParams({ take: 500 }),
+        params: buildParams({ take: 5000 }),
       })
       .subscribe({
         next: (res) => this.allItems.set(res.items),
-        error: (err) => console.error(err),
+        error: (err) => {
+          this.error.set('Failed to load grocery items. Is the API running?');
+          console.error(err);
+        },
       });
   }
 

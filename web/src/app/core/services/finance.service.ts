@@ -9,6 +9,7 @@ import {
   Statement,
   StatementSummary,
   Transaction,
+  UnifiedUploadItemResult,
   UploadResult,
 } from '../models/statement.model';
 
@@ -45,6 +46,12 @@ export class FinanceService {
     const form = new FormData();
     for (const f of files) form.append('files', f);
     return this.http.post<BatchUploadItemResult[]>('/api/statements/upload-batch', form);
+  }
+
+  uploadUnified(files: File[]): Observable<UnifiedUploadItemResult[]> {
+    const form = new FormData();
+    for (const f of files) form.append('files', f);
+    return this.http.post<UnifiedUploadItemResult[]>('/api/upload/batch', form);
   }
 
   importMealCardText(

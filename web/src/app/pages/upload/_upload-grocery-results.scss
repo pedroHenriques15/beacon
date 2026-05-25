@@ -1,0 +1,69 @@
+.grocery-results-card {
+  border-color: rgba(52, 211, 153, 0.25);
+  margin-top: 1rem;
+}
+
+.grocery-icon {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+  font-size: 1.1rem;
+}
+
+.mapping-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+
+  button {
+    flex: 1;
+    padding: 0.45rem 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      color 0.15s;
+
+    &.active {
+      border-color: var(--primary);
+      color: #a5b4fc;
+    }
+
+    &:hover:not(.active) {
+      color: var(--text-primary);
+    }
+  }
+}
+
+.modal-progress {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.btn-ghost {
+  padding: 0.55rem 1.1rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+
+  &:hover:not(:disabled) {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

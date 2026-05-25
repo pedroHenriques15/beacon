@@ -25,14 +25,19 @@ public class CreateBackupCommandHandler(AppDbContext db, IConfiguration config, 
 
         var payload = new BackupPayload
         {
-            Categories           = await db.Categories.AsNoTracking().ToListAsync(ct),
-            CategoryRules        = await db.CategoryRules.AsNoTracking().ToListAsync(ct),
-            MonthlyStatements    = await db.MonthlyStatements.AsNoTracking().ToListAsync(ct),
-            Transactions         = await db.Transactions.AsNoTracking().ToListAsync(ct),
-            SalaryProfiles       = await db.SalaryProfiles.AsNoTracking().ToListAsync(ct),
-            SalaryItemCategories = await db.SalaryItemCategories.AsNoTracking().ToListAsync(ct),
-            SalarySlips          = await db.SalarySlips.AsNoTracking().ToListAsync(ct),
-            SalaryLineItems      = await db.SalaryLineItems.AsNoTracking().ToListAsync(ct),
+            Categories                      = await db.Categories.AsNoTracking().ToListAsync(ct),
+            CategoryRules                   = await db.CategoryRules.AsNoTracking().ToListAsync(ct),
+            MonthlyStatements               = await db.MonthlyStatements.AsNoTracking().ToListAsync(ct),
+            Transactions                    = await db.Transactions.AsNoTracking().ToListAsync(ct),
+            SalaryProfiles                  = await db.SalaryProfiles.AsNoTracking().ToListAsync(ct),
+            SalaryItemCategories            = await db.SalaryItemCategories.AsNoTracking().ToListAsync(ct),
+            SalarySlips                     = await db.SalarySlips.AsNoTracking().ToListAsync(ct),
+            SalaryLineItems                 = await db.SalaryLineItems.AsNoTracking().ToListAsync(ct),
+            GroceryCategories               = await db.GroceryCategories.AsNoTracking().ToListAsync(ct),
+            GroceryReceiptCategoryMappings  = await db.GroceryReceiptCategoryMappings.AsNoTracking().ToListAsync(ct),
+            GroceryReceipts                 = await db.GroceryReceipts.AsNoTracking().ToListAsync(ct),
+            GroceryItems                    = await db.GroceryItems.AsNoTracking().ToListAsync(ct),
+            GroceryCategoryRules            = await db.GroceryCategoryRules.AsNoTracking().ToListAsync(ct),
         };
 
         await File.WriteAllTextAsync(backupFile, JsonSerializer.Serialize(payload, _jsonOptions), ct);
@@ -44,12 +49,17 @@ public class CreateBackupCommandHandler(AppDbContext db, IConfiguration config, 
 
 internal sealed class BackupPayload
 {
-    public List<Category>           Categories           { get; set; } = [];
-    public List<CategoryRule>       CategoryRules        { get; set; } = [];
-    public List<MonthlyStatement>   MonthlyStatements    { get; set; } = [];
-    public List<Transaction>        Transactions         { get; set; } = [];
-    public List<SalaryProfile>      SalaryProfiles       { get; set; } = [];
-    public List<SalaryItemCategory> SalaryItemCategories { get; set; } = [];
-    public List<SalarySlip>         SalarySlips          { get; set; } = [];
-    public List<SalaryLineItem>     SalaryLineItems      { get; set; } = [];
+    public List<Category>                      Categories                     { get; set; } = [];
+    public List<CategoryRule>                  CategoryRules                  { get; set; } = [];
+    public List<MonthlyStatement>              MonthlyStatements              { get; set; } = [];
+    public List<Transaction>                   Transactions                   { get; set; } = [];
+    public List<SalaryProfile>                 SalaryProfiles                 { get; set; } = [];
+    public List<SalaryItemCategory>            SalaryItemCategories           { get; set; } = [];
+    public List<SalarySlip>                    SalarySlips                    { get; set; } = [];
+    public List<SalaryLineItem>                SalaryLineItems                { get; set; } = [];
+    public List<GroceryCategory>               GroceryCategories              { get; set; } = [];
+    public List<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings { get; set; } = [];
+    public List<GroceryReceipt>                GroceryReceipts                { get; set; } = [];
+    public List<GroceryItem>                   GroceryItems                   { get; set; } = [];
+    public List<GroceryCategoryRule>           GroceryCategoryRules           { get; set; } = [];
 }

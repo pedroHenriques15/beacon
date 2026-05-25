@@ -32,13 +32,9 @@ Bank statement PDFs are uploaded through the web interface. A Python script (pdf
 
 Salary slip PDFs go through a similar flow — upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately.
 
+Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, mapped to spending categories, and displayed in a filterable item list with monthly totals.
+
 Everything is stored in SQL Server and served over a REST API. The Angular frontend talks to the API through a proxy in development, and through Nginx in production.
-
----
-
-## In development
-
-- **Grocery receipts** — upload and parse supermarket receipt PDFs, track spending per item and category. The API endpoints exist but the parser is not yet implemented; the feature is not yet usable.
 
 ---
 
@@ -184,7 +180,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend — xUnit (264 tests)
+# Backend — xUnit (213 tests)
 cd api
 dotnet test FinanceHub.Tests/
 

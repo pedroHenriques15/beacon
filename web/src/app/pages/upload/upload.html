@@ -1,7 +1,7 @@
 <div class="page-header">
   <h1>Upload</h1>
   <p class="subtitle">
-    Import bank statements and salary slip PDFs - type is detected automatically
+    Import bank statements, grocery receipts, and salary slips - type is detected automatically
   </p>
 </div>
 
@@ -53,8 +53,8 @@
       </div>
 
       <p class="supported">
-        Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Salary slips: CentralGest ·
-        Domirest
+        Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Grocery receipts: Continente
+        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest
       </p>
     }
   </div>
@@ -174,7 +174,7 @@
               }
             </span>
             <div class="queue-info">
-              <span class="queue-name">{{ item.fileName ?? item.file.name }}</span>
+              <span class="queue-name">{{ item.fileName ?? item.file?.name }}</span>
               <span class="queue-status">
                 @if (item.status === 'pending') {
                   Waiting…
@@ -210,7 +210,33 @@
     </div>
   }
 
-  @if (!batchSummary() && salaryQueue().length === 0) {
+  @if (groceryResults().length > 0) {
+    <div class="result-card success grocery-results-card">
+      <div class="result-icon grocery-icon">🛒</div>
+      <h2>Grocery receipts imported</h2>
+
+      <div class="file-list">
+        @for (r of groceryResults(); track r.receiptId) {
+          <div class="file-row" [class.file-ok]="!r.wasDuplicate" [class.file-dup]="r.wasDuplicate">
+            <span class="file-icon">{{ r.wasDuplicate ? '≈' : '✓' }}</span>
+            <span class="file-name">{{ r.storeName }} · {{ r.receiptDate | slice: 0 : 10 }}</span>
+            <span class="file-detail">
+              {{ r.itemCount }} items · {{ r.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
+            </span>
+          </div>
+        }
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+        <a class="btn-primary" routerLink="/transactions" [queryParams]="{ tab: 'groceries' }"
+          >View groceries</a
+        >
+      </div>
+    </div>
+  }
+
+  @if (!batchSummary() && salaryQueue().length === 0 && groceryResults().length === 0) {
     <div class="result-card success">
       <div class="result-icon">✓</div>
       <h2>Done</h2>
@@ -387,7 +413,7 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showTransferReview.set(false)">Skip</button>
+        <button class="btn-secondary" (click)="dismissTransferReview()">Skip</button>
         <button class="btn-primary" (click)="confirmTransfers()">Mark selected as transfers</button>
       </div>
     </div>
@@ -399,7 +425,7 @@
     <div class="modal slip-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>Review &amp; save slip</h3>
-        <button class="modal-close" (click)="showSlipModal.set(false)">✕</button>
+        <button class="modal-close" (click)="dismissSlipModal()">✕</button>
       </div>
 
       @if (slipSourceFile()) {
@@ -564,7 +590,7 @@
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showSlipModal.set(false)" [disabled]="slipLoading()">
+        <button class="btn-secondary" (click)="dismissSlipModal()" [disabled]="slipLoading()">
           Cancel
         </button>
         <button
@@ -573,6 +599,76 @@
           (click)="submitSlip()"
         >
           {{ slipLoading() ? 'Saving…' : 'Save slip' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showMappingModal()) {
+  <div class="modal-overlay">
+    <div class="modal tx-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>New receipt category: {{ currentMappingCategory() }}</h3>
+        <span class="modal-progress">{{ mappingProgress() }}</span>
+      </div>
+
+      <div class="mapping-tabs">
+        <button [class.active]="mappingMode() === 'new'" (click)="mappingMode.set('new')">
+          Create new
+        </button>
+        <button [class.active]="mappingMode() === 'existing'" (click)="mappingMode.set('existing')">
+          Map to existing
+        </button>
+      </div>
+
+      @if (mappingMode() === 'new') {
+        <label class="field-label">Category name</label>
+        <input
+          class="field-input"
+          type="text"
+          [ngModel]="newMappingName()"
+          (ngModelChange)="newMappingName.set($event)"
+        />
+        <label class="field-label">Color</label>
+        <div class="color-row">
+          <input
+            type="color"
+            [ngModel]="newMappingColor()"
+            (ngModelChange)="newMappingColor.set($event)"
+          />
+          <span class="color-preview" [style.background]="newMappingColor()">{{
+            newMappingName() || 'Preview'
+          }}</span>
+        </div>
+      } @else {
+        <label class="field-label">Existing category</label>
+        <select
+          class="field-input"
+          [ngModel]="selectedExistingCatId()"
+          (ngModelChange)="selectedExistingCatId.set(+$event || null)"
+        >
+          <option [value]="null">Select…</option>
+          @for (cat of groceryCatSvc.categories(); track cat.id) {
+            <option [value]="cat.id">{{ cat.name }}</option>
+          }
+        </select>
+      }
+
+      <div class="modal-actions">
+        <button class="btn-ghost" (click)="skipMapping()" [disabled]="mappingLoading()">
+          Skip
+        </button>
+        <button
+          class="btn-primary"
+          (click)="confirmMapping()"
+          [disabled]="
+            mappingLoading() ||
+            (mappingMode() === 'new' && !newMappingName().trim()) ||
+            (mappingMode() === 'existing' && selectedExistingCatId() == null)
+          "
+        >
+          {{ mappingLoading() ? 'Saving…' : 'Confirm' }}
         </button>
       </div>
     </div>

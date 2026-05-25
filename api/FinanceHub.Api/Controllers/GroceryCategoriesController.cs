@@ -1,11 +1,14 @@
 using FinanceHub.Api.Features.GroceryCategories.Commands.CreateGroceryCategory;
 using FinanceHub.Api.Features.GroceryCategories.Commands.CreateGroceryCategoryRule;
+using FinanceHub.Api.Features.GroceryCategories.Commands.CreateGroceryReceiptCategoryMapping;
 using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryCategory;
 using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryCategoryRule;
+using FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryReceiptCategoryMapping;
 using FinanceHub.Api.Features.GroceryCategories.Commands.UpdateGroceryCategory;
 using FinanceHub.Api.Features.GroceryCategories.Commands.UpdateGroceryCategoryRule;
 using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryCategories;
 using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryCategoryRules;
+using FinanceHub.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinanceHub.Api.Controllers;
@@ -20,7 +23,10 @@ public class GroceryCategoriesController(
     DeleteGroceryCategoryCommandHandler deleteCategory,
     CreateGroceryCategoryRuleCommandHandler createCategoryRule,
     DeleteGroceryCategoryRuleCommandHandler deleteCategoryRule,
-    UpdateGroceryCategoryRuleCommandHandler updateCategoryRule) : ControllerBase
+    UpdateGroceryCategoryRuleCommandHandler updateCategoryRule,
+    GetGroceryReceiptCategoryMappingsQueryHandler getReceiptMappings,
+    CreateGroceryReceiptCategoryMappingCommandHandler createReceiptMapping,
+    DeleteGroceryReceiptCategoryMappingCommandHandler deleteReceiptMapping) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct) =>
@@ -74,9 +80,30 @@ public class GroceryCategoriesController(
         var deleted = await deleteCategoryRule.HandleAsync(new DeleteGroceryCategoryRuleCommand(id), ct);
         return deleted ? NoContent() : NotFound();
     }
+
+    [HttpGet("receipt-mappings")]
+    public async Task<IActionResult> GetReceiptMappings(CancellationToken ct) =>
+        Ok(await getReceiptMappings.HandleAsync(ct));
+
+    [HttpPost("receipt-mappings")]
+    public async Task<IActionResult> CreateReceiptMapping([FromBody] CreateReceiptMappingRequest body, CancellationToken ct)
+    {
+        var (result, isConflict) = await createReceiptMapping.HandleAsync(
+            new CreateGroceryReceiptCategoryMappingCommand(body.ReceiptCategoryName, body.GroceryCategoryId), ct);
+        if (isConflict) return Conflict($"A mapping for '{body.ReceiptCategoryName}' already exists.");
+        return result is null ? NotFound() : Created($"/api/grocery-categories/receipt-mappings/{result.Id}", result);
+    }
+
+    [HttpDelete("receipt-mappings/{id:int}")]
+    public async Task<IActionResult> DeleteReceiptMapping(int id, CancellationToken ct)
+    {
+        var deleted = await deleteReceiptMapping.HandleAsync(new DeleteGroceryReceiptCategoryMappingCommand(id), ct);
+        return deleted ? NoContent() : NotFound();
+    }
 }
 
 public record CreateGroceryCategoryRequest(string Name, string? Color, string? Pattern, decimal? Value = null);
 public record UpdateGroceryCategoryRequest(string? Name, string? Color);
 public record CreateGroceryCategoryRuleRequest(int CategoryId, string? Pattern, decimal? Value);
 public record UpdateGroceryCategoryRuleRequest(string? Pattern, decimal? Value);
+public record CreateReceiptMappingRequest(string ReceiptCategoryName, int GroceryCategoryId);

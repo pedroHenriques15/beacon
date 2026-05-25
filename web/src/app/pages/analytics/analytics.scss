@@ -1,6 +1,17 @@
 @use '../../../_shared' as *;
 @use 'analytics-detail' as *;
 
+.tab-filters {
+  margin-bottom: 1.5rem;
+}
+
+.detail-hint {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
 .header-row {
   display: flex;
   align-items: flex-start;

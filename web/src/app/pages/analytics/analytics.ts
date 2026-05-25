@@ -1,4 +1,5 @@
 import {
+  AfterViewInit,
   Component,
   inject,
   signal,
@@ -24,6 +25,8 @@ import {
 } from 'chart.js';
 import { FinanceService } from '../../core/services/finance.service';
 import { CategoriesService } from '../../core/services/categories.service';
+import { GroceriesService } from '../../core/services/groceries.service';
+import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
 import { availableMonths } from '../../core/utils/date-utils';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 
@@ -45,15 +48,21 @@ Chart.register(
   templateUrl: './analytics.html',
   styleUrl: './analytics.scss',
 })
-export class AnalyticsComponent implements OnDestroy {
+export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   finance = inject(FinanceService);
   catSvc = inject(CategoriesService);
+  groceriesSvc = inject(GroceriesService);
+  groceryCatSvc = inject(GroceryCategoriesService);
   router = inject(Router);
 
   @ViewChild('spendingCanvas') spendingCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('incomeCanvas') incomeCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas') trendCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('categoryTrendCanvas') categoryTrendCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('gSpendingCanvas') gSpendingCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('gCategoryTrendCanvas') gCategoryTrendCanvas?: ElementRef<HTMLCanvasElement>;
+
+  activeTab = signal<'transactions' | 'groceries'>('transactions');
 
   filterMonth = signal('');
   filterCategory = signal('');
@@ -63,6 +72,8 @@ export class AnalyticsComponent implements OnDestroy {
     dominantType: 'credit' | 'debit';
   } | null>(null);
   private defaultApplied = false;
+  private readonly CHART_GRID_COLOR = 'rgba(30, 45, 66, 0.8)';
+  private readonly CHART_TICK_COLOR = '#64748b';
   spendingChart?: Chart;
   incomeChart?: Chart;
   trendChart?: Chart;
@@ -218,6 +229,117 @@ export class AnalyticsComponent implements OnDestroy {
       .map(([month, data]) => ({ month, ...data }));
   });
 
+  gFilterMonth = signal('');
+  gFilterCategory = signal('');
+  gSelectedCategory = signal<{ label: string; color: string } | null>(null);
+  private gDefaultApplied = false;
+  gSpendingChart?: Chart;
+  gCategoryTrendChart?: Chart;
+  gAvailableMonths = computed(() => {
+    const months = this.groceriesSvc.allItems().map((i) => i.receiptDate.slice(0, 7));
+    return [...new Set(months)].sort().reverse();
+  });
+
+  private gItemsFiltered = computed(() => {
+    const m = this.gFilterMonth();
+    const items = this.groceriesSvc.allItems();
+    if (!m) return items;
+    return items.filter((i) => i.receiptDate.slice(0, 7) === m);
+  });
+
+  gSpendingData = computed(() => {
+    const map = new Map<string, { label: string; color: string; total: number }>();
+    for (const item of this.gItemsFiltered()) {
+      const key = item.categoryName ?? CATEGORY_UNKNOWN;
+      const color = item.categoryColor ?? '#475569';
+      const cur = map.get(key) ?? { label: key, color, total: 0 };
+      map.set(key, { ...cur, total: cur.total + item.amount * item.quantity });
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  });
+
+  gTotalSpending = computed(() => this.gSpendingData().reduce((s, d) => s + d.total, 0));
+
+  gAllCategories = computed(() => {
+    const map = new Map<string, string>();
+    for (const item of this.groceriesSvc.allItems()) {
+      const label = item.categoryName ?? CATEGORY_UNKNOWN;
+      const color = item.categoryColor ?? '#475569';
+      if (!map.has(label)) map.set(label, color);
+    }
+    return [...map.entries()]
+      .map(([label, color]) => ({ label, color }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  });
+
+  gCategoryTrendData = computed(() => {
+    const sel = this.gSelectedCategory();
+    if (!sel) return [];
+    const map = new Map<string, number>();
+    for (const item of this.groceriesSvc.allItems()) {
+      const label = item.categoryName ?? CATEGORY_UNKNOWN;
+      if (label !== sel.label) continue;
+      const month = item.receiptDate.slice(0, 7);
+      map.set(month, (map.get(month) ?? 0) + item.amount * item.quantity);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-18)
+      .map(([month, spending]) => ({ month, spending }));
+  });
+
+  gCategoryTopItems = computed(() => {
+    const sel = this.gSelectedCategory();
+    if (!sel) return [];
+    const map = new Map<string, number>();
+    for (const item of this.gItemsFiltered()) {
+      const label = item.categoryName ?? CATEGORY_UNKNOWN;
+      if (label !== sel.label) continue;
+      map.set(item.description, (map.get(item.description) ?? 0) + item.amount * item.quantity);
+    }
+    return [...map.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([description, total]) => ({ description, total }));
+  });
+
+  gCategoryPeriodItems = computed(() => {
+    const sel = this.gSelectedCategory();
+    if (!sel) return [];
+    return this.gItemsFiltered().filter(
+      (item) => (item.categoryName ?? CATEGORY_UNKNOWN) === sel.label,
+    );
+  });
+
+  gCategoryStats = computed(() => {
+    const sel = this.gSelectedCategory();
+    if (!sel) return null;
+    const allItems = this.groceriesSvc
+      .allItems()
+      .filter((item) => (item.categoryName ?? CATEGORY_UNKNOWN) === sel.label);
+    const byMonth = new Map<string, number>();
+    for (const item of allItems) {
+      const month = item.receiptDate.slice(0, 7);
+      byMonth.set(month, (byMonth.get(month) ?? 0) + item.amount * item.quantity);
+    }
+    const months = [...byMonth.keys()].sort();
+    const avgMonthly = months.length
+      ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
+      : 0;
+    const currentMonth = this.gFilterMonth();
+    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
+    const prevMonth = currentMonth
+      ? (() => {
+          const [y, m] = currentMonth.split('-').map(Number);
+          const d = new Date(y, m - 2, 1);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        })()
+      : undefined;
+    const prevTotal = prevMonth !== undefined ? (byMonth.get(prevMonth) ?? 0) : null;
+    const delta = prevTotal !== null ? currentTotal - prevTotal : null;
+    return { avgMonthly, currentTotal, delta };
+  });
+
   formatMonth(m: string): string {
     const [y, mo] = m.split('-');
     return new Date(+y, +mo - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -233,7 +355,16 @@ export class AnalyticsComponent implements OnDestroy {
     });
 
     effect(() => {
+      const months = this.gAvailableMonths();
+      if (months.length > 0 && !this.gDefaultApplied) {
+        this.gDefaultApplied = true;
+        this.gFilterMonth.set(months[0]);
+      }
+    });
+
+    effect(() => {
       if (!this.canvasReady()) return;
+      if (this.activeTab() !== 'transactions') return;
       const spending = this.spendingData();
       const income = this.incomeData();
       this.selectedCategory();
@@ -243,6 +374,7 @@ export class AnalyticsComponent implements OnDestroy {
     });
 
     effect(() => {
+      if (this.activeTab() !== 'transactions') return;
       const sel = this.selectedCategory();
       const data = this.categoryTrendData();
       if (!sel) {
@@ -258,6 +390,31 @@ export class AnalyticsComponent implements OnDestroy {
       }
       setTimeout(() => this.renderCategoryTrendChart(), 0);
     });
+
+    effect(() => {
+      if (!this.canvasReady()) return;
+      if (this.activeTab() !== 'groceries') return;
+      this.gSpendingData();
+      this.gSelectedCategory();
+      this.renderGrocerySpendingChart();
+    });
+
+    effect(() => {
+      if (this.activeTab() !== 'groceries') return;
+      const sel = this.gSelectedCategory();
+      const data = this.gCategoryTrendData();
+      if (!sel) {
+        this.gCategoryTrendChart?.destroy();
+        this.gCategoryTrendChart = undefined;
+        return;
+      }
+      if (!data.length) {
+        this.gCategoryTrendChart?.destroy();
+        this.gCategoryTrendChart = undefined;
+        return;
+      }
+      setTimeout(() => this.renderGroceryCategoryTrendChart(), 0);
+    });
   }
 
   ngAfterViewInit(): void {
@@ -269,6 +426,8 @@ export class AnalyticsComponent implements OnDestroy {
     this.incomeChart?.destroy();
     this.trendChart?.destroy();
     this.categoryTrendChart?.destroy();
+    this.gSpendingChart?.destroy();
+    this.gCategoryTrendChart?.destroy();
   }
 
   selectCategory(label: string, color: string, dominantType: 'credit' | 'debit' = 'debit'): void {
@@ -329,6 +488,61 @@ export class AnalyticsComponent implements OnDestroy {
     chart.setActiveElements([]);
     chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
     chart.update('none');
+  }
+
+  selectGroceryCategory(label: string, color: string): void {
+    if (this.gSelectedCategory()?.label === label) {
+      this.clearGroceryCategory();
+      return;
+    }
+    this.gSelectedCategory.set({ label, color });
+    this.gFilterCategory.set(label);
+  }
+
+  clearGroceryCategory(): void {
+    this.gSelectedCategory.set(null);
+    this.gFilterCategory.set('');
+  }
+
+  onGroceryCategoryDropdownChange(value: string): void {
+    if (!value) {
+      this.clearGroceryCategory();
+      return;
+    }
+    const cat = this.gAllCategories().find((c) => c.label === value);
+    if (cat) {
+      this.gSelectedCategory.set({ label: cat.label, color: cat.color });
+      this.gFilterCategory.set(value);
+    }
+  }
+
+  navigateToGroceryCategory(label: string): void {
+    const month = this.gFilterMonth();
+    const cat = this.groceryCatSvc.categories().find((c) => c.name === label);
+    const params: Record<string, string> = {};
+    if (cat) params['categoryId'] = String(cat.id);
+    else if (label === CATEGORY_UNKNOWN) params['categoryId'] = 'unknown';
+    if (month) params['month'] = month;
+    this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
+  }
+
+  highlightGrocerySlice(label: string): void {
+    if (!this.gSpendingChart) return;
+    const idx = this.gSpendingData().findIndex((d) => d.label === label);
+    if (idx === -1) return;
+    this.gSpendingChart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+    this.gSpendingChart.tooltip?.setActiveElements([{ datasetIndex: 0, index: idx }], {
+      x: 0,
+      y: 0,
+    });
+    this.gSpendingChart.update('none');
+  }
+
+  clearGroceryHighlight(): void {
+    if (!this.gSpendingChart) return;
+    this.gSpendingChart.setActiveElements([]);
+    this.gSpendingChart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+    this.gSpendingChart.update('none');
   }
 
   private renderChart(
@@ -465,13 +679,13 @@ export class AnalyticsComponent implements OnDestroy {
         },
         scales: {
           x: {
-            grid: { color: 'rgba(30, 45, 66, 0.8)' },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { color: this.CHART_GRID_COLOR },
+            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
           },
           y: {
-            grid: { color: 'rgba(30, 45, 66, 0.8)' },
+            grid: { color: this.CHART_GRID_COLOR },
             ticks: {
-              color: '#64748b',
+              color: this.CHART_TICK_COLOR,
               font: { size: 11 },
               callback: (v) => `€${(v as number).toLocaleString()}`,
             },
@@ -529,13 +743,145 @@ export class AnalyticsComponent implements OnDestroy {
         },
         scales: {
           x: {
-            grid: { color: 'rgba(30, 45, 66, 0.8)' },
-            ticks: { color: '#64748b', font: { size: 11 } },
+            grid: { color: this.CHART_GRID_COLOR },
+            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
           },
           y: {
-            grid: { color: 'rgba(30, 45, 66, 0.8)' },
+            grid: { color: this.CHART_GRID_COLOR },
             ticks: {
-              color: '#64748b',
+              color: this.CHART_TICK_COLOR,
+              font: { size: 11 },
+              callback: (v) => `€${(v as number).toLocaleString()}`,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private renderGrocerySpendingChart(): void {
+    const canvas = this.gSpendingCanvas?.nativeElement;
+    if (!canvas) return;
+
+    this.gSpendingChart?.destroy();
+
+    const data = this.gSpendingData();
+    const sel = this.gSelectedCategory();
+
+    this.gSpendingChart = new Chart(canvas, {
+      type: 'pie',
+      data: {
+        labels: data.map((d) => d.label),
+        datasets: [
+          {
+            data: data.map((d) => d.total),
+            backgroundColor: data.map((d) => {
+              if (!sel || d.label === sel.label) return d.color + 'cc';
+              return d.color + '88';
+            }),
+            borderColor: data.map((d) => {
+              if (!sel || d.label === sel.label) return d.color;
+              return d.color + 'aa';
+            }),
+            borderWidth: 1.5,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        onClick: (_event, elements) => {
+          if (!elements.length) return;
+          const item = data[elements[0].index];
+          if (item) this.selectGroceryCategory(item.label, item.color);
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.parsed as number;
+                return ` ${ctx.label}: €${val.toFixed(2)}`;
+              },
+            },
+          },
+        },
+      },
+      plugins: [
+        {
+          id: 'gSelectionIndicator',
+          afterDraw: (chart) => {
+            const selected = this.gSelectedCategory();
+            if (!selected) return;
+            const idx = data.findIndex((d) => d.label === selected.label);
+            if (idx === -1) return;
+            const meta = chart.getDatasetMeta(0);
+            const arc = meta.data[idx] as any;
+            if (!arc) return;
+            const { x, y, startAngle, endAngle, outerRadius } = arc;
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.arc(x, y, outerRadius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+          },
+        },
+      ],
+    });
+  }
+
+  private renderGroceryCategoryTrendChart(): void {
+    const canvas = this.gCategoryTrendCanvas?.nativeElement;
+    if (!canvas) return;
+
+    this.gCategoryTrendChart?.destroy();
+
+    const data = this.gCategoryTrendData();
+    const labels = data.map((d) => {
+      const [y, m] = d.month.split('-');
+      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+    });
+
+    this.gCategoryTrendChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Spending',
+            data: data.map((d) => d.spending),
+            backgroundColor: 'rgba(248, 113, 113, 0.5)',
+            borderColor: '#f87171',
+            borderWidth: 1.5,
+            borderRadius: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` Spending: €${(ctx.parsed.y as number).toFixed(2)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: this.CHART_GRID_COLOR },
+            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
+          },
+          y: {
+            grid: { color: this.CHART_GRID_COLOR },
+            ticks: {
+              color: this.CHART_TICK_COLOR,
               font: { size: 11 },
               callback: (v) => `€${(v as number).toLocaleString()}`,
             },
