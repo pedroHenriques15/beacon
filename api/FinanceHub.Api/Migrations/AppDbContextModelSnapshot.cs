@@ -79,10 +79,7 @@ namespace FinanceHub.Api.Migrations
             modelBuilder.Entity("FinanceHub.Api.Models.GoogleOAuthToken", b =>
                 {
                     b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AccessToken")
                         .IsRequired()
@@ -106,9 +103,10 @@ namespace FinanceHub.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasCheckConstraint("CK_SingleToken", "Id = 1");
-
-                    b.ToTable("GoogleOAuthTokens");
+                    b.ToTable("GoogleOAuthTokens", t =>
+                        {
+                            t.HasCheckConstraint("CK_SingleToken", "Id = 1");
+                        });
                 });
 
             modelBuilder.Entity("FinanceHub.Api.Models.GroceryCategory", b =>

@@ -160,6 +160,7 @@ public class GoogleOAuthServiceTests
         var now         = DateTime.UtcNow;
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
+            Id           = 1,
             AccessToken  = "tok",
             RefreshToken = "ref",
             ExpiresAt    = now.AddHours(1),
@@ -185,6 +186,7 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(DisconnectAsync_RemovesAllTokens));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
+            Id           = 1,
             AccessToken  = "tok",
             RefreshToken = "ref",
             ExpiresAt    = DateTime.UtcNow.AddHours(1),
@@ -208,6 +210,7 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshFails_ReturnsNull_AndDisconnects));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
+            Id           = 1,
             AccessToken  = "old-token",
             RefreshToken = "bad-refresh",
             ExpiresAt    = DateTime.UtcNow.AddMinutes(-5),
@@ -234,6 +237,7 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
+            Id           = 1,
             AccessToken  = "still-valid",
             RefreshToken = "refresh",
             ExpiresAt    = DateTime.UtcNow.AddHours(1),
@@ -248,6 +252,32 @@ public class GoogleOAuthServiceTests
         var result = await svc.GetValidAccessTokenAsync();
 
         Assert.Equal("still-valid", result);
+    }
+
+    // --- Disconnect then reconnect ---
+
+    [Fact]
+    public async Task ConnectDisconnectReconnect_StoresNewTokenWithIdOne()
+    {
+        using var db    = CreateDb(nameof(ConnectDisconnectReconnect_StoresNewTokenWithIdOne));
+        using var cache = CreateCache();
+        var svc         = CreateService(db, cache);
+
+        svc.GetAuthorizationUrl();
+        cache.TryGetValue("google_oauth_state", out string? state1);
+        await svc.ExchangeCodeAsync("code-1", state1!);
+
+        await svc.DisconnectAsync();
+        Assert.Empty(await db.GoogleOAuthTokens.ToListAsync());
+
+        svc.GetAuthorizationUrl();
+        cache.TryGetValue("google_oauth_state", out string? state2);
+        await svc.ExchangeCodeAsync("code-2", state2!);
+
+        var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync();
+        Assert.NotNull(token);
+        Assert.Equal(1, token.Id);
+        Assert.Equal("test-access", token.AccessToken);
     }
 
     // --- Helpers ---

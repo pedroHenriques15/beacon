@@ -191,6 +191,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<GoogleOAuthToken>(e =>
         {
             e.HasKey(t => t.Id);
+            e.Property(t => t.Id).ValueGeneratedNever();
             e.Property(t => t.AccessToken).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
             e.Property(t => t.Scopes).HasMaxLength(500);

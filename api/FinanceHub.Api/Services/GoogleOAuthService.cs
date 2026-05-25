@@ -15,6 +15,7 @@ public class GoogleOAuthService(
     IMemoryCache cache)
 {
     private const string StateCacheKey = "google_oauth_state";
+    private const int ExpiryBufferSeconds = 60;
 
     private static readonly string[] DefaultScopes =
     [
@@ -78,7 +79,7 @@ public class GoogleOAuthService(
         var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
         if (token is null) return null;
 
-        if (token.ExpiresAt > DateTime.UtcNow.AddMinutes(1))
+        if (token.ExpiresAt > DateTime.UtcNow.AddSeconds(ExpiryBufferSeconds))
             return token.AccessToken;
 
         return await RefreshAccessTokenAsync(token, ct);
@@ -119,7 +120,7 @@ public class GoogleOAuthService(
                 ?? throw new InvalidOperationException("Empty refresh response from Google.");
 
             token.AccessToken = body.AccessToken;
-            token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30);
+            token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds);
             await db.SaveChangesAsync(ct);
 
             return token.AccessToken;
@@ -141,9 +142,10 @@ public class GoogleOAuthService(
 
             db.GoogleOAuthTokens.Add(new Models.GoogleOAuthToken
             {
+                Id = 1,
                 AccessToken = body.AccessToken,
                 RefreshToken = body.RefreshToken,
-                ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30),
+                ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds),
                 Scopes = string.Join(" ", DefaultScopes),
                 ConnectedAt = DateTime.UtcNow,
             });
@@ -153,7 +155,7 @@ public class GoogleOAuthService(
             existing.AccessToken = body.AccessToken;
             if (!string.IsNullOrEmpty(body.RefreshToken))
                 existing.RefreshToken = body.RefreshToken;
-            existing.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30);
+            existing.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - ExpiryBufferSeconds);
         }
 
         await db.SaveChangesAsync(ct);
