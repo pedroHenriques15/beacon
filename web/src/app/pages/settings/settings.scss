@@ -11,6 +11,12 @@
   }
 }
 
+.settings-error {
+  font-size: 0.875rem;
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
 .google-card {
   display: flex;
   align-items: center;
@@ -52,35 +58,5 @@
     font-size: 0.85rem;
     color: var(--text-muted);
     margin: 0;
-  }
-}
-
-.btn {
-  padding: 0.5rem 1.25rem;
-  border-radius: 8px;
-  border: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-
-  &--primary {
-    background: var(--primary);
-    color: #fff;
-
-    &:hover {
-      opacity: 0.9;
-    }
-  }
-
-  &--danger {
-    background: transparent;
-    color: var(--danger);
-    border: 1px solid var(--danger);
-
-    &:hover {
-      background: var(--danger);
-      color: #fff;
-    }
   }
 }

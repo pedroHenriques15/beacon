@@ -1,14 +1,22 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using FinanceHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace FinanceHub.Api.Services;
 
-public class GoogleOAuthService(IHttpClientFactory httpClientFactory, IConfiguration config, AppDbContext db)
+public class GoogleOAuthService(
+    IHttpClientFactory httpClientFactory,
+    IConfiguration config,
+    AppDbContext db,
+    IMemoryCache cache)
 {
+    private const string StateCacheKey = "google_oauth_state";
+
     private static readonly string[] DefaultScopes =
     [
         "https://www.googleapis.com/auth/calendar",
@@ -26,6 +34,9 @@ public class GoogleOAuthService(IHttpClientFactory httpClientFactory, IConfigura
 
     public string GetAuthorizationUrl()
     {
+        var state = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        cache.Set(StateCacheKey, state, TimeSpan.FromMinutes(10));
+
         var scopes = string.Join(" ", DefaultScopes);
         var query = HttpUtility.ParseQueryString(string.Empty);
         query["client_id"] = ClientId;
@@ -34,11 +45,17 @@ public class GoogleOAuthService(IHttpClientFactory httpClientFactory, IConfigura
         query["scope"] = scopes;
         query["access_type"] = "offline";
         query["prompt"] = "consent";
+        query["state"] = state;
         return $"https://accounts.google.com/o/oauth2/v2/auth?{query}";
     }
 
-    public async Task ExchangeCodeAsync(string code, CancellationToken ct = default)
+    public async Task ExchangeCodeAsync(string code, string state, CancellationToken ct = default)
     {
+        if (!cache.TryGetValue(StateCacheKey, out string? expectedState) || expectedState != state)
+            throw new InvalidOperationException("Invalid or expired OAuth state parameter.");
+
+        cache.Remove(StateCacheKey);
+
         var client = httpClientFactory.CreateClient("google-oauth");
         var response = await client.PostAsync("https://oauth2.googleapis.com/token",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -84,27 +101,35 @@ public class GoogleOAuthService(IHttpClientFactory httpClientFactory, IConfigura
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<string> RefreshAccessTokenAsync(Models.GoogleOAuthToken token, CancellationToken ct)
+    private async Task<string?> RefreshAccessTokenAsync(Models.GoogleOAuthToken token, CancellationToken ct)
     {
-        var client = httpClientFactory.CreateClient("google-oauth");
-        var response = await client.PostAsync("https://oauth2.googleapis.com/token",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["refresh_token"] = token.RefreshToken,
-                ["client_id"] = ClientId,
-                ["client_secret"] = ClientSecret,
-                ["grant_type"] = "refresh_token",
-            }), ct);
+        try
+        {
+            var client = httpClientFactory.CreateClient("google-oauth");
+            var response = await client.PostAsync("https://oauth2.googleapis.com/token",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["refresh_token"] = token.RefreshToken,
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret,
+                    ["grant_type"] = "refresh_token",
+                }), ct);
 
-        response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct)
-            ?? throw new InvalidOperationException("Empty refresh response from Google.");
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct)
+                ?? throw new InvalidOperationException("Empty refresh response from Google.");
 
-        token.AccessToken = body.AccessToken;
-        token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30);
-        await db.SaveChangesAsync(ct);
+            token.AccessToken = body.AccessToken;
+            token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30);
+            await db.SaveChangesAsync(ct);
 
-        return token.AccessToken;
+            return token.AccessToken;
+        }
+        catch (HttpRequestException)
+        {
+            await DisconnectAsync(ct);
+            return null;
+        }
     }
 
     private async Task UpsertTokenAsync(TokenResponse body, CancellationToken ct)
@@ -112,10 +137,13 @@ public class GoogleOAuthService(IHttpClientFactory httpClientFactory, IConfigura
         var existing = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
         if (existing is null)
         {
+            if (string.IsNullOrEmpty(body.RefreshToken))
+                throw new InvalidOperationException("Google did not return a refresh token.");
+
             db.GoogleOAuthTokens.Add(new Models.GoogleOAuthToken
             {
                 AccessToken = body.AccessToken,
-                RefreshToken = body.RefreshToken ?? "",
+                RefreshToken = body.RefreshToken,
                 ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn - 30),
                 Scopes = string.Join(" ", DefaultScopes),
                 ConnectedAt = DateTime.UtcNow,
