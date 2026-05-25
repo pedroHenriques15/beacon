@@ -166,11 +166,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-var frontendUrl = app.Configuration["GoogleServices:FrontendUrl"] ?? "";
-if (!Uri.TryCreate(frontendUrl, UriKind.Absolute, out var frontendUri) ||
-    frontendUri.Scheme is not ("http" or "https"))
-    throw new InvalidOperationException(
-        $"GoogleServices:FrontendUrl must be an absolute http/https URL; got: '{frontendUrl}'");
+if (!string.IsNullOrEmpty(app.Configuration["GoogleServices:ClientId"]))
+{
+    var frontendUrl = app.Configuration["GoogleServices:FrontendUrl"] ?? "";
+    if (!Uri.TryCreate(frontendUrl, UriKind.Absolute, out var frontendUri) ||
+        frontendUri.Scheme is not ("http" or "https"))
+        throw new InvalidOperationException(
+            $"GoogleServices:FrontendUrl must be an absolute http/https URL; got: '{frontendUrl}'");
+}
 
 if (app.Environment.IsDevelopment())
 {
