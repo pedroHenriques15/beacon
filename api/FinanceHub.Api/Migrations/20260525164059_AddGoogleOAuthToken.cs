@@ -15,8 +15,7 @@ namespace FinanceHub.Api.Migrations
                 name: "GoogleOAuthTokens",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Id = table.Column<int>(type: "int", nullable: false),
                     AccessToken = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RefreshToken = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
