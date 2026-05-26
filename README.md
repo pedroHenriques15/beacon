@@ -184,7 +184,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend — xUnit (321 tests)
+# Backend — xUnit (330 tests)
 cd api
 dotnet test FinanceHub.Tests/
 
@@ -193,7 +193,7 @@ cd web
 npm test -- --run
 ```
 
-Backend test coverage includes all bank and salary slip parsers, the API key middleware, categorisation rule service, CQRS handlers for transactions and categories, and `GoogleOAuthService`.
+Backend test coverage includes all bank and salary slip parsers, the API key middleware, categorisation rule service, CQRS handlers for transactions and categories, `GoogleOAuthService`, and `GoogleCalendarService`.
 
 ---
 

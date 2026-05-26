@@ -112,6 +112,11 @@
     border-color: #4f8cff;
   }
 
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   option,
   optgroup {
     background: var(--surface);
