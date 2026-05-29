@@ -22,6 +22,8 @@
   --danger: #ef4444;
   --credit: #34d399;
   --debit: #f87171;
+  --primary-light: #a5b4fc;
+  --text-heading: #f1f5f9;
 }
 
 html,
@@ -34,7 +36,7 @@ body {
     -apple-system,
     sans-serif;
   background: var(--bg);
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
@@ -44,7 +46,7 @@ h2,
 h3 {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--text-heading);
   margin: 0;
 }
 
@@ -57,4 +59,25 @@ h3 {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
+}
+
+input[type='checkbox'] {
+  --_check-color: var(--primary);
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:checked {
+    background: var(--_check-color);
+    border-color: var(--_check-color);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2,6 5,9 10,3'/%3E%3C/svg%3E");
+    background-size: 75% 75%;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
 }

@@ -131,7 +131,6 @@ public class GoogleCalendarService(GoogleOAuthService oauthService, IHttpClientF
 
         if (isAllDay)
         {
-            // Google Calendar all-day end is exclusive; add one day from the inclusive end the app uses.
             var exclusiveEnd = DateOnly.Parse(end ?? start).AddDays(1).ToString("yyyy-MM-dd");
             body["start"] = new { date = start };
             body["end"]   = new { date = exclusiveEnd };
@@ -152,7 +151,6 @@ public class GoogleCalendarService(GoogleOAuthService oauthService, IHttpClientF
             ?? throw new InvalidOperationException($"Google Calendar event '{e.Id}' has no start date.");
         var rawEnd = e.End?.DateTime ?? e.End?.Date
             ?? throw new InvalidOperationException($"Google Calendar event '{e.Id}' has no end date.");
-        // Google's all-day end is exclusive; subtract one day so the app always works with inclusive dates.
         var end = isAllDay ? DateOnly.Parse(rawEnd).AddDays(-1).ToString("yyyy-MM-dd") : rawEnd;
         return new GoogleCalendarEventDto(
             e.Id ?? throw new InvalidOperationException("Google Calendar API returned an event with no id."),

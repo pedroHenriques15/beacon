@@ -338,26 +338,4 @@ public class GoogleOAuthServiceTests
         Assert.Equal("test-access", token.AccessToken);
     }
 
-    private sealed class ThrowingHttpMessageHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("No HTTP calls expected for a valid token.");
-    }
-
-    private sealed class FakeHttpMessageHandler(System.Net.HttpStatusCode status, string body)
-        : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
-            });
-    }
-
-    private sealed class FakeHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler);
-    }
 }

@@ -54,7 +54,6 @@ public class UnifiedUploadBatchCommandHandler(
 
             var fullText = string.Join("\n", pages);
 
-            // Try bank statement
             try
             {
                 bankFactory.DetectParser(fullText);
@@ -74,7 +73,6 @@ public class UnifiedUploadBatchCommandHandler(
             }
             catch (NotSupportedException) { }
 
-            // Try grocery receipt
             try
             {
                 groceryFactory.DetectParser(fullText);
@@ -94,7 +92,6 @@ public class UnifiedUploadBatchCommandHandler(
             }
             catch (NotSupportedException) { }
 
-            // Try salary slip
             var salaryParser = salaryFactory.FindParser(fullText);
             if (salaryParser is not null)
             {

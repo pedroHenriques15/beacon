@@ -59,8 +59,6 @@ public class GoogleCalendarServiceTests
         GoogleOAuthService oauthSvc, HttpMessageHandler calendarHandler) =>
         new(oauthSvc, new FakeHttpClientFactory(calendarHandler));
 
-    // Calendar list with a single selected primary calendar — used as the first
-    // response for GetEventsAsync tests (which now call the calendar list API first).
     private const string SingleCalendarList = """
         {
           "items": [
@@ -68,8 +66,6 @@ public class GoogleCalendarServiceTests
           ]
         }
         """;
-
-    // ── GetEventsAsync ────────────────────────────────────────────────────────
 
     [Fact]
     public async Task GetEventsAsync_SinglePage_ReturnsMappedEvents()
@@ -94,7 +90,6 @@ public class GoogleCalendarServiceTests
               ]
             }
             """;
-        // First request = calendar list; second = events for that calendar.
         var svc = CreateCalendarSvc(oauthSvc,
             new SequentialHttpMessageHandler(
                 (System.Net.HttpStatusCode.OK, SingleCalendarList),
@@ -115,7 +110,7 @@ public class GoogleCalendarServiceTests
         Assert.Equal("Holiday", allDay.Title);
         Assert.True(allDay.IsAllDay);
         Assert.Equal("2026-05-25", allDay.Start);
-        Assert.Equal("2026-05-25", allDay.End); // inclusive end: same as start for a single-day event
+        Assert.Equal("2026-05-25", allDay.End);
     }
 
     [Fact]
@@ -135,7 +130,6 @@ public class GoogleCalendarServiceTests
               "items": [{"id":"p2","summary":"Second","start":{"dateTime":"2026-05-27T10:00:00Z"},"end":{"dateTime":"2026-05-27T11:00:00Z"}}]
             }
             """;
-        // Responses: calendar list, events page 1, events page 2.
         var svc = CreateCalendarSvc(oauthSvc,
             new SequentialHttpMessageHandler(
                 (System.Net.HttpStatusCode.OK, SingleCalendarList),
@@ -154,7 +148,6 @@ public class GoogleCalendarServiceTests
     {
         using var db = CreateDb(nameof(GetEventsAsync_GoogleApiError_ThrowsWithBody));
         var oauthSvc = CreateOAuthSvcWithToken(db);
-        // Calendar list call returns 401 — service throws immediately.
         var svc = CreateCalendarSvc(oauthSvc,
             new FakeHttpMessageHandler(System.Net.HttpStatusCode.Unauthorized,
                 """{"error":{"message":"Invalid Credentials"}}"""));
@@ -176,8 +169,6 @@ public class GoogleCalendarServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => svc.GetEventsAsync(new DateTime(2026, 5, 1), new DateTime(2026, 5, 31)));
     }
-
-    // ── CreateEventAsync ──────────────────────────────────────────────────────
 
     [Fact]
     public async Task CreateEventAsync_ReturnsCreatedEvent()
@@ -214,8 +205,6 @@ public class GoogleCalendarServiceTests
         Assert.Contains("Required field missing", ex.Message);
     }
 
-    // ── UpdateEventAsync ──────────────────────────────────────────────────────
-
     [Fact]
     public async Task UpdateEventAsync_ReturnsUpdatedEvent()
     {
@@ -232,8 +221,6 @@ public class GoogleCalendarServiceTests
         Assert.Equal("evt1", result.Id);
         Assert.Equal("Updated", result.Title);
     }
-
-    // ── DeleteEventAsync ──────────────────────────────────────────────────────
 
     [Fact]
     public async Task DeleteEventAsync_Succeeds_OnNoContent()
@@ -262,26 +249,6 @@ public class GoogleCalendarServiceTests
         Assert.Contains("Event not found", ex.Message);
     }
 
-    // ── Fake helpers ──────────────────────────────────────────────────────────
-
-    private sealed class ThrowingHttpMessageHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Unexpected HTTP call in this test.");
-    }
-
-    private sealed class FakeHttpMessageHandler(System.Net.HttpStatusCode status, string body)
-        : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
-            });
-    }
-
     private sealed class SequentialHttpMessageHandler(
         params (System.Net.HttpStatusCode Status, string Body)[] responses) : HttpMessageHandler
     {
@@ -298,8 +265,4 @@ public class GoogleCalendarServiceTests
         }
     }
 
-    private sealed class FakeHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler);
-    }
 }

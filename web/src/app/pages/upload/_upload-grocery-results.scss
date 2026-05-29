@@ -30,7 +30,7 @@
 
     &.active {
       border-color: var(--primary);
-      color: #a5b4fc;
+      color: var(--primary-light);
     }
 
     &:hover:not(.active) {

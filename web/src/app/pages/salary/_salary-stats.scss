@@ -71,7 +71,7 @@
       font-weight: 600;
       color: var(--text-muted);
       &.true-hourly {
-        color: #a5b4fc;
+        color: var(--primary-light);
       }
     }
   }
