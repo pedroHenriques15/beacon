@@ -5,7 +5,6 @@ namespace FinanceHub.Api.Models;
 public record GoogleCalendarEventDto(
     string Id,
     string Title,
-    // "yyyy-MM-dd" for all-day events; ISO 8601 "yyyy-MM-ddTHH:mm:ssZ" for timed events
     string Start,
     string End,
     string? Description,

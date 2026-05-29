@@ -67,6 +67,33 @@
                 <span class="cal-chip__title">{{ event.title }}</span>
               </div>
             }
+            @for (task of day.tasks; track task.id) {
+              <div
+                class="task-chip"
+                [class.task-chip--done]="task.completed"
+                [title]="task.title"
+                (click)="openTaskModal(task, $event)"
+              >
+                <button
+                  class="task-chip__check"
+                  type="button"
+                  [title]="task.completed ? 'Mark incomplete' : 'Mark complete'"
+                  (click)="onTaskComplete(task, $event)"
+                >
+                  <svg
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="2,6 5,9 10,3" />
+                  </svg>
+                </button>
+                <span class="task-chip__title">{{ task.title }}</span>
+              </div>
+            }
           </div>
         </div>
       }
@@ -88,6 +115,69 @@
       </div>
     }
 
+    <section class="tasks-panel">
+      <div class="tasks-panel__header">
+        <h3>Tasks</h3>
+        <button class="btn-primary" type="button" (click)="openTaskModal()">+ New task</button>
+      </div>
+
+      @if (taskToggleError()) {
+        <p class="error">{{ taskToggleError() }}</p>
+      }
+      @if (tasksService.loading()) {
+        <p class="tasks-panel__empty">Loading tasks…</p>
+      } @else if (tasksService.error()) {
+        <p class="tasks-panel__empty">{{ tasksService.error() }}</p>
+      } @else {
+        @if (pendingTaskGroups().length === 0 && completedTasks().length === 0) {
+          <p class="tasks-panel__empty">No tasks.</p>
+        }
+
+        @for (group of pendingTaskGroups(); track group.listId) {
+          <div class="tasks-panel__category">
+            <span class="tasks-panel__category-title">{{ group.listTitle }}</span>
+            @for (task of group.tasks; track task.id) {
+              <div class="task-row">
+                <input
+                  type="checkbox"
+                  [checked]="task.completed"
+                  (change)="onTaskComplete(task, $event)"
+                />
+                <span class="task-row__title" (click)="openTaskModal(task)">{{ task.title }}</span>
+                @if (task.due) {
+                  <span class="task-row__due">{{ task.due }}</span>
+                }
+                @if (task.notes) {
+                  <span class="task-row__notes" [title]="task.notes">{{ task.notes }}</span>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        @if (completedTasks().length > 0) {
+          <button class="tasks-panel__toggle" type="button" (click)="showCompleted.update(v => !v)">
+            {{ showCompleted() ? 'Hide' : 'Show' }} completed ({{ completedTasks().length }})
+          </button>
+          @if (showCompleted()) {
+            @for (task of completedTasks(); track task.id) {
+              <div class="task-row task-row--done">
+                <input
+                  type="checkbox"
+                  [checked]="task.completed"
+                  (change)="onTaskComplete(task, $event)"
+                />
+                <span class="task-row__title" (click)="openTaskModal(task)">{{ task.title }}</span>
+                @if (taskListTitleMap().get(task.taskListId); as listName) {
+                  <span class="task-row__list">{{ listName }}</span>
+                }
+              </div>
+            }
+          }
+        }
+      }
+    </section>
+
     <app-event-modal
       [open]="modalOpen()"
       [event]="editingEvent()"
@@ -97,6 +187,18 @@
       (save)="onSave($event)"
       (delete)="onDelete($event)"
       (cancel)="closeModal()"
+    />
+
+    <app-task-modal
+      [open]="taskModalOpen()"
+      [task]="editingTask()"
+      [taskLists]="tasksService.taskLists()"
+      [selectedListId]="selectedTaskListId()"
+      [saving]="taskSaving()"
+      [saveError]="taskSaveError()"
+      (save)="onTaskSave($event)"
+      (delete)="onTaskDelete($event)"
+      (cancel)="closeTaskModal()"
     />
   }
 } @else {

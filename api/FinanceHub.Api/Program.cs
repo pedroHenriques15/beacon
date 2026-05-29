@@ -90,8 +90,11 @@ builder.Services.AddHttpClient("google-oauth")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("google-calendar")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("google-tasks")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<GoogleCalendarService>();
+builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
 

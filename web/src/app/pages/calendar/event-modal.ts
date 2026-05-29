@@ -64,12 +64,10 @@ export class EventModalComponent implements OnChanges {
 
   onAllDayToggle(): void {
     if (this.form.isAllDay) {
-      // switched to timed: promote date to datetime-local
       const date = this.form.start.substring(0, 10);
       this.form.start = `${date}T09:00`;
       this.form.end = `${date}T10:00`;
     } else {
-      // switched to all-day: strip time
       const date = this.form.start.substring(0, 10);
       this.form.start = date;
       this.form.end = date;

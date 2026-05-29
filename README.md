@@ -7,21 +7,27 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 ## Screenshots
 
 ### Dashboard
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Transactions
+
 ![Transactions](docs/screenshots/transactions.png)
 
 ### Analytics
+
 ![Analytics](docs/screenshots/analytics.png)
 
 ### Rules
+
 ![Rules](docs/screenshots/rules.png)
 
 ### Salary
+
 ![Salary](docs/screenshots/salary.png)
 
 ### Upload
+
 ![Upload](docs/screenshots/upload.png)
 
 ---
@@ -40,14 +46,14 @@ Everything is stored in SQL Server and served over a REST API. The Angular front
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| PDF extraction | Python 3 + pdfplumber |
-| API | ASP.NET Core 8 (.NET 8) |
-| Database | SQL Server + EF Core 8 (code-first migrations) |
-| Frontend | Angular 21 (standalone components, signals) |
-| Charts | Chart.js 4 |
-| Tests | xUnit (backend), Vitest (frontend) |
+| Layer          | Technology                                     |
+| -------------- | ---------------------------------------------- |
+| PDF extraction | Python 3 + pdfplumber                          |
+| API            | ASP.NET Core 8 (.NET 8)                        |
+| Database       | SQL Server + EF Core 8 (code-first migrations) |
+| Frontend       | Angular 21 (standalone components, signals)    |
+| Charts         | Chart.js 4                                     |
+| Tests          | xUnit (backend), Vitest (frontend)             |
 
 ---
 
@@ -154,18 +160,18 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 
 ## Environment variables
 
-| Variable | Description |
-|---|---|
-| `ApiKey` | Secret validated via `X-Api-Key` header |
-| `Storage__Path` | Directory for uploaded PDFs |
-| `Backup__Path` | Directory for database backups |
-| `ConnectionStrings__DefaultConnection` | SQL Server connection string |
-| `Python__Executable` | Python binary (`python` or `python3`) |
-| `Python__ExtractorScript` | Absolute path to `scripts/pdfExtractor.py` |
-| `GoogleServices__ClientId` | Google OAuth 2.0 client ID (optional — only needed for Google Calendar/Tasks sync) |
-| `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
-| `GoogleServices__RedirectUri` | OAuth redirect URI registered in Google Cloud Console |
-| `GoogleServices__FrontendUrl` | Base URL of the Angular frontend, used to redirect after OAuth (e.g. `http://localhost:4200`) |
+| Variable                               | Description                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `ApiKey`                               | Secret validated via `X-Api-Key` header                                                       |
+| `Storage__Path`                        | Directory for uploaded PDFs                                                                   |
+| `Backup__Path`                         | Directory for database backups                                                                |
+| `ConnectionStrings__DefaultConnection` | SQL Server connection string                                                                  |
+| `Python__Executable`                   | Python binary (`python` or `python3`)                                                         |
+| `Python__ExtractorScript`              | Absolute path to `scripts/pdfExtractor.py`                                                    |
+| `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional — only needed for Google Calendar/Tasks sync)            |
+| `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
+| `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console                                         |
+| `GoogleServices__FrontendUrl`          | Base URL of the Angular frontend, used to redirect after OAuth (e.g. `http://localhost:4200`) |
 
 ---
 
@@ -184,7 +190,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend — xUnit (330 tests)
+# Backend — xUnit (341 tests)
 cd api
 dotnet test FinanceHub.Tests/
 
@@ -193,7 +199,7 @@ cd web
 npm test -- --run
 ```
 
-Backend test coverage includes all bank and salary slip parsers, the API key middleware, categorisation rule service, CQRS handlers for transactions and categories, `GoogleOAuthService`, and `GoogleCalendarService`.
+Backend test coverage includes all bank and salary slip parsers, the API key middleware, categorisation rule service, CQRS handlers for transactions and categories and Google Services
 
 ---
 
