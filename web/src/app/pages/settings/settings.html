@@ -1,0 +1,68 @@
+<div class="page-header">
+  <h1>Settings</h1>
+</div>
+
+<div class="settings-section">
+  <h2 class="settings-section__title">Google Account</h2>
+
+  @if (errorMessage(); as msg) {
+    <p class="settings-error">{{ msg }}</p>
+  }
+
+  @if (googleAuth.status(); as status) {
+    @if (status.connected) {
+      <div class="google-card google-card--connected">
+        <div class="google-card__icon">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <div class="google-card__info">
+          <p class="google-card__label">Connected</p>
+          <p class="google-card__detail">Since {{ status.connectedAt | date: 'dd MMM yyyy' }}</p>
+        </div>
+        <button class="btn-danger" (click)="disconnectGoogle()">Disconnect</button>
+      </div>
+    } @else {
+      <div class="google-card">
+        <div class="google-card__icon google-card__icon--muted">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <div class="google-card__info">
+          <p class="google-card__label">Not connected</p>
+          <p class="google-card__detail">Connect to enable Calendar and Tasks sync</p>
+        </div>
+        <button class="btn-primary" (click)="connectGoogle()">Connect Google</button>
+      </div>
+    }
+  } @else {
+    <div class="google-card google-card--loading">
+      <span class="text-muted">Loading…</span>
+    </div>
+  }
+</div>

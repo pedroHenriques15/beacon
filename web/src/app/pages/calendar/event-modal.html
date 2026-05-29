@@ -1,0 +1,147 @@
+@if (open) {
+  <div class="modal-overlay" (click)="onCancel()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ event ? 'Edit Event' : 'New Event' }}</h3>
+        <button class="modal-close" (click)="onCancel()" type="button">&#x2715;</button>
+      </div>
+
+      <label class="field-label" for="ev-title">Title</label>
+      <input
+        id="ev-title"
+        class="field-input"
+        type="text"
+        placeholder="Event title"
+        [(ngModel)]="form.title"
+        name="title"
+      />
+
+      <label class="field-label">Color</label>
+      <div class="ev-color-grid">
+        <button
+          class="ev-color-option"
+          [class.ev-color-option--active]="!form.colorId"
+          (click)="form.colorId = undefined"
+          type="button"
+        >
+          <span class="ev-color-dot ev-color-dot--default"></span>
+          Default
+        </button>
+        @for (entry of COLOR_ENTRIES; track entry[0]) {
+          <button
+            class="ev-color-option"
+            [class.ev-color-option--active]="form.colorId === entry[0]"
+            (click)="form.colorId = entry[0]"
+            type="button"
+          >
+            <span class="ev-color-dot" [style.background]="entry[1].hex"></span>
+            {{ entry[1].label }}
+          </button>
+        }
+      </div>
+
+      <div class="ev-start-header">
+        <label class="field-label" for="ev-start">Start</label>
+        <label class="ev-toggle" for="ev-allday">
+          <input
+            id="ev-allday"
+            type="checkbox"
+            [checked]="form.isAllDay"
+            (change)="onAllDayToggle()"
+            name="isAllDay"
+          />
+          <span class="ev-toggle__track">
+            <span class="ev-toggle__thumb"></span>
+          </span>
+          <span class="ev-toggle__label">All day</span>
+        </label>
+      </div>
+      @if (form.isAllDay) {
+        <input
+          id="ev-start"
+          class="field-input"
+          type="date"
+          [(ngModel)]="form.start"
+          (ngModelChange)="form.end = $event"
+          name="start"
+        />
+      } @else {
+        <input
+          id="ev-start"
+          class="field-input"
+          type="datetime-local"
+          [(ngModel)]="form.start"
+          name="start"
+        />
+      }
+
+      <label class="field-label" for="ev-end" [class.field-label--disabled]="form.isAllDay"
+        >End</label
+      >
+      @if (form.isAllDay) {
+        <input
+          id="ev-end"
+          class="field-input"
+          type="date"
+          [value]="form.start"
+          disabled
+          name="end"
+        />
+      } @else {
+        <input
+          id="ev-end"
+          class="field-input"
+          type="datetime-local"
+          [(ngModel)]="form.end"
+          name="end"
+        />
+      }
+
+      <label class="field-label" for="ev-desc">Description</label>
+      <textarea
+        id="ev-desc"
+        class="field-input ev-textarea"
+        placeholder="Optional description"
+        [(ngModel)]="form.description"
+        name="description"
+        rows="3"
+      ></textarea>
+
+      <label class="field-label" for="ev-loc">Location</label>
+      <input
+        id="ev-loc"
+        class="field-input"
+        type="text"
+        placeholder="Optional location"
+        [(ngModel)]="form.location"
+        name="location"
+      />
+
+      @if (timeError) {
+        <p class="modal-error">{{ timeError }}</p>
+      }
+      @if (saveError) {
+        <p class="modal-error">{{ saveError }}</p>
+      }
+
+      <div class="modal-actions">
+        @if (event) {
+          <button class="btn-danger" type="button" (click)="onDelete()" [disabled]="saving">
+            Delete
+          </button>
+        }
+        <div class="ev-actions-right">
+          <button class="btn-secondary" type="button" (click)="onCancel()">Cancel</button>
+          <button
+            class="btn-primary"
+            type="button"
+            (click)="onSave()"
+            [disabled]="saving || !form.title.trim()"
+          >
+            {{ saving ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

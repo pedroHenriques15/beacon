@@ -27,4 +27,12 @@ export const routes: Routes = [
     path: 'salary',
     loadComponent: () => import('./pages/salary/salary').then((m) => m.SalaryComponent),
   },
+  {
+    path: 'settings',
+    loadComponent: () => import('./pages/settings/settings').then((m) => m.SettingsComponent),
+  },
+  {
+    path: 'calendar',
+    loadComponent: () => import('./pages/calendar/calendar').then((m) => m.CalendarPage),
+  },
 ];

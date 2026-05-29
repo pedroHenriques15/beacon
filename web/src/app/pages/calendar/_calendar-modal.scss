@@ -1,0 +1,133 @@
+.field-label--disabled {
+  opacity: 0.4;
+}
+
+.ev-start-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1rem 0 0.35rem;
+
+  .field-label {
+    margin: 0;
+  }
+}
+
+.ev-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  user-select: none;
+
+  input[type='checkbox'] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  input:checked + .ev-toggle__track {
+    background: var(--primary);
+
+    .ev-toggle__thumb {
+      transform: translateX(0.75rem);
+      background: #fff;
+    }
+  }
+}
+
+.ev-toggle__track {
+  width: 1.75rem;
+  height: 1rem;
+  border-radius: 99px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.ev-toggle__thumb {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+
+.ev-toggle__label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.ev-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.ev-color-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    color 0.12s,
+    background 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+
+  &:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
+  &--active {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--text-primary);
+  }
+}
+
+.ev-color-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--default {
+    background: var(--border);
+  }
+}
+
+.ev-textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
+}
+
+.ev-actions-right {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: auto;
+}
+
+.modal-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--danger);
+}

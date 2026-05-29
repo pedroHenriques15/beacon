@@ -85,6 +85,16 @@ builder.Services.AddSingleton<ISalarySlipParser, DomirestParser>();
 builder.Services.AddSingleton<SalarySlipParserFactory>();
 
 builder.Services.AddSingleton<FileStorageService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("google-oauth")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("google-calendar")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("google-tasks")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<GoogleOAuthService>();
+builder.Services.AddScoped<GoogleCalendarService>();
+builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
 
@@ -162,6 +172,25 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()));
 
 var app = builder.Build();
+
+if (!string.IsNullOrEmpty(app.Configuration["GoogleServices:ClientId"]))
+{
+    var frontendUrl = app.Configuration["GoogleServices:FrontendUrl"] ?? "";
+    if (!Uri.TryCreate(frontendUrl, UriKind.Absolute, out var frontendUri) ||
+        frontendUri.Scheme is not ("http" or "https"))
+        throw new InvalidOperationException(
+            $"GoogleServices:FrontendUrl must be an absolute http/https URL; got: '{frontendUrl}'");
+
+    if (string.IsNullOrEmpty(app.Configuration["GoogleServices:ClientSecret"]))
+        throw new InvalidOperationException(
+            "GoogleServices:ClientSecret is required when GoogleServices:ClientId is set.");
+
+    var redirectUri = app.Configuration["GoogleServices:RedirectUri"] ?? "";
+    if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out var redirectUriParsed) ||
+        redirectUriParsed.Scheme is not ("http" or "https"))
+        throw new InvalidOperationException(
+            $"GoogleServices:RedirectUri must be an absolute http/https URL; got: '{redirectUri}'");
+}
 
 if (app.Environment.IsDevelopment())
 {

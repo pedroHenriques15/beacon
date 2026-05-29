@@ -130,7 +130,7 @@
   transition: color 0.15s;
 
   &:hover {
-    color: #a5b4fc;
+    color: var(--primary-light);
   }
 }
 

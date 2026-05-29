@@ -143,4 +143,30 @@ public class ApiKeyMiddlewareTests
 
         Assert.True(nextCalled);
     }
+
+    [Fact]
+    public async Task GoogleCallbackPath_BypassesApiKey()
+    {
+        bool nextCalled = false;
+        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx         = BuildContext("/api/auth/google/callback");
+
+        await middleware.InvokeAsync(ctx);
+
+        Assert.True(nextCalled);
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, ctx.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GoogleCallbackSubPath_RequiresApiKey()
+    {
+        bool nextCalled = false;
+        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx         = BuildContext("/api/auth/google/callback/extra");
+
+        await middleware.InvokeAsync(ctx);
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, ctx.Response.StatusCode);
+    }
 }

@@ -50,7 +50,7 @@
 
 .cat-name {
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
@@ -87,7 +87,7 @@
 .pattern {
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.82rem;
-  color: #a5b4fc;
+  color: var(--primary-light);
 }
 
 .header-actions {
@@ -123,11 +123,11 @@
 
   &:hover {
     background: rgba(255, 255, 255, 0.06);
-    color: #e2e8f0;
+    color: var(--text-primary);
   }
   &.danger:hover {
     background: rgba(239, 68, 68, 0.12);
-    color: #ef4444;
+    color: var(--danger);
   }
 }
 
@@ -154,7 +154,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   padding: 0.55rem 0.85rem;
   font-size: 0.9rem;
   outline: none;
