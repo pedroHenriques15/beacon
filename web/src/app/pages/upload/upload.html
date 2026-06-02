@@ -341,44 +341,6 @@
   }
 </div>
 
-<div class="backup-section">
-  <h2 class="section-title">Database Backup</h2>
-  <p class="backup-hint">
-    Creates a full backup of the current database. Any previous backup will be replaced.
-  </p>
-  <div class="backup-actions">
-    <button class="btn-secondary" [disabled]="backupState() === 'running'" (click)="createBackup()">
-      @if (backupState() === 'running') {
-        Backing up…
-      } @else {
-        Backup now
-      }
-    </button>
-    <button
-      class="btn-secondary"
-      [disabled]="restoreState() === 'running'"
-      (click)="restoreBackup()"
-    >
-      @if (restoreState() === 'running') {
-        Restoring…
-      } @else {
-        Restore backup
-      }
-    </button>
-  </div>
-  @if (backupState() === 'done') {
-    <div class="status backup-ok">Backup saved to: {{ backupMessage() }}</div>
-  }
-  @if (backupState() === 'error') {
-    <div class="status error">{{ backupMessage() }}</div>
-  }
-  @if (restoreState() === 'done') {
-    <div class="status backup-ok">{{ restoreMessage() }}</div>
-  }
-  @if (restoreState() === 'error') {
-    <div class="status error">{{ restoreMessage() }}</div>
-  }
-</div>
 
 @if (showTransferReview()) {
   <div class="modal-overlay">

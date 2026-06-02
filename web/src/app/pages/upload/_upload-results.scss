@@ -158,14 +158,28 @@
     background: rgba(239, 68, 68, 0.1);
     color: var(--danger);
   }
-  &.backup-ok {
-    background: rgba(52, 211, 153, 0.1);
-    color: var(--success);
-  }
 }
 
 .mt {
   margin-top: 0.75rem;
+}
+
+.backup-section {
+  margin-top: 3rem;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  margin: 0 0 0.5rem;
+}
+
+.backup-hint {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
 }
 
 .meal-card-textarea {
@@ -187,29 +201,3 @@
   }
 }
 
-.backup-section {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border);
-}
-
-.section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 0.5rem;
-}
-
-.backup-hint {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-.backup-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}

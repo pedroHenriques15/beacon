@@ -85,11 +85,6 @@ export class UploadComponent implements OnInit {
   transferCandidates = signal<TransferCandidate[]>([]);
   selectedTransfers = signal<Set<number>>(new Set());
 
-  backupState = signal<'idle' | 'running' | 'done' | 'error'>('idle');
-  backupMessage = signal('');
-  restoreState = signal<'idle' | 'running' | 'done' | 'error'>('idle');
-  restoreMessage = signal('');
-
   mealCardText = signal('');
   mealCardState = signal<'idle' | 'review' | 'importing' | 'success' | 'error'>('idle');
   mealCardMessage = signal('');
@@ -229,37 +224,6 @@ export class UploadComponent implements OnInit {
       this.finance.reload();
       this.showTransferReview.set(false);
       this.advanceDialogQueue();
-    });
-  }
-
-  createBackup(): void {
-    this.backupState.set('running');
-    this.backupMessage.set('');
-    this.http.post<{ message: string; path: string }>('/api/backup', {}).subscribe({
-      next: (body) => {
-        this.backupState.set('done');
-        this.backupMessage.set(body.path ?? 'Backup created.');
-      },
-      error: (err) => {
-        this.backupState.set('error');
-        this.backupMessage.set(err.error?.message ?? err.error ?? 'Backup failed.');
-      },
-    });
-  }
-
-  restoreBackup(): void {
-    this.restoreState.set('running');
-    this.restoreMessage.set('');
-    this.http.post<{ message: string }>('/api/backup/restore', {}).subscribe({
-      next: (body) => {
-        this.restoreState.set('done');
-        this.restoreMessage.set(body.message);
-        this.finance.reload();
-      },
-      error: (err) => {
-        this.restoreState.set('error');
-        this.restoreMessage.set(err.error?.message ?? 'Restore failed.');
-      },
     });
   }
 
