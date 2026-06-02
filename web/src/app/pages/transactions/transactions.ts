@@ -128,6 +128,15 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   confirmDeleteTx = signal<EnrichedTransaction | null>(null);
 
+  selectedIds = signal<Set<number>>(new Set());
+  hasSelection = computed(() => this.selectedIds().size > 0);
+  allSelected = computed(
+    () =>
+      this.filtered().length > 0 &&
+      this.filtered().every((tx) => this.selectedIds().has(tx.id)),
+  );
+  confirmBulkDelete = signal(false);
+
   showTxModal = signal(false);
   private _editingTxRef = signal<EnrichedTransaction | null>(null);
   editingTxId = signal<number | null>(null);
@@ -431,6 +440,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.totalCount.set(0);
     this.totalCreditAll.set(0);
     this.totalDebitAll.set(0);
+    this.selectedIds.set(new Set());
     this._skip = 0;
     this._fetchPage(0, this._visibleTarget);
   }
@@ -622,6 +632,50 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     if (!tx) return;
     this.confirmDeleteTx.set(null);
     this.finance.deleteTransaction(tx.id).subscribe(() => {
+      this.finance.reload();
+      this._resetAndLoad();
+    });
+  }
+
+  toggleRow(id: number): void {
+    this.selectedIds.update((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  toggleAll(): void {
+    if (this.allSelected()) {
+      this.selectedIds.set(new Set());
+    } else {
+      this.selectedIds.set(new Set(this.filtered().map((tx) => tx.id)));
+    }
+  }
+
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  bulkMarkTransfers(): void {
+    const ids = [...this.selectedIds()];
+    this.finance.markTransfers(ids).subscribe(() => {
+      this.clearSelection();
+      this.finance.reload();
+      this._resetAndLoad();
+    });
+  }
+
+  bulkDelete(): void {
+    this.confirmBulkDelete.set(true);
+  }
+
+  confirmBulkDeleteAction(): void {
+    const ids = [...this.selectedIds()];
+    this.confirmBulkDelete.set(false);
+    this.finance.deleteTransactions(ids).subscribe(() => {
+      this.clearSelection();
       this.finance.reload();
       this._resetAndLoad();
     });

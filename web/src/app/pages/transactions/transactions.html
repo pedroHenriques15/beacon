@@ -92,6 +92,15 @@
       </select>
     </div>
 
+    @if (hasSelection()) {
+      <div class="bulk-bar">
+        <span>{{ selectedIds().size }} selected</span>
+        <button class="btn-secondary" (click)="bulkMarkTransfers()">Mark as transfers</button>
+        <button class="btn-danger" (click)="bulkDelete()">Delete</button>
+        <button class="btn-secondary" (click)="clearSelection()">Clear</button>
+      </div>
+    }
+
     <div class="summary-bar">
       <div class="summary-item">
         <span class="label">In</span>
@@ -113,6 +122,9 @@
       <table class="tx-table">
         <thead>
           <tr>
+            <th class="sel-col">
+              <input type="checkbox" [checked]="allSelected()" (change)="toggleAll()" />
+            </th>
             <th class="sortable" (click)="sort('date')">Date{{ sortIcon('date') }}</th>
             <th class="sortable" (click)="sort('bank')">Bank{{ sortIcon('bank') }}</th>
             <th class="sortable" (click)="sort('description')">
@@ -127,7 +139,7 @@
         <tbody>
           @if (pageLoading() && loadedItems().length === 0) {
             <tr>
-              <td colspan="7" class="empty">Loading…</td>
+              <td colspan="8" class="empty">Loading…</td>
             </tr>
           }
           @for (tx of filtered(); track tx.id) {
@@ -136,8 +148,17 @@
                 credit: tx.type === 'credit',
                 debit: tx.type === 'debit',
                 'transfer-row': tx.isInternalTransfer,
+                selected: selectedIds().has(tx.id),
               }"
             >
+              <td class="sel-col">
+                <input
+                  type="checkbox"
+                  [checked]="selectedIds().has(tx.id)"
+                  (change)="toggleRow(tx.id)"
+                  (click)="$event.stopPropagation()"
+                />
+              </td>
               <td class="date">{{ tx.datePosting | date: 'dd MMM yyyy' }}</td>
               <td>
                 <span class="bank-badge" [attr.data-bank]="tx.bank">{{ tx.bank }}</span>
@@ -239,6 +260,8 @@
                 }
                 <button
                   class="tx-edit-btn"
+                  [class.disabled]="hasSelection()"
+                  [disabled]="hasSelection()"
                   title="Edit transaction"
                   (click)="openTxEdit(tx, $event)"
                 >
@@ -256,7 +279,7 @@
           } @empty {
             @if (!pageLoading()) {
               <tr>
-                <td colspan="7" class="empty">No transactions match the current filters.</td>
+                <td colspan="8" class="empty">No transactions match the current filters.</td>
               </tr>
             }
           }
@@ -697,6 +720,26 @@
         >
           {{ txLoading() ? 'Saving…' : 'Save changes' }}
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (confirmBulkDelete()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete transactions</h3>
+        <button class="modal-close" (click)="confirmBulkDelete.set(false)">✕</button>
+      </div>
+      <p>
+        Are you sure you want to delete
+        <strong>{{ selectedIds().size }} transaction{{ selectedIds().size !== 1 ? 's' : '' }}</strong
+        >?
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="confirmBulkDelete.set(false)">Cancel</button>
+        <button class="btn-danger" (click)="confirmBulkDeleteAction()">Delete</button>
       </div>
     </div>
   </div>

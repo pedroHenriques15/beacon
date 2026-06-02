@@ -1,3 +1,4 @@
+using FinanceHub.Api.Features.Transactions.Commands.BulkDeleteTransactions;
 using FinanceHub.Api.Features.Transactions.Commands.CreateTransaction;
 using FinanceHub.Api.Features.Transactions.Commands.DeleteTransaction;
 using FinanceHub.Api.Features.Transactions.Commands.MarkTransfers;
@@ -16,7 +17,8 @@ public class TransactionsController(
     MarkTransfersCommandHandler markTransfers,
     CreateTransactionCommandHandler createTransaction,
     UpdateTransactionCommandHandler updateTransaction,
-    DeleteTransactionCommandHandler deleteTransaction) : ControllerBase
+    DeleteTransactionCommandHandler deleteTransaction,
+    BulkDeleteTransactionsCommandHandler bulkDeleteTransactions) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(
@@ -67,6 +69,15 @@ public class TransactionsController(
         return deleted ? NoContent() : NotFound();
     }
 
+    [HttpDelete]
+    public async Task<IActionResult> DeleteBulk([FromBody] BulkDeleteRequest body, CancellationToken ct)
+    {
+        if (body.Ids is null || body.Ids.Length == 0)
+            return BadRequest(new { errors = new[] { "Ids must not be empty." } });
+        await bulkDeleteTransactions.HandleAsync(new BulkDeleteTransactionsCommand(body.Ids), ct);
+        return NoContent();
+    }
+
     [HttpPatch("{id:int}/category")]
     public async Task<IActionResult> SetCategory(int id, [FromBody] SetCategoryRequest body, CancellationToken ct)
     {
@@ -99,3 +110,4 @@ public record UpdateTransactionRequest(
 
 public record SetCategoryRequest(int? CategoryId, int? DeleteRuleId);
 public record MarkTransfersRequest(int[] TxIds, bool Unmark = false);
+public record BulkDeleteRequest(int[] Ids);

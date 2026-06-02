@@ -103,6 +103,10 @@ export class FinanceService {
     return this.http.delete(`/api/transactions/${id}`);
   }
 
+  deleteTransactions(ids: number[]): Observable<unknown> {
+    return this.http.delete('/api/transactions', { body: { ids } });
+  }
+
   deleteStatement(id: number): Observable<unknown> {
     return this.http.delete(`/api/statements/${id}`);
   }

@@ -133,9 +133,10 @@ public class SalaryController(
     [HttpPost("item-categories")]
     public async Task<IActionResult> CreateItemCategory([FromBody] CreateSalaryItemCategoryRequest body, CancellationToken ct)
     {
-        var result = await createItemCategory.HandleAsync(
+        var (result, error) = await createItemCategory.HandleAsync(
             new CreateSalaryItemCategoryCommand(body.SalaryProfileId, body.Name, body.Color, body.ItemType), ct);
-        return Created($"/api/salary/item-categories/{result.Id}", result);
+        if (error is not null) return BadRequest(error);
+        return Created($"/api/salary/item-categories/{result!.Id}", result);
     }
 
     [HttpPut("item-categories/{id:int}")]

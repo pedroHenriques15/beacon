@@ -1,3 +1,24 @@
+.sel-col {
+  width: 36px;
+  text-align: center;
+  padding: 0 4px;
+
+  input[type='checkbox'] {
+    cursor: pointer;
+    accent-color: var(--primary);
+  }
+}
+
+tr.selected td {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.tx-edit-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;

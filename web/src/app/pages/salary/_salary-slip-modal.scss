@@ -51,7 +51,7 @@
 .line-item-row {
   display: flex;
   gap: 0.5rem;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 0.4rem;
   .li-cat {
     width: 100%;
@@ -59,12 +59,10 @@
   .li-amount {
     width: 110px;
     flex-shrink: 0;
-    margin-top: 0;
   }
   .li-remove {
     opacity: 1;
     flex-shrink: 0;
-    margin-top: 0.45rem;
   }
 }
 

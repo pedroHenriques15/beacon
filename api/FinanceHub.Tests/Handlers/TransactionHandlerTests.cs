@@ -1,4 +1,5 @@
 using FinanceHub.Api.Data;
+using FinanceHub.Api.Features.Transactions.Commands.BulkDeleteTransactions;
 using FinanceHub.Api.Features.Transactions.Commands.DeleteTransaction;
 using FinanceHub.Api.Features.Transactions.Commands.MarkTransfers;
 using FinanceHub.Api.Features.Transactions.Commands.SetTransactionCategory;
@@ -96,6 +97,31 @@ public class TransactionHandlerTests
         var pair = await db.Transactions.FindAsync(tx2.Id);
         Assert.NotNull(pair);
         Assert.True(pair.IsInternalTransfer);
+    }
+
+    [Fact]
+    public async Task DeleteTransaction_DeletesStatementWhenLastTransactionRemoved()
+    {
+        await using var db = CreateDb(nameof(DeleteTransaction_DeletesStatementWhenLastTransactionRemoved));
+        var (stmt, tx1, tx2) = await SeedTwoTransactionsAsync(db);
+
+        var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
+        await handler.HandleAsync(new DeleteTransactionCommand(tx1.Id));
+        await handler.HandleAsync(new DeleteTransactionCommand(tx2.Id));
+
+        Assert.Null(await db.MonthlyStatements.FindAsync(stmt.Id));
+    }
+
+    [Fact]
+    public async Task DeleteTransaction_DoesNotDeleteStatementWhenTransactionsRemain()
+    {
+        await using var db = CreateDb(nameof(DeleteTransaction_DoesNotDeleteStatementWhenTransactionsRemain));
+        var (stmt, tx1, _) = await SeedTwoTransactionsAsync(db);
+
+        var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
+        await handler.HandleAsync(new DeleteTransactionCommand(tx1.Id));
+
+        Assert.NotNull(await db.MonthlyStatements.FindAsync(stmt.Id));
     }
 
     [Fact]
@@ -405,6 +431,42 @@ public class TransactionHandlerTests
         Assert.Equal("SALARY", result.Items[0].Description);
         Assert.Equal(1500m, result.TotalCredit);
         Assert.Equal(80m, result.TotalDebit);
+    }
+
+    [Fact]
+    public async Task BulkDeleteTransactions_DeletesAllSpecifiedTransactions()
+    {
+        await using var db = CreateDb(nameof(BulkDeleteTransactions_DeletesAllSpecifiedTransactions));
+        var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
+
+        var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
+        await handler.HandleAsync(new BulkDeleteTransactionsCommand([tx1.Id, tx2.Id]));
+
+        Assert.Empty(await db.Transactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task BulkDeleteTransactions_DeletesEmptyStatementsAfterBulkDelete()
+    {
+        await using var db = CreateDb(nameof(BulkDeleteTransactions_DeletesEmptyStatementsAfterBulkDelete));
+        var (stmt, tx1, tx2) = await SeedTwoTransactionsAsync(db);
+
+        var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
+        await handler.HandleAsync(new BulkDeleteTransactionsCommand([tx1.Id, tx2.Id]));
+
+        Assert.Null(await db.MonthlyStatements.FindAsync(stmt.Id));
+    }
+
+    [Fact]
+    public async Task BulkDeleteTransactions_KeepsStatementWithRemainingTransactions()
+    {
+        await using var db = CreateDb(nameof(BulkDeleteTransactions_KeepsStatementWithRemainingTransactions));
+        var (stmt, tx1, _) = await SeedTwoTransactionsAsync(db);
+
+        var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
+        await handler.HandleAsync(new BulkDeleteTransactionsCommand([tx1.Id]));
+
+        Assert.NotNull(await db.MonthlyStatements.FindAsync(stmt.Id));
     }
 
     [Fact]

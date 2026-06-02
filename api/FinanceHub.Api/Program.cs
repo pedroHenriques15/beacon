@@ -30,6 +30,7 @@ using FinanceHub.Api.Features.Statements.Commands.UploadStatement;
 using FinanceHub.Api.Features.Statements.Queries.DownloadStatementFile;
 using FinanceHub.Api.Features.Statements.Queries.GetStatementById;
 using FinanceHub.Api.Features.Statements.Queries.GetStatements;
+using FinanceHub.Api.Features.Transactions.Commands.BulkDeleteTransactions;
 using FinanceHub.Api.Features.Transactions.Commands.CreateTransaction;
 using FinanceHub.Api.Features.Transactions.Commands.DeleteTransaction;
 using FinanceHub.Api.Features.Transactions.Commands.MarkTransfers;
@@ -121,6 +122,7 @@ builder.Services.AddScoped<MarkTransfersCommandHandler>();
 builder.Services.AddScoped<CreateTransactionCommandHandler>();
 builder.Services.AddScoped<UpdateTransactionCommandHandler>();
 builder.Services.AddScoped<DeleteTransactionCommandHandler>();
+builder.Services.AddScoped<BulkDeleteTransactionsCommandHandler>();
 
 builder.Services.AddScoped<GroceryApplyRuleService>();
 builder.Services.AddScoped<GroceryReceiptUploadService>();
