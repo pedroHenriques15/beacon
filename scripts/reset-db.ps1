@@ -30,6 +30,12 @@ if (-not (Get-Command "dotnet" -ErrorAction SilentlyContinue)) {
 }
 Write-Ok "dotnet found"
 
+$null = dotnet ef --version 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "dotnet-ef not found. Run: dotnet tool install --global dotnet-ef"
+}
+Write-Ok "dotnet-ef found"
+
 Write-Step "Reading connection string"
 
 $appSettings = Join-Path $BackendDir "appsettings.json"
@@ -44,7 +50,7 @@ if ([string]::IsNullOrWhiteSpace($connStr)) {
     Write-Fail "ConnectionStrings.DefaultConnection is empty in appsettings.json"
 }
 
-if ($connStr -match "Database=([^;]+)") {
+if ($connStr -match '(?i)(?:Database|Initial\s+Catalog)=([^;]+)') {
     $dbName = $Matches[1].Trim()
 }
 else {
@@ -53,14 +59,13 @@ else {
 
 Write-Ok "Target database: $dbName"
 
-# --- Build the project first ---
 Write-Step "Building project"
 
 Push-Location $BackendDir
 try {
-    dotnet build -c Release --nologo -v q 2>&1 | Out-Null
+    $buildOutput = dotnet build -c Release --nologo -v q 2>&1
     if ($LASTEXITCODE -ne 0) {
-        dotnet build --nologo
+        Write-Host $buildOutput
         Write-Fail "Build failed - fix compilation errors before resetting the database"
     }
     Write-Ok "Build succeeded"
@@ -73,8 +78,13 @@ Write-Step "Dropping database '$dbName'"
 
 Push-Location $BackendDir
 try {
-    dotnet ef database drop --force --no-build 2>&1 | Out-Null
+    $prevDiag = [Environment]::GetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Process')
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Critical', 'Process')
+
+    $dropOutput = dotnet ef database drop --force --no-build 2>&1
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', $prevDiag, 'Process')
     if ($LASTEXITCODE -ne 0) {
+        Write-Host $dropOutput -ForegroundColor Gray
         Write-Fail "dotnet ef database drop failed (exit $LASTEXITCODE)"
     }
     Write-Ok "Database dropped"
@@ -87,7 +97,11 @@ Write-Step "Applying migrations to fresh database"
 
 Push-Location $BackendDir
 try {
+    $prevDiag = [Environment]::GetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Process')
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Critical', 'Process')
+
     $updateOutput = dotnet ef database update --no-build 2>&1
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', $prevDiag, 'Process')
     if ($LASTEXITCODE -ne 0) {
         Write-Host $updateOutput -ForegroundColor Gray
         Write-Fail "dotnet ef database update failed (exit $LASTEXITCODE)"
