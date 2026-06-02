@@ -92,15 +92,6 @@
       </select>
     </div>
 
-    @if (hasSelection()) {
-      <div class="bulk-bar">
-        <span>{{ selectedIds().size }} selected</span>
-        <button class="btn-secondary" (click)="bulkMarkTransfers()">Mark as transfers</button>
-        <button class="btn-danger" (click)="bulkDelete()">Delete</button>
-        <button class="btn-secondary" (click)="clearSelection()">Clear</button>
-      </div>
-    }
-
     <div class="summary-bar">
       <div class="summary-item">
         <span class="label">In</span>
@@ -117,6 +108,14 @@
         </span>
       </div>
     </div>
+
+    @if (hasSelection()) {
+      <div class="bulk-bar">
+        <span>{{ selectedIds().size }} selected</span>
+        <button class="btn-secondary" (click)="bulkMarkTransfers()">Mark as transfers</button>
+        <button class="btn-danger" (click)="bulkDelete()">Delete</button>
+      </div>
+    }
 
     <div class="table-wrapper">
       <table class="tx-table">
