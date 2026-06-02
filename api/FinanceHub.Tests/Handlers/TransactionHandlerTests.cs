@@ -96,7 +96,7 @@ public class TransactionHandlerTests
 
         var pair = await db.Transactions.FindAsync(tx2.Id);
         Assert.NotNull(pair);
-        Assert.True(pair.IsInternalTransfer);
+        Assert.True(pair.IsExcluded);
     }
 
     [Fact]
@@ -125,22 +125,22 @@ public class TransactionHandlerTests
     }
 
     [Fact]
-    public async Task MarkTransfers_SetsIsInternalTransferTrue()
+    public async Task MarkTransfers_SetsIsExcludedTrue()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_SetsIsInternalTransferTrue));
+        await using var db = CreateDb(nameof(MarkTransfers_SetsIsExcludedTrue));
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
         await handler.HandleAsync(new MarkTransfersCommand([tx1.Id, tx2.Id]));
 
         var updated = await db.Transactions.ToListAsync();
-        Assert.All(updated, t => Assert.True(t.IsInternalTransfer));
+        Assert.All(updated, t => Assert.True(t.IsExcluded));
     }
 
     [Fact]
-    public async Task MarkTransfers_WithUnmarkTrue_SetsIsInternalTransferFalse()
+    public async Task MarkTransfers_WithUnmarkTrue_SetsIsExcludedFalse()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_WithUnmarkTrue_SetsIsInternalTransferFalse));
+        await using var db = CreateDb(nameof(MarkTransfers_WithUnmarkTrue_SetsIsExcludedFalse));
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -148,7 +148,7 @@ public class TransactionHandlerTests
         await handler.HandleAsync(new MarkTransfersCommand([tx1.Id, tx2.Id], Unmark: true));
 
         var updated = await db.Transactions.ToListAsync();
-        Assert.All(updated, t => Assert.False(t.IsInternalTransfer));
+        Assert.All(updated, t => Assert.False(t.IsExcluded));
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public class TransactionHandlerTests
 
         var reloaded1 = await db.Transactions.FindAsync(tx1.Id);
         var reloaded2 = await db.Transactions.FindAsync(tx2.Id);
-        Assert.True(reloaded1!.IsInternalTransfer);
-        Assert.False(reloaded2!.IsInternalTransfer);
+        Assert.True(reloaded1!.IsExcluded);
+        Assert.False(reloaded2!.IsExcluded);
     }
 
     [Fact]

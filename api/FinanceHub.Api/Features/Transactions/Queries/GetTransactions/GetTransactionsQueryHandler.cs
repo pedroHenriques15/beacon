@@ -15,9 +15,6 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
             .Include(tx => tx.Category)
             .AsQueryable();
 
-        if (!query.IncludeTransfers)
-            q = q.Where(tx => !tx.IsInternalTransfer);
-
         if (!string.IsNullOrEmpty(query.Bank))
             q = q.Where(tx => tx.Statement.Bank == query.Bank.ToUpper());
 
@@ -32,7 +29,7 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
         if (!string.IsNullOrEmpty(query.Search))
             q = q.Where(tx => tx.Description.Contains(query.Search));
 
-        var totalsQ = q;
+        var totalsQ = q.Where(tx => !tx.IsExcluded);
 
         if (!string.IsNullOrEmpty(query.Type))
             q = q.Where(tx => tx.Type == query.Type.ToLower());
@@ -65,7 +62,7 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
                 tx.Id, tx.StatementId, tx.Statement.Bank,
                 tx.DatePosting, tx.DateValue, tx.Description,
                 tx.Amount, tx.Type, tx.Balance,
-                tx.CategoryId, tx.CategoryRuleId, tx.CategorySetManually, tx.IsInternalTransfer,
+                tx.CategoryId, tx.CategoryRuleId, tx.CategorySetManually, tx.IsExcluded,
                 tx.Category == null ? null : new CategoryDto(tx.Category.Id, tx.Category.Name, tx.Category.Color)))
             .ToListAsync(ct);
 

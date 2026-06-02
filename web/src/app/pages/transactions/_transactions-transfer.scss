@@ -1,11 +1,11 @@
-tr.transfer-row td {
+tr.excluded-row td {
   opacity: 0.45;
 }
-tr.transfer-row:hover td {
+tr.excluded-row:hover td {
   opacity: 0.7;
 }
 
-.transfer-badge {
+.excluded-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -25,9 +25,4 @@ tr.transfer-row:hover td {
     background: rgba(239, 68, 68, 0.12);
     color: var(--danger);
   }
-}
-
-.btn-secondary.active {
-  border-color: var(--primary);
-  color: var(--primary-light);
 }

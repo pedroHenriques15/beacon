@@ -74,7 +74,6 @@ export class FinanceService {
     search?: string;
     skip?: number;
     take?: number;
-    includeTransfers?: boolean;
     sortBy?: string;
     sortDir?: string;
   }): Observable<PagedTransactionsResult<EnrichedTransaction>> {
@@ -86,7 +85,6 @@ export class FinanceService {
       search: params.search,
       skip: params.skip,
       take: params.take,
-      includeTransfers: params.includeTransfers || undefined,
       sortBy: params.sortBy,
       sortDir: params.sortDir,
     });
@@ -97,6 +95,21 @@ export class FinanceService {
 
   markTransfers(txIds: number[], unmark = false): Observable<unknown> {
     return this.http.patch('/api/transactions/mark-transfers', { txIds, unmark });
+  }
+
+  removeTransactionLocally(txId: number): void {
+    this.statements.update((stmts) =>
+      stmts.map((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== txId) })),
+    );
+  }
+
+  updateTransactionLocally(txId: number, updates: Partial<Transaction>): void {
+    this.statements.update((stmts) =>
+      stmts.map((s) => ({
+        ...s,
+        transactions: s.transactions.map((t) => (t.id === txId ? { ...t, ...updates } : t)),
+      })),
+    );
   }
 
   deleteTransaction(id: number): Observable<unknown> {
@@ -185,7 +198,7 @@ export class FinanceService {
     this.statements()
       .flatMap((s) =>
         s.transactions
-          .filter((tx) => !tx.isInternalTransfer)
+          .filter((tx) => !tx.isExcluded)
           .map((tx) => ({ ...tx, bank: s.bank, month: s.periodFrom.slice(0, 7) })),
       )
       .sort((a, b) => b.datePosting.localeCompare(a.datePosting)),
@@ -208,10 +221,10 @@ export class FinanceService {
     for (const s of this.statements()) {
       const month = s.periodFrom.slice(0, 7);
       const credits = s.transactions
-        .filter((tx) => tx.type === 'credit' && !tx.isInternalTransfer)
+        .filter((tx) => tx.type === 'credit' && !tx.isExcluded)
         .reduce((sum, tx) => sum + tx.amount, 0);
       const debits = s.transactions
-        .filter((tx) => tx.type === 'debit' && !tx.isInternalTransfer)
+        .filter((tx) => tx.type === 'debit' && !tx.isExcluded)
         .reduce((sum, tx) => sum + tx.amount, 0);
 
       let income: number, expenses: number;

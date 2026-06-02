@@ -15,7 +15,7 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
         if (statement is null) return false;
 
         var counterpartStatementIds = new HashSet<int>();
-        var transferTxs = statement.Transactions.Where(t => t.IsInternalTransfer).ToList();
+        var transferTxs = statement.Transactions.Where(t => t.IsExcluded).ToList();
 
         foreach (var tx in transferTxs)
         {
@@ -25,7 +25,7 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
 
             var counterparts = await db.Transactions
                 .Where(t => t.StatementId != statement.Id
-                    && t.IsInternalTransfer
+                    && t.IsExcluded
                     && t.DatePosting >= dateFrom
                     && t.DatePosting <= dateTo
                     && (t.Amount == absAmount || t.Amount == -absAmount))

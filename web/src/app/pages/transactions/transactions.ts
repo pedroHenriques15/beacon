@@ -13,13 +13,14 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { FinanceService, EnrichedTransaction } from '../../core/services/finance.service';
+import { Transaction } from '../../core/models/statement.model';
 import { CategoriesService } from '../../core/services/categories.service';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
 import { GroceryItem, GroceryReceiptSummary } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
 import { availableMonths } from '../../core/utils/date-utils';
-import { CATEGORY_INTERNAL_TRANSFER } from '../../core/constants/categories';
+import { CATEGORY_EXCLUDED } from '../../core/constants/categories';
 
 interface PendingChange {
   tx: EnrichedTransaction;
@@ -72,7 +73,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   filterType = signal('');
   filterCategory = signal('');
   search = signal('');
-  showTransfers = signal(false);
 
   sortCol = signal<SortCol>('date');
   sortDir = signal<'asc' | 'desc'>('desc');
@@ -94,7 +94,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const q = this.catSearch().toLowerCase();
     return this.catSvc
       .categories()
-      .filter((c) => c.name !== CATEGORY_INTERNAL_TRANSFER)
+      .filter((c) => c.name !== CATEGORY_EXCLUDED)
       .filter((c) => !q || c.name.toLowerCase().includes(q));
   });
   pendingChange = signal<PendingChange | null>(null);
@@ -201,16 +201,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   unknownCount = computed(
     () => this.finance.allTransactions().filter((t) => t.categoryId === null).length,
   );
-
-  transferCount = computed(() => {
-    const bank = this.filterBank().toUpperCase();
-    const month = this.filterMonth();
-    return this.finance
-      .allTransactionsRaw()
-      .filter((t) => t.isInternalTransfer)
-      .filter((t) => !bank || t.bank === bank)
-      .filter((t) => !month || t.month === month).length;
-  });
 
   availableMonths = computed(() => availableMonths(this.finance.allTransactionsRaw()));
 
@@ -365,7 +355,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this.filterType() +
           this.filterCategory() +
           this.search() +
-          String(this.showTransfers()) +
           this.sortCol() +
           this.sortDir()
         );
@@ -448,10 +437,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   private _fetchPage(skip: number, take: number): void {
     this.pageLoading.set(true);
     const cat = this.filterCategory();
-    const internalTransferCat = this.catSvc
-      .categories()
-      .find((c) => c.name === CATEGORY_INTERNAL_TRANSFER);
-    const isFilteringByTransfer = !!internalTransferCat && cat === String(internalTransferCat.id);
 
     this._currentSub = this.finance
       .getTransactions({
@@ -462,7 +447,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         search: this.search() || undefined,
         skip,
         take,
-        includeTransfers: this.showTransfers() || isFilteringByTransfer || undefined,
         sortBy: this.sortCol(),
         sortDir: this.sortDir(),
       })
@@ -565,7 +549,8 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         .subscribe(() => {
           this.catSvc.setTransactionCategory(p.tx.id, p.categoryId).subscribe(() => {
             this.ruleCreateLoading.set(false);
-            this.finance.reload();
+            const category = this.catSvc.categories().find((c) => c.id === p.categoryId) ?? null;
+            this.finance.updateTransactionLocally(p.tx.id, { categoryId: p.categoryId, category });
             this._resetAndLoad();
           });
         });
@@ -600,24 +585,37 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.catSvc.setTransactionCategory(tx.id, cat.id).subscribe(() => {
           this.createLoading.set(false);
           this.showCreateModal.set(false);
-          this.finance.reload();
+          this.finance.updateTransactionLocally(tx.id, { categoryId: cat.id, category: cat });
           this._resetAndLoad();
         });
       });
   }
 
-  unmarkTransfer(tx: EnrichedTransaction, e: MouseEvent): void {
+  includeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
     this.finance.markTransfers([tx.id], true).subscribe(() => {
-      this.finance.reload();
+      this.finance.updateTransactionLocally(tx.id, {
+        isExcluded: false,
+        categoryId: null,
+        category: null,
+        categorySetManually: false,
+        categoryRuleId: null,
+      });
       this._resetAndLoad();
     });
   }
 
-  markTransfer(tx: EnrichedTransaction, e: MouseEvent): void {
+  excludeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
+    const excludedCat = this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
     this.finance.markTransfers([tx.id]).subscribe(() => {
-      this.finance.reload();
+      this.finance.updateTransactionLocally(tx.id, {
+        isExcluded: true,
+        categoryId: excludedCat?.id ?? null,
+        category: excludedCat,
+        categorySetManually: false,
+        categoryRuleId: null,
+      });
       this._resetAndLoad();
     });
   }
@@ -632,7 +630,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     if (!tx) return;
     this.confirmDeleteTx.set(null);
     this.finance.deleteTransaction(tx.id).subscribe(() => {
-      this.finance.reload();
+      this.finance.removeTransactionLocally(tx.id);
       this._resetAndLoad();
     });
   }
@@ -658,11 +656,20 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.selectedIds.set(new Set());
   }
 
-  bulkMarkTransfers(): void {
+  bulkExclude(): void {
     const ids = [...this.selectedIds()];
+    const excludedCat = this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
     this.finance.markTransfers(ids).subscribe(() => {
       this.clearSelection();
-      this.finance.reload();
+      ids.forEach((id) =>
+        this.finance.updateTransactionLocally(id, {
+          isExcluded: true,
+          categoryId: excludedCat?.id ?? null,
+          category: excludedCat,
+          categorySetManually: false,
+          categoryRuleId: null,
+        }),
+      );
       this._resetAndLoad();
     });
   }
@@ -676,7 +683,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.confirmBulkDelete.set(false);
     this.finance.deleteTransactions(ids).subscribe(() => {
       this.clearSelection();
-      this.finance.reload();
+      ids.forEach((id) => this.finance.removeTransactionLocally(id));
       this._resetAndLoad();
     });
   }
@@ -709,13 +716,16 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         categoryId: this.txCategoryId(),
         categorySetManually: true,
       })
-      .subscribe({ next: () => this._afterTxSave(), error: () => this.txLoading.set(false) });
+      .subscribe({ next: (updated) => this._afterTxSave(updated), error: () => this.txLoading.set(false) });
   }
 
-  private _afterTxSave(): void {
+  private _afterTxSave(updated: Transaction): void {
     this.txLoading.set(false);
     this.showTxModal.set(false);
-    this.finance.reload();
+    const category = updated.categoryId
+      ? (this.catSvc.categories().find((c) => c.id === updated.categoryId) ?? null)
+      : null;
+    this.finance.updateTransactionLocally(updated.id, { ...updated, category });
     this._resetAndLoad();
   }
 
@@ -727,7 +737,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.catSvc
       .setTransactionCategory(txId, categoryId, deleteRuleId ?? undefined)
       .subscribe(() => {
-        this.finance.reload();
+        const category = categoryId
+          ? (this.catSvc.categories().find((c) => c.id === categoryId) ?? null)
+          : null;
+        this.finance.updateTransactionLocally(txId, { categoryId, category });
         this._resetAndLoad();
       });
   }

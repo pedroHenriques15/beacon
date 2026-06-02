@@ -20,7 +20,7 @@ public class UpdateTransactionCommandHandler(AppDbContext db, ILogger<UpdateTran
         if (cmd.Balance.HasValue)                      tx.Balance = cmd.Balance.Value;
 
         if (cmd.UnlinkTransfer)
-            tx.IsInternalTransfer = false;
+            tx.IsExcluded = false;
 
         if (cmd.UnlinkCategory)
         {
@@ -40,6 +40,6 @@ public class UpdateTransactionCommandHandler(AppDbContext db, ILogger<UpdateTran
         return new UpdateTransactionResponse(
             tx.Id, tx.StatementId, tx.DatePosting, tx.DateValue,
             tx.Description, tx.Amount, tx.Type, tx.Balance,
-            tx.CategoryId, tx.CategoryRuleId, tx.CategorySetManually, tx.IsInternalTransfer);
+            tx.CategoryId, tx.CategoryRuleId, tx.CategorySetManually, tx.IsExcluded);
     }
 }

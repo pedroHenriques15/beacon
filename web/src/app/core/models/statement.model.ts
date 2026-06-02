@@ -28,7 +28,7 @@ export interface Transaction {
   categoryId: number | null;
   categoryRuleId: number | null;
   categorySetManually: boolean;
-  isInternalTransfer: boolean;
+  isExcluded: boolean;
   category: Category | null;
 }
 

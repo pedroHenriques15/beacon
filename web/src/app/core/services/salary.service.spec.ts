@@ -155,7 +155,7 @@ describe('SalaryService', () => {
     const req = ctrl.expectOne('/api/salary/item-categories');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({
-      profileId: 1,
+      salaryProfileId: 1,
       name: 'PPR',
       color: '#6c63ff',
       itemType: 'income',

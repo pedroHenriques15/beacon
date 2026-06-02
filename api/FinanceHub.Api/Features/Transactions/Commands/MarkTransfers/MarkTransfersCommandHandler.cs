@@ -16,13 +16,13 @@ public class MarkTransfersCommandHandler(AppDbContext db, ILogger<MarkTransfersC
         int? internalTransferCategoryId = null;
         if (!cmd.Unmark)
         {
-            var cat = await db.Categories.FirstOrDefaultAsync(c => c.Name == "Internal Transfer", ct);
+            var cat = await db.Categories.FirstOrDefaultAsync(c => c.Name == "Excluded", ct);
             internalTransferCategoryId = cat?.Id;
         }
 
         foreach (var tx in txs)
         {
-            tx.IsInternalTransfer = !cmd.Unmark;
+            tx.IsExcluded = !cmd.Unmark;
             tx.CategoryId = cmd.Unmark ? null : internalTransferCategoryId;
             tx.CategorySetManually = false;
             tx.CategoryRuleId = null;

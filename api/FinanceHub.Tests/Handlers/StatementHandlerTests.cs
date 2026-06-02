@@ -117,7 +117,7 @@ public class StatementHandlerTests : IDisposable
             Transactions =
             [
                 new Transaction { Description = "TRANSFER OUT", Amount = 500, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 500, IsInternalTransfer = true }
+                    DatePosting = date, DateValue = date, Balance = 500, IsExcluded = true }
             ]
         };
 
@@ -128,7 +128,7 @@ public class StatementHandlerTests : IDisposable
             Transactions =
             [
                 new Transaction { Description = "TRANSFER IN", Amount = 500, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1500, IsInternalTransfer = true }
+                    DatePosting = date, DateValue = date, Balance = 1500, IsExcluded = true }
             ]
         };
 
@@ -155,7 +155,7 @@ public class StatementHandlerTests : IDisposable
             Transactions =
             [
                 new Transaction { Description = "TRANSFER", Amount = 200, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 800, IsInternalTransfer = true }
+                    DatePosting = date, DateValue = date, Balance = 800, IsExcluded = true }
             ]
         };
 
@@ -166,7 +166,7 @@ public class StatementHandlerTests : IDisposable
             Transactions =
             [
                 new Transaction { Description = "TRANSFER", Amount = 200, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1200, IsInternalTransfer = true },
+                    DatePosting = date, DateValue = date, Balance = 1200, IsExcluded = true },
                 new Transaction { Description = "LIDL", Amount = 15, Type = "debit",
                     DatePosting = new DateOnly(2026, 1, 12), DateValue = new DateOnly(2026, 1, 12), Balance = 1185 }
             ]

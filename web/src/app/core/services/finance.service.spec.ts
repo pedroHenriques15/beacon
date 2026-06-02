@@ -173,7 +173,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -188,7 +188,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
@@ -220,7 +220,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -252,7 +252,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -267,7 +267,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -299,7 +299,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
@@ -307,7 +307,7 @@ describe('FinanceService', () => {
     ]);
 
     expect(service.allTransactionsRaw().length).toBe(1);
-    expect(service.allTransactionsRaw()[0].isInternalTransfer).toBe(true);
+    expect(service.allTransactionsRaw()[0].isExcluded).toBe(true);
   });
 
   it('monthlySummaries() calculates income/expenses for non-BPI bank', () => {
@@ -331,7 +331,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -346,7 +346,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -385,7 +385,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
@@ -479,7 +479,7 @@ describe('FinanceService', () => {
       categoryId: null,
       categoryRuleId: null,
       categorySetManually: false,
-      isInternalTransfer: false,
+      isExcluded: false,
       category: null,
     });
   });

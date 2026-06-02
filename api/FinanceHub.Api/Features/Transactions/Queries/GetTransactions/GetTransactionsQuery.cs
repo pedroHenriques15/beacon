@@ -8,6 +8,5 @@ public record GetTransactionsQuery(
     string? Search,
     int Skip = 0,
     int Take = 20,
-    bool IncludeTransfers = false,
     string? SortBy = null,
     string? SortDir = null);

@@ -42,6 +42,6 @@ public class CreateTransactionCommandHandler(AppDbContext db, ILogger<CreateTran
         return (new CreateTransactionResponse(
             tx.Id, tx.StatementId, tx.DatePosting, tx.DateValue,
             tx.Description, tx.Amount, tx.Type, tx.Balance,
-            tx.CategoryId, tx.CategorySetManually, tx.IsInternalTransfer), null);
+            tx.CategoryId, tx.CategorySetManually, tx.IsExcluded), null);
     }
 }

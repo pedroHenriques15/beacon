@@ -126,11 +126,25 @@ tr.selected td {
   white-space: nowrap;
 }
 
-.tx-transfer-btn {
+.tx-exclude-btn {
   background: none;
   border: none;
   cursor: pointer;
   color: #2d3f55;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 0.15s;
+  &:hover {
+    color: var(--text-muted);
+  }
+}
+
+.tx-include-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
   font-size: 0.8rem;

@@ -41,18 +41,6 @@
           >
         }
       </p>
-      <div class="header-actions">
-        @if (transferCount() > 0) {
-          <button
-            class="btn-secondary"
-            [class.active]="showTransfers()"
-            style="min-width: 160px"
-            (click)="showTransfers.update(v => !v)"
-          >
-            {{ showTransfers() ? 'Hide' : 'Show' }} {{ transferCount() }} transfers
-          </button>
-        }
-      </div>
     </div>
 
     <div class="filters">
@@ -113,7 +101,7 @@
     @if (hasSelection()) {
       <div class="bulk-bar">
         <span>{{ selectedIds().size }} selected</span>
-        <button class="btn-secondary" (click)="bulkMarkTransfers()">Mark as transfers</button>
+        <button class="btn-secondary" (click)="bulkExclude()">Exclude</button>
         <button class="btn-danger" (click)="bulkDelete()">Delete</button>
       </div>
     }
@@ -147,7 +135,7 @@
               [ngClass]="{
                 credit: tx.type === 'credit',
                 debit: tx.type === 'debit',
-                'transfer-row': tx.isInternalTransfer,
+                'excluded-row': tx.isExcluded,
                 selected: selectedIds().has(tx.id),
               }"
             >
@@ -165,18 +153,17 @@
               </td>
               <td class="desc">
                 {{ tx.description }}
-                @if (tx.isInternalTransfer) {
+                @if (tx.isExcluded) {
                   <span
-                    class="transfer-badge"
-                    title="Internal transfer - click to unmark"
-                    (click)="unmarkTransfer(tx, $event)"
-                    >⇄ transfer</span
+                    class="excluded-badge"
+                    title="Excluded - click to include"
+                    (click)="includeTransaction(tx, $event)"
+                    >excluded</span
                   >
                 }
               </td>
               <td class="cat-cell">
-                @if (!tx.isInternalTransfer) {
-                  <div class="cat-wrap">
+                <div class="cat-wrap">
                     <button
                       class="cat-badge"
                       [class.unknown]="!tx.categoryId"
@@ -241,7 +228,6 @@
                       </div>
                     }
                   </div>
-                }
               </td>
               <td class="num amount" [ngClass]="tx.type">
                 {{ tx.type === 'debit' ? '-' : '+'
@@ -249,13 +235,21 @@
               </td>
               <td class="num balance">{{ tx.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
               <td class="act-col">
-                @if (!tx.isInternalTransfer) {
+                @if (!tx.isExcluded) {
                   <button
-                    class="tx-transfer-btn"
-                    title="Mark as internal transfer"
-                    (click)="markTransfer(tx, $event)"
+                    class="tx-exclude-btn"
+                    title="Exclude from totals"
+                    (click)="excludeTransaction(tx, $event)"
                   >
-                    ⇄
+                    ⊘
+                  </button>
+                } @else {
+                  <button
+                    class="tx-include-btn"
+                    title="Include in totals"
+                    (click)="includeTransaction(tx, $event)"
+                  >
+                    ↺
                   </button>
                 }
                 <button

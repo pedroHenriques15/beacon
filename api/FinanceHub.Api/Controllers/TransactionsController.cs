@@ -25,11 +25,10 @@ public class TransactionsController(
         [FromQuery] string? bank, [FromQuery] string? month, [FromQuery] string? type,
         [FromQuery] string? category, [FromQuery] string? search,
         [FromQuery] int skip = 0, [FromQuery] int take = 20,
-        [FromQuery] bool includeTransfers = false,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDir = null,
         CancellationToken ct = default)
     {
-        var query = new GetTransactionsQuery(bank, month, type, category, search, skip, take, includeTransfers, sortBy, sortDir);
+        var query = new GetTransactionsQuery(bank, month, type, category, search, skip, take, sortBy, sortDir);
         var validation = new GetTransactionsQueryValidator().Validate(query);
         if (!validation.IsValid) return BadRequest(new { errors = validation.Errors });
         return Ok(await getTransactions.HandleAsync(query, ct));

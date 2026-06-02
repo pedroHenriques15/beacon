@@ -15,7 +15,7 @@ public class Transaction
     public int? CategoryId { get; set; }
     public int? CategoryRuleId { get; set; }
     public bool CategorySetManually { get; set; }
-    public bool IsInternalTransfer { get; set; }
+    public bool IsExcluded { get; set; }
 
     [JsonIgnore]
     public MonthlyStatement Statement { get; set; } = null!;

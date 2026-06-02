@@ -80,7 +80,7 @@ public class ImportMealCardTextCommandHandler(
         var newTxIds    = transactions.Select(t => t.Id).ToHashSet();
         var existingTxs = await db.Transactions
             .Include(t => t.Statement)
-            .Where(t => !newTxIds.Contains(t.Id) && !t.IsInternalTransfer)
+            .Where(t => !newTxIds.Contains(t.Id) && !t.IsExcluded)
             .ToListAsync(ct);
 
         var candidates  = new List<TransferCandidate>();
