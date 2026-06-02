@@ -38,7 +38,7 @@ export class SalaryService {
     itemType: string,
   ): Observable<SalaryItemCategory> {
     return this.http.post<SalaryItemCategory>('/api/salary/item-categories', {
-      profileId,
+      salaryProfileId: profileId,
       name,
       color,
       itemType,
