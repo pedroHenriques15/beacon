@@ -564,11 +564,13 @@
             >
               <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
               @for (type of itemTypes; track type.value) {
-                <optgroup [label]="type.label">
-                  @for (c of catsByType(type.value); track c.id) {
-                    <option [value]="c.id">{{ c.name }}</option>
-                  }
-                </optgroup>
+                @if (catsByType(type.value).length > 0) {
+                  <optgroup [label]="type.label">
+                    @for (c of catsByType(type.value); track c.id) {
+                      <option [value]="c.id">{{ c.name }}</option>
+                    }
+                  </optgroup>
+                }
               }
             </select>
           </div>

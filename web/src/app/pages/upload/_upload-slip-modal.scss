@@ -1,5 +1,7 @@
 .slip-modal {
   width: min(680px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .parsed-banner {
@@ -58,6 +60,15 @@
   &:focus {
     outline: none;
     border-color: #4f8cff;
+  }
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 }
 
@@ -132,7 +143,7 @@
 
 .line-item-row {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 0.5rem;
   margin-bottom: 0.4rem;
 }

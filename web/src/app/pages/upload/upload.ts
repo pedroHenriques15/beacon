@@ -3,6 +3,8 @@ import { CurrencyPipe, NgClass, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { forkJoin, Observable, of } from 'rxjs';
+import { map, switchMap, tap } from 'rxjs/operators';
 import { FinanceService } from '../../core/services/finance.service';
 import { SalaryService } from '../../core/services/salary.service';
 import { GroceriesService } from '../../core/services/groceries.service';
@@ -10,6 +12,7 @@ import { GroceryCategoriesService } from '../../core/services/grocery-categories
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import {
   BatchUploadItemResult,
+  ParsedLineItemResponse,
   ParsedSlipResponse,
   SalaryItemCategory,
   SalaryProfile,
@@ -33,6 +36,7 @@ interface LineItemDraft {
   amount: number | null;
   sortOrder: number;
   hint?: string;
+  itemType?: 'income' | 'deduction' | 'tax';
   quantity?: number | null;
   unitValue?: number | null;
   percentage?: number | null;
@@ -474,59 +478,123 @@ export class UploadComponent implements OnInit {
     this.slipHourlyRate.set(parsed.hourlyRate ?? null);
     this.slipTotalEspecie.set(parsed.totalEspecie ?? null);
 
-    const autoProfileId = this.profiles().length === 1 ? this.profiles()[0].id : null;
-    this.slipProfileId.set(autoProfileId);
-
-    const buildLineItems = (cats: SalaryItemCategory[]) => {
-      this.itemCategories.set(cats);
-      this.slipLineItems.set(
-        parsed.lineItems.map((li, i) => {
-          const catId =
-            cats.find((c) => c.name.toLowerCase() === li.description.toLowerCase())?.id ?? null;
-          return {
-            salaryItemCategoryId: catId,
-            amount: li.amount,
-            sortOrder: i,
-            hint: catId === null ? li.description : undefined,
-            quantity: li.quantity,
-            unitValue: li.unitValue,
-            percentage: li.percentage,
-            incidenciaBase: li.incidenciaBase,
-          };
-        }),
-      );
-      this.showSlipModal.set(true);
-    };
-
-    if (autoProfileId) {
-      this.salaryService.getItemCategories(autoProfileId).subscribe(buildLineItems);
-    } else {
-      buildLineItems([]);
-    }
+    this.ensureProfile(parsed.employer)
+      .pipe(
+        tap((profileId) => this.slipProfileId.set(profileId)),
+        switchMap((profileId) =>
+          this.salaryService
+            .getItemCategories(profileId)
+            .pipe(switchMap((cats) => this.autoEnsureCategories(profileId, parsed.lineItems, cats))),
+        ),
+      )
+      .subscribe((allCats) => {
+        this.itemCategories.set(allCats);
+        this.slipLineItems.set(
+          parsed.lineItems.map((li, i) => {
+            const catId =
+              allCats.find((c) => c.name.toLowerCase() === li.description.toLowerCase())?.id ??
+              null;
+            return {
+              salaryItemCategoryId: catId,
+              amount: li.amount,
+              sortOrder: i,
+              itemType: li.itemType,
+              hint: catId === null ? li.description : undefined,
+              quantity: li.quantity,
+              unitValue: li.unitValue,
+              percentage: li.percentage,
+              incidenciaBase: li.incidenciaBase,
+            };
+          }),
+        );
+        this.showSlipModal.set(true);
+      });
   }
 
   onSlipProfileChange(profileId: number | null): void {
     const id = profileId ? +profileId : null;
     this.slipProfileId.set(id);
-    if (id) {
-      this.salaryService.getItemCategories(id).subscribe((cats) => {
-        this.itemCategories.set(cats);
+    if (!id) {
+      this.itemCategories.set([]);
+      return;
+    }
+    const unmatchedDrafts = this.slipLineItems().filter(
+      (li) => li.salaryItemCategoryId === null && li.hint && li.itemType,
+    );
+    this.salaryService
+      .getItemCategories(id)
+      .pipe(
+        switchMap((cats) => {
+          const asLineItems: ParsedLineItemResponse[] = unmatchedDrafts
+            .filter((li) => !cats.some((c) => c.name.toLowerCase() === li.hint!.toLowerCase()))
+            .map((li) => ({
+              description: li.hint!,
+              itemType: li.itemType!,
+              amount: li.amount ?? 0,
+              quantity: li.quantity ?? null,
+              unitValue: li.unitValue ?? null,
+              percentage: li.percentage ?? null,
+              incidenciaBase: li.incidenciaBase ?? null,
+            }));
+          return this.autoEnsureCategories(id, asLineItems, cats);
+        }),
+      )
+      .subscribe((allCats) => {
+        this.itemCategories.set(allCats);
         this.slipLineItems.update((items) =>
           items.map((li) => {
             if (li.salaryItemCategoryId !== null || !li.hint) return li;
             const catId =
-              cats.find((c) => c.name.toLowerCase() === li.hint!.toLowerCase())?.id ?? null;
-            return {
-              ...li,
-              salaryItemCategoryId: catId,
-              hint: catId !== null ? undefined : li.hint,
-            };
+              allCats.find((c) => c.name.toLowerCase() === li.hint!.toLowerCase())?.id ?? null;
+            return { ...li, salaryItemCategoryId: catId, hint: catId !== null ? undefined : li.hint };
           }),
         );
       });
-    } else {
-      this.itemCategories.set([]);
-    }
+  }
+
+  private ensureProfile(employerName: string): Observable<number> {
+    const name = employerName?.trim() || 'My Profile';
+    const match = this.profiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (match) return of(match.id);
+    return this.salaryService.createProfile(name).pipe(
+      switchMap((profile) =>
+        this.salaryService.getProfiles().pipe(
+          tap((all) => this.profiles.set(all)),
+          map(() => profile.id),
+        ),
+      ),
+    );
+  }
+
+  private autoEnsureCategories(
+    profileId: number,
+    lineItems: ParsedLineItemResponse[],
+    existingCats: SalaryItemCategory[],
+  ): Observable<SalaryItemCategory[]> {
+    const seen = new Set<string>();
+    const toCreate = lineItems.filter((li) => {
+      const key = li.description.toLowerCase();
+      if (seen.has(key) || existingCats.some((c) => c.name.toLowerCase() === key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (toCreate.length === 0) return of(existingCats);
+    return forkJoin(
+      toCreate.map((li) =>
+        this.salaryService.createItemCategory(
+          profileId,
+          li.description,
+          this.colorForItemType(li.itemType),
+          li.itemType,
+        ),
+      ),
+    ).pipe(map((newCats) => [...existingCats, ...newCats]));
+  }
+
+  private colorForItemType(type: 'income' | 'deduction' | 'tax'): string {
+    if (type === 'income') return '#22c55e';
+    if (type === 'deduction') return '#ef4444';
+    return '#f59e0b';
   }
 
   onPdfSelected(event: Event): void {
