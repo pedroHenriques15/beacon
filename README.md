@@ -190,7 +190,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend — xUnit (341 tests)
+# Backend — xUnit (343 tests)
 cd api
 dotnet test FinanceHub.Tests/
 
