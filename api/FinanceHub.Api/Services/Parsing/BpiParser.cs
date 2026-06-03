@@ -36,7 +36,7 @@ public partial class BpiParser : IBankStatementParser
 
     private static readonly string[] SkipContains =
         ["DATA DATA", "MOV VAL", "CONTA A ORDEM", "NIB:", "IBAN:", "SALDO ANTERIOR",
-         "SALDO ACTUAL", "TOTAL DEP", "PLANOS DE POUPANÇA", "BPI REFORMA",
+         "SALDO ACTUAL", "TOTAL DEP", "PLANOS DE POUPANÇA",
          "DESCRIÇÃO DO MOVIMENTO", "Sede:", "BPI Direto", "Capital Social"];
 
     public ParsedStatement Parse(string fileName, IReadOnlyList<string> pages)

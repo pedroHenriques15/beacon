@@ -190,6 +190,18 @@ public class BpiParserTests
     }
 
     [Fact]
+    public void Parse_IncludesBpiReformaTransactionLines()
+    {
+        var txBlock = "01/01 01/01 BPI REFORMA PLANO POUPANCA -300,00 1 700,00";
+        var result  = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
+
+        Assert.Single(result.Transactions);
+        Assert.Contains("BPI REFORMA", result.Transactions[0].Description);
+        Assert.Equal(300.00m, result.Transactions[0].Amount);
+        Assert.Equal("debit",  result.Transactions[0].Type);
+    }
+
+    [Fact]
     public void Parse_MissingPeriodHeader_ThrowsInvalidOperation()
     {
         var badText = "IBAN: PT50001000000000000000001\nNo period here";

@@ -22,14 +22,17 @@ export class DashboardComponent {
   draggedBank = signal<string | null>(null);
   dragOverBank = signal<string | null>(null);
 
-  bankCards = computed(() =>
-    [...this.finance.latestPerBank().entries()].map(([bank, s]) => ({
+  bankCards = computed(() => {
+    const allStatements = this.finance.statements();
+    return [...this.finance.latestPerBank().entries()].map(([bank, s]) => ({
       bank,
       balance: s.closingBalance,
       periodTo: s.periodTo,
-      txCount: s.transactions.length,
-    })),
-  );
+      txCount: allStatements
+        .filter((stmt) => stmt.bank === bank)
+        .reduce((sum, stmt) => sum + stmt.transactions.length, 0),
+    }));
+  });
 
   orderedCards = computed(() => {
     const order = this.cardOrder();

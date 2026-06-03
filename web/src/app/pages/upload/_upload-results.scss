@@ -10,6 +10,15 @@
     border-color: rgba(52, 211, 153, 0.3);
   }
 
+  &.warning {
+    border-color: rgba(251, 191, 36, 0.3);
+
+    .result-icon {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--warning);
+    }
+  }
+
   h2 {
     margin: 0.5rem 0;
   }

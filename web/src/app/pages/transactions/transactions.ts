@@ -104,6 +104,11 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   ruleCreateValue = signal<number | null>(null);
   ruleCreateLoading = signal(false);
 
+  pendingExclude = signal<{ tx: EnrichedTransaction } | null>(null);
+  excludeRulePattern = signal('');
+  excludeRuleValue = signal<number | null>(null);
+  excludeRuleLoading = signal(false);
+
   showCreateModal = signal(false);
   createTx = signal<EnrichedTransaction | null>(null);
   createName = signal('');
@@ -115,6 +120,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   ruleCreateMatchCount = computed(() => {
     const pat = this.ruleCreatePattern().trim();
     const val = this.ruleCreateValue();
+    if (!pat && val === null) return null;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+  });
+
+  excludeRuleMatchCount = computed(() => {
+    const pat = this.excludeRulePattern().trim();
+    const val = this.excludeRuleValue();
     if (!pat && val === null) return null;
     return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
   });
@@ -551,6 +563,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
             this.ruleCreateLoading.set(false);
             const category = this.catSvc.categories().find((c) => c.id === p.categoryId) ?? null;
             this.finance.updateTransactionLocally(p.tx.id, { categoryId: p.categoryId, category });
+            this.finance.reload();
             this._resetAndLoad();
           });
         });
@@ -586,6 +599,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this.createLoading.set(false);
           this.showCreateModal.set(false);
           this.finance.updateTransactionLocally(tx.id, { categoryId: cat.id, category: cat });
+          this.finance.reload();
           this._resetAndLoad();
         });
       });
@@ -607,17 +621,48 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   excludeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
+    this.excludeRulePattern.set(tx.description);
+    this.excludeRuleValue.set(null);
+    this.pendingExclude.set({ tx });
+  }
+
+  cancelExclude(): void {
+    this.pendingExclude.set(null);
+  }
+
+  confirmExclude(createRule: boolean): void {
+    const p = this.pendingExclude();
+    if (!p) return;
+    this.pendingExclude.set(null);
     const excludedCat = this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
-    this.finance.markTransfers([tx.id]).subscribe(() => {
-      this.finance.updateTransactionLocally(tx.id, {
-        isExcluded: true,
-        categoryId: excludedCat?.id ?? null,
-        category: excludedCat,
-        categorySetManually: false,
-        categoryRuleId: null,
+
+    const doExclude = () => {
+      this.finance.markTransfers([p.tx.id]).subscribe(() => {
+        this.excludeRuleLoading.set(false);
+        this.finance.updateTransactionLocally(p.tx.id, {
+          isExcluded: true,
+          categoryId: excludedCat?.id ?? null,
+          category: excludedCat,
+          categorySetManually: false,
+          categoryRuleId: null,
+        });
+        this.finance.reload();
+        this._resetAndLoad();
       });
-      this._resetAndLoad();
-    });
+    };
+
+    if (
+      createRule &&
+      excludedCat &&
+      (this.excludeRulePattern().trim() || this.excludeRuleValue() !== null)
+    ) {
+      this.excludeRuleLoading.set(true);
+      this.catSvc
+        .createRule(excludedCat.id, this.excludeRulePattern().trim(), this.excludeRuleValue())
+        .subscribe(() => doExclude());
+    } else {
+      doExclude();
+    }
   }
 
   requestDeleteTransfer(tx: EnrichedTransaction, e: MouseEvent): void {

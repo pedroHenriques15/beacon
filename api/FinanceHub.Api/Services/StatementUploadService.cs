@@ -91,13 +91,13 @@ public class StatementUploadService(
                     {
                         var matchedRule = rules
                             .OrderBy(r => r.Id)
-                            .FirstOrDefault(r => "BPI Reforma – Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
+                            .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
 
                         transactions.Add(new Transaction
                         {
                             DatePosting = parsed.PeriodTo,
                             DateValue = parsed.PeriodTo,
-                            Description = "BPI Reforma – Ganhos",
+                            Description = "BPI Reforma - Ganhos",
                             Amount = Math.Abs(delta),
                             Type = delta >= 0 ? "credit" : "debit",
                             Balance = parsed.PprBalance.Value,

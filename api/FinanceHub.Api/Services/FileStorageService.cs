@@ -9,19 +9,19 @@ public class FileStorageService(IConfiguration config, ILogger<FileStorageServic
     public async Task<string> SaveAsync(IFormFile file)
     {
         Directory.CreateDirectory(StorageRoot);
-        var relativePath = $"{Guid.NewGuid()}.pdf";
-        var fullPath = Path.Combine(StorageRoot, relativePath);
+        var fullPath = Path.Combine(StorageRoot, $"{Guid.NewGuid()}.pdf");
         await using var fs = File.Create(fullPath);
         await file.CopyToAsync(fs);
         logger.LogInformation("Saved PDF to {Path}", fullPath);
-        return relativePath;
+        return fullPath;
     }
 
-    public string GetFullPath(string relativePath) => Path.Combine(StorageRoot, relativePath);
+    public string GetFullPath(string path) =>
+        Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
 
-    public (Stream Stream, string ContentType, string FileName) GetFile(string relativePath, string originalFileName)
+    public (Stream Stream, string ContentType, string FileName) GetFile(string path, string originalFileName)
     {
-        var fullPath = Path.Combine(StorageRoot, relativePath);
+        var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
         if (!File.Exists(fullPath))
             throw new FileNotFoundException("Statement file not found.", fullPath);
 
@@ -33,9 +33,17 @@ public class FileStorageService(IConfiguration config, ILogger<FileStorageServic
         return (File.OpenRead(fullPath), "application/pdf", originalFileName);
     }
 
-    public void Delete(string relativePath)
+    public void Delete(string path)
     {
-        var fullPath = Path.Combine(StorageRoot, relativePath);
-        if (File.Exists(fullPath)) File.Delete(fullPath);
+        var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+            logger.LogInformation("Deleted PDF at {Path}", fullPath);
+        }
+        else
+        {
+            logger.LogWarning("PDF not found for deletion at {Path}", fullPath);
+        }
     }
 }

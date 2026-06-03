@@ -36,7 +36,10 @@
         transactions
         @if (unknownCount() > 0) {
           ·
-          <span class="unknown-hint" (click)="filterCategory.set('unknown')"
+          <span
+            class="unknown-hint"
+            [class.active]="filterCategory() === 'unknown'"
+            (click)="filterCategory() === 'unknown' ? filterCategory.set('') : filterCategory.set('unknown')"
             >{{ unknownCount() }} uncategorized</span
           >
         }
@@ -613,6 +616,76 @@
           "
         >
           {{ ruleCreateLoading() ? 'Saving…' : 'Create rule & assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (pendingExclude(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Exclude transaction</h3>
+        <button class="modal-close" (click)="cancelExclude()">✕</button>
+      </div>
+      <p>
+        Do you want to create a rule so future transactions matching this pattern are excluded
+        automatically?
+      </p>
+
+      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. TRF MB WAY"
+        [ngModel]="excludeRulePattern()"
+        (ngModelChange)="excludeRulePattern.set($event)"
+      />
+      <p class="field-hint">
+        Transactions whose description contains this text will be excluded automatically.
+      </p>
+
+      <label class="field-label">Value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 1500.00"
+        [ngModel]="excludeRuleValue()?.toString() ?? ''"
+        (ngModelChange)="
+          excludeRuleValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on transaction amount. If both fields are filled, both must match.
+      </p>
+
+      @if (excludeRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="excludeRuleMatchCount() === 0">
+          {{ excludeRuleMatchCount() }} existing transaction{{
+            excludeRuleMatchCount() !== 1 ? 's' : ''
+          }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="confirmExclude(false)"
+          [disabled]="excludeRuleLoading()"
+        >
+          Just this transaction
+        </button>
+        <button
+          class="btn-primary"
+          (click)="confirmExclude(true)"
+          [disabled]="
+            (!excludeRulePattern().trim() && excludeRuleValue() === null) || excludeRuleLoading()
+          "
+        >
+          {{ excludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
         </button>
       </div>
     </div>

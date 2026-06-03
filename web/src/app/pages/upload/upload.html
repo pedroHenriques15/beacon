@@ -62,9 +62,9 @@
 
 @if (state() === 'success') {
   @if (batchSummary(); as s) {
-    <div class="result-card success">
-      <div class="result-icon">✓</div>
-      <h2>Bank statements imported</h2>
+    <div class="result-card" [class.success]="s.imported > 0" [class.warning]="s.imported === 0">
+      <div class="result-icon">{{ s.imported > 0 ? '✓' : '≈' }}</div>
+      <h2>{{ s.imported > 0 ? 'Bank statements imported' : 'Nothing new imported' }}</h2>
 
       <div class="batch-stats">
         @if (s.imported > 0) {
