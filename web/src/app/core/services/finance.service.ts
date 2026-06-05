@@ -31,7 +31,7 @@ export class FinanceService {
   }
 
   reload(): void {
-    this.loading.set(true);
+    if (this.statements().length === 0) this.loading.set(true);
     this.error.set(null);
     this.loadAll();
   }
@@ -46,6 +46,10 @@ export class FinanceService {
     const form = new FormData();
     for (const f of files) form.append('files', f);
     return this.http.post<BatchUploadItemResult[]>('/api/statements/upload-batch', form);
+  }
+
+  getStatementFile(id: number): Observable<Blob> {
+    return this.http.get(`/api/statements/${id}/file`, { responseType: 'blob' });
   }
 
   uploadUnified(files: File[]): Observable<UnifiedUploadItemResult[]> {

@@ -100,7 +100,7 @@
         </thead>
         <tbody>
           @for (s of allStatements(); track s.id) {
-            <tr>
+            <tr [class.clickable]="s.pdfPath" (click)="openStatementFile(s.id, s.pdfPath)">
               <td [style.color]="bankColor(s.bank)">{{ s.bank }}</td>
               <td>{{ formatPeriod(s.periodFrom, s.periodTo) }}</td>
               <td class="num">{{ s.transactions.length }}</td>

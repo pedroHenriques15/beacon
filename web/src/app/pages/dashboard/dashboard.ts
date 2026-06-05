@@ -121,6 +121,14 @@ export class DashboardComponent {
     });
   }
 
+  openStatementFile(id: number, pdfPath: string | null): void {
+    if (!pdfPath) return;
+    this.finance.getStatementFile(id).subscribe((blob) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    });
+  }
+
   formatPeriod(from: string, to: string): string {
     const f = new DatePipe('en-US');
     return `${f.transform(from, 'd MMM')} – ${f.transform(to, 'd MMM yyyy')}`;
