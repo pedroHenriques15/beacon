@@ -50,6 +50,9 @@ yarn-error.log*
 # ─── Deploy build staging ───────────────────────────────────────────────────
 .build/
 
+# ─── .NET runtime/tools (devcontainer local) ────────────────────────────────
+dotnet/
+
 # ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
