@@ -1,10 +1,10 @@
 .grocery-results-card {
-  border-color: rgba(52, 211, 153, 0.25);
+  border-color: color-mix(in srgb, var(--success) 25%, transparent);
   margin-top: 1rem;
 }
 
 .grocery-icon {
-  background: rgba(52, 211, 153, 0.12);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
   font-size: 1.1rem;
 }

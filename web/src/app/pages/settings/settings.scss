@@ -97,6 +97,10 @@
   font-size: 0.875rem;
   margin-top: 0.75rem;
 
-  &--ok { color: var(--success); }
-  &--error { color: var(--danger); }
+  &--ok {
+    color: var(--success);
+  }
+  &--error {
+    color: var(--danger);
+  }
 }

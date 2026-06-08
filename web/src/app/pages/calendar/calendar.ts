@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { SlicePipe } from '@angular/common';
+import { DatePipe, SlicePipe } from '@angular/common';
 import { CalendarService, CalendarInfo } from '../../core/services/calendar.service';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { TasksService } from '../../core/services/tasks.service';
@@ -62,7 +62,7 @@ const MONTH_NAMES = [
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [EventModalComponent, TaskModalComponent, RouterLink, SlicePipe],
+  imports: [EventModalComponent, TaskModalComponent, RouterLink, SlicePipe, DatePipe],
   templateUrl: './calendar.html',
   styleUrl: './calendar.scss',
 })

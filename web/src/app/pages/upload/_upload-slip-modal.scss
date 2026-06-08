@@ -9,8 +9,8 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 0.9rem;
-  background: rgba(148, 163, 184, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--text-secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
   border-radius: 8px;
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -173,7 +173,7 @@ input[type='number'] {
 }
 
 select.unmatched {
-  border-color: rgba(245, 158, 11, 0.5);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
 }
 
 .icon-btn {
@@ -193,7 +193,7 @@ select.unmatched {
   }
   &.danger:hover {
     color: var(--danger);
-    border-color: rgba(239, 68, 68, 0.5);
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
   }
 }
 
@@ -204,7 +204,7 @@ select.unmatched {
 .form-error {
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   color: var(--danger);
   border-radius: 6px;
   font-size: 0.82rem;

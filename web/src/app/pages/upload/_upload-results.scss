@@ -7,7 +7,7 @@
   text-align: center;
 
   &.success {
-    border-color: rgba(52, 211, 153, 0.3);
+    border-color: color-mix(in srgb, var(--success) 30%, transparent);
   }
 
   &.warning {
@@ -36,7 +36,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(52, 211, 153, 0.15);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
   color: var(--success);
   font-size: 1.4rem;
   display: flex;
@@ -51,7 +51,7 @@
   gap: 0.5rem;
   margin: 1rem 0 0.5rem;
   padding: 0.6rem 1rem;
-  background: rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
   color: var(--warning);
   border-radius: 8px;
   font-size: 0.88rem;
@@ -77,15 +77,15 @@
   font-size: 0.8rem;
   font-weight: 600;
   &.green {
-    background: rgba(52, 211, 153, 0.12);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
     color: var(--success);
   }
   &.yellow {
-    background: rgba(245, 158, 11, 0.12);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
     color: var(--warning);
   }
   &.red {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }
@@ -160,11 +160,11 @@
   font-size: 0.9rem;
 
   &.duplicate {
-    background: rgba(245, 158, 11, 0.1);
+    background: color-mix(in srgb, var(--warning) 10%, transparent);
     color: var(--warning);
   }
   &.error {
-    background: rgba(239, 68, 68, 0.1);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
     color: var(--danger);
   }
 }
@@ -209,4 +209,3 @@
     border-color: var(--primary);
   }
 }
-

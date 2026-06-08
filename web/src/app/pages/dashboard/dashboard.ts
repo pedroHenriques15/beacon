@@ -131,7 +131,7 @@ export class DashboardComponent {
 
   formatPeriod(from: string, to: string): string {
     const f = new DatePipe('en-US');
-    return `${f.transform(from, 'd MMM')} – ${f.transform(to, 'd MMM yyyy')}`;
+    return `${f.transform(from, 'dd MMM')} – ${f.transform(to, 'dd MMM yyyy')}`;
   }
 
   onDragStart(bank: string): void {

@@ -9,7 +9,7 @@ import {
   effect,
   OnDestroy,
 } from '@angular/core';
-import { CurrencyPipe, SlicePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -44,7 +44,7 @@ Chart.register(
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CurrencyPipe, SlicePipe, FormsModule],
+  imports: [CurrencyPipe, DatePipe, FormsModule],
   templateUrl: './analytics.html',
   styleUrl: './analytics.scss',
 })

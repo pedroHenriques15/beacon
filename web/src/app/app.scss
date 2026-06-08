@@ -30,7 +30,7 @@
 
       &.active {
         border-left-color: transparent;
-        background: rgba(108, 99, 255, 0.1);
+        background: color-mix(in srgb, var(--primary) 10%, transparent);
         border-radius: 8px;
         margin: 0 8px;
       }
@@ -110,7 +110,7 @@
     &.active {
       color: var(--text-primary);
       border-left-color: var(--primary);
-      background: rgba(108, 99, 255, 0.08);
+      background: color-mix(in srgb, var(--primary) 8%, transparent);
     }
 
     &--bottom {

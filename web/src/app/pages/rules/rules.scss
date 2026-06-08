@@ -126,7 +126,7 @@
     color: var(--text-primary);
   }
   &.danger:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }

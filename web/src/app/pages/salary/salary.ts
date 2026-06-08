@@ -342,7 +342,7 @@ export class SalaryComponent implements OnInit {
   }
 
   isDominos(slip: SalarySlip): boolean {
-    return this.profileNameIncludes(slip, 'dominos');
+    return this.profileNameIncludes(slip, 'domino') || this.profileNameIncludes(slip, 'domirest');
   }
 
   isKonkConsulting(slip: SalarySlip): boolean {

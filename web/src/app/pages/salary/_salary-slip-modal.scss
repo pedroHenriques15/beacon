@@ -95,7 +95,7 @@
 }
 
 .li-cat.unmatched {
-  border-color: rgba(245, 158, 11, 0.5);
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
 }
 
 .parsed-banner {
@@ -103,8 +103,8 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
-  background: rgba(148, 163, 184, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--text-secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
   border-radius: 8px;
   padding: 0.55rem 0.85rem;
   font-size: 0.82rem;
@@ -123,8 +123,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(148, 163, 184, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--text-secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;

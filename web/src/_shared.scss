@@ -121,6 +121,17 @@
   optgroup {
     background: var(--surface);
   }
+
+  &[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      appearance: none;
+      margin: 0;
+    }
+  }
 }
 
 .field-hint {
@@ -159,9 +170,9 @@
   font-size: 0.82rem;
   color: var(--success);
   padding: 0.4rem 0.75rem;
-  background: rgba(52, 211, 153, 0.08);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
   border-radius: 6px;
-  border: 1px solid rgba(52, 211, 153, 0.2);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
 
   &--none {
     color: var(--text-secondary);

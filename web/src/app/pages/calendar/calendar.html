@@ -165,7 +165,7 @@
                 />
                 <span class="task-row__title" (click)="openTaskModal(task)">{{ task.title }}</span>
                 @if (task.due) {
-                  <span class="task-row__due">{{ task.due }}</span>
+                  <span class="task-row__due">{{ task.due | date: 'dd-MM-yyyy' }}</span>
                 }
                 @if (task.notes) {
                   <span class="task-row__notes" [title]="task.notes">{{ task.notes }}</span>

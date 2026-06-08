@@ -14,7 +14,7 @@
     border-color 0.15s,
     box-shadow 0.15s;
   &:hover {
-    border-color: rgba(148, 163, 184, 0.35);
+    border-color: color-mix(in srgb, var(--text-secondary) 35%, transparent);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   }
 }
@@ -30,6 +30,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
+  min-height: calc(2 * 1.1rem * 1.4);
 }
 
 .poc-badge-actions {

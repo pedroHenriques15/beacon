@@ -110,11 +110,11 @@ tr.selected td {
     color: #00b4d8;
   }
   &[data-bank='REVOLUT'] {
-    background: rgba(108, 99, 255, 0.15);
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
     color: var(--primary);
   }
   &[data-bank='BPI'] {
-    background: rgba(245, 158, 11, 0.15);
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
     color: var(--warning);
   }
 }
