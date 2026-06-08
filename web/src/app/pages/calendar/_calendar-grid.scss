@@ -171,6 +171,56 @@
   text-overflow: ellipsis;
 }
 
+.cal-week {
+  grid-column: 1 / -1;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-cell__span-spacer {
+  flex-shrink: 0;
+  height: calc(var(--max-span-row, 0) * 1.6rem);
+}
+
+.cal-span-bar {
+  position: absolute;
+  height: 1.5rem;
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+  border-radius: 0;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  overflow: hidden;
+  padding: 0 0.4rem;
+  white-space: nowrap;
+  transition: background 0.15s;
+
+  &--start {
+    border-left: 2px solid var(--primary);
+    border-radius: 4px 0 0 4px;
+  }
+
+  &--end {
+    border-radius: 0 4px 4px 0;
+  }
+
+  &--start#{&}--end {
+    border-radius: 4px;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+}
+
+.cal-span-bar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cal-legend {
   display: flex;
   flex-wrap: wrap;

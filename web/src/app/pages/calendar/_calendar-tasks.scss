@@ -105,6 +105,16 @@
   margin: 0.5rem 0;
 }
 
+.tasks-panel__toggle-error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
 .tasks-panel__toggle {
   background: none;
   border: none;

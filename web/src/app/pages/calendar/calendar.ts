@@ -29,6 +29,21 @@ interface CalendarDay {
   tasks: Task[];
 }
 
+interface SpanLayout {
+  event: CalendarEvent;
+  startCol: number;
+  endCol: number;
+  row: number;
+  isStart: boolean;
+  isEnd: boolean;
+}
+
+interface WeekRow {
+  days: CalendarDay[];
+  spans: SpanLayout[];
+  maxSpanRow: number;
+}
+
 const MONTH_NAMES = [
   'January',
   'February',
@@ -76,6 +91,9 @@ export class CalendarPage implements OnInit {
   taskSaveError = signal<string | null>(null);
   taskToggleError = signal<string | null>(null);
 
+  successToast = signal<string | null>(null);
+  private _toastTimer: ReturnType<typeof setTimeout> | null = null;
+
   selectedTaskListId = signal<string>('');
   showCompleted = signal(false);
 
@@ -117,7 +135,7 @@ export class CalendarPage implements OnInit {
     new Map(this.tasksService.taskLists().map((l) => [l.id, l.title]))
   );
 
-  calendarDays = computed<CalendarDay[]>(() => {
+  calendarWeeks = computed<WeekRow[]>(() => {
     const y = this.year();
     const m = this.month();
     const events = this.calendarService.events();
@@ -129,7 +147,7 @@ export class CalendarPage implements OnInit {
     let startDow = firstDay.getDay();
     startDow = startDow === 0 ? 6 : startDow - 1;
 
-    return Array.from({ length: 42 }, (_, i) => {
+    const allDays: CalendarDay[] = Array.from({ length: 42 }, (_, i) => {
       const date = new Date(y, m, 1 - startDow + i);
       const dateStr = toDateStr(date);
       return {
@@ -137,10 +155,44 @@ export class CalendarPage implements OnInit {
         dateStr,
         isCurrentMonth: date.getMonth() === m,
         isToday: dateStr === todayStr,
-        events: events.filter((e) => !hidden.has(e.calendarId) && eventFallsOnDate(e, dateStr)),
+        events: events.filter(
+          (e) => !hidden.has(e.calendarId) && !isMultiDay(e) && eventFallsOnDate(e, dateStr),
+        ),
         tasks: tasks.filter((t) => t.due === dateStr),
       };
     });
+
+    const spanningEvents = events.filter((e) => !hidden.has(e.calendarId) && isMultiDay(e));
+
+    const weeks: WeekRow[] = [];
+    for (let w = 0; w < 6; w++) {
+      const days = allDays.slice(w * 7, w * 7 + 7);
+      const weekStart = days[0].dateStr;
+      const weekEnd = days[6].dateStr;
+
+      const weekSpans: SpanLayout[] = [];
+      for (const event of spanningEvents) {
+        const eventStartDate = event.start.substring(0, 10);
+        const eventEndDate = event.end.substring(0, 10);
+        if (eventStartDate > weekEnd || eventEndDate < weekStart) continue;
+        const clampedStart = eventStartDate < weekStart ? weekStart : eventStartDate;
+        const clampedEnd = eventEndDate > weekEnd ? weekEnd : eventEndDate;
+        const startIdx = days.findIndex((d) => d.dateStr === clampedStart);
+        const endIdx = days.findIndex((d) => d.dateStr === clampedEnd);
+        weekSpans.push({
+          event,
+          startCol: startIdx + 1,
+          endCol: endIdx + 1,
+          row: 0,
+          isStart: event.start >= weekStart,
+          isEnd: event.end <= weekEnd,
+        });
+      }
+      assignSpanRows(weekSpans);
+      const maxSpanRow = weekSpans.length > 0 ? Math.max(...weekSpans.map((s) => s.row)) : 0;
+      weeks.push({ days, spans: weekSpans, maxSpanRow });
+    }
+    return weeks;
   });
 
   ngOnInit(): void {
@@ -212,6 +264,7 @@ export class CalendarPage implements OnInit {
     const save$ = editing
       ? this.calendarService.updateEvent(editing.id, editing.calendarId, data)
       : this.calendarService.createEvent(data);
+    const successMsg = editing ? 'Event updated' : 'Event created';
 
     this.saving.set(true);
     this.saveError.set(null);
@@ -220,6 +273,7 @@ export class CalendarPage implements OnInit {
         this.saving.set(false);
         this.closeModal();
         this.calendarService.loadEvents(this.year(), this.month());
+        this.showToast(successMsg);
       },
       error: () => {
         this.saving.set(false);
@@ -237,6 +291,27 @@ export class CalendarPage implements OnInit {
     };
   }
 
+  spanStyle(span: SpanLayout): Record<string, string> {
+    const leftPct = ((span.startCol - 1) / 7) * 100;
+    const widthPct = ((span.endCol - span.startCol + 1) / 7) * 100;
+    const topRem = 2.2 + (span.row - 1) * 1.6;
+    const leftInset = span.isStart ? 2 : 0;
+    const rightInset = span.isEnd ? 2 : 0;
+    const styles: Record<string, string> = {
+      left: `calc(${leftPct}% + ${leftInset}px)`,
+      top: `${topRem}rem`,
+      width: `calc(${widthPct}% - ${leftInset + rightInset}px)`,
+    };
+    const color = span.event.colorId
+      ? GOOGLE_CALENDAR_COLORS[span.event.colorId]?.hex
+      : span.event.calendarColor;
+    if (color) {
+      styles['background'] = `color-mix(in srgb, ${color} 20%, transparent)`;
+      if (span.isStart) styles['border-left-color'] = color;
+    }
+    return styles;
+  }
+
   onDelete(id: string): void {
     this.saving.set(true);
     this.saveError.set(null);
@@ -249,6 +324,7 @@ export class CalendarPage implements OnInit {
           this.saving.set(false);
           this.closeModal();
           this.calendarService.loadEvents(this.year(), this.month());
+          this.showToast('Event deleted');
         },
         error: () => {
           this.saving.set(false);
@@ -275,6 +351,7 @@ export class CalendarPage implements OnInit {
     const save$ = editing
       ? this.tasksService.updateTask(editing.id, data)
       : this.tasksService.createTask(data);
+    const successMsg = editing ? 'Task updated' : 'Task created';
 
     this.taskSaving.set(true);
     this.taskSaveError.set(null);
@@ -283,6 +360,7 @@ export class CalendarPage implements OnInit {
         this.taskSaving.set(false);
         this.closeTaskModal();
         this.refreshTasks();
+        this.showToast(successMsg);
       },
       error: () => {
         this.taskSaving.set(false);
@@ -303,6 +381,7 @@ export class CalendarPage implements OnInit {
           this.taskSaving.set(false);
           this.closeTaskModal();
           this.refreshTasks();
+          this.showToast('Task deleted');
         },
         error: () => {
           this.taskSaving.set(false);
@@ -329,6 +408,9 @@ export class CalendarPage implements OnInit {
       .updateTask(task.id, data)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
+        next: () => {
+          this.showToast('Task updated');
+        },
         error: () => {
           this.tasksService.patchTask(task.id, { completed: task.completed });
           this.taskToggleError.set('Failed to update task. Please try again.');
@@ -338,6 +420,12 @@ export class CalendarPage implements OnInit {
 
   private refreshTasks(): void {
     this.tasksService.loadAllTasks();
+  }
+
+  private showToast(msg: string): void {
+    if (this._toastTimer) clearTimeout(this._toastTimer);
+    this.successToast.set(msg);
+    this._toastTimer = setTimeout(() => this.successToast.set(null), 2500);
   }
 }
 
@@ -353,4 +441,25 @@ function eventFallsOnDate(event: CalendarEvent, dateStr: string): boolean {
     return dateStr >= event.start && dateStr <= event.end;
   }
   return event.start.substring(0, 10) === dateStr;
+}
+
+function isMultiDay(event: CalendarEvent): boolean {
+  return event.start.substring(0, 10) !== event.end.substring(0, 10);
+}
+
+function assignSpanRows(spans: SpanLayout[]): void {
+  spans.sort((a, b) => a.startCol - b.startCol || a.event.start.localeCompare(b.event.start));
+  const occupied: boolean[][] = [];
+  for (const span of spans) {
+    let r = 0;
+    while (true) {
+      if (!occupied[r]) occupied[r] = Array(7).fill(false);
+      if (!occupied[r].slice(span.startCol - 1, span.endCol).some(Boolean)) {
+        for (let c = span.startCol - 1; c < span.endCol; c++) occupied[r][c] = true;
+        span.row = r + 1;
+        break;
+      }
+      r++;
+    }
+  }
 }

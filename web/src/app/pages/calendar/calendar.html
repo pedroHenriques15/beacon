@@ -44,58 +44,77 @@
         <div class="cal-day-name">{{ name }}</div>
       }
 
-      @for (day of calendarDays(); track day.dateStr) {
-        <div
-          class="cal-cell"
-          [class.cal-cell--other-month]="!day.isCurrentMonth"
-          [class.cal-cell--today]="day.isToday"
-          (click)="openCreateModal(day.date)"
-          role="button"
-          [attr.aria-label]="'Create event on ' + day.dateStr"
-        >
-          <span class="cal-cell__num">{{ day.date.getDate() }}</span>
-          <div class="cal-cell__events">
-            @for (event of day.events; track event.id) {
-              <div
-                class="cal-chip"
-                [style]="chipStyle(event)"
-                [title]="event.title"
-                (click)="openEditModal(event, $event)"
-              >
-                @if (!event.isAllDay) {
-                  <span class="cal-chip__time">{{ event.start | slice: 11 : 16 }}</span>
-                }
-                <span class="cal-chip__title">{{ event.title }}</span>
-              </div>
-            }
-            @for (task of day.tasks; track task.id) {
-              <div
-                class="task-chip"
-                [class.task-chip--done]="task.completed"
-                [title]="task.title"
-                (click)="openTaskModal(task, $event)"
-              >
-                <button
-                  class="task-chip__check"
-                  type="button"
-                  [title]="task.completed ? 'Mark incomplete' : 'Mark complete'"
-                  (click)="onTaskComplete(task, $event)"
-                >
-                  <svg
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+      @for (week of calendarWeeks(); track week.days[0].dateStr) {
+        <div class="cal-week" [style.--max-span-row]="week.maxSpanRow">
+          @for (day of week.days; track day.dateStr) {
+            <div
+              class="cal-cell"
+              [class.cal-cell--other-month]="!day.isCurrentMonth"
+              [class.cal-cell--today]="day.isToday"
+              (click)="openCreateModal(day.date)"
+              role="button"
+              [attr.aria-label]="'Create event on ' + day.dateStr"
+            >
+              <span class="cal-cell__num">{{ day.date.getDate() }}</span>
+              <div class="cal-cell__span-spacer"></div>
+              <div class="cal-cell__events">
+                @for (event of day.events; track event.id) {
+                  <div
+                    class="cal-chip"
+                    [style]="chipStyle(event)"
+                    [title]="event.title"
+                    (click)="openEditModal(event, $event)"
                   >
-                    <polyline points="2,6 5,9 10,3" />
-                  </svg>
-                </button>
-                <span class="task-chip__title">{{ task.title }}</span>
+                    @if (!event.isAllDay) {
+                      <span class="cal-chip__time">{{ event.start | slice: 11 : 16 }}</span>
+                    }
+                    <span class="cal-chip__title">{{ event.title }}</span>
+                  </div>
+                }
+                @for (task of day.tasks; track task.id) {
+                  <div
+                    class="task-chip"
+                    [class.task-chip--done]="task.completed"
+                    [title]="task.title"
+                    (click)="openTaskModal(task, $event)"
+                  >
+                    <button
+                      class="task-chip__check"
+                      type="button"
+                      [title]="task.completed ? 'Mark incomplete' : 'Mark complete'"
+                      (click)="onTaskComplete(task, $event)"
+                    >
+                      <svg
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="2,6 5,9 10,3" />
+                      </svg>
+                    </button>
+                    <span class="task-chip__title">{{ task.title }}</span>
+                  </div>
+                }
               </div>
-            }
-          </div>
+            </div>
+          }
+          @for (span of week.spans; track span.event.id) {
+            <div
+              class="cal-span-bar"
+              [class.cal-span-bar--start]="span.isStart"
+              [class.cal-span-bar--end]="span.isEnd"
+              [style]="spanStyle(span)"
+              [title]="span.event.title"
+              (click)="openEditModal(span.event, $event)"
+            >
+              @if (span.isStart) {
+                <span class="cal-span-bar__title">{{ span.event.title }}</span>
+              }
+            </div>
+          }
         </div>
       }
     </div>
@@ -123,7 +142,7 @@
       </div>
 
       @if (taskToggleError()) {
-        <p class="error">{{ taskToggleError() }}</p>
+        <p class="tasks-panel__toggle-error">{{ taskToggleError() }}</p>
       }
       @if (tasksService.loading()) {
         <p class="tasks-panel__empty">Loading tasks…</p>
@@ -201,6 +220,10 @@
       (delete)="onTaskDelete($event)"
       (cancel)="closeTaskModal()"
     />
+
+    @if (successToast()) {
+      <div class="cal-toast" role="status" aria-live="polite">{{ successToast() }}</div>
+    }
   }
 } @else {
   <div class="loading">Loading…</div>

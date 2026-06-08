@@ -68,6 +68,7 @@ public class GoogleTasksService(GoogleOAuthService oauthService, IHttpClientFact
         var client = await CreateClientAsync(ct);
         var listId = string.IsNullOrWhiteSpace(request.TaskListId) ? "@default" : request.TaskListId;
         var body = BuildTaskBody(request.Title, request.Notes, request.Due, request.Completed);
+        body["id"] = taskId;
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
         var url = $"{BaseUrl}/lists/{Uri.EscapeDataString(listId)}/tasks/{Uri.EscapeDataString(taskId)}";

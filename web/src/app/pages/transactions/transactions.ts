@@ -373,24 +373,20 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         if (!this._filtersReady) return;
         this._resetAndLoad();
       },
-      { allowSignalWrites: true },
     );
 
-    effect(
-      () => {
-        void (
-          this.gFilterStore() +
-          this.gFilterMonth() +
-          this.gFilterCategory() +
-          this.gSearch() +
-          this.gSortCol() +
-          this.gSortDir()
-        );
-        if (!this._gFiltersReady) return;
-        this._gResetAndLoad();
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      void (
+        this.gFilterStore() +
+        this.gFilterMonth() +
+        this.gFilterCategory() +
+        this.gSearch() +
+        this.gSortCol() +
+        this.gSortDir()
+      );
+      if (!this._gFiltersReady) return;
+      this._gResetAndLoad();
+    });
   }
 
   ngOnInit(): void {
