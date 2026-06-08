@@ -59,7 +59,7 @@ Everything is stored in SQL Server and served over a REST API. The Angular front
 
 ## Architecture
 
-The backend follows a feature-driven CQRS pattern without MediatR — each use case is a plain class injected via DI. There's no handler registry or reflection magic; everything is registered explicitly in `Program.cs`. Features live under `api/FinanceHub.Api/Features/`, each with `Commands/` and `Queries/` subdirectories.
+The backend follows a feature-driven CQRS pattern without MediatR — each use case is a plain class injected via DI. There's no handler registry or reflection magic; everything is registered explicitly in `Program.cs`. Features live under `api/Beacon.Api/Features/`, each with `Commands/` and `Queries/` subdirectories.
 
 ```
 Features/
@@ -85,14 +85,14 @@ The frontend uses Angular signals for state. `FinanceService` is the single sour
 ```
 beacon/
 ├── api/
-│   ├── FinanceHub.Api/
+│   ├── Beacon.Api/
 │   │   ├── Controllers/
 │   │   ├── Data/              # AppDbContext (EF Core)
 │   │   ├── Features/          # CQRS handlers per feature
 │   │   ├── Migrations/        # EF Core generated
 │   │   ├── Models/            # Domain entities
 │   │   └── Services/Parsing/  # Bank & salary PDF parsers
-│   └── FinanceHub.Tests/      # xUnit tests
+│   └── Beacon.Tests/      # xUnit tests
 ├── web/
 │   └── src/app/
 │       ├── core/              # Services, interceptors, models, utils
@@ -117,7 +117,7 @@ beacon/
 
 ### Configuration
 
-Copy `api/FinanceHub.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
+Copy `api/Beacon.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
 
 - `ApiKey` — any string, used as the `X-Api-Key` header
 - `ConnectionStrings.DefaultConnection` — SQL Server connection string
@@ -128,7 +128,7 @@ Copy `api/FinanceHub.Api/appsettings.template.json` to `appsettings.Development.
 
 ```bash
 # Terminal 1 — API (http://localhost:5098)
-cd api/FinanceHub.Api
+cd api/Beacon.Api
 export ApiKey=dev-only-key
 dotnet run
 
@@ -144,7 +144,7 @@ Swagger UI: `http://localhost:5098/swagger` (no API key needed in development).
 
 ```powershell
 # Terminal 1 — API
-cd api\FinanceHub.Api
+cd api\Beacon.Api
 $env:ApiKey="dev-only-key"
 dotnet run
 
@@ -178,7 +178,7 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 ## Database
 
 ```bash
-cd api/FinanceHub.Api
+cd api/Beacon.Api
 dotnet ef migrations add <MigrationName>
 dotnet ef database update
 ```
@@ -192,7 +192,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ```bash
 # Backend — xUnit (343 tests)
 cd api
-dotnet test FinanceHub.Tests/
+dotnet test Beacon.Tests/
 
 # Frontend — Vitest
 cd web
@@ -205,7 +205,7 @@ Backend test coverage includes all bank and salary slip parsers, the API key mid
 
 ## Deployment
 
-`scripts/deploy.sh` builds both the API and frontend, applies pending migrations, and launches everything. In production mode it copies the build output to `/opt/financehub`, reloads the systemd service, and starts Nginx.
+`scripts/deploy.sh` builds both the API and frontend, applies pending migrations, and launches everything. In production mode it copies the build output to `/opt/beacon`, reloads the systemd service, and starts Nginx.
 
 ```bash
 ./scripts/deploy.sh --production

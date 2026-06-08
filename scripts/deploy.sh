@@ -19,7 +19,7 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BACKEND_DIR="$PROJECT_ROOT/api/FinanceHub.Api"
+BACKEND_DIR="$PROJECT_ROOT/api/Beacon.Api"
 FRONTEND_DIR="$PROJECT_ROOT/web"
 LOCAL_DIR="$PROJECT_ROOT/local"
 if [[ "$MODE" == "development" ]]; then
@@ -27,7 +27,7 @@ if [[ "$MODE" == "development" ]]; then
 else
     ENV_FILE="$LOCAL_DIR/environment"
 fi
-INSTALL_DIR="/opt/financehub"
+INSTALL_DIR="/opt/beacon"
 BUILD_DIR="$PROJECT_ROOT/.build"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -35,7 +35,7 @@ step() { echo -e "\n${CYAN}==> $1${NC}"; }
 ok()   { echo -e "    ${GREEN}[OK]${NC} $1"; }
 err()  { echo -e "    ${RED}[ERROR]${NC} $1" >&2; exit 1; }
 
-echo -e "\nFinance Hub — ${MODE^}\n"
+echo -e "\nBeacon — ${MODE^}\n"
 
 # ── Preflight ─────────────────────────────────────────────────────────────────
 step "Preflight checks"
@@ -60,20 +60,20 @@ ok "All checks passed"
 # ── Production-only: permissions, stop running instances, systemd ─────────────
 if [[ "$MODE" == "production" ]]; then
     step "Setting local/ permissions"
-    sudo chown -R "$(whoami):financehub" "$LOCAL_DIR"
+    sudo chown -R "$(whoami):beacon" "$LOCAL_DIR"
     sudo chmod 750 "$LOCAL_DIR"
     sudo chmod 640 "$ENV_FILE"
     sudo chmod 770 "$LOCAL_DIR/Backups" "$LOCAL_DIR/Statements"
     ok "Permissions set"
 
     step "Stopping any running instance"
-    sudo systemctl stop financehub 2>/dev/null || true
+    sudo systemctl stop beacon 2>/dev/null || true
     sudo nginx -s stop            2>/dev/null || true
     sudo mkdir -p "$INSTALL_DIR/wwwroot"
     ok "Cleared"
 
     sudo sed -i "s|EnvironmentFile=.*|EnvironmentFile=$ENV_FILE|" \
-        /etc/systemd/system/financehub.service
+        /etc/systemd/system/beacon.service
     sudo systemctl daemon-reload
 fi
 
@@ -114,7 +114,7 @@ step "Deploying API"
 sudo rsync -a --delete --exclude "*.pdb" --exclude "wwwroot" \
     "$BUILD_DIR/api/" "$INSTALL_DIR/"
 rm -rf "$BUILD_DIR/api"
-sudo chown -R financehub:financehub "$INSTALL_DIR"
+sudo chown -R beacon:beacon "$INSTALL_DIR"
 ok "Deployed"
 
 step "Running migrations"
@@ -134,7 +134,7 @@ while IFS= read -r line; do
 done < "$ENV_FILE"
 echo -e "    \033[0;32m✔ Environment loaded — dotnet starting...\033[0m"
 echo -e "    Watch for 'Now listening on: http://0.0.0.0:5000'\n"
-dotnet "$INSTALL_DIR/FinanceHub.Api.dll"
+dotnet "$INSTALL_DIR/Beacon.Api.dll"
 
 echo -e "\nBackend stopped. Press Enter to close."
 read -r
@@ -212,7 +212,7 @@ ok "Frontend built (placeholder restored)"
 step "Deploying frontend"
 sudo rsync -a --delete "$BUILD_DIR/wwwroot/" "$INSTALL_DIR/wwwroot/"
 rm -rf "$BUILD_DIR/wwwroot"
-sudo chown -R financehub:financehub "$INSTALL_DIR/wwwroot"
+sudo chown -R beacon:beacon "$INSTALL_DIR/wwwroot"
 sudo chmod -R 755 "$INSTALL_DIR/wwwroot"
 ok "Deployed"
 

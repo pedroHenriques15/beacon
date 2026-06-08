@@ -4,9 +4,9 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinanceHub.Api", "api\FinanceHub.Api\FinanceHub.Api.csproj", "{FE6641D3-7D0D-4A0A-64FF-0D8E68D5E400}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beacon.Api", "api\Beacon.Api\Beacon.Api.csproj", "{FE6641D3-7D0D-4A0A-64FF-0D8E68D5E400}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinanceHub.Tests", "api\FinanceHub.Tests\FinanceHub.Tests.csproj", "{EF611553-F8C3-435F-8D61-6E5FDAEB5656}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beacon.Tests", "api\Beacon.Tests\Beacon.Tests.csproj", "{EF611553-F8C3-435F-8D61-6E5FDAEB5656}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

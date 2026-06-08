@@ -9,9 +9,13 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   styleUrl: './app.scss',
 })
 export class App {
-  sidebarOpen = signal(true);
+  sidebarOpen = signal(false);
 
   toggleSidebar(): void {
     this.sidebarOpen.update((v) => !v);
+  }
+
+  closeSidebar(): void {
+    this.sidebarOpen.set(false);
   }
 }
