@@ -1,3 +1,11 @@
+<app-confirm-dialog
+  [open]="confirmPending() !== null"
+  title="Confirm Delete"
+  [message]="confirmPending()?.message ?? ''"
+  (confirmed)="onConfirmPending()"
+  (cancelled)="confirmPending.set(null)"
+/>
+
 @if (loading()) {
   <div class="loading">Loading salary data…</div>
 } @else {

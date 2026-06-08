@@ -9,6 +9,7 @@ import {
   SalarySlip,
 } from '../../core/models/statement.model';
 import { SalaryPieChartComponent } from './salary-pie-chart';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 type View = 'overview' | 'profile' | 'slip';
 
@@ -25,7 +26,7 @@ interface LineItemDraft {
 @Component({
   selector: 'app-salary',
   standalone: true,
-  imports: [CurrencyPipe, DecimalPipe, FormsModule, SalaryPieChartComponent],
+  imports: [CurrencyPipe, DecimalPipe, FormsModule, SalaryPieChartComponent, ConfirmDialogComponent],
   templateUrl: './salary.html',
   styleUrl: './salary.scss',
 })
@@ -40,6 +41,8 @@ export class SalaryComponent implements OnInit {
   itemCategories = signal<SalaryItemCategory[]>([]);
   slips = signal<SalarySlip[]>([]);
   loading = signal(true);
+
+  confirmPending = signal<{ message: string; action: () => void } | null>(null);
 
   selectedProfile = computed(
     () => this.profiles().find((p) => p.id === this.selectedProfileId()) ?? null,
@@ -267,11 +270,14 @@ export class SalaryComponent implements OnInit {
   }
 
   deleteSlip(slip: SalarySlip): void {
-    if (!confirm(`Delete salary slip for ${this.formatPeriod(slip.period)}?`)) return;
-    this.svc.deleteSlip(slip.id).subscribe(() => {
-      this.slips.update((s) => s.filter((x) => x.id !== slip.id));
-      this.svc.getProfiles().subscribe((v) => this.profiles.set(v));
-      if (this.view() === 'slip') this.exitSlip();
+    this.confirmPending.set({
+      message: `Delete salary slip for ${this.formatPeriod(slip.period)}?`,
+      action: () =>
+        this.svc.deleteSlip(slip.id).subscribe(() => {
+          this.slips.update((s) => s.filter((x) => x.id !== slip.id));
+          this.svc.getProfiles().subscribe((v) => this.profiles.set(v));
+          if (this.view() === 'slip') this.exitSlip();
+        }),
     });
   }
 
@@ -311,12 +317,21 @@ export class SalaryComponent implements OnInit {
   }
 
   deleteProfile(p: SalaryProfile): void {
-    if (!confirm(`Delete profile "${p.name}"? This will also delete all its salary slips.`)) return;
-    this.svc.deleteProfile(p.id).subscribe(() => {
-      this.profiles.update((list) => list.filter((x) => x.id !== p.id));
-      this.slips.update((list) => list.filter((x) => x.salaryProfileId !== p.id));
-      if (this.selectedProfileId() === p.id) this.exitProfile();
+    this.confirmPending.set({
+      message: `Delete profile "${p.name}"? This will also delete all its salary slips.`,
+      action: () =>
+        this.svc.deleteProfile(p.id).subscribe(() => {
+          this.profiles.update((list) => list.filter((x) => x.id !== p.id));
+          this.slips.update((list) => list.filter((x) => x.salaryProfileId !== p.id));
+          if (this.selectedProfileId() === p.id) this.exitProfile();
+        }),
     });
+  }
+
+  onConfirmPending(): void {
+    const pending = this.confirmPending();
+    this.confirmPending.set(null);
+    pending?.action();
   }
 
   lineItemCatName(id: number | null): string {

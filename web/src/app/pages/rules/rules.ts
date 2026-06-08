@@ -7,11 +7,12 @@ import { GroceriesService } from '../../core/services/groceries.service';
 import { Category, CategoryRule } from '../../core/models/statement.model';
 import { GroceryCategory, GroceryCategoryRule } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 @Component({
   selector: 'app-rules',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, ConfirmDialogComponent],
   templateUrl: './rules.html',
   styleUrl: './rules.scss',
 })
@@ -22,6 +23,8 @@ export class RulesComponent {
   groceriesSvc = inject(GroceriesService);
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
+
+  confirmPending = signal<{ message: string; action: () => void } | null>(null);
 
   catSearch = signal('');
 
@@ -177,19 +180,17 @@ export class RulesComponent {
   }
 
   deleteRule(id: number): void {
-    if (!confirm('Delete this rule? Existing transactions will keep their current category.'))
-      return;
-    this.catSvc.deleteRule(id).subscribe();
+    this.confirmPending.set({
+      message: 'Delete this rule? Existing transactions will keep their current category.',
+      action: () => this.catSvc.deleteRule(id).subscribe(),
+    });
   }
 
   deleteCategory(cat: Category): void {
-    if (
-      !confirm(
-        `Delete category "${cat.name}"? Rules will be removed and transactions will become uncategorized.`,
-      )
-    )
-      return;
-    this.catSvc.deleteCategory(cat.id).subscribe();
+    this.confirmPending.set({
+      message: `Delete category "${cat.name}"? Rules will be removed and transactions will become uncategorized.`,
+      action: () => this.catSvc.deleteCategory(cat.id).subscribe(),
+    });
   }
 
   gSubmitRule(): void {
@@ -269,17 +270,22 @@ export class RulesComponent {
   }
 
   gDeleteRule(id: number): void {
-    if (!confirm('Delete this rule? Existing items will keep their current category.')) return;
-    this.gCatSvc.deleteRule(id).subscribe();
+    this.confirmPending.set({
+      message: 'Delete this rule? Existing items will keep their current category.',
+      action: () => this.gCatSvc.deleteRule(id).subscribe(),
+    });
   }
 
   gDeleteCategory(cat: GroceryCategory): void {
-    if (
-      !confirm(
-        `Delete category "${cat.name}"? Rules will be removed and items will become uncategorized.`,
-      )
-    )
-      return;
-    this.gCatSvc.deleteCategory(cat.id).subscribe();
+    this.confirmPending.set({
+      message: `Delete category "${cat.name}"? Rules will be removed and items will become uncategorized.`,
+      action: () => this.gCatSvc.deleteCategory(cat.id).subscribe(),
+    });
+  }
+
+  onConfirmPending(): void {
+    const pending = this.confirmPending();
+    this.confirmPending.set(null);
+    pending?.action();
   }
 }

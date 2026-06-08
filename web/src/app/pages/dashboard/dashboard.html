@@ -1,3 +1,11 @@
+<app-confirm-dialog
+  [open]="confirmDeleteId() !== null"
+  title="Delete Statement"
+  message="Delete this statement and all its transactions?"
+  (confirmed)="onConfirmDelete()"
+  (cancelled)="confirmDeleteId.set(null)"
+/>
+
 @if (finance.loading()) {
   <div class="loading">Loading financial data…</div>
 } @else if (finance.error()) {

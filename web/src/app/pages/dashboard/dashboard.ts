@@ -3,11 +3,12 @@ import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, NgClass],
+  imports: [CurrencyPipe, DatePipe, NgClass, ConfirmDialogComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -17,6 +18,7 @@ export class DashboardComponent {
 
   selectedBank = signal<string | null>(null);
   deleting = signal<number | null>(null);
+  confirmDeleteId = signal<number | null>(null);
 
   private cardOrder = signal<string[]>([]);
   draggedBank = signal<string | null>(null);
@@ -108,7 +110,13 @@ export class DashboardComponent {
 
   deleteStatement(id: number, event: MouseEvent): void {
     event.stopPropagation();
-    if (!confirm('Delete this statement and all its transactions?')) return;
+    this.confirmDeleteId.set(id);
+  }
+
+  onConfirmDelete(): void {
+    const id = this.confirmDeleteId();
+    if (id === null) return;
+    this.confirmDeleteId.set(null);
     this.deleting.set(id);
     this.finance.deleteStatement(id).subscribe({
       next: () => {
