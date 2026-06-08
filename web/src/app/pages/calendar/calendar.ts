@@ -97,6 +97,10 @@ export class CalendarPage implements OnInit {
   selectedTaskListId = signal<string>('');
   showCompleted = signal(false);
 
+  draggedTask = signal<Task | null>(null);
+  dragOverTaskId = signal<string | null>(null);
+  dragOverListId = signal<string | null>(null);
+
   private readonly _taskListAutoLoad = effect(() => {
     const lists = this.tasksService.taskLists();
     if (lists.length > 0 && !this.selectedTaskListId()) {
@@ -418,8 +422,87 @@ export class CalendarPage implements OnInit {
       });
   }
 
+  onTaskDragStart(task: Task, event: DragEvent): void {
+    this.draggedTask.set(task);
+    event.dataTransfer?.setData('text/plain', task.id);
+  }
+
+  onTaskDragOver(taskId: string, event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOverTaskId.set(taskId);
+    this.dragOverListId.set(null);
+  }
+
+  onListTitleDragOver(listId: string, event: DragEvent): void {
+    event.preventDefault();
+    this.dragOverListId.set(listId);
+    this.dragOverTaskId.set(null);
+  }
+
+  onTaskDropOnTask(targetTask: Task, groupTasks: Task[], event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const dragged = this.draggedTask();
+    this.clearDragState();
+    if (!dragged || dragged.id === targetTask.id) return;
+
+    const tasksWithoutDragged = groupTasks.filter((t) => t.id !== dragged.id);
+    const targetIdx = tasksWithoutDragged.findIndex((t) => t.id === targetTask.id);
+    const previousTaskId = targetIdx > 0 ? tasksWithoutDragged[targetIdx - 1].id : null;
+
+    this.executeTaskMove(dragged, targetTask.taskListId, previousTaskId);
+  }
+
+  onTaskDropOnList(group: { listId: string; tasks: Task[] }, event: DragEvent): void {
+    event.preventDefault();
+    const dragged = this.draggedTask();
+    this.clearDragState();
+    if (!dragged) return;
+
+    const tasksWithoutDragged = group.tasks.filter((t) => t.id !== dragged.id);
+    const previousTaskId =
+      tasksWithoutDragged.length > 0
+        ? tasksWithoutDragged[tasksWithoutDragged.length - 1].id
+        : null;
+
+    this.executeTaskMove(dragged, group.listId, previousTaskId);
+  }
+
+  onTaskDragEnd(): void {
+    this.clearDragState();
+  }
+
+  private clearDragState(): void {
+    this.draggedTask.set(null);
+    this.dragOverTaskId.set(null);
+    this.dragOverListId.set(null);
+  }
+
+  private executeTaskMove(dragged: Task, targetListId: string, previousTaskId: string | null): void {
+    if (dragged.taskListId !== targetListId) {
+      this.tasksService.patchTask(dragged.id, { taskListId: targetListId });
+    }
+
+    this.tasksService
+      .moveTask(dragged.id, dragged.taskListId, targetListId, previousTaskId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.refreshTasks();
+          this.showToast('Task moved');
+        },
+        error: () => {
+          if (dragged.taskListId !== targetListId) {
+            this.tasksService.patchTask(dragged.id, { taskListId: dragged.taskListId });
+          }
+          this.taskToggleError.set('Failed to move task. Please try again.');
+        },
+      });
+  }
+
   private refreshTasks(): void {
-    this.tasksService.loadAllTasks();
+    this.tasksService.loadAllTasks(true);
   }
 
   private showToast(msg: string): void {

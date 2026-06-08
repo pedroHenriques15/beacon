@@ -49,11 +49,11 @@ export class TasksService {
     this._tasks.update((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }
 
-  loadAllTasks(): void {
+  loadAllTasks(silent = false): void {
     const lists = this.taskLists();
     if (lists.length === 0) return;
 
-    this.loading.set(true);
+    if (!silent) this.loading.set(true);
     this.error.set(null);
 
     forkJoin(
@@ -63,11 +63,11 @@ export class TasksService {
     ).subscribe({
       next: (results) => {
         this._tasks.set(results.flat());
-        this.loading.set(false);
+        if (!silent) this.loading.set(false);
       },
       error: () => {
         this.error.set('Failed to load tasks.');
-        this.loading.set(false);
+        if (!silent) this.loading.set(false);
       },
     });
   }
@@ -82,5 +82,18 @@ export class TasksService {
 
   deleteTask(id: string, listId: string): Observable<void> {
     return this.http.delete<void>(`/api/tasks/${id}`, { params: { listId } });
+  }
+
+  moveTask(
+    id: string,
+    sourceListId: string,
+    targetListId: string,
+    previousTaskId: string | null,
+  ): Observable<Task> {
+    return this.http.post<Task>(`/api/tasks/${id}/move`, {
+      sourceListId,
+      targetListId,
+      previousTaskId,
+    });
   }
 }

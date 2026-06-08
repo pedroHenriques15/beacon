@@ -256,4 +256,87 @@ public class GoogleTasksServiceTests
             () => svc.DeleteTaskAsync("task1", "list1"));
         Assert.Contains("404", ex.Message);
     }
+
+    [Fact]
+    public async Task MoveTaskAsync_SameList_WithPrevious_ReturnsMappedTask()
+    {
+        using var db = CreateDb(nameof(MoveTaskAsync_SameList_WithPrevious_ReturnsMappedTask));
+        var oauthSvc = CreateOAuthSvcWithToken(db);
+        var responseBody = """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }""";
+        var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, responseBody));
+
+        var request = new MoveTaskRequest("list1", "list1", "task0");
+        var result = await svc.MoveTaskAsync("task1", request);
+
+        Assert.Equal("task1", result.Id);
+        Assert.Equal("Buy milk", result.Title);
+        Assert.Equal("list1", result.TaskListId);
+    }
+
+    [Fact]
+    public async Task MoveTaskAsync_SameList_ToTop_ReturnsMappedTask()
+    {
+        using var db = CreateDb(nameof(MoveTaskAsync_SameList_ToTop_ReturnsMappedTask));
+        var oauthSvc = CreateOAuthSvcWithToken(db);
+        var responseBody = """{ "id": "task2", "title": "Dentist", "status": "needsAction" }""";
+        var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, responseBody));
+
+        var request = new MoveTaskRequest("list1", "list1", null);
+        var result = await svc.MoveTaskAsync("task2", request);
+
+        Assert.Equal("task2", result.Id);
+        Assert.Equal("list1", result.TaskListId);
+    }
+
+    [Fact]
+    public async Task MoveTaskAsync_CrossList_NoPosition_ReturnsTaskWithTargetListId()
+    {
+        using var db = CreateDb(nameof(MoveTaskAsync_CrossList_NoPosition_ReturnsTaskWithTargetListId));
+        var oauthSvc = CreateOAuthSvcWithToken(db);
+        var handler = new SequentialHttpMessageHandler(
+            (System.Net.HttpStatusCode.OK,    """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-2", "title": "Buy milk", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.NoContent, ""));
+        var svc = CreateTasksSvc(oauthSvc, handler);
+
+        var request = new MoveTaskRequest("list1", "list2", null);
+        var result = await svc.MoveTaskAsync("task1", request);
+
+        Assert.Equal("new-task-2", result.Id);
+        Assert.Equal("Buy milk", result.Title);
+        Assert.Equal("list2", result.TaskListId);
+    }
+
+    [Fact]
+    public async Task MoveTaskAsync_CrossList_WithPosition_ReturnsTaskWithTargetListId()
+    {
+        using var db = CreateDb(nameof(MoveTaskAsync_CrossList_WithPosition_ReturnsTaskWithTargetListId));
+        var oauthSvc = CreateOAuthSvcWithToken(db);
+        var handler = new SequentialHttpMessageHandler(
+            (System.Net.HttpStatusCode.OK,    """{ "id": "task1", "title": "Call doctor", "status": "needsAction", "due": "2026-06-10T00:00:00.000Z" }"""),
+            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.NoContent, ""));
+        var svc = CreateTasksSvc(oauthSvc, handler);
+
+        var request = new MoveTaskRequest("list1", "list2", "existing-task-id");
+        var result = await svc.MoveTaskAsync("task1", request);
+
+        Assert.Equal("new-task-3", result.Id);
+        Assert.Equal("list2", result.TaskListId);
+    }
+
+    [Fact]
+    public async Task MoveTaskAsync_SameList_ApiError_Throws()
+    {
+        using var db = CreateDb(nameof(MoveTaskAsync_SameList_ApiError_Throws));
+        var oauthSvc = CreateOAuthSvcWithToken(db);
+        var body = """{"error": {"message": "Task not found"}}""";
+        var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.NotFound, body));
+
+        var request = new MoveTaskRequest("list1", "list1", null);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.MoveTaskAsync("task1", request));
+        Assert.Contains("404", ex.Message);
+    }
 }

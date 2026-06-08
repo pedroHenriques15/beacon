@@ -25,3 +25,8 @@ public record UpdateTaskRequest(
     string? Due,
     bool Completed,
     string TaskListId);
+
+public record MoveTaskRequest(
+    [Required] string SourceListId,
+    [Required] string TargetListId,
+    string? PreviousTaskId);

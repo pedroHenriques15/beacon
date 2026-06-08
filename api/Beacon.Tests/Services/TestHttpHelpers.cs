@@ -22,3 +22,25 @@ internal sealed class FakeHttpClientFactory(HttpMessageHandler handler) : IHttpC
 {
     public HttpClient CreateClient(string name) => new(handler);
 }
+
+internal sealed class SequentialHttpMessageHandler : HttpMessageHandler
+{
+    private readonly Queue<HttpResponseMessage> _responses;
+
+    public SequentialHttpMessageHandler(params (System.Net.HttpStatusCode status, string body)[] responses)
+    {
+        _responses = new Queue<HttpResponseMessage>(
+            responses.Select(r => new HttpResponseMessage(r.status)
+            {
+                Content = new StringContent(r.body, System.Text.Encoding.UTF8, "application/json"),
+            }));
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (_responses.Count == 0)
+            throw new InvalidOperationException($"No more HTTP responses queued for {request.Method} {request.RequestUri}.");
+        return Task.FromResult(_responses.Dequeue());
+    }
+}

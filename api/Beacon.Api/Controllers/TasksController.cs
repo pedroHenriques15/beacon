@@ -82,6 +82,26 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
         }
     }
 
+    [HttpPost("{id}/move")]
+    public async Task<IActionResult> MoveTask(string id, [FromBody] MoveTaskRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceListId) || string.IsNullOrWhiteSpace(request.TargetListId))
+            return BadRequest("sourceListId and targetListId are required.");
+        try
+        {
+            var moved = await tasksService.MoveTaskAsync(id, request, ct);
+            return Ok(moved);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not connected"))
+        {
+            return StatusCode(503, new { error = "Google account is not connected." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(502, new { error = ex.Message });
+        }
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteTask(string id, [FromQuery] string listId, CancellationToken ct)
     {

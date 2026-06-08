@@ -89,6 +89,65 @@ public class GoogleTasksService(GoogleOAuthService oauthService, IHttpClientFact
         await EnsureSuccessAsync(response, ct);
     }
 
+    public async Task<GoogleTaskDto> MoveTaskAsync(string taskId, MoveTaskRequest request, CancellationToken ct = default)
+    {
+        var client = await CreateClientAsync(ct);
+
+        if (request.SourceListId == request.TargetListId)
+        {
+            var moveUrl = $"{BaseUrl}/lists/{Uri.EscapeDataString(request.SourceListId)}/tasks/{Uri.EscapeDataString(taskId)}/move";
+            if (!string.IsNullOrEmpty(request.PreviousTaskId))
+                moveUrl += $"?previous={Uri.EscapeDataString(request.PreviousTaskId)}";
+
+            var response = await client.PostAsync(moveUrl, new StringContent(""), ct);
+            await EnsureSuccessAsync(response, ct);
+
+            var moved = await response.Content.ReadFromJsonAsync<TaskItem>(cancellationToken: ct)
+                ?? throw new InvalidOperationException("Empty move response from Google Tasks.");
+            return MapToDto(moved, request.SourceListId);
+        }
+        else
+        {
+            // 1. Fetch task details from source list
+            var getUrl = $"{BaseUrl}/lists/{Uri.EscapeDataString(request.SourceListId)}/tasks/{Uri.EscapeDataString(taskId)}";
+            var getResponse = await client.GetAsync(getUrl, ct);
+            await EnsureSuccessAsync(getResponse, ct);
+
+            var sourceTask = await getResponse.Content.ReadFromJsonAsync<TaskItem>(cancellationToken: ct)
+                ?? throw new InvalidOperationException("Empty task response from Google Tasks.");
+
+            // 2. Create in target list
+            var dueDate = string.IsNullOrEmpty(sourceTask.Due) ? null
+                : (sourceTask.Due.Length >= 10 ? sourceTask.Due[..10] : sourceTask.Due);
+            var body = BuildTaskBody(sourceTask.Title ?? "", sourceTask.Notes, dueDate, sourceTask.Status == "completed");
+            var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+
+            var createUrl = $"{BaseUrl}/lists/{Uri.EscapeDataString(request.TargetListId)}/tasks";
+            var createResponse = await client.PostAsync(createUrl, content, ct);
+            await EnsureSuccessAsync(createResponse, ct);
+
+            var newTask = await createResponse.Content.ReadFromJsonAsync<TaskItem>(cancellationToken: ct)
+                ?? throw new InvalidOperationException("Empty create response from Google Tasks.");
+
+            // 3. Position within target list if requested
+            if (!string.IsNullOrEmpty(request.PreviousTaskId))
+            {
+                var newId = newTask.Id ?? throw new InvalidOperationException("Created task has no ID.");
+                var posUrl = $"{BaseUrl}/lists/{Uri.EscapeDataString(request.TargetListId)}/tasks/{Uri.EscapeDataString(newId)}/move?previous={Uri.EscapeDataString(request.PreviousTaskId)}";
+                var posResponse = await client.PostAsync(posUrl, new StringContent(""), ct);
+                await EnsureSuccessAsync(posResponse, ct);
+                newTask = await posResponse.Content.ReadFromJsonAsync<TaskItem>(cancellationToken: ct) ?? newTask;
+            }
+
+            // 4. Delete from source
+            var deleteUrl = $"{BaseUrl}/lists/{Uri.EscapeDataString(request.SourceListId)}/tasks/{Uri.EscapeDataString(taskId)}";
+            var deleteResponse = await client.DeleteAsync(deleteUrl, ct);
+            await EnsureSuccessAsync(deleteResponse, ct);
+
+            return MapToDto(newTask, request.TargetListId);
+        }
+    }
+
     private async Task<HttpClient> CreateClientAsync(CancellationToken ct)
     {
         var token = await oauthService.GetValidAccessTokenAsync(ct)

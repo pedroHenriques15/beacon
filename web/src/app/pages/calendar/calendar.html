@@ -155,9 +155,24 @@
 
         @for (group of pendingTaskGroups(); track group.listId) {
           <div class="tasks-panel__category">
-            <span class="tasks-panel__category-title">{{ group.listTitle }}</span>
+            <span
+              class="tasks-panel__category-title"
+              [class.tasks-panel__category-title--drag-over]="dragOverListId() === group.listId"
+              (dragover)="onListTitleDragOver(group.listId, $event)"
+              (dragleave)="dragOverListId.set(null)"
+              (drop)="onTaskDropOnList(group, $event)"
+            >{{ group.listTitle }}</span>
             @for (task of group.tasks; track task.id) {
-              <div class="task-row">
+              <div
+                class="task-row"
+                draggable="true"
+                [class.task-row--dragging]="draggedTask()?.id === task.id"
+                [class.task-row--drag-over]="dragOverTaskId() === task.id"
+                (dragstart)="onTaskDragStart(task, $event)"
+                (dragover)="onTaskDragOver(task.id, $event)"
+                (drop)="onTaskDropOnTask(task, group.tasks, $event)"
+                (dragend)="onTaskDragEnd()"
+              >
                 <input
                   type="checkbox"
                   [checked]="task.completed"
