@@ -138,4 +138,24 @@ public class ContinenteParserTests
         var result = Parser.Parse("receipt.pdf", [pageWithoutMarkers]);
         Assert.Empty(result.Items);
     }
+
+    [Fact]
+    public void Parse_HandlesNsDepositItemWithInlinePrice()
+    {
+        var page =
+            "Modelo Continente Hipermercados\n" +
+            "Nro:FS EYC201/041782 15/06/2026 12:48 | NIF:PT999999990\n" +
+            "IVA DESCRICAO VALOR\n" +
+            "Taras e Valor de Deposito:\n" +
+            "NS VALOR DE DEPOSITO UN 0,10\n" +
+            "IVA Nao sujeito - Decreto-Lei n.o 152-D/2017, de 11/12\n" +
+            "TOTAL A PAGAR 0,10\n";
+
+        var result = Parser.Parse("receipt.pdf", [page]);
+        var deposit = result.Items.Single(i => i.Description.Contains("VALOR DE DEPOSITO"));
+        Assert.Equal("VALOR DE DEPOSITO UN", deposit.Description);
+        Assert.Equal(0.10m, deposit.Amount);
+        Assert.Equal(1m, deposit.Quantity);
+        Assert.Equal("Taras e Valor de Deposito", deposit.ReceiptCategory);
+    }
 }

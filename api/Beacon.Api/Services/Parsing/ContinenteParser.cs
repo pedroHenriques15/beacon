@@ -130,6 +130,17 @@ public class ContinenteParser : IGroceryReceiptParser
             if (line.StartsWith("NS ", StringComparison.Ordinal) && !Regex.IsMatch(line, @"^NS\s+[\d,]+"))
             {
                 var description = line["NS ".Length..].Trim();
+
+                var inlinePrice = trailingPricePattern.Match(description);
+                if (inlinePrice.Success)
+                {
+                    var cleanDesc = description[..inlinePrice.Index].Trim();
+                    var amount    = ParsePt(inlinePrice.Groups[1].Value);
+                    result.Add(new ParsedGroceryItem(cleanDesc, amount, 1, currentCategory));
+                    i2++;
+                    continue;
+                }
+
                 if (i2 + 1 < body.Length)
                 {
                     var nextLine = body[i2 + 1];
