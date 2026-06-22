@@ -108,6 +108,9 @@ export class UploadComponent implements OnInit {
   selectedExistingCatId = signal<number | null>(null);
   mappingLoading = signal(false);
   showMappingModal = signal(false);
+  groceryMappingFileIdx   = signal(0);
+  groceryMappingFileTotal = signal(0);
+  private handledReceiptCategories = signal<Set<string>>(new Set());
   currentMappingCategory = computed(() => this.pendingMappingCategories()[this.mappingIndex()]);
   mappingProgress = computed(
     () => `${this.mappingIndex() + 1} of ${this.pendingMappingCategories().length}`,
@@ -195,6 +198,9 @@ export class UploadComponent implements OnInit {
     this.showMappingModal.set(false);
     this.pendingMappingCategories.set([]);
     this.mappingIndex.set(0);
+    this.groceryMappingFileIdx.set(0);
+    this.groceryMappingFileTotal.set(0);
+    this.handledReceiptCategories.set(new Set());
   }
 
   toggleTransferCandidate(index: number): void {
@@ -395,6 +401,8 @@ export class UploadComponent implements OnInit {
           );
         }
 
+        this.groceryMappingFileTotal.set(dialogs.filter((d) => d.type === 'grocery-mapping').length);
+        this.groceryMappingFileIdx.set(0);
         this.pendingDialogs.set(dialogs);
         this.state.set('success');
         this.advanceDialogQueue();
@@ -668,11 +676,19 @@ export class UploadComponent implements OnInit {
       this.selectedTransfers.set(new Set(next.candidates.map((_, i) => i)));
       this.showTransferReview.set(true);
     } else if (next.type === 'grocery-mapping') {
+      const handled  = this.handledReceiptCategories();
+      const filtered = next.categories.filter((c) => !handled.has(c));
+      if (filtered.length === 0) {
+        this.groceryMappingFileTotal.update((n) => Math.max(0, n - 1));
+        this.advanceDialogQueue();
+        return;
+      }
+      this.groceryMappingFileIdx.update((n) => n + 1);
       this.mappingReceiptId.set(next.receiptId);
-      this.pendingMappingCategories.set(next.categories);
+      this.pendingMappingCategories.set(filtered);
       this.mappingIndex.set(0);
       this.mappingMode.set('new');
-      this.newMappingName.set(next.categories[0]);
+      this.newMappingName.set(filtered[0]);
       this.newMappingColor.set('#a855f7');
       this.selectedExistingCatId.set(null);
       this.showMappingModal.set(true);
@@ -688,7 +704,10 @@ export class UploadComponent implements OnInit {
 
     const doMapping = (categoryId: number) => {
       this.groceryCatSvc.createReceiptMapping(cat, categoryId).subscribe({
-        next: () => this.advanceMappingOrClose(),
+        next: () => {
+          this.handledReceiptCategories.update((s) => new Set([...s, cat]));
+          this.advanceMappingOrClose();
+        },
         error: () => this.mappingLoading.set(false),
       });
     };
@@ -711,6 +730,7 @@ export class UploadComponent implements OnInit {
   }
 
   skipMapping(): void {
+    this.handledReceiptCategories.update((s) => new Set([...s, this.currentMappingCategory()]));
     this.advanceMappingOrClose();
   }
 

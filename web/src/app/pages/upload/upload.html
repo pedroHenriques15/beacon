@@ -574,7 +574,12 @@
     <div class="modal tx-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>New receipt category: {{ currentMappingCategory() }}</h3>
-        <span class="modal-progress">{{ mappingProgress() }}</span>
+        <div class="modal-progress-row">
+          @if (groceryMappingFileTotal() > 1) {
+            <span class="modal-file-badge">Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span>
+          }
+          <span class="modal-progress">{{ mappingProgress() }}</span>
+        </div>
       </div>
 
       <div class="mapping-tabs">
