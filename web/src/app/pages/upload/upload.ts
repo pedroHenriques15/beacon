@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe, NgClass, SlicePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
@@ -62,7 +62,7 @@ const BANK_DETECT_ERROR = 'Could not detect bank';
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [NgClass, SlicePipe, DatePipe, FormsModule, CurrencyPipe, RouterLink],
+  imports: [NgClass, DatePipe, FormsModule, CurrencyPipe, RouterLink],
   templateUrl: './upload.html',
   styleUrl: './upload.scss',
 })
@@ -153,6 +153,12 @@ export class UploadComponent implements OnInit {
   hasUnmatchedLineItems = computed(() =>
     this.slipLineItems().some((li) => li.hint !== undefined && li.salaryItemCategoryId === null),
   );
+
+  slipWarnings = computed(() => {
+    const idx = this.slipQueueIdx();
+    if (idx === null) return [];
+    return this.salaryQueue()[idx]?.parsed?.warnings ?? [];
+  });
 
   ngOnInit(): void {
     this.salaryService.getProfiles().subscribe((v) => this.profiles.set(v));

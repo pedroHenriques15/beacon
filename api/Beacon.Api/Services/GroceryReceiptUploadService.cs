@@ -13,7 +13,8 @@ public record GroceryReceiptUploadResult(
     decimal Total,
     int ItemCount,
     bool WasDuplicate,
-    IReadOnlyList<string> NewReceiptCategories);
+    IReadOnlyList<string> NewReceiptCategories,
+    IReadOnlyList<string>? Warnings = null);
 
 public class GroceryReceiptUploadService(
     AppDbContext db,
@@ -56,6 +57,7 @@ public class GroceryReceiptUploadService(
             var fullText = string.Join("\n", pages);
             var parser   = parserFactory.DetectParser(fullText);
             var parsed   = parser.Parse(file.FileName, pages);
+            var warnings = ParseVerifier.VerifyGroceryReceipt(parsed);
 
             var rules            = await db.GroceryCategoryRules.ToListAsync();
             var categoryMappings = await db.GroceryReceiptCategoryMappings.ToListAsync();
@@ -117,7 +119,8 @@ public class GroceryReceiptUploadService(
                 receipt.Total,
                 items.Count,
                 WasDuplicate: false,
-                NewReceiptCategories: newCategories);
+                NewReceiptCategories: newCategories,
+                Warnings: warnings.Count > 0 ? warnings : null);
         }
         catch
         {

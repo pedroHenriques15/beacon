@@ -101,7 +101,8 @@ public class UnifiedUploadBatchCommandHandler(
                 try
                 {
                     savedPath = await fileStorage.SaveAsync(formFile);
-                    var slip = salaryParser.Parse(fileName, pages);
+                    var slip     = salaryParser.Parse(fileName, pages);
+                    var warnings = ParseVerifier.VerifySalarySlip(slip);
                     var parsed = new ParsedSalarySlipResponse(
                         salaryParser.ParserName,
                         slip.Employer,
@@ -117,7 +118,8 @@ public class UnifiedUploadBatchCommandHandler(
                         slip.BaseAmount,
                         slip.HoursWorked,
                         slip.HourlyRate,
-                        slip.TotalEspecie);
+                        slip.TotalEspecie,
+                        warnings.Count > 0 ? warnings : null);
 
                     logger.LogInformation("Unified upload: {File} detected as SalarySlip ({Parser})", fileName, salaryParser.ParserName);
                     return new UnifiedUploadItemResult(fileName, "SalarySlip", true, false, null,

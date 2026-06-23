@@ -16,7 +16,8 @@ public record ParsedSalarySlipResponse(
     decimal? BaseAmount,
     decimal? HoursWorked,
     decimal? HourlyRate,
-    decimal? TotalEspecie);
+    decimal? TotalEspecie,
+    IReadOnlyList<string>? Warnings = null);
 
 public record ParsedSalaryLineItemResponse(
     string Description,
@@ -52,7 +53,8 @@ public class ParseSalarySlipCommandHandler(
 
         try
         {
-            var slip = parser.Parse(Path.GetFileName(command.PdfPath), pages);
+            var slip     = parser.Parse(Path.GetFileName(command.PdfPath), pages);
+            var warnings = ParseVerifier.VerifySalarySlip(slip);
             var response = new ParsedSalarySlipResponse(
                 parser.ParserName,
                 slip.Employer,
@@ -73,7 +75,8 @@ public class ParseSalarySlipCommandHandler(
                 slip.BaseAmount,
                 slip.HoursWorked,
                 slip.HourlyRate,
-                slip.TotalEspecie);
+                slip.TotalEspecie,
+                warnings.Count > 0 ? warnings : null);
             return (response, null);
         }
         catch (Exception ex)

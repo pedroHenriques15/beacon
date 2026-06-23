@@ -82,6 +82,7 @@ export interface UploadResult {
   unknownCount: number;
   message: string | null;
   transferCandidates?: TransferCandidate[];
+  warnings?: string[] | null;
 }
 
 export interface BatchUploadItemResult {
@@ -185,4 +186,5 @@ export interface ParsedSlipResponse {
   hoursWorked: number | null;
   hourlyRate: number | null;
   totalEspecie: number | null;
+  warnings?: string[] | null;
 }

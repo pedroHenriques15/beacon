@@ -14,7 +14,8 @@ public record TransferCandidate(
 public record UploadResult(
     bool Imported, string Bank, DateOnly PeriodFrom,
     int TransactionCount, int UnknownCount, string? Message,
-    List<TransferCandidate>? TransferCandidates = null);
+    List<TransferCandidate>? TransferCandidates = null,
+    IReadOnlyList<string>? Warnings = null);
 
 public class StatementUploadService(
     AppDbContext db,
@@ -44,6 +45,7 @@ public class StatementUploadService(
             var fullText = string.Join("\n", pages);
             var parser = parserFactory.DetectParser(fullText);
             var parsed = parser.Parse(file.FileName, pages);
+            var warnings = ParseVerifier.VerifyStatement(parsed);
 
             if (await db.MonthlyStatements.AnyAsync(s =>
                     s.Bank == parsed.Bank && s.PeriodFrom == parsed.PeriodFrom))
@@ -160,7 +162,8 @@ public class StatementUploadService(
 
             return new UploadResult(true, parsed.Bank, parsed.PeriodFrom,
                 parsed.Transactions.Count, unknownCount, null,
-                candidates.Count > 0 ? candidates : null);
+                candidates.Count > 0 ? candidates : null,
+                warnings.Count > 0 ? warnings : null);
         }
         catch
         {

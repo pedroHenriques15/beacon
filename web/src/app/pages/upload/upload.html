@@ -120,6 +120,13 @@
             } @else {
               <span class="file-detail">{{ item.error }}</span>
             }
+            @if (item.result?.warnings?.length) {
+              <ul class="parse-warnings">
+                @for (w of item.result!.warnings!; track w) {
+                  <li>{{ w }}</li>
+                }
+              </ul>
+            }
           </div>
         }
       </div>
@@ -223,6 +230,13 @@
             <span class="file-detail">
               {{ r.itemCount }} items · {{ r.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
             </span>
+            @if (r.warnings?.length) {
+              <ul class="parse-warnings">
+                @for (w of r.warnings!; track w) {
+                  <li>{{ w }}</li>
+                }
+              </ul>
+            }
           </div>
         }
       </div>
@@ -389,6 +403,14 @@
         <h3>Review &amp; save slip</h3>
         <button class="modal-close" (click)="dismissSlipModal()">✕</button>
       </div>
+
+      @if (slipWarnings().length) {
+        <div class="parse-warning-box">
+          @for (w of slipWarnings(); track w) {
+            <p>{{ w }}</p>
+          }
+        </div>
+      }
 
       @if (slipSourceFile()) {
         <div class="parsed-banner">
