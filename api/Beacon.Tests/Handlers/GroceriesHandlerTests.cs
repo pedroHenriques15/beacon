@@ -3,6 +3,7 @@ using Beacon.Api.Features.Groceries.Commands.CreateGroceryItem;
 using Beacon.Api.Services;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryReceipt;
+using Beacon.Api.Features.Groceries.Commands.MarkGroceryItemsExcluded;
 using Beacon.Api.Features.Groceries.Commands.SetGroceryItemCategory;
 using Beacon.Api.Features.Groceries.Commands.UpdateGroceryItem;
 using Beacon.Api.Features.Groceries.Queries.GetGroceryReceipts;
@@ -497,5 +498,91 @@ public class GroceriesHandlerTests
         var item = await db.GroceryItems.FirstAsync(i => i.ReceiptId == receipt.Id);
         Assert.Equal(cat2.Id, item.CategoryId);
         Assert.True(item.CategorySetManually);
+    }
+
+    [Fact]
+    public async Task MarkGroceryItemsExcluded_SetsIsExcludedTrue()
+    {
+        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_SetsIsExcludedTrue));
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "Leite", Amount = 1.20m },
+            new GroceryItem { Description = "Pão",   Amount = 0.50m },
+        ]);
+
+        var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
+        var ids = receipt.Items.Select(i => i.Id).ToArray();
+        await handler.HandleAsync(new MarkGroceryItemsExcludedCommand(ids));
+
+        var updated = await db.GroceryItems.Where(i => ids.Contains(i.Id)).ToListAsync();
+        Assert.All(updated, i => Assert.True(i.IsExcluded));
+    }
+
+    [Fact]
+    public async Task MarkGroceryItemsExcluded_WithUnmarkTrue_SetsIsExcludedFalse()
+    {
+        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_WithUnmarkTrue_SetsIsExcludedFalse));
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "Leite", Amount = 1.20m },
+        ]);
+
+        var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
+        var ids = receipt.Items.Select(i => i.Id).ToArray();
+        await handler.HandleAsync(new MarkGroceryItemsExcludedCommand(ids));
+        await handler.HandleAsync(new MarkGroceryItemsExcludedCommand(ids, Unmark: true));
+
+        var updated = await db.GroceryItems.Where(i => ids.Contains(i.Id)).ToListAsync();
+        Assert.All(updated, i => Assert.False(i.IsExcluded));
+        Assert.All(updated, i => Assert.Null(i.CategoryId));
+    }
+
+    [Fact]
+    public async Task MarkGroceryItemsExcluded_AssignsExcludedCategoryWhenExists()
+    {
+        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_AssignsExcludedCategoryWhenExists));
+        var excludedCat = new GroceryCategory { Name = "Excluded", Color = "#aaa" };
+        db.GroceryCategories.Add(excludedCat);
+        await db.SaveChangesAsync();
+
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "Saco Plástico", Amount = 0.10m },
+        ]);
+
+        var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
+        var ids = receipt.Items.Select(i => i.Id).ToArray();
+        await handler.HandleAsync(new MarkGroceryItemsExcludedCommand(ids));
+
+        var item = await db.GroceryItems.FirstAsync(i => ids.Contains(i.Id));
+        Assert.True(item.IsExcluded);
+        Assert.Equal(excludedCat.Id, item.CategoryId);
+    }
+
+    [Fact]
+    public async Task MarkGroceryItemsExcluded_WithoutExcludedCategory_StillSetsFlag()
+    {
+        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_WithoutExcludedCategory_StillSetsFlag));
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "Agua", Amount = 0.60m },
+        ]);
+
+        var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
+        var ids = receipt.Items.Select(i => i.Id).ToArray();
+        await handler.HandleAsync(new MarkGroceryItemsExcludedCommand(ids));
+
+        var item = await db.GroceryItems.FirstAsync(i => ids.Contains(i.Id));
+        Assert.True(item.IsExcluded);
+        Assert.Null(item.CategoryId);
+    }
+
+    [Fact]
+    public async Task MarkGroceryItemsExcluded_NonExistentIds_DoesNotThrow()
+    {
+        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_NonExistentIds_DoesNotThrow));
+        var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
+        var ex = await Record.ExceptionAsync(() => handler.HandleAsync(new MarkGroceryItemsExcludedCommand([9999, 8888])));
+        Assert.Null(ex);
     }
 }

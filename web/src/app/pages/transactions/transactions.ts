@@ -109,6 +109,11 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   excludeRuleValue = signal<number | null>(null);
   excludeRuleLoading = signal(false);
 
+  gPendingExclude = signal<{ item: GroceryItem } | null>(null);
+  gExcludeRulePattern = signal('');
+  gExcludeRuleValue = signal<number | null>(null);
+  gExcludeRuleLoading = signal(false);
+
   showCreateModal = signal(false);
   createTx = signal<EnrichedTransaction | null>(null);
   createName = signal('');
@@ -129,6 +134,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const val = this.excludeRuleValue();
     if (!pat && val === null) return null;
     return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+  });
+
+  gExcludeRuleMatchCount = computed(() => {
+    const pat = this.gExcludeRulePattern().trim();
+    const val = this.gExcludeRuleValue();
+    if (!pat && val === null) return null;
+    return this.groceriesSvc.allItems().filter((i) => matchesRule(i, pat, val)).length;
   });
 
   createMatchCount = computed(() => {
@@ -655,6 +667,54 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       this.excludeRuleLoading.set(true);
       this.catSvc
         .createRule(excludedCat.id, this.excludeRulePattern().trim(), this.excludeRuleValue())
+        .subscribe(() => doExclude());
+    } else {
+      doExclude();
+    }
+  }
+
+  gExcludeItem(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gExcludeRulePattern.set(item.description);
+    this.gExcludeRuleValue.set(null);
+    this.gPendingExclude.set({ item });
+  }
+
+  gIncludeItem(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.groceriesSvc.markItemsExcluded([item.id], true).subscribe(() => {
+      this.groceriesSvc.loadAllItems();
+      this._gResetAndLoad();
+    });
+  }
+
+  gCancelExclude(): void {
+    this.gPendingExclude.set(null);
+  }
+
+  gConfirmExclude(createRule: boolean): void {
+    const p = this.gPendingExclude();
+    if (!p) return;
+    this.gPendingExclude.set(null);
+    const excludedCat =
+      this.groceryCatSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
+
+    const doExclude = () => {
+      this.groceriesSvc.markItemsExcluded([p.item.id]).subscribe(() => {
+        this.gExcludeRuleLoading.set(false);
+        this.groceriesSvc.loadAllItems();
+        this._gResetAndLoad();
+      });
+    };
+
+    if (
+      createRule &&
+      excludedCat &&
+      (this.gExcludeRulePattern().trim() || this.gExcludeRuleValue() !== null)
+    ) {
+      this.gExcludeRuleLoading.set(true);
+      this.groceryCatSvc
+        .createRule(excludedCat.id, this.gExcludeRulePattern().trim(), this.gExcludeRuleValue())
         .subscribe(() => doExclude());
     } else {
       doExclude();

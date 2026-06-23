@@ -11,6 +11,7 @@ public class GroceryItem
     public int? CategoryId { get; set; }
     public int? CategoryRuleId { get; set; }
     public bool CategorySetManually { get; set; }
+    public bool IsExcluded { get; set; }
 
     public GroceryReceipt Receipt { get; set; } = null!;
     public GroceryCategory? Category { get; set; }

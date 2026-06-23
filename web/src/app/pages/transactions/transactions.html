@@ -393,12 +393,17 @@
             </tr>
           }
           @for (item of gFiltered(); track item.id) {
-            <tr>
+            <tr [ngClass]="{ 'excluded-row': item.isExcluded }">
               <td class="date">{{ item.receiptDate | date: 'dd MMM yyyy' }}</td>
               <td>
                 <span class="store-badge">{{ item.storeName }}</span>
               </td>
-              <td class="desc">{{ item.description }}</td>
+              <td class="desc">
+                {{ item.description }}
+                @if (item.isExcluded) {
+                  <button class="excluded-badge" (click)="gIncludeItem(item, $event)">excluded ↺</button>
+                }
+              </td>
               <td class="cat-cell">
                 <div class="cat-wrap">
                   <button
@@ -477,6 +482,23 @@
                 {{ item.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
               </td>
               <td class="act-col">
+                @if (!item.isExcluded) {
+                  <button
+                    class="tx-exclude-btn"
+                    title="Exclude from totals"
+                    (click)="gExcludeItem(item, $event)"
+                  >
+                    ⊘
+                  </button>
+                } @else {
+                  <button
+                    class="tx-include-btn"
+                    title="Include in totals"
+                    (click)="gIncludeItem(item, $event)"
+                  >
+                    ↺
+                  </button>
+                }
                 <button class="tx-edit-btn" title="Edit item" (click)="gOpenItemEdit(item, $event)">
                   ✏
                 </button>
@@ -686,6 +708,77 @@
           "
         >
           {{ excludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gPendingExclude(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Exclude grocery item</h3>
+        <button class="modal-close" (click)="gCancelExclude()">✕</button>
+      </div>
+      <p>
+        Do you want to create a rule so future grocery items matching this pattern are excluded
+        automatically?
+      </p>
+
+      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Saco Reutilizável"
+        [ngModel]="gExcludeRulePattern()"
+        (ngModelChange)="gExcludeRulePattern.set($event)"
+      />
+      <p class="field-hint">
+        Items whose description contains this text will be excluded automatically.
+      </p>
+
+      <label class="field-label">Value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 0.24"
+        [ngModel]="gExcludeRuleValue()?.toString() ?? ''"
+        (ngModelChange)="
+          gExcludeRuleValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on item amount. If both fields are filled, both must match.
+      </p>
+
+      @if (gExcludeRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="gExcludeRuleMatchCount() === 0">
+          {{ gExcludeRuleMatchCount() }} existing item{{
+            gExcludeRuleMatchCount() !== 1 ? 's' : ''
+          }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="gConfirmExclude(false)"
+          [disabled]="gExcludeRuleLoading()"
+        >
+          Just this item
+        </button>
+        <button
+          class="btn-primary"
+          (click)="gConfirmExclude(true)"
+          [disabled]="
+            (!gExcludeRulePattern().trim() && gExcludeRuleValue() === null) ||
+            gExcludeRuleLoading()
+          "
+        >
+          {{ gExcludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
         </button>
       </div>
     </div>

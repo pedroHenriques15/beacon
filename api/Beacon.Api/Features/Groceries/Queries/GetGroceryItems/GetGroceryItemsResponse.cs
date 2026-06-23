@@ -11,7 +11,8 @@ public record GroceryItemResponse(
     int? CategoryId,
     string? CategoryName,
     string? CategoryColor,
-    bool CategorySetManually);
+    bool CategorySetManually,
+    bool IsExcluded);
 
 public record PagedGroceryItemsResult(
     List<GroceryItemResponse> Items,

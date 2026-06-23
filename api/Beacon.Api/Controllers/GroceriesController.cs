@@ -1,6 +1,7 @@
 using Beacon.Api.Features.Groceries.Commands.CreateGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryReceipt;
+using Beacon.Api.Features.Groceries.Commands.MarkGroceryItemsExcluded;
 using Beacon.Api.Features.Groceries.Commands.SetGroceryItemCategory;
 using Beacon.Api.Features.Groceries.Commands.UpdateGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.UploadGroceryReceipt;
@@ -20,7 +21,8 @@ public class GroceriesController(
     CreateGroceryItemCommandHandler createItem,
     UpdateGroceryItemCommandHandler updateItem,
     DeleteGroceryItemCommandHandler deleteItem,
-    SetGroceryItemCategoryCommandHandler setCategory) : ControllerBase
+    SetGroceryItemCategoryCommandHandler setCategory,
+    MarkGroceryItemsExcludedCommandHandler markExcluded) : ControllerBase
 {
     [HttpGet("receipts")]
     public async Task<IActionResult> GetReceipts([FromQuery] string? store, CancellationToken ct) =>
@@ -89,8 +91,16 @@ public class GroceriesController(
             new SetGroceryItemCategoryCommand(id, body.CategoryId, body.DeleteRuleId), ct);
         return result is null ? NotFound() : Ok(result);
     }
+
+    [HttpPatch("items/mark-excluded")]
+    public async Task<IActionResult> MarkItemsExcluded([FromBody] MarkGroceryItemsExcludedRequest body, CancellationToken ct)
+    {
+        await markExcluded.HandleAsync(new MarkGroceryItemsExcludedCommand(body.ItemIds, body.Unmark), ct);
+        return NoContent();
+    }
 }
 
 public record CreateGroceryItemRequest(int ReceiptId, string Description, decimal Amount, decimal Quantity);
 public record UpdateGroceryItemRequest(string? Description, decimal? Amount, decimal? Quantity);
 public record SetGroceryItemCategoryRequest(int? CategoryId, int? DeleteRuleId);
+public record MarkGroceryItemsExcludedRequest(int[] ItemIds, bool Unmark = false);

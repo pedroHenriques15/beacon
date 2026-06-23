@@ -23,6 +23,7 @@ function makeItem(overrides: Partial<GroceryItem> = {}): GroceryItem {
     categoryName: null,
     categoryColor: null,
     categorySetManually: false,
+    isExcluded: false,
     ...overrides,
   };
 }

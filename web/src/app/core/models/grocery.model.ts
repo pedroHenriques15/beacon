@@ -34,6 +34,7 @@ export interface GroceryItem {
   categoryName: string | null;
   categoryColor: string | null;
   categorySetManually: boolean;
+  isExcluded: boolean;
   receiptCategory?: string;
 }
 

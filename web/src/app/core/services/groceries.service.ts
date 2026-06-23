@@ -106,4 +106,8 @@ export class GroceriesService {
   deleteItem(id: number): Observable<void> {
     return this.http.delete<void>(`/api/groceries/items/${id}`);
   }
+
+  markItemsExcluded(itemIds: number[], unmark = false): Observable<unknown> {
+    return this.http.patch('/api/groceries/items/mark-excluded', { itemIds, unmark });
+  }
 }

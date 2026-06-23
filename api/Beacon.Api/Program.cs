@@ -40,6 +40,7 @@ using Beacon.Api.Features.Transactions.Queries.GetTransactions;
 using Beacon.Api.Features.Groceries.Commands.CreateGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.DeleteGroceryReceipt;
+using Beacon.Api.Features.Groceries.Commands.MarkGroceryItemsExcluded;
 using Beacon.Api.Features.Groceries.Commands.SetGroceryItemCategory;
 using Beacon.Api.Features.Groceries.Commands.UpdateGroceryItem;
 using Beacon.Api.Features.Groceries.Commands.UploadGroceryReceipt;
@@ -135,6 +136,7 @@ builder.Services.AddScoped<CreateGroceryItemCommandHandler>();
 builder.Services.AddScoped<UpdateGroceryItemCommandHandler>();
 builder.Services.AddScoped<DeleteGroceryItemCommandHandler>();
 builder.Services.AddScoped<SetGroceryItemCategoryCommandHandler>();
+builder.Services.AddScoped<MarkGroceryItemsExcludedCommandHandler>();
 
 builder.Services.AddScoped<GetGroceryCategoriesQueryHandler>();
 builder.Services.AddScoped<GetGroceryCategoryRulesQueryHandler>();

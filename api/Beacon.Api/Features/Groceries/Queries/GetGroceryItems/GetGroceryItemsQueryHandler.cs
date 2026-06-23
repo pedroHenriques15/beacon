@@ -62,7 +62,8 @@ public class GetGroceryItemsQueryHandler(AppDbContext db, ILogger<GetGroceryItem
                 i.CategoryId,
                 i.Category == null ? null : i.Category.Name,
                 i.Category == null ? null : i.Category.Color,
-                i.CategorySetManually))
+                i.CategorySetManually,
+                i.IsExcluded))
             .ToListAsync(ct);
 
         return new PagedGroceryItemsResult(items, totalCount, totalAmount);
