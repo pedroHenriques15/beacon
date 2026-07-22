@@ -58,6 +58,16 @@ public class CentralGestParserTests
         """;
 
     [Fact]
+    public void Parse_GrossUnderOneThousand_Parses()
+    {
+        var result = _parser.Parse("slip.pdf",
+            [BuildSamplePage(gross: "950.00", net: "820.00", deductions: "130.00")]);
+
+        Assert.Equal(950.00m, result.GrossAmount);
+        Assert.Equal(1395.00m, result.NetAmount);
+    }
+
+    [Fact]
     public void Parse_ExtractsEmployer()
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);

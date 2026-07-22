@@ -174,7 +174,7 @@ public partial class CentralGestParser : ISalarySlipParser
     [GeneratedRegex(@"Mês:\s*(\w+)\s*[-–]\s*(\d{4})")]
     private static partial Regex PeriodRegex();
 
-    [GeneratedRegex(@"(\d{1,3}(?:,\d{3})+\.\d{2})\s+(\d+\.\d{2})\s+(\d{1,3}(?:,\d{3})+\.\d{2})\s+([\d ]+,\d{2})\s+([\d ]+,\d{2})")]
+    [GeneratedRegex(@"(\d{1,3}(?:,\d{3})*\.\d{2})\s+(\d+\.\d{2})\s+(\d{1,3}(?:,\d{3})*\.\d{2})\s+([\d ]+,\d{2})\s+([\d ]+,\d{2})")]
     private static partial Regex TotalsRegex();
 
     [GeneratedRegex(@"Vencimento\s+([\d ]+,\d{2})")]

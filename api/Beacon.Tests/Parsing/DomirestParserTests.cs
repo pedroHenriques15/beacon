@@ -64,6 +64,23 @@ public class DomirestParserTests
     }
 
     [Fact]
+    public void Parse_IncomeLineOverOneThousand_ParsesFullAmount()
+    {
+        var page = BuildSamplePage(
+            gross: "1 022,56",
+            net: "900,00",
+            deductions: "122,56",
+            incomeLines: "1 Remuner. Normal 176,00 5,81 1 022,56");
+
+        var result = _parser.Parse("slip.pdf", [page]);
+
+        var item = result.LineItems.First(li => li.Description.Contains("Remuner"));
+        Assert.Equal(1022.56m, item.Amount);
+        Assert.Equal(176.00m, item.Quantity);
+        Assert.Equal(5.81m, item.UnitValue);
+    }
+
+    [Fact]
     public void Parse_ExtractsEmployer()
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);

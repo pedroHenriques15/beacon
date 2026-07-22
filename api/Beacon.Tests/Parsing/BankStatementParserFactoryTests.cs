@@ -48,7 +48,6 @@ public class BankStatementParserFactoryTests
 
     [Theory]
     [InlineData("ACTVPTPL",           "ACTIVOBANK")]
-    [InlineData("ActivoBank",         "ACTIVOBANK")]
     [InlineData("EXTRATO COMBINADO",  "ACTIVOBANK")]
     [InlineData("BBPIPTPL",           "BPI")]
     [InlineData("EXTRACTO INTEGRADO", "BPI")]

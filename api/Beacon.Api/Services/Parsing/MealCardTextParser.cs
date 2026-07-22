@@ -25,7 +25,7 @@ public static partial class MealCardTextParser
             var amountStr = m.Groups[3].Value.Replace(",", ".");
             var isCredit  = m.Groups[4].Value == "-";
 
-            if (!DateOnly.TryParseExact(dateStr, "dd/MM/yyyy", null, DateTimeStyles.None, out var date))
+            if (!DateOnly.TryParseExact(dateStr, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
                 continue;
 
             if (!decimal.TryParse(amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var amount))

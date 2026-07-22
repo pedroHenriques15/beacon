@@ -31,7 +31,7 @@ public class UnifiedUploadBatchCommandHandler(
     private async Task<UnifiedUploadItemResult> ProcessFileAsync(
         string fileName, MemoryStream content, CancellationToken ct)
     {
-        var tempPath = Path.ChangeExtension(Path.GetTempFileName(), ".pdf");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"beacon_{Guid.NewGuid():N}.pdf");
         try
         {
             await using (var fs = File.Create(tempPath))
@@ -61,7 +61,7 @@ public class UnifiedUploadBatchCommandHandler(
                 var formFile = BuildFormFile(content, fileName);
                 try
                 {
-                    var result = await statementService.ImportAsync(formFile);
+                    var result = await statementService.ImportAsync(formFile, pages);
                     logger.LogInformation("Unified upload: {File} detected as BankStatement ({Bank})", fileName, result.Bank);
                     return new UnifiedUploadItemResult(fileName, "BankStatement", result.Imported,
                         !result.Imported && result.TransactionCount == 0, result.Message, result, null, null);
@@ -80,7 +80,7 @@ public class UnifiedUploadBatchCommandHandler(
                 var formFile = BuildFormFile(content, fileName);
                 try
                 {
-                    var result = await groceryService.ImportAsync(formFile);
+                    var result = await groceryService.ImportAsync(formFile, pages);
                     logger.LogInformation("Unified upload: {File} detected as GroceryReceipt ({Store})", fileName, result.StoreName);
                     return new UnifiedUploadItemResult(fileName, "GroceryReceipt", !result.WasDuplicate,
                         result.WasDuplicate, null, null, result, null);

@@ -9,7 +9,6 @@ public class ActivoBankParserTests
 
     [Theory]
     [InlineData("ACTVPTPL")]
-    [InlineData("ActivoBank")]
     [InlineData("EXTRATO COMBINADO")]
     public void CanParse_ReturnsTrueForKnownSignals(string signal)
     {
@@ -20,6 +19,12 @@ public class ActivoBankParserTests
     public void CanParse_ReturnsFalseForUnrelatedText()
     {
         Assert.False(_parser.CanParse("BBPIPTPL some BPI statement text"));
+    }
+
+    [Fact]
+    public void CanParse_DoesNotHijackOtherBankMentioningActivoBankInADescription()
+    {
+        Assert.False(_parser.CanParse("BBPIPTPL EXTRACTO INTEGRADO\nTRF PARA ActivoBank CONTA 123"));
     }
 
     [Fact]

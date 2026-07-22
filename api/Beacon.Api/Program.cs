@@ -177,6 +177,18 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment())
+{
+    if (string.IsNullOrEmpty(app.Configuration["ApiKey"]))
+        throw new InvalidOperationException(
+            "ApiKey is not configured — set the ApiKey environment variable before starting.");
+
+    if (string.IsNullOrEmpty(app.Configuration["Storage:Path"]))
+        throw new InvalidOperationException(
+            "Storage:Path is not configured — uploaded PDFs would land in the deploy directory " +
+            "and be erased on the next deploy. Set Storage__Path to a persistent directory.");
+}
+
 if (!string.IsNullOrEmpty(app.Configuration["GoogleServices:ClientId"]))
 {
     var frontendUrl = app.Configuration["GoogleServices:FrontendUrl"] ?? "";

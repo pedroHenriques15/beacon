@@ -7,6 +7,6 @@ public class UploadGroceryReceiptCommandHandler(GroceryReceiptUploadService uplo
     public Task<GroceryReceiptUploadResult> HandleAsync(UploadGroceryReceiptCommand command, CancellationToken ct = default)
     {
         logger.LogInformation("UploadGroceryReceipt: file={FileName}", command.File.FileName);
-        return uploadService.ImportAsync(command.File);
+        return uploadService.ImportAsync(command.File, ct: ct);
     }
 }

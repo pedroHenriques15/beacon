@@ -154,7 +154,7 @@ public partial class DomirestParser : ISalarySlipParser
     [GeneratedRegex(@"(\d[\d ]*,\d{2})\s+\d[\d ]*,\d{2}\s+Transfer[eê]ncia Banc[aá]ria\s+(\d[\d ]*,\d{2})")]
     private static partial Regex TotalsRegex();
 
-    [GeneratedRegex(@"^\d+\s+(.+?)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s*$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\d+\s+(.+?)\s+(\d[\d ]*,\d{2})\s+(\d[\d ]*,\d{2})\s+(\d[\d ]*,\d{2})\s*$", RegexOptions.Multiline)]
     private static partial Regex IncomeLineRegex();
 
     [GeneratedRegex(@"Segurança Social\s+([\d,]+)%\s+([\d,]+)\s+([\d,]+)")]

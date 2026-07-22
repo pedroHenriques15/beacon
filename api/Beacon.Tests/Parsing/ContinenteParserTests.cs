@@ -37,6 +37,16 @@ public class ContinenteParserTests
         "%IVA Total Liq. IVA Total\n" +
         "NS 0,20 0,00 0,20\n";
 
+    [Fact]
+    public void Parse_TotalOverOneThousand_ParsesThousandsDot()
+    {
+        var page = SamplePage.Replace("TOTAL A PAGAR 16,54", "TOTAL A PAGAR 1.234,56");
+
+        var result = Parser.Parse("receipt.pdf", [page]);
+
+        Assert.Equal(1234.56m, result.Total);
+    }
+
     [Theory]
     [InlineData("Modelo Continente Hipermercados S.A.\noutro texto")]
     [InlineData("texto\nModelo Continente\nmais texto")]

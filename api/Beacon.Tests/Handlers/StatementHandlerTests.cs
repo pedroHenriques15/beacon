@@ -484,6 +484,27 @@ public class StatementHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportMealCardText_ExplicitBalanceMismatch_Warns()
+    {
+        await using var db = CreateDb(nameof(ImportMealCardText_ExplicitBalanceMismatch_Warns));
+
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "MEAL CARD", Account = "",
+            PeriodFrom = new DateOnly(2025, 12, 1), PeriodTo = new DateOnly(2025, 12, 31),
+            ClosingBalance = 150m
+        });
+        await db.SaveChangesAsync();
+
+        var result = await MakeImportHandler(db).HandleAsync(
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 999m), CancellationToken.None);
+
+        Assert.True(result.Imported);
+        Assert.NotNull(result.Warnings);
+        Assert.Contains(result.Warnings, w => w.Contains("229"));
+    }
+
+    [Fact]
     public async Task ImportMealCardText_EmptyBalance_NoPrevious_Throws()
     {
         await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_NoPrevious_Throws));

@@ -8,7 +8,7 @@ public partial class ActivoBankParser : IBankStatementParser
     public string BankName => "ACTIVOBANK";
 
     public bool CanParse(string fullText) =>
-        fullText.Contains("ACTVPTPL") || fullText.Contains("ActivoBank") || fullText.Contains("EXTRATO COMBINADO");
+        fullText.Contains("ACTVPTPL") || fullText.Contains("EXTRATO COMBINADO");
 
     private const string AmountPat = @"\d{1,3}(?:\s\d{3})*\.\d{2}";
     private const string DatePat   = @"\d{1,2}\.\d{2}";

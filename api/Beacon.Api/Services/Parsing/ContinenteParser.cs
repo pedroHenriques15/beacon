@@ -28,14 +28,14 @@ public class ContinenteParser : IGroceryReceiptParser
         {
             var m = Regex.Match(nroLine, @"\b(\d{2}/\d{2}/\d{4})\b");
             if (m.Success)
-                return DateOnly.ParseExact(m.Groups[1].Value, "dd/MM/yyyy", null);
+                return DateOnly.ParseExact(m.Groups[1].Value, "dd/MM/yyyy", CultureInfo.InvariantCulture);
         }
         return DateOnly.FromDateTime(DateTime.Today);
     }
 
     private static decimal ExtractTotal(string text)
     {
-        var m = Regex.Match(text, @"TOTAL A PAGAR\s+([\d,]+)");
+        var m = Regex.Match(text, @"TOTAL A PAGAR\s+([\d.,]+)");
         if (m.Success)
             return ParsePt(m.Groups[1].Value);
         return 0m;
@@ -176,5 +176,5 @@ public class ContinenteParser : IGroceryReceiptParser
     }
 
     private static decimal ParsePt(string s) =>
-        decimal.Parse(s.Replace(',', '.'), CultureInfo.InvariantCulture);
+        decimal.Parse(s.Replace(".", "").Replace(',', '.'), CultureInfo.InvariantCulture);
 }

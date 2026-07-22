@@ -23,9 +23,9 @@ public class GroceryReceiptUploadService(
     FileStorageService fileStorage,
     ILogger<GroceryReceiptUploadService> logger)
 {
-    public async Task<GroceryReceiptUploadResult> ImportAsync(IFormFile file)
+    public async Task<GroceryReceiptUploadResult> ImportAsync(IFormFile file, IReadOnlyList<string>? preExtractedPages = null, CancellationToken ct = default)
     {
-        var tempPath = Path.ChangeExtension(Path.GetTempFileName(), ".pdf");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"beacon_{Guid.NewGuid():N}.pdf");
         string? savedPath = null;
         try
         {
@@ -53,7 +53,7 @@ public class GroceryReceiptUploadService(
                     NewReceiptCategories: []);
             }
 
-            var pages    = await extractor.ExtractPagesAsync(tempPath);
+            var pages    = preExtractedPages ?? await extractor.ExtractPagesAsync(tempPath, ct);
             var fullText = string.Join("\n", pages);
             var parser   = parserFactory.DetectParser(fullText);
             var parsed   = parser.Parse(file.FileName, pages);

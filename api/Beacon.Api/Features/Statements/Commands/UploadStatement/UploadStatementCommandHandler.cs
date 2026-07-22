@@ -7,6 +7,6 @@ public class UploadStatementCommandHandler(StatementUploadService uploadService,
     public Task<UploadResult> HandleAsync(UploadStatementCommand command, CancellationToken ct = default)
     {
         logger.LogInformation("UploadStatement: file={FileName}", command.File.FileName);
-        return uploadService.ImportAsync(command.File);
+        return uploadService.ImportAsync(command.File, ct: ct);
     }
 }

@@ -30,46 +30,49 @@ public class ImportMealCardTextCommandHandler(
             return new UploadResult(false, parsed.Bank, periodFrom,
                 0, 0, "Statement already exists for MEAL CARD for this period.");
 
+        var previous = await db.MonthlyStatements
+            .Where(s => s.Bank == parsed.Bank && s.PeriodFrom < periodFrom)
+            .OrderByDescending(s => s.PeriodFrom)
+            .FirstOrDefaultAsync(ct);
+        var previousIsAdjacent = previous is not null && periodFrom <= previous.PeriodTo.AddDays(45);
+        var credits = parsed.Transactions.Where(t => t.Type == "credit").Sum(t => t.Amount);
+        var debits  = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
+
+        var balanceWarnings = new List<string>();
         decimal openingBalance = parsed.OpeningBalance;
         decimal closingBalance;
         if (command.ClosingBalance is not null)
         {
             closingBalance = command.ClosingBalance.Value;
+
+            if (previousIsAdjacent)
+            {
+                openingBalance = previous!.ClosingBalance;
+                var expected = previous.ClosingBalance + credits - debits;
+                if (Math.Abs(expected - closingBalance) > 0.01m)
+                    balanceWarnings.Add(
+                        $"Provided balance {closingBalance:0.00} differs from the expected " +
+                        $"{expected:0.00} (previous closing + credits − debits) — double-check the amount.");
+            }
         }
         else
         {
-            var previous = await db.MonthlyStatements
-                .Where(s => s.Bank == parsed.Bank && s.PeriodFrom < periodFrom)
-                .OrderByDescending(s => s.PeriodFrom)
-                .FirstOrDefaultAsync(ct);
-
             if (previous is null)
                 throw new NotSupportedException(
                     "No previous MEAL CARD statement exists to derive the balance from — please fill in the current balance.");
 
-            // Deriving across a gap would silently assume zero activity in the missing
-            // months — only derive from a period-adjacent statement.
-            if (periodFrom > previous.PeriodTo.AddDays(45))
+            if (!previousIsAdjacent)
                 throw new NotSupportedException(
                     $"The previous MEAL CARD statement ends {previous.PeriodTo:yyyy-MM-dd}, leaving a gap before " +
                     $"{periodFrom:yyyy-MM-dd} — please fill in the current balance (or import the missing months first).");
 
-            var credits = parsed.Transactions.Where(t => t.Type == "credit").Sum(t => t.Amount);
-            var debits  = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
             openingBalance = previous.ClosingBalance;
             closingBalance = previous.ClosingBalance + credits - debits;
         }
 
-        // Backfilling before an existing statement cannot fix that statement's balance —
-        // surface it instead of leaving Total Balance silently stale.
-        var laterExists = await db.MonthlyStatements
-            .AnyAsync(s => s.Bank == parsed.Bank && s.PeriodFrom > periodFrom, ct);
-        var balanceWarnings = laterExists
-            ? new List<string>
-            {
-                "A later MEAL CARD statement already exists — its balance was not recomputed and may need updating.",
-            }
-            : null;
+        if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && s.PeriodFrom > periodFrom, ct))
+            balanceWarnings.Add(
+                "A later MEAL CARD statement already exists — its balance was not recomputed and may need updating.");
 
         var rules = await db.CategoryRules.ToListAsync(ct);
 
@@ -147,6 +150,6 @@ public class ImportMealCardTextCommandHandler(
         return new UploadResult(true, parsed.Bank, periodFrom,
             parsed.Transactions.Count, unknownCount, null,
             candidates.Count > 0 ? candidates : null,
-            balanceWarnings);
+            balanceWarnings.Count > 0 ? balanceWarnings : null);
     }
 }
