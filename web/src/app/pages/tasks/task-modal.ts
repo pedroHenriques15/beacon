@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Task, TaskFormData, TaskList } from '../../core/models/task';
 
@@ -29,8 +29,9 @@ export class TaskModalComponent implements OnChanges {
     taskListId: '',
   };
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
     if (!this.open) return;
+    if (!('open' in changes || 'task' in changes || 'selectedListId' in changes)) return;
 
     if (this.task) {
       this.form = {

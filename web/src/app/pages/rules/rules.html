@@ -24,6 +24,13 @@
   </div>
 </div>
 
+@if (actionError()) {
+  <div class="error-banner">
+    <span>{{ actionError() }}</span>
+    <button class="banner-dismiss" (click)="actionError.set('')">✕</button>
+  </div>
+}
+
 <div class="tabs">
   <button
     class="tab-btn"

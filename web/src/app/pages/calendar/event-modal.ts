@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CalendarEvent, CalendarEventFormData } from '../../core/models/calendar-event';
 import { GOOGLE_CALENDAR_COLOR_ENTRIES } from '../../core/constants/calendar-colors';
@@ -34,8 +34,9 @@ export class EventModalComponent implements OnChanges {
 
   timeError = '';
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
     if (!this.open) return;
+    if (!('open' in changes || 'event' in changes || 'prefilledDate' in changes)) return;
     this.timeError = '';
 
     if (this.event) {

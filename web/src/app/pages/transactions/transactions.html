@@ -5,6 +5,12 @@
       <p class="subtitle">Browse and categorise your financial transactions</p>
     </div>
   </div>
+  @if (actionError()) {
+    <div class="error-banner">
+      <span>{{ actionError() }}</span>
+      <button class="banner-dismiss" (click)="actionError.set('')">✕</button>
+    </div>
+  }
   <div class="tab-bar">
     <button
       class="tab-btn"
@@ -279,7 +285,11 @@
               </td>
             </tr>
           } @empty {
-            @if (!pageLoading()) {
+            @if (fetchError()) {
+              <tr>
+                <td colspan="8" class="empty error-text">{{ fetchError() }}</td>
+              </tr>
+            } @else if (!pageLoading()) {
               <tr>
                 <td colspan="8" class="empty">No transactions match the current filters.</td>
               </tr>
@@ -528,7 +538,11 @@
               </td>
             </tr>
           } @empty {
-            @if (!gPageLoading()) {
+            @if (gFetchError()) {
+              <tr>
+                <td colspan="7" class="empty error-text">{{ gFetchError() }}</td>
+              </tr>
+            } @else if (!gPageLoading()) {
               <tr>
                 <td colspan="7" class="empty">No items match the current filters.</td>
               </tr>
@@ -875,6 +889,9 @@
         }
       </select>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showTxModal.set(false)" [disabled]="txLoading()">
           Cancel
@@ -1138,6 +1155,9 @@
         </div>
       </div>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button
           class="btn-secondary"
@@ -1325,6 +1345,9 @@
         </div>
       </div>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button
           class="btn-secondary"
