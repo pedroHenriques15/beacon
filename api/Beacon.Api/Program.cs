@@ -98,7 +98,7 @@ builder.Services.AddHttpClient("google-tasks")
 builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<GoogleTasksService>();
-builder.Services.AddScoped<PdfExtractorService>();
+builder.Services.AddScoped<IPdfExtractor, PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
 
 builder.Services.AddScoped<DownloadBackupQueryHandler>();

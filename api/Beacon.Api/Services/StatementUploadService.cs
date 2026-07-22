@@ -19,7 +19,7 @@ public record UploadResult(
 
 public class StatementUploadService(
     AppDbContext db,
-    PdfExtractorService extractor,
+    IPdfExtractor extractor,
     BankStatementParserFactory parserFactory,
     FileStorageService fileStorage,
     ILogger<StatementUploadService> logger)

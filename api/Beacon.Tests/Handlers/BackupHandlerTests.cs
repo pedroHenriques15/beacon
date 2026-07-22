@@ -76,15 +76,16 @@ public class BackupHandlerTests : IDisposable
         var json = await File.ReadAllTextAsync(response.Path);
         using var doc = JsonDocument.Parse(json);
 
-        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("categories",           keys);
-        Assert.Contains("categoryRules",        keys);
-        Assert.Contains("monthlyStatements",    keys);
-        Assert.Contains("transactions",         keys);
-        Assert.Contains("salaryProfiles",       keys);
-        Assert.Contains("salaryItemCategories", keys);
-        Assert.Contains("salarySlips",          keys);
-        Assert.Contains("salaryLineItems",      keys);
+        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name)
+            .Select(k => k.ToLowerInvariant()).OrderBy(k => k).ToList();
+        var expected = new[]
+        {
+            "categories", "categoryrules", "grocerycategories", "grocerycategoryrules",
+            "groceryitems", "groceryreceiptcategorymappings", "groceryreceipts",
+            "monthlystatements", "salaryitemcategories", "salarylineitems",
+            "salaryprofiles", "salaryslips", "transactions",
+        };
+        Assert.Equal(expected, keys);
     }
 
     [Fact]

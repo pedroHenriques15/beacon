@@ -4,7 +4,7 @@ using Beacon.Api.Services.Parsing;
 namespace Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 
 public class UnifiedUploadBatchCommandHandler(
-    PdfExtractorService extractor,
+    IPdfExtractor extractor,
     BankStatementParserFactory bankFactory,
     GroceryReceiptParserFactory groceryFactory,
     SalarySlipParserFactory salaryFactory,

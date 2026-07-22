@@ -18,7 +18,7 @@ public record GroceryReceiptUploadResult(
 
 public class GroceryReceiptUploadService(
     AppDbContext db,
-    PdfExtractorService extractor,
+    IPdfExtractor extractor,
     GroceryReceiptParserFactory parserFactory,
     FileStorageService fileStorage,
     ILogger<GroceryReceiptUploadService> logger)

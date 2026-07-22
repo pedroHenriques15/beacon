@@ -2,6 +2,10 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
+using Beacon.Api.Features.Salary.Commands.DeleteSalarySlip;
+using Beacon.Api.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -75,6 +79,110 @@ public class SalaryHandlerTests
         db.SalarySlips.Add(slip);
         await db.SaveChangesAsync();
         return (profile, cat, slip);
+    }
+
+    [Fact]
+    public async Task CreateSlip_PersistsSlipAndLineItems()
+    {
+        await using var db = CreateDb(nameof(CreateSlip_PersistsSlipAndLineItems));
+        var (profile, cat, _) = await SeedSlipAsync(db);
+
+        var handler = new CreateSalarySlipCommandHandler(db);
+        var (result, error) = await handler.HandleAsync(new CreateSalarySlipCommand(
+            profile.Id, new DateOnly(2026, 2, 1), 1200m, 950m, "feb", "feb.pdf", "feb-src.pdf",
+            [new CreateLineItemRequest(cat.Id, 1200m, 0, 160m, 7.5m, null, null)],
+            BaseAmount: 1000m, HoursWorked: 160m, HourlyRate: 7.5m));
+
+        Assert.Null(error);
+        Assert.NotNull(result);
+
+        var persisted = await db.SalarySlips.AsNoTracking()
+            .Include(sl => sl.LineItems)
+            .SingleAsync(sl => sl.Period == new DateOnly(2026, 2, 1));
+        Assert.Equal(1200m, persisted.GrossAmount);
+        Assert.Equal("feb.pdf", persisted.PdfPath);
+        Assert.Equal(1000m, persisted.BaseAmount);
+        var line = Assert.Single(persisted.LineItems);
+        Assert.Equal(cat.Id, line.SalaryItemCategoryId);
+        Assert.Equal(1200m, line.Amount);
+    }
+
+    [Fact]
+    public async Task CreateSlip_DuplicateProfileAndPeriod_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(CreateSlip_DuplicateProfileAndPeriod_ReturnsError));
+        var (profile, _, slip) = await SeedSlipAsync(db);
+
+        var handler = new CreateSalarySlipCommandHandler(db);
+        var (result, error) = await handler.HandleAsync(new CreateSalarySlipCommand(
+            profile.Id, slip.Period, 500m, 400m, null, null, null, []));
+
+        Assert.Null(result);
+        Assert.NotNull(error);
+        Assert.Contains("already exists", error);
+    }
+
+    [Fact]
+    public async Task CreateSlip_CategoryFromAnotherProfile_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(CreateSlip_CategoryFromAnotherProfile_ReturnsError));
+        var (profile, _, _) = await SeedSlipAsync(db);
+        var other = new SalaryProfile { Name = "Other" };
+        db.SalaryProfiles.Add(other);
+        await db.SaveChangesAsync();
+        var foreignCat = new SalaryItemCategory
+        {
+            SalaryProfileId = other.Id, Name = "Foreign", Color = "#fff", ItemType = "income"
+        };
+        db.SalaryItemCategories.Add(foreignCat);
+        await db.SaveChangesAsync();
+
+        var handler = new CreateSalarySlipCommandHandler(db);
+        var (result, error) = await handler.HandleAsync(new CreateSalarySlipCommand(
+            profile.Id, new DateOnly(2026, 3, 1), 500m, 400m, null, null, null,
+            [new CreateLineItemRequest(foreignCat.Id, 500m, 0, null, null, null, null)]));
+
+        Assert.Null(result);
+        Assert.NotNull(error);
+        Assert.Contains("does not belong", error);
+    }
+
+    [Fact]
+    public async Task DeleteSlip_RemovesSlipLineItemsAndPdf()
+    {
+        await using var db = CreateDb(nameof(DeleteSlip_RemovesSlipLineItemsAndPdf));
+        var (_, cat, slip) = await SeedSlipAsync(db);
+
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"fh_salary_del_{Guid.NewGuid()}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            var pdfPath = Path.Combine(storageRoot, "slip.pdf");
+            await File.WriteAllBytesAsync(pdfPath, "pdf"u8.ToArray());
+            slip.PdfPath = pdfPath;
+            db.SalaryLineItems.Add(new SalaryLineItem
+            {
+                SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+            });
+            await db.SaveChangesAsync();
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Path"] = storageRoot })
+                .Build();
+            var fileStorage = new FileStorageService(config, NullLogger<FileStorageService>.Instance);
+            var handler = new DeleteSalarySlipCommandHandler(db, fileStorage, NullLogger<DeleteSalarySlipCommandHandler>.Instance);
+
+            var deleted = await handler.HandleAsync(new DeleteSalarySlipCommand(slip.Id));
+
+            Assert.True(deleted);
+            Assert.False(await db.SalarySlips.AnyAsync());
+            Assert.False(await db.SalaryLineItems.AnyAsync());
+            Assert.False(File.Exists(pdfPath));
+        }
+        finally
+        {
+            Directory.Delete(storageRoot, recursive: true);
+        }
     }
 
     [Fact]

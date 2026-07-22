@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Beacon.Api.Services;
 
-public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorService> logger)
+public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorService> logger) : IPdfExtractor
 {
     public async Task<IReadOnlyList<string>> ExtractPagesAsync(string pdfPath, CancellationToken ct = default)
     {

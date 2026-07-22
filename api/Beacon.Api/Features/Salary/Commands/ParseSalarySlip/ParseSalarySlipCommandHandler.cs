@@ -29,7 +29,7 @@ public record ParsedSalaryLineItemResponse(
     decimal? IncidenciaBase);
 
 public class ParseSalarySlipCommandHandler(
-    PdfExtractorService extractor,
+    IPdfExtractor extractor,
     SalarySlipParserFactory factory)
 {
     public async Task<(ParsedSalarySlipResponse? Result, string? Error)> HandleAsync(
