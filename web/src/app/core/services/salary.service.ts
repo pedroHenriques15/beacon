@@ -9,6 +9,30 @@ import {
   SalarySlip,
 } from '../models/statement.model';
 
+export interface SlipLineItemBody {
+  salaryItemCategoryId: number;
+  amount: number;
+  sortOrder: number;
+  quantity?: number;
+  unitValue?: number;
+  percentage?: number;
+  incidenciaBase?: number;
+}
+
+export interface SlipBody {
+  period: string;
+  grossAmount: number;
+  netAmount: number;
+  notes?: string;
+  pdfPath?: string | null;
+  sourceFile?: string | null;
+  baseAmount?: number;
+  hoursWorked?: number;
+  hourlyRate?: number;
+  totalEspecie?: number;
+  lineItems: SlipLineItemBody[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class SalaryService {
   private http = inject(HttpClient);
@@ -75,31 +99,11 @@ export class SalaryService {
     return this.http.post<ParsedSlipResponse>('/api/salary/parse-pdf', { pdfPath });
   }
 
-  createSlip(body: {
-    salaryProfileId: number;
-    period: string;
-    grossAmount: number;
-    netAmount: number;
-    notes?: string;
-    pdfPath?: string | null;
-    sourceFile?: string | null;
-    lineItems: { salaryItemCategoryId: number; amount: number; sortOrder: number }[];
-  }): Observable<SalarySlip> {
+  createSlip(body: SlipBody & { salaryProfileId: number }): Observable<SalarySlip> {
     return this.http.post<SalarySlip>('/api/salary/slips', body);
   }
 
-  updateSlip(
-    id: number,
-    body: {
-      period: string;
-      grossAmount: number;
-      netAmount: number;
-      notes?: string;
-      pdfPath?: string | null;
-      sourceFile?: string | null;
-      lineItems: { salaryItemCategoryId: number; amount: number; sortOrder: number }[];
-    },
-  ): Observable<SalarySlip> {
+  updateSlip(id: number, body: SlipBody): Observable<SalarySlip> {
     return this.http.put<SalarySlip>(`/api/salary/slips/${id}`, body);
   }
 

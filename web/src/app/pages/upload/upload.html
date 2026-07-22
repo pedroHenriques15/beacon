@@ -364,7 +364,7 @@
     <div class="modal">
       <div class="modal-header">
         <h3>Possible internal transfers detected</h3>
-        <button class="modal-close" (click)="showTransferReview.set(false)">✕</button>
+        <button class="modal-close" (click)="dismissTransferReview()">✕</button>
       </div>
       <p class="modal-sub">
         These transactions have the same amount and date but opposite directions across different
@@ -391,9 +391,20 @@
         }
       </div>
 
+      @if (transferError()) {
+        <p class="modal-error">{{ transferError() }}</p>
+      }
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="dismissTransferReview()">Skip</button>
-        <button class="btn-primary" (click)="confirmTransfers()">Mark selected as transfers</button>
+        <button
+          class="btn-secondary"
+          [disabled]="transferSaving()"
+          (click)="dismissTransferReview()"
+        >
+          Skip
+        </button>
+        <button class="btn-primary" [disabled]="transferSaving()" (click)="confirmTransfers()">
+          {{ transferSaving() ? 'Saving…' : 'Mark selected as transfers' }}
+        </button>
       </div>
     </div>
   </div>
@@ -445,7 +456,11 @@
             [ngModel]="slipProfileId()"
             (ngModelChange)="onSlipProfileChange($event)"
           >
-            <option [ngValue]="null">Select profile…</option>
+            @if (slipPendingProfileName(); as pending) {
+              <option [ngValue]="null">New profile: {{ pending }} (created on save)</option>
+            } @else {
+              <option [ngValue]="null">Select profile…</option>
+            }
             @for (p of profiles(); track p.id) {
               <option [value]="p.id">{{ p.name }}</option>
             }
@@ -547,7 +562,9 @@
               class="field-input li-cat"
               [ngModel]="li.salaryItemCategoryId"
               [class.unmatched]="li.hint && li.salaryItemCategoryId === null"
-              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', +$event)"
+              (ngModelChange)="
+                updateLineItem(i, 'salaryItemCategoryId', $event === null ? null : +$event)
+              "
             >
               <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
               @for (type of itemTypes; track type.value) {

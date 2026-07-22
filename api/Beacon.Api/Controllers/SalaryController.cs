@@ -112,7 +112,9 @@ public class SalaryController(
                 id, body.Period, body.GrossAmount, body.NetAmount,
                 body.Notes, body.LineItems.Select(li => new CreateLineItemRequest(
                     li.SalaryItemCategoryId, li.Amount, li.SortOrder,
-                    li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase)).ToList()), ct);
+                    li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase)).ToList(),
+                body.PdfPath, body.SourceFile,
+                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie), ct);
 
         if (result is null && error is null) return NotFound();
         if (error is not null) return BadRequest(error);
@@ -189,7 +191,13 @@ public record UpdateSalarySlipRequest(
     decimal GrossAmount,
     decimal NetAmount,
     string? Notes,
-    List<LineItemRequest> LineItems);
+    List<LineItemRequest> LineItems,
+    string? PdfPath = null,
+    string? SourceFile = null,
+    decimal? BaseAmount = null,
+    decimal? HoursWorked = null,
+    decimal? HourlyRate = null,
+    decimal? TotalEspecie = null);
 
 public record CreateSalaryItemCategoryRequest(int SalaryProfileId, string Name, string Color, string ItemType);
 public record UpdateSalaryItemCategoryRequest(string Name, string Color, string ItemType);

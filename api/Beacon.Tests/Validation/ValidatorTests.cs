@@ -372,6 +372,17 @@ public class ValidatorTests
         var validator = new GetTransactionsQueryValidator();
         var result    = validator.Validate(new GetTransactionsQuery(null, null, type, null, null, 0, 20));
         Assert.False(result.IsValid);
-        Assert.Contains("Type must be 'credit' or 'debit'.", result.Errors);
+        Assert.Contains("Type must be 'credit', 'debit' or 'unknown'.", result.Errors);
+    }
+
+    [Theory]
+    [InlineData("credit")]
+    [InlineData("debit")]
+    [InlineData("unknown")]
+    public void GetTransactionsQueryValidator_ValidTypes_AreAccepted(string type)
+    {
+        var validator = new GetTransactionsQueryValidator();
+        var result    = validator.Validate(new GetTransactionsQuery(null, null, type, null, null, 0, 20));
+        Assert.True(result.IsValid);
     }
 }

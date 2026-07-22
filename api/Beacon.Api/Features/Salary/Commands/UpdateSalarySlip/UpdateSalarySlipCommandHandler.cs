@@ -12,7 +12,13 @@ public record UpdateSalarySlipCommand(
     decimal GrossAmount,
     decimal NetAmount,
     string? Notes,
-    List<CreateLineItemRequest> LineItems);
+    List<CreateLineItemRequest> LineItems,
+    string? PdfPath = null,
+    string? SourceFile = null,
+    decimal? BaseAmount = null,
+    decimal? HoursWorked = null,
+    decimal? HourlyRate = null,
+    decimal? TotalEspecie = null);
 
 public class UpdateSalarySlipCommandHandler(AppDbContext db)
 {
@@ -30,10 +36,28 @@ public class UpdateSalarySlipCommandHandler(AppDbContext db)
               && s.Id != command.Id, ct);
         if (duplicate) return (null, "A salary slip for this profile and period already exists.");
 
-        slip.Period      = command.Period;
-        slip.GrossAmount = command.GrossAmount;
-        slip.NetAmount   = command.NetAmount;
-        slip.Notes       = command.Notes?.Trim();
+        // Per-profile category isolation (mirrors CreateSalarySlip): every line item must
+        // reference a category belonging to this slip's profile.
+        var profileCategoryIds = await db.SalaryItemCategories
+            .Where(c => c.SalaryProfileId == slip.SalaryProfileId)
+            .Select(c => c.Id)
+            .ToListAsync(ct);
+        foreach (var lineItem in command.LineItems)
+        {
+            if (!profileCategoryIds.Contains(lineItem.SalaryItemCategoryId))
+                return (null, $"Category {lineItem.SalaryItemCategoryId} does not belong to profile {slip.SalaryProfileId}.");
+        }
+
+        slip.Period       = command.Period;
+        slip.GrossAmount  = command.GrossAmount;
+        slip.NetAmount    = command.NetAmount;
+        slip.Notes        = command.Notes?.Trim();
+        slip.PdfPath      = command.PdfPath;
+        slip.SourceFile   = command.SourceFile;
+        slip.BaseAmount   = command.BaseAmount;
+        slip.HoursWorked  = command.HoursWorked;
+        slip.HourlyRate   = command.HourlyRate;
+        slip.TotalEspecie = command.TotalEspecie;
 
         db.SalaryLineItems.RemoveRange(slip.LineItems);
         slip.LineItems = command.LineItems.Select(li => new SalaryLineItem

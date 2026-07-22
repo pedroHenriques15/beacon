@@ -20,8 +20,8 @@ public class GetTransactionsQueryValidator
         if (query.Month is not null && !MonthRegex.IsMatch(query.Month))
             errors.Add("Month must be in YYYY-MM format.");
 
-        if (query.Type is not null && query.Type != "credit" && query.Type != "debit")
-            errors.Add("Type must be 'credit' or 'debit'.");
+        if (query.Type is not null && query.Type != "credit" && query.Type != "debit" && query.Type != "unknown")
+            errors.Add("Type must be 'credit', 'debit' or 'unknown'.");
 
         return errors.Count == 0 ? ValidationResult.Success() : ValidationResult.Failure(errors);
     }

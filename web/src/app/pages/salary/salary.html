@@ -497,7 +497,7 @@
             <select
               class="field-input li-cat"
               [ngModel]="li.salaryItemCategoryId"
-              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', +$event)"
+              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', $event)"
             >
               <option [ngValue]="null">Category…</option>
               @for (type of itemTypes; track type.value) {
