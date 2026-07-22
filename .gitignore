@@ -25,7 +25,6 @@ coverage/
 appsettings.json
 appsettings.*.json
 !appsettings.template.json
-api/Beacon.Api/Properties/launchSettings.json
 
 # ─── Certificates ────────────────────────────────────────────────────────────
 *.pfx

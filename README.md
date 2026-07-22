@@ -30,6 +30,14 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ![Upload](docs/screenshots/upload.png)
 
+### Calendar
+
+![Calendar](docs/screenshots/calendar.png)
+
+### Settings
+
+![Settings](docs/screenshots/settings.png)
+
 ---
 
 ## What it does
@@ -40,7 +48,27 @@ Salary slip PDFs go through a similar flow — upload, parse, review the extract
 
 Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, mapped to spending categories, and displayed in a filterable item list with monthly totals.
 
+Meal-card statements (which have no PDF export) are imported by pasting the transaction history as text.
+
+Beyond finance, the app integrates with Google Calendar and Google Tasks (optional): the Calendar page shows your events and tasks, supports creating/editing both, and works fully offline from Google with a graceful empty state. The Settings page manages the Google connection and database backup/restore, including downloading the backup file.
+
 Everything is stored in SQL Server and served over a REST API. The Angular frontend talks to the API through a proxy in development, and through Nginx in production.
+
+---
+
+## Supported formats
+
+| Type | Format | Detection |
+| --- | --- | --- |
+| Bank statement (PDF) | ActivoBank | BIC `ACTVPTPL` or "EXTRATO COMBINADO" |
+| Bank statement (PDF) | BPI | SWIFT `BBPIPTPL` or "EXTRACTO INTEGRADO" |
+| Bank statement (PDF) | Revolut (EUR accounts) | BIC `REVOPTP2` or "Revolut Bank UAB" |
+| Salary slip (PDF) | CentralGest payroll | "CentralGest Software" footer |
+| Salary slip (PDF) | Domirest payroll | "DOMIREST" header |
+| Grocery receipt (PDF) | Continente | "Modelo Continente" |
+| Meal card | Pasted text (one transaction per line) | — |
+
+Bank statements must be EUR — non-EUR statements are rejected at upload (salary slips and grocery receipts are not currency-checked). Scanned (image-only) PDFs are rejected with a clear message. Files that match none of the formats are reported per file without failing the batch.
 
 ---
 
@@ -74,7 +102,7 @@ Features/
   Statements/
 ```
 
-PDF parsers use a strategy pattern. Every parser implements `IBankStatementParser` (or `ISalarySlipParser`), and a factory picks the right one at runtime by calling `CanParse()` against the extracted text. Adding a new bank means adding one file and one DI registration — nothing else changes.
+PDF parsers use a strategy pattern. Every parser implements `IBankStatementParser`, `ISalarySlipParser` or `IGroceryReceiptParser`, and a factory picks the right one at runtime by calling `CanParse()` against the extracted text. Adding a new bank means adding one file and one DI registration — nothing else changes. Meal-card text goes through the static `MealCardTextParser`, and every parsed document passes a `ParseVerifier` reconciliation (opening + credits − debits vs closing, line items vs totals) that surfaces warnings in the UI.
 
 The frontend uses Angular signals for state. `FinanceService` is the single source of truth and exposes computed signals that derived components consume directly. There are no NgModules; everything is standalone components with lazy-loaded routes.
 
@@ -110,19 +138,31 @@ beacon/
 
 ### Requirements
 
-- .NET 8 SDK
+- .NET 8 SDK (plus the EF tool: `dotnet tool install --global dotnet-ef`)
 - Node.js 22 (via nvm recommended)
-- SQL Server (local or Docker)
-- Python 3 + pdfplumber (`pip install pdfplumber`)
+- SQL Server (local, or via Docker:
+  `docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<yourStrong!Password>' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest`)
+- Python 3 + pdfplumber: `pip install -r scripts/requirements.txt`
+  (on Debian/Ubuntu with PEP 668 protection, use a venv or `pip install --user --break-system-packages -r scripts/requirements.txt`)
 
 ### Configuration
 
 Copy `api/Beacon.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
 
-- `ApiKey` — any string, used as the `X-Api-Key` header
+- `ApiKey` — **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether — set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production, where `deploy.sh` injects it into the frontend build.
 - `ConnectionStrings.DefaultConnection` — SQL Server connection string
 - `Storage.Path` — where uploaded PDFs will be stored
+- `Python.Executable` — `python3` on Linux/macOS, `python` on Windows (the stock `python3` alias on Windows opens the Microsoft Store instead of running Python)
 - `Python.ExtractorScript` — absolute path to `scripts/pdfExtractor.py`
+
+The committed `api/Beacon.Api/Properties/launchSettings.json` sets `ASPNETCORE_ENVIRONMENT=Development` and port `5098`, so `dotnet run` picks up `appsettings.Development.json` and matches the frontend proxy with no extra flags.
+
+### Create the database (first run only)
+
+```bash
+cd api/Beacon.Api
+dotnet ef database update
+```
 
 ### Linux / macOS
 
@@ -196,10 +236,10 @@ dotnet test Beacon.Tests/
 
 # Frontend — Vitest
 cd web
-npm test -- --run
+npx ng test --watch=false
 ```
 
-Backend test coverage includes all bank and salary slip parsers, the API key middleware, categorisation rule service, CQRS handlers for transactions and categories and Google Services
+Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary, groceries and Google services.
 
 ---
 
@@ -212,6 +252,12 @@ Backend test coverage includes all bank and salary slip parsers, the API key mid
 ```
 
 The app is designed to run on a home server and be accessed remotely over Tailscale. Nginx acts as a reverse proxy, serving the Angular build as static files and forwarding `/api/*` to Kestrel.
+
+---
+
+## Security model
+
+A single shared API key (`X-Api-Key` header) protects every endpoint — there are no user accounts. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
 
 ---
 
