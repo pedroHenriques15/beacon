@@ -182,6 +182,146 @@ public class StatementHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteStatement_UnrelatedSameAmountPair_IsNotDeleted()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_UnrelatedSameAmountPair_IsNotDeleted));
+
+        var date = new DateOnly(2026, 1, 15);
+
+        var stmtA = new MonthlyStatement
+        {
+            Bank = "ACTIVOBANK", Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER OUT", Amount = 500, Type = "debit",
+                    DatePosting = date, DateValue = date, Balance = 500, IsExcluded = true }
+            ]
+        };
+        var stmtB = new MonthlyStatement
+        {
+            Bank = "BPI", Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER IN", Amount = 500, Type = "credit",
+                    DatePosting = date, DateValue = date, Balance = 1500, IsExcluded = true }
+            ]
+        };
+
+        var stmtC = new MonthlyStatement
+        {
+            Bank = "REVOLUT", Account = "PT52",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "OTHER TRANSFER OUT", Amount = 500, Type = "debit",
+                    DatePosting = date.AddDays(3), DateValue = date.AddDays(3), Balance = 100, IsExcluded = true }
+            ]
+        };
+        var stmtD = new MonthlyStatement
+        {
+            Bank = "MEAL CARD", Account = "PT53",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "OTHER TRANSFER IN", Amount = 500, Type = "credit",
+                    DatePosting = date.AddDays(3), DateValue = date.AddDays(3), Balance = 600, IsExcluded = true }
+            ]
+        };
+
+        db.MonthlyStatements.AddRange(stmtA, stmtB, stmtC, stmtD);
+        await db.SaveChangesAsync();
+
+        await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmtA.Id));
+
+        Assert.False(await db.MonthlyStatements.AnyAsync(s => s.Id == stmtB.Id));
+        Assert.True(await db.MonthlyStatements.AnyAsync(s => s.Id == stmtC.Id));
+        Assert.True(await db.MonthlyStatements.AnyAsync(s => s.Id == stmtD.Id));
+        Assert.Equal(2, await db.Transactions.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeleteStatement_ClaimsAtMostOneCounterpartPerTransaction()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_ClaimsAtMostOneCounterpartPerTransaction));
+
+        var date = new DateOnly(2026, 1, 15);
+
+        var stmtA = new MonthlyStatement
+        {
+            Bank = "ACTIVOBANK", Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER OUT", Amount = 300, Type = "debit",
+                    DatePosting = date, DateValue = date, Balance = 700, IsExcluded = true }
+            ]
+        };
+
+        var stmtB = new MonthlyStatement
+        {
+            Bank = "BPI", Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER IN", Amount = 300, Type = "credit",
+                    DatePosting = date, DateValue = date, Balance = 1300, IsExcluded = true },
+                new Transaction { Description = "OTHER CREDIT", Amount = 300, Type = "credit",
+                    DatePosting = date.AddDays(5), DateValue = date.AddDays(5), Balance = 1600, IsExcluded = true }
+            ]
+        };
+
+        db.MonthlyStatements.AddRange(stmtA, stmtB);
+        await db.SaveChangesAsync();
+
+        await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmtA.Id));
+
+        Assert.True(await db.MonthlyStatements.AnyAsync(s => s.Id == stmtB.Id));
+        var remaining = await db.Transactions.Where(t => t.StatementId == stmtB.Id).ToListAsync();
+        Assert.Single(remaining);
+        Assert.Equal("OTHER CREDIT", remaining[0].Description);
+    }
+
+    [Fact]
+    public async Task DeleteStatement_UnknownTypeCounterpart_IsStillMatched()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_UnknownTypeCounterpart_IsStillMatched));
+
+        var date = new DateOnly(2026, 1, 15);
+
+        var stmtA = new MonthlyStatement
+        {
+            Bank = "ACTIVOBANK", Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER OUT", Amount = 400, Type = "debit",
+                    DatePosting = date, DateValue = date, Balance = 600, IsExcluded = true }
+            ]
+        };
+
+        var stmtB = new MonthlyStatement
+        {
+            Bank = "REVOLUT", Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions =
+            [
+                new Transaction { Description = "TRANSFER IN", Amount = 400, Type = "unknown",
+                    DatePosting = date, DateValue = date, Balance = 1400, IsExcluded = true }
+            ]
+        };
+
+        db.MonthlyStatements.AddRange(stmtA, stmtB);
+        await db.SaveChangesAsync();
+
+        await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmtA.Id));
+
+        Assert.False(await db.MonthlyStatements.AnyAsync(s => s.Id == stmtB.Id));
+        Assert.Equal(0, await db.Transactions.CountAsync());
+    }
+
+    [Fact]
     public async Task ImportMealCardText_InvalidText_ThrowsNotSupportedException()
     {
         await using var db = CreateDb(nameof(ImportMealCardText_InvalidText_ThrowsNotSupportedException));

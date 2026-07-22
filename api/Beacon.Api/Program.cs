@@ -229,5 +229,11 @@ static async Task SeedDefaultDataAsync(WebApplication app)
     if (!db.Categories.Any(c => c.Name == "Internal Transfer"))
         db.Categories.Add(new Category { Name = "Internal Transfer", Color = "#64748b", IsProtected = true });
 
+    if (!db.Categories.Any(c => c.Name == "Excluded"))
+        db.Categories.Add(new Category { Name = "Excluded", Color = "#64748b", IsProtected = true });
+
+    if (!db.GroceryCategories.Any(c => c.Name == "Excluded"))
+        db.GroceryCategories.Add(new GroceryCategory { Name = "Excluded", Color = "#64748b", IsProtected = true });
+
     await db.SaveChangesAsync();
 }

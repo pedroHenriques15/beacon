@@ -195,9 +195,9 @@ public class GoogleOAuthServiceTests
     }
 
     [Fact]
-    public async Task GetValidAccessTokenAsync_RefreshFails_ReturnsNull_AndDisconnects()
+    public async Task GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects()
     {
-        using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshFails_ReturnsNull_AndDisconnects));
+        using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id           = 1,
@@ -209,7 +209,7 @@ public class GoogleOAuthServiceTests
         await db.SaveChangesAsync();
 
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
-            System.Net.HttpStatusCode.BadRequest, ""));
+            System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"""));
         using var cache = CreateCache();
         var svc         = CreateService(db, cache, factory);
 
@@ -217,6 +217,31 @@ public class GoogleOAuthServiceTests
 
         Assert.Null(result);
         Assert.Empty(await db.GoogleOAuthTokens.ToListAsync());
+    }
+
+    [Fact]
+    public async Task GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens()
+    {
+        using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens));
+        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
+        {
+            Id           = 1,
+            AccessToken  = "old-token",
+            RefreshToken = "good-refresh",
+            ExpiresAt    = DateTime.UtcNow.AddMinutes(-5),
+            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+        });
+        await db.SaveChangesAsync();
+
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.ServiceUnavailable, ""));
+        using var cache = CreateCache();
+        var svc         = CreateService(db, cache, factory);
+
+        var result = await svc.GetValidAccessTokenAsync();
+
+        Assert.Null(result);
+        Assert.Single(await db.GoogleOAuthTokens.ToListAsync());
     }
 
     [Fact]

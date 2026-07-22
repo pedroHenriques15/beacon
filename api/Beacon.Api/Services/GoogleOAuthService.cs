@@ -108,14 +108,21 @@ public class GoogleOAuthService(
             var client = httpClientFactory.CreateClient("google-oauth");
             var response = await client.PostAsync("https://oauth2.googleapis.com/token",
                 new FormUrlEncodedContent(new Dictionary<string, string>
-                {
+                {   
                     ["refresh_token"] = token.RefreshToken,
                     ["client_id"] = ClientId,
                     ["client_secret"] = ClientSecret,
                     ["grant_type"] = "refresh_token",
                 }), ct);
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync(ct);
+                if (error.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
+                    await DisconnectAsync(ct);
+                return null;
+            }
+
             var body = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct)
                 ?? throw new InvalidOperationException("Empty refresh response from Google.");
 
@@ -127,7 +134,6 @@ public class GoogleOAuthService(
         }
         catch (HttpRequestException)
         {
-            await DisconnectAsync(ct);
             return null;
         }
     }

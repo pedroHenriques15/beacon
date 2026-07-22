@@ -26,37 +26,43 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
         var payload = JsonSerializer.Deserialize<CreateBackup.BackupPayload>(json, _jsonOptions)
                       ?? throw new InvalidOperationException("Backup file is empty or corrupt.");
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
 
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]",                   ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]",          ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceiptCategoryMappings]", ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceipts]",               ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategories]",             ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryLineItems]",               ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalarySlips]",                   ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryItemCategories]",          ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [Transactions]",                  ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [CategoryRules]",                 ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [MonthlyStatements]",             ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryProfiles]",                ct);
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]",                    ct);
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        await InsertWithIdentity(db, "Categories",                     payload.Categories,                     ct);
-        await InsertWithIdentity(db, "CategoryRules",                  payload.CategoryRules,                  ct);
-        await InsertWithIdentity(db, "MonthlyStatements",              payload.MonthlyStatements,              ct);
-        await InsertWithIdentity(db, "Transactions",                   payload.Transactions,                   ct);
-        await InsertWithIdentity(db, "SalaryProfiles",                 payload.SalaryProfiles,                 ct);
-        await InsertWithIdentity(db, "SalaryItemCategories",           payload.SalaryItemCategories,           ct);
-        await InsertWithIdentity(db, "SalarySlips",                    payload.SalarySlips,                    ct);
-        await InsertWithIdentity(db, "SalaryLineItems",                payload.SalaryLineItems,                ct);
-        await InsertWithIdentity(db, "GroceryCategories",              payload.GroceryCategories,              ct);
-        await InsertWithIdentity(db, "GroceryReceiptCategoryMappings", payload.GroceryReceiptCategoryMappings, ct);
-        await InsertWithIdentity(db, "GroceryReceipts",                payload.GroceryReceipts,                ct);
-        await InsertWithIdentity(db, "GroceryItems",                   payload.GroceryItems,                   ct);
-        await InsertWithIdentity(db, "GroceryCategoryRules",           payload.GroceryCategoryRules,           ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]",                   ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]",          ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceiptCategoryMappings]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceipts]",               ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategories]",             ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryLineItems]",               ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalarySlips]",                   ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryItemCategories]",          ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Transactions]",                  ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [CategoryRules]",                 ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [MonthlyStatements]",             ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryProfiles]",                ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]",                    ct);
 
-        await tx.CommitAsync(ct);
+            await InsertWithIdentity(db, "Categories",                     payload.Categories,                     ct);
+            await InsertWithIdentity(db, "CategoryRules",                  payload.CategoryRules,                  ct);
+            await InsertWithIdentity(db, "MonthlyStatements",              payload.MonthlyStatements,              ct);
+            await InsertWithIdentity(db, "Transactions",                   payload.Transactions,                   ct);
+            await InsertWithIdentity(db, "SalaryProfiles",                 payload.SalaryProfiles,                 ct);
+            await InsertWithIdentity(db, "SalaryItemCategories",           payload.SalaryItemCategories,           ct);
+            await InsertWithIdentity(db, "SalarySlips",                    payload.SalarySlips,                    ct);
+            await InsertWithIdentity(db, "SalaryLineItems",                payload.SalaryLineItems,                ct);
+            await InsertWithIdentity(db, "GroceryCategories",              payload.GroceryCategories,              ct);
+            await InsertWithIdentity(db, "GroceryReceiptCategoryMappings", payload.GroceryReceiptCategoryMappings, ct);
+            await InsertWithIdentity(db, "GroceryReceipts",                payload.GroceryReceipts,                ct);
+            await InsertWithIdentity(db, "GroceryItems",                   payload.GroceryItems,                   ct);
+            await InsertWithIdentity(db, "GroceryCategoryRules",           payload.GroceryCategoryRules,           ct);
+
+            await tx.CommitAsync(ct);
+        });
 
         logger.LogInformation("Database restored from {Path}", backupFile);
         return backupFile;
