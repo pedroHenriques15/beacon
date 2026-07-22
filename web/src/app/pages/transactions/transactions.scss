@@ -61,7 +61,7 @@
     outline: none;
     transition: border-color 0.15s;
     &:focus {
-      border-color: #4f8cff;
+      border-color: var(--focus);
     }
     option {
       background: var(--surface);
@@ -87,6 +87,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+
+    span:last-child {
+      white-space: nowrap;
+    }
   }
   .label {
     font-size: 0.75rem;

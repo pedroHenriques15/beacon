@@ -10,12 +10,19 @@ import {
   SalarySlip,
 } from '../models/statement.model';
 
-const PROFILE_A: SalaryProfile = { id: 1, name: 'Main Job', description: null, slipCount: 2 };
+const PROFILE_A: SalaryProfile = {
+  id: 1,
+  name: 'Main Job',
+  description: null,
+  slipCount: 2,
+  hourlyRateFormula: 'days',
+};
 const PROFILE_B: SalaryProfile = {
   id: 2,
   name: 'Side Job',
   description: 'Consulting',
   slipCount: 0,
+  hourlyRateFormula: 'days',
 };
 
 const CAT_INCOME: SalaryItemCategory = {

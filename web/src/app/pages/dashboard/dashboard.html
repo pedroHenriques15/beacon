@@ -92,10 +92,10 @@
           @for (row of monthlyTotals(); track row.month) {
             <tr class="clickable" (click)="navigateToMonth(row.month)">
               <td>{{ formatMonth(row.month) }}</td>
-              <td class="num credit">{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-              <td class="num debit">{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num credit">+{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num debit">−{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
               <td class="num" [ngClass]="row.net >= 0 ? 'credit' : 'debit'">
-                {{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
+                {{ row.net >= 0 ? '+' : '' }}{{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
               </td>
             </tr>
           }

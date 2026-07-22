@@ -18,7 +18,7 @@ import { CalendarEvent, CalendarEventFormData } from '../../core/models/calendar
 import { Task, TaskFormData } from '../../core/models/task';
 import { GOOGLE_CALENDAR_COLORS } from '../../core/constants/calendar-colors';
 import { EventModalComponent } from './event-modal';
-import { TaskModalComponent } from '../tasks/task-modal';
+import { TaskModalComponent } from './task-modal';
 
 interface CalendarDay {
   date: Date;

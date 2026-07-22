@@ -103,7 +103,7 @@ export class DashboardComponent {
     const colors: Record<string, string> = {
       ACTIVOBANK: '#00b4d8',
       REVOLUT: '#6c63ff',
-      BPI: '#f59e0b',
+      BPI: '#fb923c',
     };
     return colors[bank] ?? '#94a3b8';
   }
@@ -137,8 +137,10 @@ export class DashboardComponent {
     });
   }
 
+  private static readonly periodPipe = new DatePipe('en-US');
+
   formatPeriod(from: string, to: string): string {
-    const f = new DatePipe('en-US');
+    const f = DashboardComponent.periodPipe;
     return `${f.transform(from, 'dd MMM')} – ${f.transform(to, 'dd MMM yyyy')}`;
   }
 

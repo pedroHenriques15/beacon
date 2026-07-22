@@ -74,7 +74,8 @@
     <div class="backup-card__info">
       <p class="backup-card__label">Backup &amp; Restore</p>
       <p class="backup-card__detail">
-        Creates a full backup of the current database. Any previous backup will be replaced.
+        Creates a full backup of the current database (any previous backup is replaced). Restoring
+        overwrites ALL current data with the backup's contents.
       </p>
     </div>
     <div class="backup-card__actions">
@@ -101,7 +102,7 @@
         }
       </button>
       <button
-        class="btn-secondary"
+        class="btn-danger"
         [disabled]="restoreState() === 'running'"
         (click)="restoreBackup()"
       >

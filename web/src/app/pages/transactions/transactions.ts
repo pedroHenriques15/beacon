@@ -428,8 +428,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this._paramsSub?.unsubscribe();
   }
 
-  gFindReceipt(receiptId: number): GroceryReceiptSummary | null {
-    return this.groceriesSvc.receipts().find((r) => r.id === receiptId) ?? null;
+  private receiptsById = computed(
+    () => new Map(this.groceriesSvc.receipts().map((r) => [r.id, r])),
+  );
+
+  gFindReceipt(receiptId: number) {
+    return this.receiptsById().get(receiptId) ?? null;
   }
 
   loadMore(): void {

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Queries.GetSalaryProfiles;
 
-public record SalaryProfileResponse(int Id, string Name, string? Description, int SlipCount);
+public record SalaryProfileResponse(int Id, string Name, string? Description, int SlipCount, string HourlyRateFormula);
 
 public class GetSalaryProfilesQueryHandler(AppDbContext db)
 {
@@ -12,6 +12,6 @@ public class GetSalaryProfilesQueryHandler(AppDbContext db)
             .OrderBy(p => p.Name)
             .Select(p => new SalaryProfileResponse(
                 p.Id, p.Name, p.Description,
-                p.SalarySlips.Count))
+                p.SalarySlips.Count, p.HourlyRateFormula))
             .ToListAsync(ct);
 }

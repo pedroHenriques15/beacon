@@ -161,7 +161,7 @@
   box-sizing: border-box;
 
   &:focus {
-    border-color: #4f8cff;
+    border-color: var(--focus);
   }
 
   option {

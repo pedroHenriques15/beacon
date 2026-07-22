@@ -183,3 +183,30 @@ tr.selected td {
     color: var(--debit);
   }
 }
+
+@media (max-width: 640px) {
+  .tx-table {
+    th:nth-child(1),
+    td:nth-child(1),
+    th:nth-child(3),
+    td:nth-child(3),
+    th:nth-child(5),
+    td:nth-child(5),
+    th:nth-child(7),
+    td:nth-child(7) {
+      display: none;
+    }
+
+    td:nth-child(4) {
+      max-width: 40vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th:nth-child(6),
+    td:nth-child(6) {
+      white-space: nowrap;
+    }
+  }
+}

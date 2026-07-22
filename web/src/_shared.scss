@@ -109,7 +109,7 @@
   box-sizing: border-box;
 
   &:focus {
-    border-color: #4f8cff;
+    border-color: var(--focus);
   }
 
   &:disabled {
@@ -192,7 +192,7 @@
 
   .subtitle {
     margin: 0;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     font-size: 0.95rem;
   }
 }
@@ -201,7 +201,7 @@
 .error {
   text-align: center;
   padding: 4rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .tab-bar {
@@ -214,7 +214,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 0.9rem;
   padding: 0.4rem 0.75rem;

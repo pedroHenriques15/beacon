@@ -69,14 +69,14 @@ public class SalaryController(
     [HttpPost("profiles")]
     public async Task<IActionResult> CreateProfile([FromBody] CreateSalaryProfileRequest body, CancellationToken ct)
     {
-        var result = await createProfile.HandleAsync(new CreateSalaryProfileCommand(body.Name, body.Description), ct);
+        var result = await createProfile.HandleAsync(new CreateSalaryProfileCommand(body.Name, body.Description, body.HourlyRateFormula), ct);
         return Created($"/api/salary/profiles/{result.Id}", result);
     }
 
     [HttpPut("profiles/{id:int}")]
     public async Task<IActionResult> UpdateProfile(int id, [FromBody] UpdateSalaryProfileRequest body, CancellationToken ct)
     {
-        var result = await updateProfile.HandleAsync(new UpdateSalaryProfileCommand(id, body.Name, body.Description), ct);
+        var result = await updateProfile.HandleAsync(new UpdateSalaryProfileCommand(id, body.Name, body.Description, body.HourlyRateFormula), ct);
         return result is null ? NotFound() : Ok(result);
     }
 
@@ -164,8 +164,8 @@ public class SalaryController(
 }
 
 public record ParsePdfRequest(string PdfPath);
-public record CreateSalaryProfileRequest(string Name, string? Description);
-public record UpdateSalaryProfileRequest(string Name, string? Description);
+public record CreateSalaryProfileRequest(string Name, string? Description, string? HourlyRateFormula = null);
+public record UpdateSalaryProfileRequest(string Name, string? Description, string? HourlyRateFormula = null);
 
 public record LineItemRequest(
     int SalaryItemCategoryId,

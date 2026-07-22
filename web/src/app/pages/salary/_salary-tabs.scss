@@ -52,7 +52,7 @@
     font-size: 0.875rem;
     outline: none;
     &:focus {
-      border-color: #4f8cff;
+      border-color: var(--focus);
     }
     option {
       background: var(--surface);

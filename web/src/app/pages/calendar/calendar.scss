@@ -1,3 +1,5 @@
+@use 'calendar-header' as *;
 @use 'calendar-grid' as *;
+@use 'calendar-task-chips' as *;
 @use 'calendar-tasks' as *;
 @use 'calendar-toast' as *;

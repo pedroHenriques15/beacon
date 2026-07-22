@@ -40,11 +40,28 @@ export class SalaryService {
   getProfiles(): Observable<SalaryProfile[]> {
     return this.http.get<SalaryProfile[]>('/api/salary/profiles');
   }
-  createProfile(name: string, description?: string): Observable<SalaryProfile> {
-    return this.http.post<SalaryProfile>('/api/salary/profiles', { name, description });
+  createProfile(
+    name: string,
+    description?: string,
+    hourlyRateFormula?: string,
+  ): Observable<SalaryProfile> {
+    return this.http.post<SalaryProfile>('/api/salary/profiles', {
+      name,
+      description,
+      hourlyRateFormula,
+    });
   }
-  updateProfile(id: number, name: string, description?: string): Observable<SalaryProfile> {
-    return this.http.put<SalaryProfile>(`/api/salary/profiles/${id}`, { name, description });
+  updateProfile(
+    id: number,
+    name: string,
+    description?: string,
+    hourlyRateFormula?: string,
+  ): Observable<SalaryProfile> {
+    return this.http.put<SalaryProfile>(`/api/salary/profiles/${id}`, {
+      name,
+      description,
+      hourlyRateFormula,
+    });
   }
   deleteProfile(id: number): Observable<void> {
     return this.http.delete<void>(`/api/salary/profiles/${id}`);

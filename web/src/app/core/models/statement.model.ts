@@ -99,11 +99,14 @@ export interface PagedTransactionsResult<T> {
   totalDebit: number;
 }
 
+export type HourlyRateFormula = 'hours' | 'workdays' | 'days';
+
 export interface SalaryProfile {
   id: number;
   name: string;
   description: string | null;
   slipCount: number;
+  hourlyRateFormula: HourlyRateFormula;
 }
 
 export interface SalaryItemCategory {

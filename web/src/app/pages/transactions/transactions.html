@@ -98,16 +98,17 @@
     <div class="summary-bar">
       <div class="summary-item">
         <span class="label">In</span>
-        <span class="credit">{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+        <span class="credit">+{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
       </div>
       <div class="summary-item">
         <span class="label">Out</span>
-        <span class="debit">{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+        <span class="debit">−{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
       </div>
       <div class="summary-item">
         <span class="label">Net</span>
         <span [ngClass]="totalCredit() - totalDebit() >= 0 ? 'credit' : 'debit'">
-          {{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+          {{ totalCredit() - totalDebit() >= 0 ? '+' : ''
+          }}{{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
         </span>
       </div>
     </div>
