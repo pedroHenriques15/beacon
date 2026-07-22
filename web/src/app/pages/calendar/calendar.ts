@@ -427,11 +427,19 @@ export class CalendarPage implements OnInit {
     event.dataTransfer?.setData('text/plain', task.id);
   }
 
-  onTaskDragOver(taskId: string, event: DragEvent): void {
+  onTaskDragOver(task: Task, event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.dragOverTaskId.set(taskId);
+    if (this.isNoopReorder(this.draggedTask(), task.taskListId)) {
+      this.dragOverTaskId.set(null);
+      return;
+    }
+    this.dragOverTaskId.set(task.id);
     this.dragOverListId.set(null);
+  }
+
+  private isNoopReorder(dragged: Task | null, targetListId: string): boolean {
+    return !!dragged?.due && dragged.taskListId === targetListId;
   }
 
   onListTitleDragOver(listId: string, event: DragEvent): void {
@@ -446,10 +454,14 @@ export class CalendarPage implements OnInit {
     const dragged = this.draggedTask();
     this.clearDragState();
     if (!dragged || dragged.id === targetTask.id) return;
+    if (this.isNoopReorder(dragged, targetTask.taskListId)) return;
 
-    const tasksWithoutDragged = groupTasks.filter((t) => t.id !== dragged.id);
-    const targetIdx = tasksWithoutDragged.findIndex((t) => t.id === targetTask.id);
-    const previousTaskId = targetIdx > 0 ? tasksWithoutDragged[targetIdx - 1].id : null;
+    let previousTaskId: string | null = null;
+    if (!dragged.due) {
+      const tasksWithoutDragged = groupTasks.filter((t) => t.id !== dragged.id);
+      const targetIdx = tasksWithoutDragged.findIndex((t) => t.id === targetTask.id);
+      previousTaskId = targetIdx > 0 ? tasksWithoutDragged[targetIdx - 1].id : null;
+    }
 
     this.executeTaskMove(dragged, targetTask.taskListId, previousTaskId);
   }
@@ -459,12 +471,16 @@ export class CalendarPage implements OnInit {
     const dragged = this.draggedTask();
     this.clearDragState();
     if (!dragged) return;
+    if (this.isNoopReorder(dragged, group.listId)) return;
 
-    const tasksWithoutDragged = group.tasks.filter((t) => t.id !== dragged.id);
-    const previousTaskId =
-      tasksWithoutDragged.length > 0
-        ? tasksWithoutDragged[tasksWithoutDragged.length - 1].id
-        : null;
+    let previousTaskId: string | null = null;
+    if (!dragged.due) {
+      const tasksWithoutDragged = group.tasks.filter((t) => t.id !== dragged.id);
+      previousTaskId =
+        tasksWithoutDragged.length > 0
+          ? tasksWithoutDragged[tasksWithoutDragged.length - 1].id
+          : null;
+    }
 
     this.executeTaskMove(dragged, group.listId, previousTaskId);
   }
@@ -497,9 +513,7 @@ export class CalendarPage implements OnInit {
           this.showToast('Task moved');
         },
         error: () => {
-          if (dragged.taskListId !== targetListId) {
-            this.tasksService.patchTask(dragged.id, { taskListId: dragged.taskListId });
-          }
+          this.refreshTasks();
           this.taskToggleError.set('Failed to move task. Please try again.');
         },
       });

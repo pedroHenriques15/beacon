@@ -170,7 +170,7 @@
                 [class.task-row--dragging]="draggedTask()?.id === task.id"
                 [class.task-row--drag-over]="dragOverTaskId() === task.id"
                 (dragstart)="onTaskDragStart(task, $event)"
-                (dragover)="onTaskDragOver(task.id, $event)"
+                (dragover)="onTaskDragOver(task, $event)"
                 (drop)="onTaskDropOnTask(task, group.tasks, $event)"
                 (dragend)="onTaskDragEnd()"
               >

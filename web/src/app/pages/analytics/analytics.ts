@@ -1,10 +1,9 @@
 import {
-  AfterViewInit,
   Component,
   inject,
   signal,
   computed,
-  ViewChild,
+  viewChild,
   ElementRef,
   effect,
   OnDestroy,
@@ -48,19 +47,22 @@ Chart.register(
   templateUrl: './analytics.html',
   styleUrl: './analytics.scss',
 })
-export class AnalyticsComponent implements OnDestroy, AfterViewInit {
+export class AnalyticsComponent implements OnDestroy {
   finance = inject(FinanceService);
   catSvc = inject(CategoriesService);
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   router = inject(Router);
 
-  @ViewChild('spendingCanvas') spendingCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('incomeCanvas') incomeCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('trendCanvas') trendCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('categoryTrendCanvas') categoryTrendCanvas?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('gSpendingCanvas') gSpendingCanvas?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('gCategoryTrendCanvas') gCategoryTrendCanvas?: ElementRef<HTMLCanvasElement>;
+  // Signal queries: effects depending on these re-run when @if branches create the
+  // canvases — a synchronous decorator @ViewChild read here is undefined on the very
+  // change-detection pass that creates the canvas, leaving charts blank (audit #9).
+  spendingCanvas = viewChild<ElementRef<HTMLCanvasElement>>('spendingCanvas');
+  incomeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('incomeCanvas');
+  trendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('trendCanvas');
+  categoryTrendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryTrendCanvas');
+  gSpendingCanvas = viewChild<ElementRef<HTMLCanvasElement>>('gSpendingCanvas');
+  gCategoryTrendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('gCategoryTrendCanvas');
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
 
@@ -78,7 +80,6 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   incomeChart?: Chart;
   trendChart?: Chart;
   categoryTrendChart?: Chart;
-  private canvasReady = signal(false);
 
   availableMonths = computed(() => availableMonths(this.finance.allTransactions()));
 
@@ -363,8 +364,10 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
     });
 
     effect(() => {
-      if (!this.canvasReady()) return;
       if (this.activeTab() !== 'transactions') return;
+      this.spendingCanvas();
+      this.incomeCanvas();
+      this.trendCanvas();
       const spending = this.spendingData();
       const income = this.incomeData();
       this.selectedCategory();
@@ -388,12 +391,13 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
         this.categoryTrendChart = undefined;
         return;
       }
+      this.categoryTrendCanvas();
       setTimeout(() => this.renderCategoryTrendChart(), 0);
     });
 
     effect(() => {
-      if (!this.canvasReady()) return;
       if (this.activeTab() !== 'groceries') return;
+      this.gSpendingCanvas();
       this.gSpendingData();
       this.gSelectedCategory();
       this.renderGrocerySpendingChart();
@@ -413,12 +417,9 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
         this.gCategoryTrendChart = undefined;
         return;
       }
+      this.gCategoryTrendCanvas();
       setTimeout(() => this.renderGroceryCategoryTrendChart(), 0);
     });
-  }
-
-  ngAfterViewInit(): void {
-    this.canvasReady.set(true);
   }
 
   ngOnDestroy(): void {
@@ -550,7 +551,9 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
     data: { label: string; color: string; total: number }[],
   ): void {
     const canvas =
-      type === 'spending' ? this.spendingCanvas?.nativeElement : this.incomeCanvas?.nativeElement;
+      type === 'spending'
+        ? this.spendingCanvas()?.nativeElement
+        : this.incomeCanvas()?.nativeElement;
     if (!canvas) return;
 
     const existing = type === 'spending' ? this.spendingChart : this.incomeChart;
@@ -632,7 +635,7 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   }
 
   private renderTrendChart(): void {
-    const canvas = this.trendCanvas?.nativeElement;
+    const canvas = this.trendCanvas()?.nativeElement;
     if (!canvas) return;
 
     this.trendChart?.destroy();
@@ -696,7 +699,7 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   }
 
   private renderCategoryTrendChart(): void {
-    const canvas = this.categoryTrendCanvas?.nativeElement;
+    const canvas = this.categoryTrendCanvas()?.nativeElement;
     if (!canvas) return;
 
     this.categoryTrendChart?.destroy();
@@ -760,7 +763,7 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   }
 
   private renderGrocerySpendingChart(): void {
-    const canvas = this.gSpendingCanvas?.nativeElement;
+    const canvas = this.gSpendingCanvas()?.nativeElement;
     if (!canvas) return;
 
     this.gSpendingChart?.destroy();
@@ -836,7 +839,7 @@ export class AnalyticsComponent implements OnDestroy, AfterViewInit {
   }
 
   private renderGroceryCategoryTrendChart(): void {
-    const canvas = this.gCategoryTrendCanvas?.nativeElement;
+    const canvas = this.gCategoryTrendCanvas()?.nativeElement;
     if (!canvas) return;
 
     this.gCategoryTrendChart?.destroy();

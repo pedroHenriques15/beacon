@@ -33,8 +33,10 @@ export class CalendarService {
   calendarList = signal<CalendarInfo[]>([]);
 
   loadEvents(year: number, month: number): void {
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0, 23, 59, 59);
+    const firstDay = new Date(year, month, 1);
+    const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const start = new Date(year, month, 1 - startDow);
+    const end = new Date(year, month, 1 - startDow + 41, 23, 59, 59);
     const params = new HttpParams().set('start', start.toISOString()).set('end', end.toISOString());
 
     this.loadCancel$.next();
