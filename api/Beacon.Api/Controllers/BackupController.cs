@@ -1,5 +1,6 @@
 using Beacon.Api.Features.Backup.Commands.CreateBackup;
 using Beacon.Api.Features.Backup.Commands.RestoreBackup;
+using Beacon.Api.Features.Backup.Queries.DownloadBackup;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Beacon.Api.Controllers;
@@ -8,8 +9,19 @@ namespace Beacon.Api.Controllers;
 [Route("api/[controller]")]
 public class BackupController(
     CreateBackupCommandHandler createBackup,
-    RestoreBackupCommandHandler restoreBackup) : ControllerBase
+    RestoreBackupCommandHandler restoreBackup,
+    DownloadBackupQueryHandler downloadBackup) : ControllerBase
 {
+    [HttpGet("download")]
+    public IActionResult DownloadBackup()
+    {
+        var result = downloadBackup.Handle();
+        if (result is null)
+            return NotFound(new { message = "No backup file found. Create a backup first." });
+
+        return File(result.Stream, "application/json", result.FileName);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateBackup(CancellationToken ct)
     {

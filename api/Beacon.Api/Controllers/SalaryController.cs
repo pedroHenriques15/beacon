@@ -52,7 +52,10 @@ public class SalaryController(
     [HttpPost("parse-pdf")]
     public async Task<IActionResult> ParsePdf([FromBody] ParsePdfRequest body, CancellationToken ct)
     {
-        var fullPath = fileStorage.GetFullPath(body.PdfPath);
+        string fullPath;
+        try { fullPath = fileStorage.GetFullPath(body.PdfPath); }
+        catch (UnauthorizedAccessException) { return BadRequest("Invalid file path."); }
+
         var (result, error) = await parseSalarySlip.HandleAsync(
             new ParseSalarySlipCommand(fullPath), ct);
         if (error is not null) return BadRequest(error);
@@ -152,9 +155,10 @@ public class SalaryController(
     [HttpDelete("item-categories/{id:int}")]
     public async Task<IActionResult> DeleteItemCategory(int id, CancellationToken ct)
     {
-        var (found, isProtected) = await deleteItemCategory.HandleAsync(new DeleteSalaryItemCategoryCommand(id), ct);
+        var (found, isProtected, inUse) = await deleteItemCategory.HandleAsync(new DeleteSalaryItemCategoryCommand(id), ct);
         if (!found) return NotFound();
         if (isProtected) return Conflict("This is a system category and cannot be deleted.");
+        if (inUse) return Conflict("This category is used by existing salary slips — reassign or delete those line items first.");
         return NoContent();
     }
 }

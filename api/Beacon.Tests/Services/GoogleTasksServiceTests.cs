@@ -168,7 +168,7 @@ public class GoogleTasksServiceTests
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateTasksSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<GoogleNotConnectedException>(
             () => svc.GetTasksAsync("list1"));
     }
 

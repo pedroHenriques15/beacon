@@ -121,10 +121,20 @@ public class ImportMealCardTextCommandHandler(
             parsed.Transactions.Count, periodFrom, periodTo, unknownCount);
 
         var newTxIds    = transactions.Select(t => t.Id).ToHashSet();
-        var existingTxs = await db.Transactions
-            .Include(t => t.Statement)
-            .Where(t => !newTxIds.Contains(t.Id) && !t.IsExcluded)
-            .ToListAsync(ct);
+        var existingTxs = new List<Transaction>();
+        if (transactions.Count > 0)
+        {
+            var minDate = transactions.Min(t => t.DatePosting);
+            var maxDate = transactions.Max(t => t.DatePosting);
+            var amounts = transactions.Select(t => t.Amount).Distinct().ToList();
+            existingTxs = await db.Transactions
+                .Include(t => t.Statement)
+                .Where(t => !newTxIds.Contains(t.Id) && !t.IsExcluded
+                    && t.DatePosting >= minDate && t.DatePosting <= maxDate
+                    && amounts.Contains(t.Amount))
+                .AsNoTracking()
+                .ToListAsync(ct);
+        }
 
         var candidates  = new List<TransferCandidate>();
         var usedExisting = new HashSet<int>();

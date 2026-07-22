@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { buildParams } from '../utils/http-params';
 import { Observable, forkJoin, of, switchMap } from 'rxjs';
 import {
-  BatchUploadItemResult,
   MonthlySummary,
   PagedTransactionsResult,
   Statement,
@@ -40,12 +39,6 @@ export class FinanceService {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<UploadResult>('/api/statements/upload', form);
-  }
-
-  uploadBatch(files: File[]): Observable<BatchUploadItemResult[]> {
-    const form = new FormData();
-    for (const f of files) form.append('files', f);
-    return this.http.post<BatchUploadItemResult[]>('/api/statements/upload-batch', form);
   }
 
   getStatementFile(id: number): Observable<Blob> {

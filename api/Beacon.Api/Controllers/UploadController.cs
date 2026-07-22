@@ -8,6 +8,9 @@ namespace Beacon.Api.Controllers;
 [Route("api/upload")]
 public class UploadController(UnifiedUploadBatchCommandHandler handler) : ControllerBase
 {
+    private const long MaxEntryDecompressedBytes = 50L * 1024 * 1024;
+    private const long MaxTotalDecompressedBytes = 500L * 1024 * 1024;
+
     [HttpPost("batch")]
     [RequestSizeLimit(200 * 1024 * 1024)]
     public async Task<IActionResult> UploadBatch([FromForm] IFormFileCollection files, CancellationToken ct)
@@ -17,6 +20,7 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
 
         var toProcess = new List<(string FileName, MemoryStream Content)>();
         var errors    = new List<UnifiedUploadItemResult>();
+        long totalDecompressed = 0;
         try
         {
             foreach (var file in files)
@@ -27,9 +31,22 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
                     foreach (var entry in archive.Entries)
                     {
                         if (!entry.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+
+                        if (totalDecompressed >= MaxTotalDecompressedBytes)
+                            return BadRequest("The archive expands beyond the allowed total size.");
+
                         var ms = new MemoryStream();
                         using var es = entry.Open();
-                        await es.CopyToAsync(ms, ct);
+                        var ok = await CopyBoundedAsync(es, ms, MaxEntryDecompressedBytes, ct);
+                        totalDecompressed += ms.Length;
+                        if (!ok)
+                        {
+                            errors.Add(new UnifiedUploadItemResult(
+                                entry.Name, "Unknown", false, false,
+                                "This file expands beyond the allowed size and was skipped.", null, null, null));
+                            await ms.DisposeAsync();
+                            continue;
+                        }
                         ms.Seek(0, SeekOrigin.Begin);
                         toProcess.Add((entry.Name, ms));
                     }
@@ -64,4 +81,19 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
             foreach (var (_, ms) in toProcess) ms.Dispose();
         }
     }
+
+    private static async Task<bool> CopyBoundedAsync(Stream source, Stream destination, long maxBytes, CancellationToken ct)
+    {
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await source.ReadAsync(buffer, ct)) > 0)
+        {
+            total += read;
+            if (total > maxBytes) return false;
+            await destination.WriteAsync(buffer.AsMemory(0, read), ct);
+        }
+        return true;
+    }
 }
+

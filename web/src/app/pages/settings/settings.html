@@ -91,6 +91,17 @@
       </button>
       <button
         class="btn-secondary"
+        [disabled]="downloadState() === 'running'"
+        (click)="downloadBackup()"
+      >
+        @if (downloadState() === 'running') {
+          Preparing…
+        } @else {
+          Download backup
+        }
+      </button>
+      <button
+        class="btn-secondary"
         [disabled]="restoreState() === 'running'"
         (click)="restoreBackup()"
       >
@@ -113,5 +124,8 @@
   }
   @if (restoreState() === 'error') {
     <p class="settings-status settings-status--error">{{ restoreMessage() }}</p>
+  }
+  @if (downloadState() === 'error') {
+    <p class="settings-status settings-status--error">{{ downloadMessage() }}</p>
   }
 </div>

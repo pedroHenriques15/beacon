@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -57,74 +56,6 @@ public class StatementsController(
         catch (NotSupportedException ex) { return BadRequest(ex.Message); }
     }
 
-    [HttpPost("upload-batch")]
-    [RequestSizeLimit(200 * 1024 * 1024)]
-    public async Task<IActionResult> UploadBatch([FromForm] IFormFileCollection files, CancellationToken ct)
-    {
-        if (files is null || files.Count == 0)
-            return BadRequest("No files provided.");
-
-        var toProcess = new List<(string FileName, MemoryStream Content)>();
-        try
-        {
-            foreach (var file in files)
-            {
-                if (file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    using var archive = new ZipArchive(file.OpenReadStream(), ZipArchiveMode.Read);
-                    foreach (var entry in archive.Entries)
-                    {
-                        if (!entry.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
-                        var ms = new MemoryStream();
-                        using var es = entry.Open();
-                        await es.CopyToAsync(ms, ct);
-                        ms.Seek(0, SeekOrigin.Begin);
-                        toProcess.Add((entry.Name, ms));
-                    }
-                }
-                else if (file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                {
-                    var ms = new MemoryStream();
-                    await file.CopyToAsync(ms, ct);
-                    ms.Seek(0, SeekOrigin.Begin);
-                    toProcess.Add((file.FileName, ms));
-                }
-            }
-
-            if (toProcess.Count == 0)
-                return BadRequest("No PDF files found in the provided input.");
-
-            var results = new List<BatchUploadItemResult>();
-            foreach (var (fileName, content) in toProcess)
-            {
-                try
-                {
-                    var formFile = new FormFile(content, 0, content.Length, "file", fileName)
-                    {
-                        Headers = new HeaderDictionary(),
-                        ContentType = "application/pdf"
-                    };
-                    var result = await uploadStatement.HandleAsync(new UploadStatementCommand(formFile), ct);
-                    results.Add(new BatchUploadItemResult(fileName, result.Imported, (UploadResult?)result, null));
-                }
-                catch (NotSupportedException ex)
-                {
-                    results.Add(new BatchUploadItemResult(fileName, false, null, ex.Message));
-                }
-                catch (Exception ex)
-                {
-                    results.Add(new BatchUploadItemResult(fileName, false, null, ex.Message));
-                }
-            }
-
-            return Ok(results);
-        }
-        finally
-        {
-            foreach (var (_, ms) in toProcess) ms.Dispose();
-        }
-    }
-
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
@@ -153,9 +84,3 @@ public record ImportMealCardTextRequest(
     DateOnly? PeriodFrom = null,
     DateOnly? PeriodTo = null,
     decimal? ClosingBalance = null);
-
-public record BatchUploadItemResult(
-    string FileName,
-    bool Success,
-    UploadResult? Result,
-    string? Error);

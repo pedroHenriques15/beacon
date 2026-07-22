@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
+using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +75,41 @@ public class SalaryHandlerTests
         db.SalarySlips.Add(slip);
         await db.SaveChangesAsync();
         return (profile, cat, slip);
+    }
+
+    [Fact]
+    public async Task DeleteItemCategory_InUse_ReturnsConflictSignal()
+    {
+        await using var db = CreateDb(nameof(DeleteItemCategory_InUse_ReturnsConflictSignal));
+        var (_, cat, slip) = await SeedSlipAsync(db);
+        db.SalaryLineItems.Add(new SalaryLineItem
+        {
+            SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+        });
+        await db.SaveChangesAsync();
+
+        var handler = new DeleteSalaryItemCategoryCommandHandler(db);
+        var (found, isProtected, inUse) = await handler.HandleAsync(new DeleteSalaryItemCategoryCommand(cat.Id));
+
+        Assert.True(found);
+        Assert.False(isProtected);
+        Assert.True(inUse);
+        Assert.True(await db.SalaryItemCategories.AnyAsync(c => c.Id == cat.Id));
+    }
+
+    [Fact]
+    public async Task DeleteItemCategory_Unused_Deletes()
+    {
+        await using var db = CreateDb(nameof(DeleteItemCategory_Unused_Deletes));
+        var (_, cat, _) = await SeedSlipAsync(db);
+
+        var handler = new DeleteSalaryItemCategoryCommandHandler(db);
+        var (found, isProtected, inUse) = await handler.HandleAsync(new DeleteSalaryItemCategoryCommand(cat.Id));
+
+        Assert.True(found);
+        Assert.False(isProtected);
+        Assert.False(inUse);
+        Assert.False(await db.SalaryItemCategories.AnyAsync(c => c.Id == cat.Id));
     }
 
     [Fact]

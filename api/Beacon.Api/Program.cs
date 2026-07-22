@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Backup.Commands.CreateBackup;
 using Beacon.Api.Features.Backup.Commands.RestoreBackup;
+using Beacon.Api.Features.Backup.Queries.DownloadBackup;
 using Beacon.Api.Models;
 using Beacon.Api.Features.Categories.Commands.CreateCategory;
 using Beacon.Api.Features.Categories.Commands.CreateCategoryRule;
@@ -100,6 +101,7 @@ builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
 
+builder.Services.AddScoped<DownloadBackupQueryHandler>();
 builder.Services.AddScoped<GetStatementsQueryHandler>();
 builder.Services.AddScoped<GetStatementByIdQueryHandler>();
 builder.Services.AddScoped<DownloadStatementFileQueryHandler>();
@@ -226,12 +228,52 @@ app.Use(async (context, next) =>
 
 if (app.Environment.IsDevelopment())
     app.UseCors();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<ApiKeyMiddleware>();
 app.MapControllers();
 
 await SeedDefaultDataAsync(app);
+await CleanupOrphanedPdfsAsync(app);
 
 app.Run();
+
+static async Task CleanupOrphanedPdfsAsync(WebApplication app)
+{
+    var storagePath = app.Configuration["Storage:Path"];
+    if (string.IsNullOrEmpty(storagePath) || !Directory.Exists(storagePath)) return;
+
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    referenced.UnionWith((await db.MonthlyStatements
+        .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
+    referenced.UnionWith((await db.SalarySlips
+        .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
+    referenced.UnionWith((await db.GroceryReceipts
+        .Where(r => r.PdfPath != null).Select(r => r.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
+
+    var cutoff = DateTime.UtcNow.AddHours(-24);
+    var deleted = 0;
+    foreach (var file in Directory.EnumerateFiles(storagePath, "*.pdf"))
+    {
+        if (referenced.Contains(Path.GetFullPath(file))) continue;
+        if (File.GetLastWriteTimeUtc(file) > cutoff) continue;
+        try
+        {
+            File.Delete(file);
+            deleted++;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not delete orphaned PDF {Path}", file);
+        }
+    }
+
+    if (deleted > 0)
+        logger.LogInformation("Deleted {Count} orphaned PDFs from storage", deleted);
+}
 
 static async Task SeedDefaultDataAsync(WebApplication app)
 {

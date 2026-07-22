@@ -47,7 +47,7 @@ public class UnifiedUploadBatchCommandHandler(
             }
             catch (Exception ex)
             {
-                logger.LogWarning("Failed to extract text from {File}: {Error}", fileName, ex.Message);
+                logger.LogWarning(ex, "Failed to extract text from {File}", fileName);
                 return new UnifiedUploadItemResult(fileName, "Unknown", false, false,
                     $"Could not read PDF: {ex.Message}", null, null, null);
             }
@@ -68,6 +68,7 @@ public class UnifiedUploadBatchCommandHandler(
                 }
                 catch (Exception ex)
                 {
+                    logger.LogError(ex, "Bank statement import failed for {File}", fileName);
                     return new UnifiedUploadItemResult(fileName, "BankStatement", false, false, ex.Message, null, null, null);
                 }
             }
@@ -87,6 +88,7 @@ public class UnifiedUploadBatchCommandHandler(
                 }
                 catch (Exception ex)
                 {
+                    logger.LogError(ex, "Grocery receipt import failed for {File}", fileName);
                     return new UnifiedUploadItemResult(fileName, "GroceryReceipt", false, false, ex.Message, null, null, null);
                 }
             }
@@ -128,7 +130,7 @@ public class UnifiedUploadBatchCommandHandler(
                 catch (Exception ex)
                 {
                     if (savedPath is not null) fileStorage.Delete(savedPath);
-                    logger.LogWarning("Salary slip processing failed for {File}: {Error}", fileName, ex.Message);
+                    logger.LogError(ex, "Salary slip processing failed for {File}", fileName);
                     return new UnifiedUploadItemResult(fileName, "SalarySlip", false, false, ex.Message, null, null, null);
                 }
             }

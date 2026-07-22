@@ -59,6 +59,36 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  downloadState = signal<'idle' | 'running' | 'error'>('idle');
+  downloadMessage = signal('');
+
+  downloadBackup(): void {
+    this.downloadState.set('running');
+    this.downloadMessage.set('');
+    this.http.get('/api/backup/download', { observe: 'response', responseType: 'blob' }).subscribe({
+      next: (res) => {
+        this.downloadState.set('idle');
+        const disposition = res.headers.get('Content-Disposition') ?? '';
+        const match = /filename="?([^";]+)"?/.exec(disposition);
+        const name = match?.[1] ?? 'Beacon_backup.json';
+        const url = URL.createObjectURL(res.body!);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => {
+        this.downloadState.set('error');
+        this.downloadMessage.set(
+          err.status === 404
+            ? 'No backup file exists yet — create a backup first.'
+            : 'Download failed. Please try again.',
+        );
+      },
+    });
+  }
+
   restoreBackup(): void {
     this.restoreState.set('running');
     this.restoreMessage.set('');

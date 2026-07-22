@@ -92,6 +92,27 @@ public class FileStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetFullPath_AbsolutePathOutsideStorage_ThrowsUnauthorized()
+    {
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            _service.GetFullPath("/etc/passwd"));
+    }
+
+    [Fact]
+    public void GetFullPath_RelativeTraversal_ThrowsUnauthorized()
+    {
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            _service.GetFullPath(Path.Combine("..", "outside.pdf")));
+    }
+
+    [Fact]
+    public void GetFullPath_PathInsideStorage_Resolves()
+    {
+        var result = _service.GetFullPath("some.pdf");
+        Assert.StartsWith(Path.GetFullPath(_tempRoot), result);
+    }
+
+    [Fact]
     public async Task GetFile_PathTraversal_ThrowsUnauthorized()
     {
         var parentDir  = Path.GetDirectoryName(_tempRoot)!;

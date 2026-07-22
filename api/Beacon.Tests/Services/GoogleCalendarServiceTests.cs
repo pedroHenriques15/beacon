@@ -166,7 +166,7 @@ public class GoogleCalendarServiceTests
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateCalendarSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<GoogleNotConnectedException>(
             () => svc.GetEventsAsync(new DateTime(2026, 5, 1), new DateTime(2026, 5, 31)));
     }
 

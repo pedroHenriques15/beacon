@@ -16,8 +16,15 @@ public class FileStorageService(IConfiguration config, ILogger<FileStorageServic
         return fullPath;
     }
 
-    public string GetFullPath(string path) =>
-        Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
+    public string GetFullPath(string path)
+    {
+        var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
+        var resolvedPath = Path.GetFullPath(fullPath);
+        var resolvedRoot = Path.GetFullPath(StorageRoot);
+        if (!resolvedPath.StartsWith(resolvedRoot, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Path traversal attempt detected.");
+        return resolvedPath;
+    }
 
     public (Stream Stream, string ContentType, string FileName) GetFile(string path, string originalFileName)
     {
@@ -35,7 +42,13 @@ public class FileStorageService(IConfiguration config, ILogger<FileStorageServic
 
     public void Delete(string path)
     {
-        var fullPath = Path.IsPathRooted(path) ? path : Path.Combine(StorageRoot, path);
+        string fullPath;
+        try { fullPath = GetFullPath(path); }
+        catch (UnauthorizedAccessException)
+        {
+            logger.LogWarning("Refused to delete path outside storage root: {Path}", path);
+            return;
+        }
         if (File.Exists(fullPath))
         {
             File.Delete(fullPath);
