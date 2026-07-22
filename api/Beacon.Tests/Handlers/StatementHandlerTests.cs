@@ -322,6 +322,38 @@ public class StatementHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteStatement_MiddleBpiStatement_RecomputesSuccessorPprSynthetic()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_MiddleBpiStatement_RecomputesSuccessorPprSynthetic));
+
+        MonthlyStatement MakeBpi(int month, decimal ppr, decimal? syntheticAmount) => new()
+        {
+            Bank = "BPI", Account = "PT51",
+            PeriodFrom = new DateOnly(2026, month, 1), PeriodTo = new DateOnly(2026, month, 28),
+            PprBalance = ppr,
+            Transactions = syntheticAmount is null ? [] :
+            [
+                new Transaction
+                {
+                    Description = "BPI Reforma - Ganhos", Amount = syntheticAmount.Value, Type = "credit",
+                    DatePosting = new DateOnly(2026, month, 28), DateValue = new DateOnly(2026, month, 28),
+                    Balance = ppr
+                }
+            ]
+        };
+
+        var feb = MakeBpi(2, 1100m, 100m);
+        db.MonthlyStatements.AddRange(MakeBpi(1, 1000m, null), feb, MakeBpi(3, 1300m, 200m));
+        await db.SaveChangesAsync();
+
+        await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(feb.Id));
+
+        var marSynthetic = await db.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
+        Assert.Equal(300m, marSynthetic.Amount);
+        Assert.Equal("credit", marSynthetic.Type);
+    }
+
+    [Fact]
     public async Task ImportMealCardText_InvalidText_ThrowsNotSupportedException()
     {
         await using var db = CreateDb(nameof(ImportMealCardText_InvalidText_ThrowsNotSupportedException));
@@ -337,7 +369,7 @@ public class StatementHandlerTests : IDisposable
         await using var db = CreateDb(nameof(ImportMealCardText_ValidText_CreatesStatementAndTransactions));
 
         var result = await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
 
         Assert.True(result.Imported);
         Assert.Equal("MEAL CARD", result.Bank);
@@ -354,7 +386,7 @@ public class StatementHandlerTests : IDisposable
         await using var db = CreateDb(nameof(ImportMealCardText_ParsesDebitAndCreditTypes));
 
         await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
 
         var txs = await db.Transactions.ToListAsync();
         Assert.Equal(2, txs.Count(t => t.Type == "debit"));
@@ -367,10 +399,10 @@ public class StatementHandlerTests : IDisposable
         await using var db = CreateDb(nameof(ImportMealCardText_DuplicatePeriod_ReturnsNotImported));
 
         await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
 
         var result = await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
 
         Assert.False(result.Imported);
         Assert.NotNull(result.Message);
@@ -390,7 +422,7 @@ public class StatementHandlerTests : IDisposable
         await db.SaveChangesAsync();
 
         await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
 
         var txs = await db.Transactions.ToListAsync();
         var lidl = txs.Single(t => t.Description.Contains("LIDL"));
@@ -419,11 +451,90 @@ public class StatementHandlerTests : IDisposable
 
         const string creditText = "05/01/2026 CARD RELOAD PT 100,00 €-";
         var result = await MakeImportHandler(db).HandleAsync(
-            new ImportMealCardTextCommand(creditText), CancellationToken.None);
+            new ImportMealCardTextCommand(creditText, ClosingBalance: 100m), CancellationToken.None);
 
         Assert.True(result.Imported);
         Assert.NotNull(result.TransferCandidates);
         Assert.Single(result.TransferCandidates);
         Assert.Equal(100m, result.TransferCandidates[0].Amount);
+    }
+
+    [Fact]
+    public async Task ImportMealCardText_EmptyBalance_DerivesFromPreviousStatement()
+    {
+        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_DerivesFromPreviousStatement));
+
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "MEAL CARD", Account = "",
+            PeriodFrom = new DateOnly(2025, 12, 1), PeriodTo = new DateOnly(2025, 12, 31),
+            ClosingBalance = 150m
+        });
+        await db.SaveChangesAsync();
+
+        // ValidMealCardText: debits 12,50 + 8,30 and credit 100,00 → 150 + 100 − 20.80 = 229.20
+        await MakeImportHandler(db).HandleAsync(
+            new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None);
+
+        var stmt = await db.MonthlyStatements
+            .Where(s => s.PeriodFrom == new DateOnly(2026, 1, 1))
+            .SingleAsync();
+        Assert.Equal(150m,    stmt.OpeningBalance);
+        Assert.Equal(229.20m, stmt.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task ImportMealCardText_EmptyBalance_NoPrevious_Throws()
+    {
+        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_NoPrevious_Throws));
+
+        // Silently importing with balance 0 would misrepresent the card in Total Balance.
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            MakeImportHandler(db).HandleAsync(
+                new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None));
+
+        Assert.Contains("balance", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await db.MonthlyStatements.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportMealCardText_EmptyBalance_GapBeforePrevious_Throws()
+    {
+        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_GapBeforePrevious_Throws));
+
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "MEAL CARD", Account = "",
+            PeriodFrom = new DateOnly(2025, 9, 1), PeriodTo = new DateOnly(2025, 9, 30),
+            ClosingBalance = 150m
+        });
+        await db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            MakeImportHandler(db).HandleAsync(
+                new ImportMealCardTextCommand(ValidMealCardText), CancellationToken.None));
+
+        Assert.Contains("gap", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ImportMealCardText_Backfill_WarnsAboutStaleLaterStatement()
+    {
+        await using var db = CreateDb(nameof(ImportMealCardText_Backfill_WarnsAboutStaleLaterStatement));
+
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "MEAL CARD", Account = "",
+            PeriodFrom = new DateOnly(2026, 2, 1), PeriodTo = new DateOnly(2026, 2, 28),
+            ClosingBalance = 300m
+        });
+        await db.SaveChangesAsync();
+
+        var result = await MakeImportHandler(db).HandleAsync(
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
+
+        Assert.True(result.Imported);
+        Assert.NotNull(result.Warnings);
+        Assert.Contains(result.Warnings, w => w.Contains("later MEAL CARD statement"));
     }
 }

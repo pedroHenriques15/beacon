@@ -226,7 +226,9 @@
         @for (r of groceryResults(); track r.receiptId) {
           <div class="file-row" [class.file-ok]="!r.wasDuplicate" [class.file-dup]="r.wasDuplicate">
             <span class="file-icon">{{ r.wasDuplicate ? '≈' : '✓' }}</span>
-            <span class="file-name">{{ r.storeName }} · {{ r.receiptDate | date: 'dd-MM-yyyy' }}</span>
+            <span class="file-name"
+              >{{ r.storeName }} · {{ r.receiptDate | date: 'dd-MM-yyyy' }}</span
+            >
             <span class="file-detail">
               {{ r.itemCount }} items · {{ r.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
             </span>
@@ -310,7 +312,9 @@
           />
         </div>
         <div>
-          <label class="field-label">Current balance (€)</label>
+          <label class="field-label"
+            >Current balance (€) — empty = derived from previous import</label
+          >
           <input
             class="field-input"
             type="number"
@@ -354,7 +358,6 @@
     }
   }
 </div>
-
 
 @if (showTransferReview()) {
   <div class="modal-overlay">
@@ -598,7 +601,9 @@
         <h3>New receipt category: {{ currentMappingCategory() }}</h3>
         <div class="modal-progress-row">
           @if (groceryMappingFileTotal() > 1) {
-            <span class="modal-file-badge">Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span>
+            <span class="modal-file-badge"
+              >Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span
+            >
           }
           <span class="modal-progress">{{ mappingProgress() }}</span>
         </div>

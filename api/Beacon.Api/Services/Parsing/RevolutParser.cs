@@ -51,6 +51,25 @@ public partial class RevolutParser : IBankStatementParser
         }
 
         var transactions = ParseTransactions(pages, opening);
+        if (!sm.Success && transactions.Count == 0)
+            throw new NotSupportedException(
+                "No EUR amounts found in this Revolut statement — only EUR statements are supported. " +
+                "If this is a non-EUR Revolut export, it cannot be imported.");
+
+        if (periodFrom == default || periodTo == default)
+        {
+            if (transactions.Count > 0)
+            {
+                periodFrom = transactions.Min(t => t.DatePosting);
+                periodTo   = transactions.Max(t => t.DatePosting);
+            }
+            else
+            {
+                throw new NotSupportedException(
+                    "Could not determine the Revolut statement period: the filename has no date range " +
+                    "(expected revolut_YYYY-MM-DD_YYYY-MM-DD.pdf) and no transactions were found to derive it from.");
+            }
+        }
 
         return new ParsedStatement(BankName, iban, periodFrom, periodTo,
             "EUR", opening, closing, fileName, transactions);

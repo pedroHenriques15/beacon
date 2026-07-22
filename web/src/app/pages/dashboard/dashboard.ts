@@ -1,14 +1,14 @@
 import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, NgClass, ConfirmDialogComponent],
+  imports: [CurrencyPipe, DatePipe, NgClass, ConfirmDialogComponent, RouterLink],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })

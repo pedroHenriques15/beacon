@@ -45,6 +45,11 @@ public class StatementUploadService(
             var fullText = string.Join("\n", pages);
             var parser = parserFactory.DetectParser(fullText);
             var parsed = parser.Parse(file.FileName, pages);
+
+            if (!string.Equals(parsed.Currency, "EUR", StringComparison.OrdinalIgnoreCase))
+                throw new NotSupportedException(
+                    $"Only EUR statements are supported — this statement is in {parsed.Currency}.");
+
             var warnings = ParseVerifier.VerifyStatement(parsed);
 
             if (await db.MonthlyStatements.AnyAsync(s =>
@@ -160,6 +165,29 @@ public class StatementUploadService(
                 }
             }
 
+            // Backfill correction runs AFTER the transfer-candidate scan so a synthetic
+            // created on a later statement can never be proposed as a transfer counterpart.
+            // The import itself is already committed — a recompute failure must not fail
+            // the upload (or delete the stored PDF of a persisted statement).
+            if (parsed.PprBalance.HasValue)
+            {
+                try
+                {
+                    var recomputed = await RecomputeNextPprSyntheticAsync(
+                        db, rules, parsed.PeriodFrom, parsed.PprBalance.Value);
+                    if (recomputed is not null)
+                        logger.LogInformation(
+                            "Recomputed synthetic PPR transaction for BPI {Period} after backfill of {NewPeriod}",
+                            recomputed, parsed.PeriodFrom);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "Failed to recompute the next BPI statement's synthetic PPR transaction after importing {Period}",
+                        parsed.PeriodFrom);
+                }
+            }
+
             return new UploadResult(true, parsed.Bank, parsed.PeriodFrom,
                 parsed.Transactions.Count, unknownCount, null,
                 candidates.Count > 0 ? candidates : null,
@@ -174,5 +202,72 @@ public class StatementUploadService(
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
         }
+    }
+
+    /// <summary>
+    /// Backfill correction (audit D1): when a BPI statement is inserted between two existing
+    /// ones, the chronologically next statement's synthetic "BPI Reforma - Ganhos" transaction
+    /// was computed against an older baseline — recompute it against the new statement.
+    /// Returns the period of the recomputed statement, or null when there was nothing to do.
+    /// </summary>
+    internal static async Task<DateOnly?> RecomputeNextPprSyntheticAsync(
+        AppDbContext db,
+        IReadOnlyList<CategoryRule> rules,
+        DateOnly uploadedPeriodFrom,
+        decimal uploadedPprBalance)
+    {
+        var nextStatement = await db.MonthlyStatements
+            .Include(s => s.Transactions)
+            .Where(s => s.Bank == "BPI" && s.PprBalance.HasValue && s.PeriodFrom > uploadedPeriodFrom)
+            .OrderBy(s => s.PeriodFrom)
+            .FirstOrDefaultAsync();
+
+        if (nextStatement is null) return null;
+
+        var newDelta = nextStatement.PprBalance!.Value - uploadedPprBalance;
+        var synthetic = nextStatement.Transactions
+            .FirstOrDefault(t => t.Description == "BPI Reforma - Ganhos");
+
+        if (synthetic is not null)
+        {
+            if (newDelta == 0)
+            {
+                // Respect user-touched rows: a manually categorised or excluded synthetic
+                // is left in place rather than silently destroyed.
+                if (synthetic.CategorySetManually || synthetic.IsExcluded) return null;
+                db.Transactions.Remove(synthetic);
+            }
+            else
+            {
+                synthetic.Amount = Math.Abs(newDelta);
+                synthetic.Type = newDelta >= 0 ? "credit" : "debit";
+            }
+        }
+        else if (newDelta != 0)
+        {
+            var matchedRule = rules
+                .OrderBy(r => r.Id)
+                .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
+
+            nextStatement.Transactions.Add(new Transaction
+            {
+                DatePosting = nextStatement.PeriodTo,
+                DateValue = nextStatement.PeriodTo,
+                Description = "BPI Reforma - Ganhos",
+                Amount = Math.Abs(newDelta),
+                Type = newDelta >= 0 ? "credit" : "debit",
+                Balance = nextStatement.PprBalance.Value,
+                CategoryId = matchedRule?.CategoryId,
+                CategoryRuleId = matchedRule?.Id,
+                CategorySetManually = false
+            });
+        }
+        else
+        {
+            return null;
+        }
+
+        await db.SaveChangesAsync();
+        return nextStatement.PeriodFrom;
     }
 }

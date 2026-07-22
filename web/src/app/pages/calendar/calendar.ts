@@ -135,8 +135,8 @@ export class CalendarPage implements OnInit {
       .filter((group) => group.tasks.length > 0);
   });
   completedTasks = computed(() => this.tasksService.tasks().filter((t) => t.completed));
-  taskListTitleMap = computed(() =>
-    new Map(this.tasksService.taskLists().map((l) => [l.id, l.title]))
+  taskListTitleMap = computed(
+    () => new Map(this.tasksService.taskLists().map((l) => [l.id, l.title])),
   );
 
   calendarWeeks = computed<WeekRow[]>(() => {
@@ -479,7 +479,11 @@ export class CalendarPage implements OnInit {
     this.dragOverListId.set(null);
   }
 
-  private executeTaskMove(dragged: Task, targetListId: string, previousTaskId: string | null): void {
+  private executeTaskMove(
+    dragged: Task,
+    targetListId: string,
+    previousTaskId: string | null,
+  ): void {
     if (dragged.taskListId !== targetListId) {
       this.tasksService.patchTask(dragged.id, { taskListId: targetListId });
     }

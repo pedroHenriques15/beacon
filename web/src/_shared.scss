@@ -236,6 +236,25 @@
   border-radius: $radius;
 }
 
+.warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-left: 3px solid var(--warning);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+  color: var(--warning);
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    font-weight: 600;
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

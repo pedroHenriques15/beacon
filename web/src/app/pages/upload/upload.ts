@@ -108,7 +108,7 @@ export class UploadComponent implements OnInit {
   selectedExistingCatId = signal<number | null>(null);
   mappingLoading = signal(false);
   showMappingModal = signal(false);
-  groceryMappingFileIdx   = signal(0);
+  groceryMappingFileIdx = signal(0);
   groceryMappingFileTotal = signal(0);
   private handledReceiptCategories = signal<Set<string>>(new Set());
   currentMappingCategory = computed(() => this.pendingMappingCategories()[this.mappingIndex()]);
@@ -407,7 +407,9 @@ export class UploadComponent implements OnInit {
           );
         }
 
-        this.groceryMappingFileTotal.set(dialogs.filter((d) => d.type === 'grocery-mapping').length);
+        this.groceryMappingFileTotal.set(
+          dialogs.filter((d) => d.type === 'grocery-mapping').length,
+        );
         this.groceryMappingFileIdx.set(0);
         this.pendingDialogs.set(dialogs);
         this.state.set('success');
@@ -462,7 +464,9 @@ export class UploadComponent implements OnInit {
         switchMap((profileId) =>
           this.salaryService
             .getItemCategories(profileId)
-            .pipe(switchMap((cats) => this.autoEnsureCategories(profileId, parsed.lineItems, cats))),
+            .pipe(
+              switchMap((cats) => this.autoEnsureCategories(profileId, parsed.lineItems, cats)),
+            ),
         ),
       )
       .subscribe((allCats) => {
@@ -524,7 +528,11 @@ export class UploadComponent implements OnInit {
             if (li.salaryItemCategoryId !== null || !li.hint) return li;
             const catId =
               allCats.find((c) => c.name.toLowerCase() === li.hint!.toLowerCase())?.id ?? null;
-            return { ...li, salaryItemCategoryId: catId, hint: catId !== null ? undefined : li.hint };
+            return {
+              ...li,
+              salaryItemCategoryId: catId,
+              hint: catId !== null ? undefined : li.hint,
+            };
           }),
         );
       });
@@ -682,7 +690,7 @@ export class UploadComponent implements OnInit {
       this.selectedTransfers.set(new Set(next.candidates.map((_, i) => i)));
       this.showTransferReview.set(true);
     } else if (next.type === 'grocery-mapping') {
-      const handled  = this.handledReceiptCategories();
+      const handled = this.handledReceiptCategories();
       const filtered = next.categories.filter((c) => !handled.has(c));
       if (filtered.length === 0) {
         this.groceryMappingFileTotal.update((n) => Math.max(0, n - 1));

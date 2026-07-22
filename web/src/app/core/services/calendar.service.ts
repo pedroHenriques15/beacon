@@ -11,8 +11,14 @@ export interface CalendarInfo {
 }
 
 const CALENDAR_PALETTE = [
-  '#6c63ff', '#e67c73', '#33b679', '#f6bf26',
-  '#039be5', '#8e24aa', '#f4511e', '#0b8043',
+  '#6c63ff',
+  '#e67c73',
+  '#33b679',
+  '#f6bf26',
+  '#039be5',
+  '#8e24aa',
+  '#f4511e',
+  '#0b8043',
 ];
 
 @Injectable({ providedIn: 'root' })

@@ -16,6 +16,17 @@
     <p class="subtitle">Financial overview across all accounts</p>
   </div>
 
+  @if (finance.unknownTypeCount() > 0) {
+    <div class="warning-banner">
+      <span>
+        {{ finance.unknownTypeCount() }} unclassified
+        {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded from
+        income and expense totals.
+      </span>
+      <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
+    </div>
+  }
+
   <div class="net-worth-card">
     <span class="label">Total Balance</span>
     <span class="amount">{{ finance.totalBalance() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>

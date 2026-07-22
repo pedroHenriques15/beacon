@@ -54,6 +54,7 @@ describe('AnalyticsComponent', () => {
           useValue: {
             allTransactions: signal([]),
             monthlySummaries: signal([]),
+            unknownTypeCount: signal(0),
             loading: signal(false),
           },
         },

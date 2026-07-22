@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   Chart,
   ArcElement,
@@ -44,7 +44,7 @@ Chart.register(
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, FormsModule],
+  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink],
   templateUrl: './analytics.html',
   styleUrl: './analytics.scss',
 })

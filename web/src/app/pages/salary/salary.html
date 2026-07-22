@@ -48,55 +48,59 @@
         <button class="btn-primary" (click)="openProfileCreate()">+ New profile</button>
       </div>
     } @else {
-    <div class="profile-overview-grid">
-      @for (profile of profiles(); track profile.id) {
-        @let latestSlip = latestSlipPerProfile().get(profile.id);
-        <div class="profile-overview-card" (click)="enterProfile(profile.id)">
-          <div class="poc-header">
-            <div class="poc-title">{{ profile.name }}</div>
-            <div class="poc-badge-actions" (click)="$event.stopPropagation()">
-              <button class="icon-btn show" title="Edit profile" (click)="openProfileEdit(profile)">
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+      <div class="profile-overview-grid">
+        @for (profile of profiles(); track profile.id) {
+          @let latestSlip = latestSlipPerProfile().get(profile.id);
+          <div class="profile-overview-card" (click)="enterProfile(profile.id)">
+            <div class="poc-header">
+              <div class="poc-title">{{ profile.name }}</div>
+              <div class="poc-badge-actions" (click)="$event.stopPropagation()">
+                <button
+                  class="icon-btn show"
+                  title="Edit profile"
+                  (click)="openProfileEdit(profile)"
                 >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            @if (latestSlip) {
+              <div class="poc-period">{{ formatPeriod(latestSlip.period) }}</div>
+              <div class="poc-amounts">
+                <span class="poc-gross">{{
+                  latestSlip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
+                }}</span>
+                <span class="poc-arrow">→</span>
+                <span class="poc-net">{{
+                  netFromLineItems(latestSlip) | currency: 'EUR' : 'symbol' : '1.2-2'
+                }}</span>
+              </div>
+              <div class="poc-chart">
+                <app-salary-pie-chart [slip]="latestSlip" [showLegend]="false" />
+              </div>
+            } @else {
+              <div class="poc-no-slips">No slips yet - click to view</div>
+            }
+
+            <div class="poc-footer">
+              {{ profile.slipCount }} slip{{ profile.slipCount !== 1 ? 's' : '' }} &nbsp;›
             </div>
           </div>
-
-          @if (latestSlip) {
-            <div class="poc-period">{{ formatPeriod(latestSlip.period) }}</div>
-            <div class="poc-amounts">
-              <span class="poc-gross">{{
-                latestSlip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
-              <span class="poc-arrow">→</span>
-              <span class="poc-net">{{
-                netFromLineItems(latestSlip) | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
-            </div>
-            <div class="poc-chart">
-              <app-salary-pie-chart [slip]="latestSlip" [showLegend]="false" />
-            </div>
-          } @else {
-            <div class="poc-no-slips">No slips yet - click to view</div>
-          }
-
-          <div class="poc-footer">
-            {{ profile.slipCount }} slip{{ profile.slipCount !== 1 ? 's' : '' }} &nbsp;›
-          </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
     }
   }
 

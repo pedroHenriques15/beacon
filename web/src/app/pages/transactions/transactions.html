@@ -39,7 +39,11 @@
           <span
             class="unknown-hint"
             [class.active]="filterCategory() === 'unknown'"
-            (click)="filterCategory() === 'unknown' ? filterCategory.set('') : filterCategory.set('unknown')"
+            (click)="
+              filterCategory() === 'unknown'
+                ? filterCategory.set('')
+                : filterCategory.set('unknown')
+            "
             >{{ unknownCount() }} uncategorized</span
           >
         }
@@ -73,6 +77,7 @@
         <option value="">All types</option>
         <option value="credit">Credit</option>
         <option value="debit">Debit</option>
+        <option value="unknown">Unclassified</option>
       </select>
 
       <select [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event)">
@@ -167,70 +172,70 @@
               </td>
               <td class="cat-cell">
                 <div class="cat-wrap">
-                    <button
-                      class="cat-badge"
-                      [class.unknown]="!tx.categoryId"
-                      [style.--cat-color]="tx.category?.color ?? '#64748b'"
-                      (click)="toggleDropdown(tx.id, $event)"
-                    >
-                      @if (tx.category) {
-                        <span class="cat-dot" [style.background]="tx.category.color"></span>
-                        {{ tx.category.name }}
-                      } @else {
-                        Unknown
-                      }
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-
-                    @if (openDropdownId() === tx.id) {
-                      <div
-                        class="cat-dropdown"
-                        [style.top.px]="dropdownPos()?.top"
-                        [style.left.px]="dropdownPos()?.left"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <input
-                          class="cat-search"
-                          type="text"
-                          placeholder="Search categories…"
-                          [ngModel]="catSearch()"
-                          (ngModelChange)="catSearch.set($event)"
-                          (click)="$event.stopPropagation()"
-                        />
-                        <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
-                          + Create new…
-                        </button>
-                        <div class="cat-divider"></div>
-                        <button
-                          class="cat-option none-opt"
-                          (click)="selectCategory(tx, null, $event)"
-                        >
-                          Unknown
-                        </button>
-                        <div class="cat-scroll">
-                          @for (cat of filteredCats(); track cat.id) {
-                            <button
-                              class="cat-option"
-                              [class.active]="tx.categoryId === cat.id"
-                              (click)="selectCategory(tx, cat.id, $event)"
-                            >
-                              <span class="cat-dot" [style.background]="cat.color"></span>
-                              {{ cat.name }}
-                            </button>
-                          }
-                        </div>
-                      </div>
+                  <button
+                    class="cat-badge"
+                    [class.unknown]="!tx.categoryId"
+                    [style.--cat-color]="tx.category?.color ?? '#64748b'"
+                    (click)="toggleDropdown(tx.id, $event)"
+                  >
+                    @if (tx.category) {
+                      <span class="cat-dot" [style.background]="tx.category.color"></span>
+                      {{ tx.category.name }}
+                    } @else {
+                      Unknown
                     }
-                  </div>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  @if (openDropdownId() === tx.id) {
+                    <div
+                      class="cat-dropdown"
+                      [style.top.px]="dropdownPos()?.top"
+                      [style.left.px]="dropdownPos()?.left"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <input
+                        class="cat-search"
+                        type="text"
+                        placeholder="Search categories…"
+                        [ngModel]="catSearch()"
+                        (ngModelChange)="catSearch.set($event)"
+                        (click)="$event.stopPropagation()"
+                      />
+                      <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
+                        + Create new…
+                      </button>
+                      <div class="cat-divider"></div>
+                      <button
+                        class="cat-option none-opt"
+                        (click)="selectCategory(tx, null, $event)"
+                      >
+                        Unknown
+                      </button>
+                      <div class="cat-scroll">
+                        @for (cat of filteredCats(); track cat.id) {
+                          <button
+                            class="cat-option"
+                            [class.active]="tx.categoryId === cat.id"
+                            (click)="selectCategory(tx, cat.id, $event)"
+                          >
+                            <span class="cat-dot" [style.background]="cat.color"></span>
+                            {{ cat.name }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
               </td>
               <td class="num amount" [ngClass]="tx.type">
                 {{ tx.type === 'debit' ? '-' : '+'
@@ -401,7 +406,9 @@
               <td class="desc">
                 {{ item.description }}
                 @if (item.isExcluded) {
-                  <button class="excluded-badge" (click)="gIncludeItem(item, $event)">excluded ↺</button>
+                  <button class="excluded-badge" (click)="gIncludeItem(item, $event)">
+                    excluded ↺
+                  </button>
                 }
               </td>
               <td class="cat-cell">
@@ -774,8 +781,7 @@
           class="btn-primary"
           (click)="gConfirmExclude(true)"
           [disabled]="
-            (!gExcludeRulePattern().trim() && gExcludeRuleValue() === null) ||
-            gExcludeRuleLoading()
+            (!gExcludeRulePattern().trim() && gExcludeRuleValue() === null) || gExcludeRuleLoading()
           "
         >
           {{ gExcludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
@@ -894,7 +900,8 @@
       </div>
       <p>
         Are you sure you want to delete
-        <strong>{{ selectedIds().size }} transaction{{ selectedIds().size !== 1 ? 's' : '' }}</strong
+        <strong
+          >{{ selectedIds().size }} transaction{{ selectedIds().size !== 1 ? 's' : '' }}</strong
         >?
       </p>
       <div class="modal-actions">

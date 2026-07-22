@@ -156,8 +156,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   hasSelection = computed(() => this.selectedIds().size > 0);
   allSelected = computed(
     () =>
-      this.filtered().length > 0 &&
-      this.filtered().every((tx) => this.selectedIds().has(tx.id)),
+      this.filtered().length > 0 && this.filtered().every((tx) => this.selectedIds().has(tx.id)),
   );
   confirmBulkDelete = signal(false);
 
@@ -371,21 +370,19 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   }
 
   constructor() {
-    effect(
-      () => {
-        void (
-          this.filterBank() +
-          this.filterMonth() +
-          this.filterType() +
-          this.filterCategory() +
-          this.search() +
-          this.sortCol() +
-          this.sortDir()
-        );
-        if (!this._filtersReady) return;
-        this._resetAndLoad();
-      },
-    );
+    effect(() => {
+      void (
+        this.filterBank() +
+        this.filterMonth() +
+        this.filterType() +
+        this.filterCategory() +
+        this.search() +
+        this.sortCol() +
+        this.sortDir()
+      );
+      if (!this._filtersReady) return;
+      this._resetAndLoad();
+    });
 
     effect(() => {
       void (
@@ -817,7 +814,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         categoryId: this.txCategoryId(),
         categorySetManually: true,
       })
-      .subscribe({ next: (updated) => this._afterTxSave(updated), error: () => this.txLoading.set(false) });
+      .subscribe({
+        next: (updated) => this._afterTxSave(updated),
+        error: () => this.txLoading.set(false),
+      });
   }
 
   private _afterTxSave(updated: Transaction): void {

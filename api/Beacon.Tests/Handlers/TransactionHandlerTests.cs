@@ -364,6 +364,34 @@ public class TransactionHandlerTests
     }
 
     [Fact]
+    public async Task GetTransactions_MonthFilter_UsesTransactionDate_NotStatementPeriod()
+    {
+        await using var db = CreateDb(nameof(GetTransactions_MonthFilter_UsesTransactionDate_NotStatementPeriod));
+
+        var stmt = new MonthlyStatement
+        {
+            Bank = "REVOLUT", Account = "PT52",
+            PeriodFrom = new DateOnly(2026, 6, 15), PeriodTo = new DateOnly(2026, 7, 14),
+            Transactions =
+            [
+                new Transaction { Description = "JULY SPEND", Amount = 40, Type = "debit",
+                    DatePosting = new DateOnly(2026, 7, 3), DateValue = new DateOnly(2026, 7, 3), Balance = 960 }
+            ]
+        };
+        db.MonthlyStatements.Add(stmt);
+        await db.SaveChangesAsync();
+
+        var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
+
+        var july = await handler.HandleAsync(new GetTransactionsQuery(null, "2026-07", null, null, null, Take: 100));
+        var june = await handler.HandleAsync(new GetTransactionsQuery(null, "2026-06", null, null, null, Take: 100));
+
+        Assert.Equal(1, july.TotalCount);
+        Assert.Equal("JULY SPEND", july.Items[0].Description);
+        Assert.Equal(0, june.TotalCount);
+    }
+
+    [Fact]
     public async Task GetTransactions_FilterByType_ReturnsOnlyMatchingType()
     {
         await using var db = CreateDb(nameof(GetTransactions_FilterByType_ReturnsOnlyMatchingType));

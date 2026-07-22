@@ -68,6 +68,48 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
         foreach (var cs in emptiedStatements)
             DeletePdf(cs.PdfPath, cs.Id);
 
+        if (statement.Bank == "BPI" && statement.PprBalance.HasValue)
+        {
+            try
+            {
+                var predecessor = await db.MonthlyStatements
+                    .Where(s => s.Bank == "BPI" && s.PprBalance.HasValue && s.PeriodFrom < statement.PeriodFrom)
+                    .OrderByDescending(s => s.PeriodFrom)
+                    .FirstOrDefaultAsync(ct);
+
+                if (predecessor is not null)
+                {
+                    var rules = await db.CategoryRules.ToListAsync(ct);
+                    await StatementUploadService.RecomputeNextPprSyntheticAsync(
+                        db, rules, predecessor.PeriodFrom, predecessor.PprBalance!.Value);
+                }
+                else
+                {
+                    // The successor is now the first PPR-bearing statement: its synthetic
+                    // has no baseline any more — remove it unless the user touched it.
+                    var successor = await db.MonthlyStatements
+                        .Include(s => s.Transactions)
+                        .Where(s => s.Bank == "BPI" && s.PprBalance.HasValue)
+                        .OrderBy(s => s.PeriodFrom)
+                        .FirstOrDefaultAsync(ct);
+
+                    var synthetic = successor?.Transactions.FirstOrDefault(t =>
+                        t.Description == "BPI Reforma - Ganhos" && !t.CategorySetManually && !t.IsExcluded);
+                    if (synthetic is not null)
+                    {
+                        db.Transactions.Remove(synthetic);
+                        await db.SaveChangesAsync(ct);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to recompute the successor's synthetic PPR transaction after deleting statement {Id}",
+                    statement.Id);
+            }
+        }
+
         return true;
     }
 

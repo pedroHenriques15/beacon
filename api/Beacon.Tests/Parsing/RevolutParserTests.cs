@@ -51,12 +51,37 @@ public class RevolutParserTests
     }
 
     [Fact]
-    public void Parse_PeriodDefaultsWhenFilenameHasNoPattern()
+    public void Parse_PeriodFallsBackToTransactionDates_WhenFilenameHasNoPattern()
     {
-        var result = _parser.Parse("statement.pdf", [BuildPage()]);
+        var page = BuildPage(txLine: """
+            05/01/2024 05/01/2024 INCOME 500,00€ 1.500,00€
+            20/01/2024 20/01/2024 EXPENSE 300,00€ 1.200,00€
+            """);
 
-        Assert.Equal(default, result.PeriodFrom);
-        Assert.Equal(default, result.PeriodTo);
+        var result = _parser.Parse("statement.pdf", [page]);
+
+        Assert.Equal(new DateOnly(2024, 1, 5),  result.PeriodFrom);
+        Assert.Equal(new DateOnly(2024, 1, 20), result.PeriodTo);
+    }
+
+    [Fact]
+    public void Parse_Throws_ForNonEurExport()
+    {
+        var page = """
+            IBAN PTabc123
+            Conta (Conta Corrente) 1,000.00$ 0.00$ 0.00$ 2,000.00$
+            01/05/2024 01/05/2024 PAYMENT 500.00$ 1,500.00$
+            """;
+
+        var ex = Assert.Throws<NotSupportedException>(() => _parser.Parse(ValidFileName, [page]));
+        Assert.Contains("EUR", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_Throws_WhenPeriodCannotBeDetermined()
+    {
+        var ex = Assert.Throws<NotSupportedException>(() => _parser.Parse("statement.pdf", [BuildPage()]));
+        Assert.Contains("period", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -89,6 +114,7 @@ public class RevolutParserTests
         var page = $"""
             IBAN PTabc123
             Some other text
+            01/01/2024 01/01/2024 PAYMENT 100,00€ 900,00€
             """;
 
         var result = _parser.Parse(ValidFileName, [page]);

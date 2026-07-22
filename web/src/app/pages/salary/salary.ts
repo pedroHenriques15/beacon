@@ -26,7 +26,13 @@ interface LineItemDraft {
 @Component({
   selector: 'app-salary',
   standalone: true,
-  imports: [CurrencyPipe, DecimalPipe, FormsModule, SalaryPieChartComponent, ConfirmDialogComponent],
+  imports: [
+    CurrencyPipe,
+    DecimalPipe,
+    FormsModule,
+    SalaryPieChartComponent,
+    ConfirmDialogComponent,
+  ],
   templateUrl: './salary.html',
   styleUrl: './salary.scss',
 })

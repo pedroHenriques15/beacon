@@ -19,7 +19,7 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
             q = q.Where(tx => tx.Statement.Bank == query.Bank.ToUpper());
 
         if (!string.IsNullOrEmpty(query.Month) && DateOnly.TryParse(query.Month + "-01", out var md))
-            q = q.Where(tx => tx.Statement.PeriodFrom.Year == md.Year && tx.Statement.PeriodFrom.Month == md.Month);
+            q = q.Where(tx => tx.DatePosting.Year == md.Year && tx.DatePosting.Month == md.Month);
 
         if (query.CategoryFilter == "unknown")
             q = q.Where(tx => tx.CategoryId == null);

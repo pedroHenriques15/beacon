@@ -161,7 +161,8 @@
               (dragover)="onListTitleDragOver(group.listId, $event)"
               (dragleave)="dragOverListId.set(null)"
               (drop)="onTaskDropOnList(group, $event)"
-            >{{ group.listTitle }}</span>
+              >{{ group.listTitle }}</span
+            >
             @for (task of group.tasks; track task.id) {
               <div
                 class="task-row"

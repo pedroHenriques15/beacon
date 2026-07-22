@@ -57,9 +57,7 @@ export class TasksService {
     this.error.set(null);
 
     forkJoin(
-      lists.map((list) =>
-        this.http.get<Task[]>('/api/tasks', { params: { listId: list.id } })
-      )
+      lists.map((list) => this.http.get<Task[]>('/api/tasks', { params: { listId: list.id } })),
     ).subscribe({
       next: (results) => {
         this._tasks.set(results.flat());

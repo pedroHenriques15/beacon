@@ -27,6 +27,16 @@
   @if (finance.loading()) {
     <div class="loading">Loading…</div>
   } @else {
+    @if (finance.unknownTypeCount() > 0) {
+      <div class="warning-banner">
+        <span>
+          {{ finance.unknownTypeCount() }} unclassified
+          {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded
+          from these charts and totals.
+        </span>
+        <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
+      </div>
+    }
     <div class="tab-filters filters-row">
       <select
         class="month-filter"
