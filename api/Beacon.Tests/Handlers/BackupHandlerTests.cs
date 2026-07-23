@@ -138,4 +138,30 @@ public class BackupHandlerTests : IDisposable
         foreach (var prop in doc.RootElement.EnumerateObject())
             Assert.Equal(0, prop.Value.GetArrayLength());
     }
+
+    [Fact]
+    public async Task CreateBackup_IncludesInvestmentData()
+    {
+        await using var db = CreateDb(nameof(CreateBackup_IncludesInvestmentData));
+        var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "VWCE", Name = "Vanguard FTSE All-World" };
+        db.InvestmentAssets.Add(asset);
+        await db.SaveChangesAsync();
+        db.InvestmentLots.Add(new InvestmentLot
+        {
+            AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 10, PricePerUnit = 100
+        });
+        db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
+        {
+            AssetId = asset.Id, Date = new DateOnly(2026, 1, 20), PricePerUnit = 105
+        });
+        await db.SaveChangesAsync();
+
+        var response = await MakeHandler(db).HandleAsync();
+        var json = await File.ReadAllTextAsync(response.Path);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal(1, doc.RootElement.GetProperty("InvestmentAssets").GetArrayLength());
+        Assert.Equal(1, doc.RootElement.GetProperty("InvestmentLots").GetArrayLength());
+        Assert.Equal(1, doc.RootElement.GetProperty("InvestmentPriceSnapshots").GetArrayLength());
+    }
 }

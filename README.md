@@ -30,9 +30,9 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ![Upload](docs/screenshots/upload.png)
 
-### Calendar
+### Investments
 
-![Calendar](docs/screenshots/calendar.png)
+![Investments](docs/screenshots/investments.png)
 
 ### Settings
 
@@ -49,6 +49,8 @@ Salary slip PDFs go through a similar flow - upload, parse, review the extracted
 Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, mapped to spending categories, and displayed in a filterable item list with monthly totals.
 
 Meal-card statements (which have no PDF export) are imported by pasting the transaction history as text.
+
+The Investments page tracks ETF and physical gold positions: buy/sell lots with fees, average-cost P&L (realised and unrealised), price change over 24h/1 week/1 month/since purchase, an allocation chart and portfolio value history. Prices come from Alpha Vantage (free tier): automatic refresh during market hours plus a one-call backfill of daily price history back to your first purchase. Gold is tracked in grams; ETFs are assumed EUR-listed.
 
 Beyond finance, the app integrates with Google Calendar and Google Tasks (optional): the Calendar page shows your events and tasks, supports creating/editing both, and works fully offline from Google with a graceful empty state. The Settings page manages the Google connection and database backup/restore, including downloading the backup file.
 
@@ -208,6 +210,9 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `ConnectionStrings__DefaultConnection` | SQL Server connection string                                                                  |
 | `Python__Executable`                   | Python binary (`python` or `python3`)                                                         |
 | `Python__ExtractorScript`              | Absolute path to `scripts/pdfExtractor.py`                                                    |
+| `AlphaVantage__ApiKey`                 | Alpha Vantage API key (optional - only needed for investment price fetching)                  |
+| `AlphaVantage__DailyQuota`             | Alpha Vantage daily request quota (default 25)                                                |
+| `AlphaVantage__ReservedForManual`      | Quota reserved for manual fetches and backfills (default 5)                                   |
 | `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional - only needed for Google Calendar/Tasks sync)            |
 | `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
 | `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console                                         |
@@ -230,7 +235,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend - xUnit (427 tests)
+# Backend - xUnit (481 tests)
 cd api
 dotnet test Beacon.Tests/
 
@@ -239,7 +244,7 @@ cd web
 npx ng test --watch=false
 ```
 
-Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary, groceries and Google services.
+Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary, groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services.
 
 ---
 

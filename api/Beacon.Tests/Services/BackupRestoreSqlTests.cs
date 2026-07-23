@@ -109,6 +109,19 @@ public class BackupRestoreSqlTests
             };
             db.GroceryReceipts.Add(receipt);
             await db.SaveChangesAsync();
+
+            var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "VWCE", Name = "Vanguard FTSE All-World" };
+            db.InvestmentAssets.Add(asset);
+            await db.SaveChangesAsync();
+            db.InvestmentLots.Add(new InvestmentLot
+            {
+                AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 10m, PricePerUnit = 100m
+            });
+            db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
+            {
+                AssetId = asset.Id, Date = new DateOnly(2026, 1, 20), PricePerUnit = 105m
+            });
+            await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
             var createHandler = new CreateBackupCommandHandler(db, config, NullLogger<CreateBackupCommandHandler>.Instance);
@@ -146,6 +159,11 @@ public class BackupRestoreSqlTests
             Assert.Equal(1, await verifyDb.GroceryReceiptCategoryMappings.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryReceipts.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryItems.CountAsync());
+
+            var restoredAsset = await verifyDb.InvestmentAssets.SingleAsync();
+            Assert.Equal("VWCE", restoredAsset.Ticker);
+            Assert.Equal(1, await verifyDb.InvestmentLots.CountAsync());
+            Assert.Equal(1, await verifyDb.InvestmentPriceSnapshots.CountAsync());
         }
         finally
         {

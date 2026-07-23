@@ -4,12 +4,16 @@ using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
+using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
 using Beacon.Api.Models;
+using Beacon.Api.Services;
+using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Beacon.Tests.Handlers;
 
@@ -435,5 +439,134 @@ public class InvestmentHandlerTests
 
         Assert.Equal(new DateOnly(2025, 6, 1), snaps[0].Date);
         Assert.Equal(new DateOnly(2025, 1, 1), snaps[1].Date);
+    }
+
+    // ---- Gold ticker enforcement ----
+
+    [Fact]
+    public async Task CreateAsset_Gold_IgnoresTickerInput()
+    {
+        await using var db = CreateDb(nameof(CreateAsset_Gold_IgnoresTickerInput));
+        var handler = new CreateInvestmentAssetCommandHandler(db);
+
+        var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Gold", "XAU", "Gold Bar", null));
+
+        Assert.Null(error);
+        Assert.Null(result!.Ticker);
+    }
+
+    [Fact]
+    public async Task UpdateAsset_Gold_ClearsStaleTicker()
+    {
+        await using var db = CreateDb(nameof(UpdateAsset_Gold_ClearsStaleTicker));
+        var asset = new InvestmentAsset { AssetType = "Gold", Ticker = "VWCE", Name = "Gold Bar" };
+        db.InvestmentAssets.Add(asset);
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db)
+            .HandleAsync(new UpdateInvestmentAssetCommand(asset.Id, "VWCE", "Gold Bar", null));
+
+        Assert.Null(error);
+        Assert.Null(result!.Ticker);
+    }
+
+    [Fact]
+    public async Task UpdateAsset_Gold_DuplicateName_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(UpdateAsset_Gold_DuplicateName_ReturnsError));
+        await SeedGoldAsync(db, "Gold Bar");
+        var second = new InvestmentAsset { AssetType = "Gold", Name = "Gold Coin" };
+        db.InvestmentAssets.Add(second);
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db)
+            .HandleAsync(new UpdateInvestmentAssetCommand(second.Id, null, "Gold Bar", null));
+
+        Assert.Null(result);
+        Assert.NotNull(error);
+    }
+
+    // ---- Oversell validation ----
+
+    [Fact]
+    public async Task CreateLot_SellMoreThanHeld_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(CreateLot_SellMoreThanHeld_ReturnsError));
+        var asset = await SeedEtfAsync(db);
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new CreateInvestmentLotCommandHandler(db).HandleAsync(
+            new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 2, 1), -6m, 110m, null, null));
+
+        Assert.Null(result);
+        Assert.Contains("only 5", error);
+    }
+
+    [Fact]
+    public async Task CreateLot_SellExactHolding_Succeeds()
+    {
+        await using var db = CreateDb(nameof(CreateLot_SellExactHolding_Succeeds));
+        var asset = await SeedEtfAsync(db);
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new CreateInvestmentLotCommandHandler(db).HandleAsync(
+            new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 2, 1), -5m, 110m, null, null));
+
+        Assert.Null(error);
+        Assert.Equal(-5m, result!.Quantity);
+    }
+
+    [Fact]
+    public async Task UpdateLot_SellIncreasedBeyondHolding_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(UpdateLot_SellIncreasedBeyondHolding_ReturnsError));
+        var asset = await SeedEtfAsync(db);
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 100 });
+        var sell = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 2, 1), Quantity = -5, PricePerUnit = 110 };
+        db.InvestmentLots.Add(sell);
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new UpdateInvestmentLotCommandHandler(db).HandleAsync(
+            new UpdateInvestmentLotCommand(sell.Id, sell.Date, -11m, 110m, null, null));
+
+        Assert.Null(result);
+        Assert.Contains("only 10", error);
+    }
+
+    [Fact]
+    public async Task UpdateLot_BuyReducedBelowSold_ReturnsError()
+    {
+        await using var db = CreateDb(nameof(UpdateLot_BuyReducedBelowSold_ReturnsError));
+        var asset = await SeedEtfAsync(db);
+        var buy = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 100 };
+        db.InvestmentLots.Add(buy);
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 2, 1), Quantity = -5, PricePerUnit = 110 });
+        await db.SaveChangesAsync();
+
+        var (result, error) = await new UpdateInvestmentLotCommandHandler(db).HandleAsync(
+            new UpdateInvestmentLotCommand(buy.Id, buy.Date, 3m, 100m, null, null));
+
+        Assert.Null(result);
+        Assert.Contains("more sold than held", error);
+    }
+
+    // ---- Fetch price ----
+
+    [Fact]
+    public async Task FetchPrice_NotFound_ReturnsNullNull()
+    {
+        await using var db = CreateDb(nameof(FetchPrice_NotFound_ReturnsNullNull));
+        var av = new AlphaVantageService(
+            new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
+            new ConfigurationBuilder().AddInMemoryCollection(
+                new Dictionary<string, string?> { ["AlphaVantage:ApiKey"] = "test-key" }).Build());
+
+        var (result, error) = await new FetchInvestmentPriceCommandHandler(db, av)
+            .HandleAsync(new FetchInvestmentPriceCommand(9999));
+
+        Assert.Null(result);
+        Assert.Null(error);
     }
 }

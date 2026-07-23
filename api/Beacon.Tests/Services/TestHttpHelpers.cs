@@ -23,6 +23,22 @@ internal sealed class FakeHttpClientFactory(HttpMessageHandler handler) : IHttpC
     public HttpClient CreateClient(string name) => new(handler);
 }
 
+internal sealed class RecordingHttpMessageHandler(System.Net.HttpStatusCode status, string body)
+    : HttpMessageHandler
+{
+    public List<Uri> Requests { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Requests.Add(request.RequestUri!);
+        return Task.FromResult(new HttpResponseMessage(status)
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+        });
+    }
+}
+
 internal sealed class SequentialHttpMessageHandler : HttpMessageHandler
 {
     private readonly Queue<HttpResponseMessage> _responses;
