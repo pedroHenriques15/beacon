@@ -1,0 +1,32 @@
+@use '../../../_shared' as *;
+@use 'investments-stats' as *;
+@use 'investments-table' as *;
+@use 'investments-charts' as *;
+
+.page-header__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-header__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inv-radio-group {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.inv-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text-body);
+  cursor: pointer;
+}

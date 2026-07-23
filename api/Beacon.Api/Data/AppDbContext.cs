@@ -19,6 +19,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<GroceryCategoryRule>           GroceryCategoryRules           => Set<GroceryCategoryRule>();
     public DbSet<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings => Set<GroceryReceiptCategoryMapping>();
     public DbSet<GoogleOAuthToken>              GoogleOAuthTokens              => Set<GoogleOAuthToken>();
+    public DbSet<InvestmentAsset>               InvestmentAssets               => Set<InvestmentAsset>();
+    public DbSet<InvestmentLot>                 InvestmentLots                 => Set<InvestmentLot>();
+    public DbSet<InvestmentPriceSnapshot>       InvestmentPriceSnapshots       => Set<InvestmentPriceSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -186,6 +189,39 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(m => m.GroceryCategoryId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<InvestmentAsset>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.AssetType).HasMaxLength(20).IsRequired();
+            e.Property(a => a.Ticker).HasMaxLength(20);
+            e.Property(a => a.Name).HasMaxLength(200).IsRequired();
+            e.Property(a => a.Notes).HasMaxLength(500);
+            e.HasMany(a => a.Lots)
+             .WithOne(l => l.Asset)
+             .HasForeignKey(l => l.AssetId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(a => a.PriceSnapshots)
+             .WithOne(p => p.Asset)
+             .HasForeignKey(p => p.AssetId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<InvestmentLot>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Quantity).HasColumnType("decimal(18,4)");
+            e.Property(l => l.PricePerUnit).HasColumnType("decimal(18,4)");
+            e.Property(l => l.Fees).HasColumnType("decimal(18,2)");
+            e.Property(l => l.Notes).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<InvestmentPriceSnapshot>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.PricePerUnit).HasColumnType("decimal(18,4)");
+            e.HasIndex(p => new { p.AssetId, p.Date }).IsUnique();
         });
 
         modelBuilder.Entity<GoogleOAuthToken>(e =>

@@ -1,0 +1,319 @@
+<div class="page-header">
+  <div class="page-header__row">
+    <div>
+      <h1>Investments</h1>
+      <p class="subtitle">ETFs and physical gold positions</p>
+    </div>
+    <div class="page-header__actions">
+      <button class="btn-secondary" (click)="openCreateAsset('ETF')">+ Add ETF</button>
+      <button class="btn-secondary" (click)="openCreateAsset('Gold')">+ Add Gold</button>
+    </div>
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="loading">Loading investments…</div>
+} @else if (error()) {
+  <div class="error">{{ error() }}</div>
+} @else {
+
+  <!-- Stats strip -->
+  <div class="inv-stats">
+    <div class="inv-stat">
+      <span class="inv-stat__label">Total Value</span>
+      <span class="inv-stat__value">{{ totalValue() | currency:'EUR':'symbol':'1.2-2' }}</span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">Cost Basis</span>
+      <span class="inv-stat__value">{{ totalCost() | currency:'EUR':'symbol':'1.2-2' }}</span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">Unrealised P&amp;L</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(totalPnl())">
+        {{ totalPnl() >= 0 ? '+' : '' }}{{ totalPnl() | currency:'EUR':'symbol':'1.2-2' }}
+      </span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">Total Return</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(totalPct())">
+        {{ totalPct() >= 0 ? '+' : '' }}{{ totalPct() | number:'1.2-2' }}%
+      </span>
+    </div>
+  </div>
+
+  @if (fetchError()) {
+    <div class="inv-fetch-error">{{ fetchError() }}</div>
+  }
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">All</button>
+    <button class="tab-btn" [class.active]="activeTab() === 'ETF'" (click)="activeTab.set('ETF')">ETFs</button>
+    <button class="tab-btn" [class.active]="activeTab() === 'Gold'" (click)="activeTab.set('Gold')">Gold</button>
+  </div>
+
+  <!-- Asset list -->
+  <div class="inv-asset-list">
+    @for (m of filteredMetrics(); track m.asset.id) {
+      <div class="inv-asset-row">
+        <!-- Asset header row -->
+        <div class="inv-asset-header" (click)="toggleExpand(m.asset.id)">
+          <span class="inv-asset-expand">{{ expandedAssetId() === m.asset.id ? '▼' : '▶' }}</span>
+
+          <div class="inv-asset-identity">
+            <span class="inv-asset-ticker">{{ m.asset.ticker ?? m.asset.name }}</span>
+            @if (m.asset.ticker) {
+              <span class="inv-asset-name">{{ m.asset.name }}</span>
+            }
+            <span class="inv-asset-type-badge" [ngClass]="m.asset.assetType === 'Gold' ? 'badge--gold' : 'badge--etf'">
+              {{ m.asset.assetType }}
+            </span>
+          </div>
+
+          <div class="inv-asset-metrics">
+            <div class="inv-metric">
+              <span class="inv-metric__label">Qty</span>
+              <span class="inv-metric__value">{{ formatQty(m.totalQuantity, m.asset.assetType) }}</span>
+            </div>
+            <div class="inv-metric">
+              <span class="inv-metric__label">Price</span>
+              <span class="inv-metric__value">
+                {{ m.currentPrice != null ? (m.currentPrice | currency:'EUR':'symbol':'1.2-4') : '—' }}
+              </span>
+            </div>
+            <div class="inv-metric">
+              <span class="inv-metric__label">Value</span>
+              <span class="inv-metric__value">
+                {{ m.currentValue != null ? (m.currentValue | currency:'EUR':'symbol':'1.2-2') : '—' }}
+              </span>
+            </div>
+            <div class="inv-metric">
+              <span class="inv-metric__label">P&amp;L</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.unrealizedPnl)">
+                @if (m.unrealizedPnl != null) {
+                  {{ m.unrealizedPnl >= 0 ? '+' : '' }}{{ m.unrealizedPnl | currency:'EUR':'symbol':'1.2-2' }}
+                  ({{ m.unrealizedPct! >= 0 ? '+' : '' }}{{ m.unrealizedPct! | number:'1.1-1' }}%)
+                } @else {
+                  —
+                }
+              </span>
+            </div>
+          </div>
+
+          <div class="inv-asset-actions" (click)="$event.stopPropagation()">
+            <button
+              class="btn-secondary btn--sm"
+              [disabled]="fetchingAssetId() === m.asset.id"
+              (click)="fetchPrice(m.asset)"
+              title="Fetch latest price from Alpha Vantage">
+              {{ fetchingAssetId() === m.asset.id ? '…' : '⟳' }}
+            </button>
+            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'buy')">Buy</button>
+            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'sell')">Sell</button>
+            <button class="btn-secondary btn--sm" (click)="openPriceModal(m.asset.id)">Price</button>
+            <button class="btn-secondary btn--sm" (click)="openEditAsset(m.asset)">Edit</button>
+            <button class="btn-danger btn--sm" (click)="deleteAsset(m.asset)">Delete</button>
+          </div>
+        </div>
+
+        <!-- Expanded body -->
+        @if (expandedAssetId() === m.asset.id) {
+          <div class="inv-asset-body">
+
+            <!-- Lots table -->
+            <h4 class="inv-section-title">Entries</h4>
+            @if (m.asset.lots.length === 0) {
+              <p class="inv-empty">No entries yet.</p>
+            } @else {
+              <table class="inv-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Qty</th>
+                    <th>Price/Unit</th>
+                    <th>Fees</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (lot of m.asset.lots; track lot.id) {
+                    <tr>
+                      <td>{{ formatDate(lot.date) }}</td>
+                      <td>
+                        <span class="inv-lot-badge" [ngClass]="lot.quantity > 0 ? 'badge--buy' : 'badge--sell'">
+                          {{ lot.quantity > 0 ? 'Buy' : 'Sell' }}
+                        </span>
+                      </td>
+                      <td>{{ formatQty(Math.abs(lot.quantity), m.asset.assetType) }}</td>
+                      <td>{{ lot.pricePerUnit | currency:'EUR':'symbol':'1.2-4' }}</td>
+                      <td>{{ lot.fees != null ? (lot.fees | currency:'EUR':'symbol':'1.2-2') : '—' }}</td>
+                      <td class="inv-table__notes">{{ lot.notes ?? '—' }}</td>
+                      <td class="inv-table__actions">
+                        <button class="btn-secondary btn--xs" (click)="openEditLot(lot, m.asset.id)">Edit</button>
+                        <button class="btn-danger btn--xs" (click)="deleteLot(lot)">Del</button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+
+            <!-- Price snapshots table -->
+            <h4 class="inv-section-title">Price History</h4>
+            @if (m.asset.priceSnapshots.length === 0) {
+              <p class="inv-empty">No prices recorded yet.</p>
+            } @else {
+              <table class="inv-table inv-table--compact">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Price/Unit</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (snap of m.asset.priceSnapshots; track snap.id) {
+                    <tr>
+                      <td>{{ formatDate(snap.date) }}</td>
+                      <td>{{ snap.pricePerUnit | currency:'EUR':'symbol':'1.2-4' }}</td>
+                      <td class="inv-table__actions">
+                        <button class="btn-danger btn--xs" (click)="deletePrice(snap)">Del</button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (filteredMetrics().length === 0) {
+      <p class="inv-empty-state">No investments yet. Use the buttons above to add your first ETF or gold position.</p>
+    }
+  </div>
+
+  <!-- Charts -->
+  @if (assets().length > 0) {
+    <div class="inv-charts">
+      <div class="inv-chart-card">
+        <h3 class="inv-chart-title">Allocation</h3>
+        <canvas #allocationCanvas></canvas>
+      </div>
+      <div class="inv-chart-card">
+        <h3 class="inv-chart-title">Portfolio Value</h3>
+        @if (svc.portfolioHistory().length < 2) {
+          <p class="inv-chart-placeholder">Add price snapshots to see the historical chart.</p>
+        } @else {
+          <canvas #historyCanvas></canvas>
+        }
+      </div>
+    </div>
+  }
+}
+
+<!-- Asset modal -->
+@if (showAssetModal()) {
+  <div class="modal-overlay" (click)="showAssetModal.set(false)">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ assetModalMode() === 'create' ? 'Add ' + modalAssetType() : 'Edit Asset' }}</h3>
+        <button class="modal-close" (click)="showAssetModal.set(false)">✕</button>
+      </div>
+
+      @if (assetModalMode() === 'create') {
+        <label class="field-label">Asset Type</label>
+        <div class="inv-radio-group">
+          <label class="inv-radio"><input type="radio" name="assetType" value="ETF" [(ngModel)]="modalAssetType" [ngModelOptions]="{standalone:true}" (change)="modalAssetType.set('ETF')"> ETF</label>
+          <label class="inv-radio"><input type="radio" name="assetType" value="Gold" [(ngModel)]="modalAssetType" [ngModelOptions]="{standalone:true}" (change)="modalAssetType.set('Gold')"> Gold</label>
+        </div>
+      }
+
+      @if (modalAssetType() === 'ETF') {
+        <label class="field-label">Ticker Symbol</label>
+        <input class="field-input" type="text" placeholder="e.g. VWCE" [value]="modalTicker()" (input)="modalTicker.set($any($event.target).value)">
+      }
+
+      <label class="field-label">Name</label>
+      <input class="field-input" type="text" placeholder="e.g. Vanguard FTSE All-World ETF" [value]="modalAssetName()" (input)="modalAssetName.set($any($event.target).value)">
+
+      <label class="field-label">Notes (optional)</label>
+      <input class="field-input" type="text" [value]="modalAssetNotes()" (input)="modalAssetNotes.set($any($event.target).value)">
+
+      @if (assetError()) { <p class="inv-modal-error">{{ assetError() }}</p> }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showAssetModal.set(false)">Cancel</button>
+        <button class="btn-primary" [disabled]="assetSaving()" (click)="submitAsset()">
+          {{ assetSaving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Lot modal -->
+@if (showLotModal()) {
+  <div class="modal-overlay" (click)="showLotModal.set(false)">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ lotModalTitle() }}</h3>
+        <button class="modal-close" (click)="showLotModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Date</label>
+      <input class="field-input" type="date" [value]="lotDate()" (input)="lotDate.set($any($event.target).value)">
+
+      <label class="field-label">{{ lotUnitLabel() }}</label>
+      <input class="field-input" type="number" min="0" step="any" placeholder="0" [value]="lotQuantity() ?? ''" (input)="lotQuantity.set(+$any($event.target).value || null)">
+
+      <label class="field-label">Price per {{ lotAssetType() === 'Gold' ? 'Gram' : 'Share' }} (€)</label>
+      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="lotPrice() ?? ''" (input)="lotPrice.set(+$any($event.target).value || null)">
+
+      <label class="field-label">Fees (€, optional)</label>
+      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="lotFees() ?? ''" (input)="lotFees.set(+$any($event.target).value || null)">
+
+      <label class="field-label">Notes (optional)</label>
+      <input class="field-input" type="text" [value]="lotNotes()" (input)="lotNotes.set($any($event.target).value)">
+
+      @if (lotError()) { <p class="inv-modal-error">{{ lotError() }}</p> }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showLotModal.set(false)">Cancel</button>
+        <button class="btn-primary" [disabled]="lotSaving()" (click)="submitLot()">
+          {{ lotSaving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Price modal -->
+@if (showPriceModal()) {
+  <div class="modal-overlay" (click)="showPriceModal.set(false)">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Update Price — {{ priceAssetLabel() }}</h3>
+        <button class="modal-close" (click)="showPriceModal.set(false)">✕</button>
+      </div>
+
+      <label class="field-label">Date</label>
+      <input class="field-input" type="date" [value]="priceDate()" (input)="priceDate.set($any($event.target).value)">
+
+      <label class="field-label">Current Price (€)</label>
+      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="priceValue() ?? ''" (input)="priceValue.set(+$any($event.target).value || null)">
+
+      @if (priceError()) { <p class="inv-modal-error">{{ priceError() }}</p> }
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showPriceModal.set(false)">Cancel</button>
+        <button class="btn-primary" [disabled]="priceSaving()" (click)="submitPrice()">
+          {{ priceSaving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

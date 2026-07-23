@@ -43,5 +43,11 @@ export const routes: Routes = [
     title: 'Calendar · Beacon',
     loadComponent: () => import('./pages/calendar/calendar').then((m) => m.CalendarPage),
   },
+  {
+    path: 'investments',
+    title: 'Investments · Beacon',
+    loadComponent: () =>
+      import('./pages/investments/investments').then((m) => m.InvestmentsComponent),
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];

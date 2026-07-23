@@ -25,6 +25,16 @@ using Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
 using Beacon.Api.Features.Salary.Queries.GetSalaryItemCategories;
 using Beacon.Api.Features.Salary.Queries.GetSalaryProfiles;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
+using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
+using Beacon.Api.Features.Investments.Commands.CreateInvestmentAsset;
+using Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
+using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
+using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
+using Beacon.Api.Features.Investments.Commands.UpdateInvestmentLot;
+using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
+using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
+using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
+using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -170,6 +180,19 @@ builder.Services.AddScoped<GetSalaryItemCategoriesQueryHandler>();
 builder.Services.AddScoped<CreateSalaryItemCategoryCommandHandler>();
 builder.Services.AddScoped<UpdateSalaryItemCategoryCommandHandler>();
 builder.Services.AddScoped<DeleteSalaryItemCategoryCommandHandler>();
+
+builder.Services.AddScoped<AlphaVantageService>();
+builder.Services.AddScoped<GetInvestmentAssetsQueryHandler>();
+builder.Services.AddScoped<CreateInvestmentAssetCommandHandler>();
+builder.Services.AddScoped<UpdateInvestmentAssetCommandHandler>();
+builder.Services.AddScoped<DeleteInvestmentAssetCommandHandler>();
+builder.Services.AddScoped<CreateInvestmentLotCommandHandler>();
+builder.Services.AddScoped<UpdateInvestmentLotCommandHandler>();
+builder.Services.AddScoped<DeleteInvestmentLotCommandHandler>();
+builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
+builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
+builder.Services.AddScoped<FetchInvestmentPriceCommandHandler>();
+builder.Services.AddHostedService<InvestmentPriceRefreshService>();
 
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>

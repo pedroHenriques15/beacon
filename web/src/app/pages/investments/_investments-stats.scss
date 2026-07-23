@@ -1,0 +1,39 @@
+@use '../../../_shared' as *;
+
+.inv-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inv-stat {
+  @include card(12px);
+  padding: 1.1rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.inv-stat__label {
+  font-size: 0.73rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.inv-stat__value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+
+  &.positive { color: var(--credit); }
+  &.negative { color: var(--debit); }
+}

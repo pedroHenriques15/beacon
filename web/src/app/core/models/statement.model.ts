@@ -177,6 +177,33 @@ export interface UnifiedUploadItemResult {
   salaryResult: UnifiedSalaryResult | null;
 }
 
+export interface InvestmentLot {
+  id: number;
+  assetId: number;
+  date: string;
+  quantity: number;
+  pricePerUnit: number;
+  fees: number | null;
+  notes: string | null;
+}
+
+export interface InvestmentPriceSnapshot {
+  id: number;
+  assetId: number;
+  date: string;
+  pricePerUnit: number;
+}
+
+export interface InvestmentAsset {
+  id: number;
+  assetType: 'ETF' | 'Gold';
+  ticker: string | null;
+  name: string;
+  notes: string | null;
+  lots: InvestmentLot[];
+  priceSnapshots: InvestmentPriceSnapshot[];
+}
+
 export interface ParsedSlipResponse {
   parserName: string;
   employer: string;
