@@ -1,0 +1,25 @@
+.cal-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: 8px;
+  color: var(--success);
+  font-size: 0.85rem;
+  padding: 0.55rem 1rem;
+  pointer-events: none;
+  z-index: 300;
+  animation: cal-toast-in 0.18s ease;
+}
+
+@keyframes cal-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

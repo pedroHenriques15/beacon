@@ -27,6 +27,16 @@
   @if (finance.loading()) {
     <div class="loading">Loading…</div>
   } @else {
+    @if (finance.unknownTypeCount() > 0) {
+      <div class="warning-banner">
+        <span>
+          {{ finance.unknownTypeCount() }} unclassified
+          {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded
+          from these charts and totals.
+        </span>
+        <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
+      </div>
+    }
     <div class="tab-filters filters-row">
       <select
         class="month-filter"
@@ -211,7 +221,7 @@
           <div class="detail-tx-list">
             @for (tx of categoryPeriodTransactions(); track tx.id) {
               <div class="detail-tx-row">
-                <span class="detail-tx-date">{{ tx.datePosting | slice: 0 : 10 }}</span>
+                <span class="detail-tx-date">{{ tx.datePosting | date: 'dd-MM-yyyy' }}</span>
                 <span class="detail-tx-desc">{{ tx.description }}</span>
                 <span
                   class="detail-tx-amt"
@@ -381,7 +391,7 @@
           <div class="detail-tx-list">
             @for (item of gCategoryPeriodItems(); track item.id) {
               <div class="detail-tx-row">
-                <span class="detail-tx-date">{{ item.receiptDate | slice: 0 : 10 }}</span>
+                <span class="detail-tx-date">{{ item.receiptDate | date: 'dd-MM-yyyy' }}</span>
                 <span class="detail-tx-desc">{{ item.description }}</span>
                 <span class="detail-tx-amt debit">{{
                   item.amount * item.quantity | currency: 'EUR' : 'symbol' : '1.2-2'

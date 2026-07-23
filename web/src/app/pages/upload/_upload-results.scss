@@ -1,86 +1,3 @@
-.result-card {
-  margin-top: 1.5rem;
-  padding: 2rem;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  text-align: center;
-
-  &.success {
-    border-color: rgba(52, 211, 153, 0.3);
-  }
-
-  h2 {
-    margin: 0.5rem 0;
-  }
-  p {
-    margin: 0.4rem 0;
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-  }
-  strong {
-    color: var(--text-primary);
-  }
-}
-
-.result-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(52, 211, 153, 0.15);
-  color: var(--success);
-  font-size: 1.4rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 0.75rem;
-}
-
-.unknown-notice {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 1rem 0 0.5rem;
-  padding: 0.6rem 1rem;
-  background: rgba(245, 158, 11, 0.1);
-  color: var(--warning);
-  border-radius: 8px;
-  font-size: 0.88rem;
-  text-align: left;
-}
-
-.all-good {
-  color: var(--success) !important;
-  font-size: 0.9rem;
-}
-
-.batch-stats {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin: 0.75rem 0;
-}
-
-.stat-pill {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  &.green {
-    background: rgba(52, 211, 153, 0.12);
-    color: var(--success);
-  }
-  &.yellow {
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--warning);
-  }
-  &.red {
-    background: rgba(239, 68, 68, 0.12);
-    color: var(--danger);
-  }
-}
-
 .file-list {
   margin-top: 1rem;
   display: flex;
@@ -151,21 +68,35 @@
   font-size: 0.9rem;
 
   &.duplicate {
-    background: rgba(245, 158, 11, 0.1);
+    background: color-mix(in srgb, var(--warning) 10%, transparent);
     color: var(--warning);
   }
   &.error {
-    background: rgba(239, 68, 68, 0.1);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
     color: var(--danger);
-  }
-  &.backup-ok {
-    background: rgba(52, 211, 153, 0.1);
-    color: var(--success);
   }
 }
 
 .mt {
   margin-top: 0.75rem;
+}
+
+.backup-section {
+  margin-top: 3rem;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  margin: 0 0 0.5rem;
+}
+
+.backup-hint {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
 }
 
 .meal-card-textarea {
@@ -185,31 +116,4 @@
     outline: none;
     border-color: var(--primary);
   }
-}
-
-.backup-section {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border);
-}
-
-.section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 0.5rem;
-}
-
-.backup-hint {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-.backup-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
 }

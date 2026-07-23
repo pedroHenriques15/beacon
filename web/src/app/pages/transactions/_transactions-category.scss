@@ -17,7 +17,7 @@
   font-weight: 600;
   border: none;
   cursor: pointer;
-  background: rgba(100, 116, 139, 0.15);
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
   color: var(--text-secondary);
   transition: opacity 0.15s;
   white-space: nowrap;
@@ -63,7 +63,7 @@
   margin-bottom: 0.3rem;
   outline: none;
   &:focus {
-    border-color: #4f8cff;
+    border-color: var(--focus);
   }
 }
 
@@ -91,7 +91,7 @@
   }
   &.active {
     color: var(--text-primary);
-    background: rgba(108, 99, 255, 0.12);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
   }
   &.none-opt {
     color: var(--text-muted);

@@ -23,6 +23,7 @@ function makeItem(overrides: Partial<GroceryItem> = {}): GroceryItem {
     categoryName: null,
     categoryColor: null,
     categorySetManually: false,
+    isExcluded: false,
     ...overrides,
   };
 }
@@ -53,6 +54,7 @@ describe('AnalyticsComponent', () => {
           useValue: {
             allTransactions: signal([]),
             monthlySummaries: signal([]),
+            unknownTypeCount: signal(0),
             loading: signal(false),
           },
         },

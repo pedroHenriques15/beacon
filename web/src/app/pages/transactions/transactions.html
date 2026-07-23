@@ -2,8 +2,15 @@
   <div class="header-row">
     <div>
       <h1>Transactions</h1>
+      <p class="subtitle">Browse and categorise your financial transactions</p>
     </div>
   </div>
+  @if (actionError()) {
+    <div class="error-banner">
+      <span>{{ actionError() }}</span>
+      <button class="banner-dismiss" (click)="actionError.set('')">✕</button>
+    </div>
+  }
   <div class="tab-bar">
     <button
       class="tab-btn"
@@ -35,23 +42,18 @@
         transactions
         @if (unknownCount() > 0) {
           ·
-          <span class="unknown-hint" (click)="filterCategory.set('unknown')"
+          <span
+            class="unknown-hint"
+            [class.active]="filterCategory() === 'unknown'"
+            (click)="
+              filterCategory() === 'unknown'
+                ? filterCategory.set('')
+                : filterCategory.set('unknown')
+            "
             >{{ unknownCount() }} uncategorized</span
           >
         }
       </p>
-      <div class="header-actions">
-        @if (transferCount() > 0) {
-          <button
-            class="btn-secondary"
-            [class.active]="showTransfers()"
-            style="min-width: 160px"
-            (click)="showTransfers.update(v => !v)"
-          >
-            {{ showTransfers() ? 'Hide' : 'Show' }} {{ transferCount() }} transfers
-          </button>
-        }
-      </div>
     </div>
 
     <div class="filters">
@@ -81,6 +83,7 @@
         <option value="">All types</option>
         <option value="credit">Credit</option>
         <option value="debit">Debit</option>
+        <option value="unknown">Unclassified</option>
       </select>
 
       <select [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event)">
@@ -95,24 +98,36 @@
     <div class="summary-bar">
       <div class="summary-item">
         <span class="label">In</span>
-        <span class="credit">{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+        <span class="credit">+{{ totalCredit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
       </div>
       <div class="summary-item">
         <span class="label">Out</span>
-        <span class="debit">{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+        <span class="debit">−{{ totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
       </div>
       <div class="summary-item">
         <span class="label">Net</span>
         <span [ngClass]="totalCredit() - totalDebit() >= 0 ? 'credit' : 'debit'">
-          {{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+          {{ totalCredit() - totalDebit() >= 0 ? '+' : ''
+          }}{{ totalCredit() - totalDebit() | currency: 'EUR' : 'symbol' : '1.2-2' }}
         </span>
       </div>
     </div>
+
+    @if (hasSelection()) {
+      <div class="bulk-bar">
+        <span>{{ selectedIds().size }} selected</span>
+        <button class="btn-secondary" (click)="bulkExclude()">Exclude</button>
+        <button class="btn-danger" (click)="bulkDelete()">Delete</button>
+      </div>
+    }
 
     <div class="table-wrapper">
       <table class="tx-table">
         <thead>
           <tr>
+            <th class="sel-col">
+              <input type="checkbox" [checked]="allSelected()" (change)="toggleAll()" />
+            </th>
             <th class="sortable" (click)="sort('date')">Date{{ sortIcon('date') }}</th>
             <th class="sortable" (click)="sort('bank')">Bank{{ sortIcon('bank') }}</th>
             <th class="sortable" (click)="sort('description')">
@@ -127,7 +142,7 @@
         <tbody>
           @if (pageLoading() && loadedItems().length === 0) {
             <tr>
-              <td colspan="7" class="empty">Loading…</td>
+              <td colspan="8" class="empty">Loading…</td>
             </tr>
           }
           @for (tx of filtered(); track tx.id) {
@@ -135,92 +150,99 @@
               [ngClass]="{
                 credit: tx.type === 'credit',
                 debit: tx.type === 'debit',
-                'transfer-row': tx.isInternalTransfer,
+                'excluded-row': tx.isExcluded,
+                selected: selectedIds().has(tx.id),
               }"
             >
+              <td class="sel-col">
+                <input
+                  type="checkbox"
+                  [checked]="selectedIds().has(tx.id)"
+                  (change)="toggleRow(tx.id)"
+                  (click)="$event.stopPropagation()"
+                />
+              </td>
               <td class="date">{{ tx.datePosting | date: 'dd MMM yyyy' }}</td>
               <td>
                 <span class="bank-badge" [attr.data-bank]="tx.bank">{{ tx.bank }}</span>
               </td>
               <td class="desc">
                 {{ tx.description }}
-                @if (tx.isInternalTransfer) {
+                @if (tx.isExcluded) {
                   <span
-                    class="transfer-badge"
-                    title="Internal transfer - click to unmark"
-                    (click)="unmarkTransfer(tx, $event)"
-                    >⇄ transfer</span
+                    class="excluded-badge"
+                    title="Excluded - click to include"
+                    (click)="includeTransaction(tx, $event)"
+                    >excluded</span
                   >
                 }
               </td>
               <td class="cat-cell">
-                @if (!tx.isInternalTransfer) {
-                  <div class="cat-wrap">
-                    <button
-                      class="cat-badge"
-                      [class.unknown]="!tx.categoryId"
-                      [style.--cat-color]="tx.category?.color ?? '#64748b'"
-                      (click)="toggleDropdown(tx.id, $event)"
-                    >
-                      @if (tx.category) {
-                        <span class="cat-dot" [style.background]="tx.category.color"></span>
-                        {{ tx.category.name }}
-                      } @else {
-                        Unknown
-                      }
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-
-                    @if (openDropdownId() === tx.id) {
-                      <div
-                        class="cat-dropdown"
-                        [style.top.px]="dropdownPos()?.top"
-                        [style.left.px]="dropdownPos()?.left"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <input
-                          class="cat-search"
-                          type="text"
-                          placeholder="Search categories…"
-                          [ngModel]="catSearch()"
-                          (ngModelChange)="catSearch.set($event)"
-                          (click)="$event.stopPropagation()"
-                        />
-                        <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
-                          + Create new…
-                        </button>
-                        <div class="cat-divider"></div>
-                        <button
-                          class="cat-option none-opt"
-                          (click)="selectCategory(tx, null, $event)"
-                        >
-                          Unknown
-                        </button>
-                        <div class="cat-scroll">
-                          @for (cat of filteredCats(); track cat.id) {
-                            <button
-                              class="cat-option"
-                              [class.active]="tx.categoryId === cat.id"
-                              (click)="selectCategory(tx, cat.id, $event)"
-                            >
-                              <span class="cat-dot" [style.background]="cat.color"></span>
-                              {{ cat.name }}
-                            </button>
-                          }
-                        </div>
-                      </div>
+                <div class="cat-wrap">
+                  <button
+                    class="cat-badge"
+                    [class.unknown]="!tx.categoryId"
+                    [style.--cat-color]="tx.category?.color ?? '#64748b'"
+                    (click)="toggleDropdown(tx.id, $event)"
+                  >
+                    @if (tx.category) {
+                      <span class="cat-dot" [style.background]="tx.category.color"></span>
+                      {{ tx.category.name }}
+                    } @else {
+                      Unknown
                     }
-                  </div>
-                }
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  @if (openDropdownId() === tx.id) {
+                    <div
+                      class="cat-dropdown"
+                      [style.top.px]="dropdownPos()?.top"
+                      [style.left.px]="dropdownPos()?.left"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <input
+                        class="cat-search"
+                        type="text"
+                        placeholder="Search categories…"
+                        [ngModel]="catSearch()"
+                        (ngModelChange)="catSearch.set($event)"
+                        (click)="$event.stopPropagation()"
+                      />
+                      <button class="cat-option create-opt" (click)="openCreate(tx, $event)">
+                        + Create new…
+                      </button>
+                      <div class="cat-divider"></div>
+                      <button
+                        class="cat-option none-opt"
+                        (click)="selectCategory(tx, null, $event)"
+                      >
+                        Unknown
+                      </button>
+                      <div class="cat-scroll">
+                        @for (cat of filteredCats(); track cat.id) {
+                          <button
+                            class="cat-option"
+                            [class.active]="tx.categoryId === cat.id"
+                            (click)="selectCategory(tx, cat.id, $event)"
+                          >
+                            <span class="cat-dot" [style.background]="cat.color"></span>
+                            {{ cat.name }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
               </td>
               <td class="num amount" [ngClass]="tx.type">
                 {{ tx.type === 'debit' ? '-' : '+'
@@ -228,17 +250,27 @@
               </td>
               <td class="num balance">{{ tx.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
               <td class="act-col">
-                @if (!tx.isInternalTransfer) {
+                @if (!tx.isExcluded) {
                   <button
-                    class="tx-transfer-btn"
-                    title="Mark as internal transfer"
-                    (click)="markTransfer(tx, $event)"
+                    class="tx-exclude-btn"
+                    title="Exclude from totals"
+                    (click)="excludeTransaction(tx, $event)"
                   >
-                    ⇄
+                    ⊘
+                  </button>
+                } @else {
+                  <button
+                    class="tx-include-btn"
+                    title="Include in totals"
+                    (click)="includeTransaction(tx, $event)"
+                  >
+                    ↺
                   </button>
                 }
                 <button
                   class="tx-edit-btn"
+                  [class.disabled]="hasSelection()"
+                  [disabled]="hasSelection()"
                   title="Edit transaction"
                   (click)="openTxEdit(tx, $event)"
                 >
@@ -254,9 +286,13 @@
               </td>
             </tr>
           } @empty {
-            @if (!pageLoading()) {
+            @if (fetchError()) {
               <tr>
-                <td colspan="7" class="empty">No transactions match the current filters.</td>
+                <td colspan="8" class="empty error-text">{{ fetchError() }}</td>
+              </tr>
+            } @else if (!pageLoading()) {
+              <tr>
+                <td colspan="8" class="empty">No transactions match the current filters.</td>
               </tr>
             }
           }
@@ -373,12 +409,19 @@
             </tr>
           }
           @for (item of gFiltered(); track item.id) {
-            <tr>
+            <tr [ngClass]="{ 'excluded-row': item.isExcluded }">
               <td class="date">{{ item.receiptDate | date: 'dd MMM yyyy' }}</td>
               <td>
                 <span class="store-badge">{{ item.storeName }}</span>
               </td>
-              <td class="desc">{{ item.description }}</td>
+              <td class="desc">
+                {{ item.description }}
+                @if (item.isExcluded) {
+                  <button class="excluded-badge" (click)="gIncludeItem(item, $event)">
+                    excluded ↺
+                  </button>
+                }
+              </td>
               <td class="cat-cell">
                 <div class="cat-wrap">
                   <button
@@ -457,6 +500,23 @@
                 {{ item.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
               </td>
               <td class="act-col">
+                @if (!item.isExcluded) {
+                  <button
+                    class="tx-exclude-btn"
+                    title="Exclude from totals"
+                    (click)="gExcludeItem(item, $event)"
+                  >
+                    ⊘
+                  </button>
+                } @else {
+                  <button
+                    class="tx-include-btn"
+                    title="Include in totals"
+                    (click)="gIncludeItem(item, $event)"
+                  >
+                    ↺
+                  </button>
+                }
                 <button class="tx-edit-btn" title="Edit item" (click)="gOpenItemEdit(item, $event)">
                   ✏
                 </button>
@@ -479,7 +539,11 @@
               </td>
             </tr>
           } @empty {
-            @if (!gPageLoading()) {
+            @if (gFetchError()) {
+              <tr>
+                <td colspan="7" class="empty error-text">{{ gFetchError() }}</td>
+              </tr>
+            } @else if (!gPageLoading()) {
               <tr>
                 <td colspan="7" class="empty">No items match the current filters.</td>
               </tr>
@@ -602,6 +666,146 @@
   </div>
 }
 
+@if (pendingExclude(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Exclude transaction</h3>
+        <button class="modal-close" (click)="cancelExclude()">✕</button>
+      </div>
+      <p>
+        Do you want to create a rule so future transactions matching this pattern are excluded
+        automatically?
+      </p>
+
+      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. TRF MB WAY"
+        [ngModel]="excludeRulePattern()"
+        (ngModelChange)="excludeRulePattern.set($event)"
+      />
+      <p class="field-hint">
+        Transactions whose description contains this text will be excluded automatically.
+      </p>
+
+      <label class="field-label">Value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 1500.00"
+        [ngModel]="excludeRuleValue()?.toString() ?? ''"
+        (ngModelChange)="
+          excludeRuleValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on transaction amount. If both fields are filled, both must match.
+      </p>
+
+      @if (excludeRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="excludeRuleMatchCount() === 0">
+          {{ excludeRuleMatchCount() }} existing transaction{{
+            excludeRuleMatchCount() !== 1 ? 's' : ''
+          }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="confirmExclude(false)"
+          [disabled]="excludeRuleLoading()"
+        >
+          Just this transaction
+        </button>
+        <button
+          class="btn-primary"
+          (click)="confirmExclude(true)"
+          [disabled]="
+            (!excludeRulePattern().trim() && excludeRuleValue() === null) || excludeRuleLoading()
+          "
+        >
+          {{ excludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (gPendingExclude(); as p) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Exclude grocery item</h3>
+        <button class="modal-close" (click)="gCancelExclude()">✕</button>
+      </div>
+      <p>
+        Do you want to create a rule so future grocery items matching this pattern are excluded
+        automatically?
+      </p>
+
+      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Saco Reutilizável"
+        [ngModel]="gExcludeRulePattern()"
+        (ngModelChange)="gExcludeRulePattern.set($event)"
+      />
+      <p class="field-hint">
+        Items whose description contains this text will be excluded automatically.
+      </p>
+
+      <label class="field-label">Value <span class="muted">(optional)</span></label>
+      <input
+        class="field-input"
+        type="text"
+        inputmode="decimal"
+        placeholder="e.g. 0.24"
+        [ngModel]="gExcludeRuleValue()?.toString() ?? ''"
+        (ngModelChange)="
+          gExcludeRuleValue.set($event.trim() !== '' ? +$event.replace(',', '.') : null)
+        "
+      />
+      <p class="field-hint">
+        Exact match on item amount. If both fields are filled, both must match.
+      </p>
+
+      @if (gExcludeRuleMatchCount() !== null) {
+        <p class="match-count" [class.match-count--none]="gExcludeRuleMatchCount() === 0">
+          {{ gExcludeRuleMatchCount() }} existing item{{
+            gExcludeRuleMatchCount() !== 1 ? 's' : ''
+          }}
+          match this rule
+        </p>
+      }
+
+      <div class="modal-actions">
+        <button
+          class="btn-secondary"
+          (click)="gConfirmExclude(false)"
+          [disabled]="gExcludeRuleLoading()"
+        >
+          Just this item
+        </button>
+        <button
+          class="btn-primary"
+          (click)="gConfirmExclude(true)"
+          [disabled]="
+            (!gExcludeRulePattern().trim() && gExcludeRuleValue() === null) || gExcludeRuleLoading()
+          "
+        >
+          {{ gExcludeRuleLoading() ? 'Saving…' : 'Create rule & exclude' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
 @if (showTxModal()) {
   <div class="modal-overlay">
     <div class="modal tx-modal" (click)="$event.stopPropagation()">
@@ -686,6 +890,9 @@
         }
       </select>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showTxModal.set(false)" [disabled]="txLoading()">
           Cancel
@@ -697,6 +904,27 @@
         >
           {{ txLoading() ? 'Saving…' : 'Save changes' }}
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (confirmBulkDelete()) {
+  <div class="modal-overlay">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete transactions</h3>
+        <button class="modal-close" (click)="confirmBulkDelete.set(false)">✕</button>
+      </div>
+      <p>
+        Are you sure you want to delete
+        <strong
+          >{{ selectedIds().size }} transaction{{ selectedIds().size !== 1 ? 's' : '' }}</strong
+        >?
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="confirmBulkDelete.set(false)">Cancel</button>
+        <button class="btn-danger" (click)="confirmBulkDeleteAction()">Delete</button>
       </div>
     </div>
   </div>
@@ -928,6 +1156,9 @@
         </div>
       </div>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button
           class="btn-secondary"
@@ -1115,6 +1346,9 @@
         </div>
       </div>
 
+      @if (modalError()) {
+        <p class="modal-error">{{ modalError() }}</p>
+      }
       <div class="modal-actions">
         <button
           class="btn-secondary"

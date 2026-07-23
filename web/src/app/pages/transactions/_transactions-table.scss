@@ -1,3 +1,24 @@
+.sel-col {
+  width: 36px;
+  text-align: center;
+  padding: 0 4px;
+
+  input[type='checkbox'] {
+    cursor: pointer;
+    accent-color: var(--primary);
+  }
+}
+
+tr.selected td {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.tx-edit-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;
@@ -89,11 +110,11 @@
     color: #00b4d8;
   }
   &[data-bank='REVOLUT'] {
-    background: rgba(108, 99, 255, 0.15);
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
     color: var(--primary);
   }
   &[data-bank='BPI'] {
-    background: rgba(245, 158, 11, 0.15);
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
     color: var(--warning);
   }
 }
@@ -105,11 +126,25 @@
   white-space: nowrap;
 }
 
-.tx-transfer-btn {
+.tx-exclude-btn {
   background: none;
   border: none;
   cursor: pointer;
   color: #2d3f55;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color 0.15s;
+  &:hover {
+    color: var(--text-muted);
+  }
+}
+
+.tx-include-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
   font-size: 0.8rem;
@@ -146,5 +181,32 @@
 
   &:hover {
     color: var(--debit);
+  }
+}
+
+@media (max-width: 640px) {
+  .tx-table {
+    th:nth-child(1),
+    td:nth-child(1),
+    th:nth-child(3),
+    td:nth-child(3),
+    th:nth-child(5),
+    td:nth-child(5),
+    th:nth-child(7),
+    td:nth-child(7) {
+      display: none;
+    }
+
+    td:nth-child(4) {
+      max-width: 40vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th:nth-child(6),
+    td:nth-child(6) {
+      white-space: nowrap;
+    }
   }
 }

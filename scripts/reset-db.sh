@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Beacon — Drop and recreate the database from EF Core migrations
+# Beacon - Drop and recreate the database from EF Core migrations
 # Usage: ./scripts/reset-db.sh [--force]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BACKEND_DIR="$PROJECT_ROOT/api/FinanceHub.Api"
+BACKEND_DIR="$PROJECT_ROOT/api/Beacon.Api"
 
 RED='\033[0;31m'; CYAN='\033[0;36m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 step() { echo -e "\n${CYAN}==> $1${NC}"; }
@@ -19,8 +19,8 @@ for arg in "$@"; do
 done
 
 echo ""
-echo -e "${YELLOW}Finance Hub — Database Reset${NC}"
-echo -e "${YELLOW}This will DROP the FinanceHub database and recreate it from migrations.${NC}"
+echo -e "${YELLOW}Beacon - Database Reset${NC}"
+echo -e "${YELLOW}This will DROP the Beacon database and recreate it from migrations.${NC}"
 echo -e "${YELLOW}All data (statements, transactions, categories, rules) will be lost.${NC}"
 
 if [[ "$FORCE" -eq 0 ]]; then
@@ -43,7 +43,7 @@ ok "dotnet-ef found"
 step "Reading connection string"
 
 APP_SETTINGS="$BACKEND_DIR/appsettings.json"
-[[ -f "$APP_SETTINGS" ]] || err "appsettings.json not found at: $APP_SETTINGS\n    Copy api/FinanceHub.Api/appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
+[[ -f "$APP_SETTINGS" ]] || err "appsettings.json not found at: $APP_SETTINGS\n    Copy api/Beacon.Api/appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
 
 CONN_STR="$(python3 -c "
 import json, sys
@@ -61,7 +61,7 @@ ok "Target database: $DB_NAME"
 step "Building project"
 
 ( cd "$BACKEND_DIR" && dotnet build -c Release --nologo -v q ) \
-    || err "Build failed — fix compilation errors before resetting the database"
+    || err "Build failed - fix compilation errors before resetting the database"
 ok "Build succeeded"
 
 step "Dropping database '$DB_NAME'"

@@ -1,5 +1,6 @@
 <div class="page-header">
   <h1>Settings</h1>
+  <p class="subtitle">Configure your account and integrations</p>
 </div>
 
 <div class="settings-section">
@@ -64,5 +65,68 @@
     <div class="google-card google-card--loading">
       <span class="text-muted">Loading…</span>
     </div>
+  }
+</div>
+
+<div class="settings-section">
+  <h2 class="settings-section__title">Database Backup</h2>
+  <div class="backup-card">
+    <div class="backup-card__info">
+      <p class="backup-card__label">Backup &amp; Restore</p>
+      <p class="backup-card__detail">
+        Creates a full backup of the current database (any previous backup is replaced). Restoring
+        overwrites ALL current data with the backup's contents.
+      </p>
+    </div>
+    <div class="backup-card__actions">
+      <button
+        class="btn-secondary"
+        [disabled]="backupState() === 'running'"
+        (click)="createBackup()"
+      >
+        @if (backupState() === 'running') {
+          Backing up…
+        } @else {
+          Backup now
+        }
+      </button>
+      <button
+        class="btn-secondary"
+        [disabled]="downloadState() === 'running'"
+        (click)="downloadBackup()"
+      >
+        @if (downloadState() === 'running') {
+          Preparing…
+        } @else {
+          Download backup
+        }
+      </button>
+      <button
+        class="btn-danger"
+        [disabled]="restoreState() === 'running'"
+        (click)="restoreBackup()"
+      >
+        @if (restoreState() === 'running') {
+          Restoring…
+        } @else {
+          Restore backup
+        }
+      </button>
+    </div>
+  </div>
+  @if (backupState() === 'done') {
+    <p class="settings-status settings-status--ok">Backup saved to: {{ backupMessage() }}</p>
+  }
+  @if (backupState() === 'error') {
+    <p class="settings-status settings-status--error">{{ backupMessage() }}</p>
+  }
+  @if (restoreState() === 'done') {
+    <p class="settings-status settings-status--ok">{{ restoreMessage() }}</p>
+  }
+  @if (restoreState() === 'error') {
+    <p class="settings-status settings-status--error">{{ restoreMessage() }}</p>
+  }
+  @if (downloadState() === 'error') {
+    <p class="settings-status settings-status--error">{{ downloadMessage() }}</p>
   }
 </div>

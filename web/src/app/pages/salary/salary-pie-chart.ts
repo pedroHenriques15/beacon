@@ -14,7 +14,7 @@ import {
   DoughnutController,
   Tooltip,
   Legend,
-  type LegendOptions,
+  type TooltipModel,
 } from 'chart.js';
 import { SalaryLineItem, SalarySlip } from '../../core/models/statement.model';
 
@@ -34,6 +34,7 @@ Chart.register(ArcElement, DoughnutController, Tooltip, Legend);
     `
       :host {
         display: block;
+        position: relative;
       }
       canvas {
         display: block;
@@ -54,6 +55,9 @@ export class SalaryPieChartComponent implements AfterViewInit, OnChanges, OnDest
   @Input() showLegend = true;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
   private chart?: Chart;
+  private tooltipEl?: HTMLDivElement;
+
+  constructor(private host: ElementRef<HTMLElement>) {}
 
   ngAfterViewInit(): void {
     this.renderChart();
@@ -67,6 +71,7 @@ export class SalaryPieChartComponent implements AfterViewInit, OnChanges, OnDest
 
   ngOnDestroy(): void {
     this.chart?.destroy();
+    this.tooltipEl?.remove();
   }
 
   private typeColors(items: SalaryLineItem[]): string[] {
@@ -97,6 +102,60 @@ export class SalaryPieChartComponent implements AfterViewInit, OnChanges, OnDest
     });
   }
 
+  private getOrCreateTooltipEl(): HTMLDivElement {
+    if (!this.tooltipEl) {
+      const el = document.createElement('div');
+      el.style.cssText = [
+        'position:absolute',
+        'background:var(--surface)',
+        'border:1px solid var(--border)',
+        'border-radius:8px',
+        'padding:0.45rem 0.75rem',
+        'font-size:0.8rem',
+        'color:var(--text-primary)',
+        'pointer-events:none',
+        'white-space:nowrap',
+        'z-index:10',
+        'transition:opacity 0.1s',
+      ].join(';');
+      this.host.nativeElement.appendChild(el);
+      this.tooltipEl = el;
+    }
+    return this.tooltipEl;
+  }
+
+  private externalTooltipHandler = ({
+    chart,
+    tooltip,
+  }: {
+    chart: Chart;
+    tooltip: TooltipModel<'doughnut'>;
+  }): void => {
+    const el = this.getOrCreateTooltipEl();
+
+    if (tooltip.opacity === 0) {
+      el.style.opacity = '0';
+      return;
+    }
+
+    if (tooltip.body) {
+      const lines = tooltip.body.flatMap((b) => b.lines);
+      el.textContent = lines.join(' ');
+    }
+
+    const canvas = chart.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const hostRect = this.host.nativeElement.getBoundingClientRect();
+
+    const x = rect.left - hostRect.left + tooltip.caretX;
+    const y = rect.top - hostRect.top + tooltip.caretY;
+
+    el.style.opacity = '1';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.transform = 'translate(-50%, calc(-100% - 6px))';
+  };
+
   private renderChart(): void {
     this.chart?.destroy();
     const canvas = this.canvasRef?.nativeElement;
@@ -126,6 +185,9 @@ export class SalaryPieChartComponent implements AfterViewInit, OnChanges, OnDest
             labels: { color: '#94a3b8', padding: 12, font: { size: 11 } },
           },
           tooltip: {
+            enabled: false,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            external: this.externalTooltipHandler as any,
             callbacks: {
               label: (ctx) => ` ${ctx.label}: €${(ctx.parsed as number).toFixed(2)}`,
             },

@@ -5,7 +5,7 @@
   padding: 0.85rem 1.1rem;
   cursor: pointer;
   &:hover {
-    border-color: rgba(148, 163, 184, 0.3);
+    border-color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
   }
 }
 

@@ -10,12 +10,19 @@ import {
   SalarySlip,
 } from '../models/statement.model';
 
-const PROFILE_A: SalaryProfile = { id: 1, name: 'Main Job', description: null, slipCount: 2 };
+const PROFILE_A: SalaryProfile = {
+  id: 1,
+  name: 'Main Job',
+  description: null,
+  slipCount: 2,
+  hourlyRateFormula: 'days',
+};
 const PROFILE_B: SalaryProfile = {
   id: 2,
   name: 'Side Job',
   description: 'Consulting',
   slipCount: 0,
+  hourlyRateFormula: 'days',
 };
 
 const CAT_INCOME: SalaryItemCategory = {
@@ -155,7 +162,7 @@ describe('SalaryService', () => {
     const req = ctrl.expectOne('/api/salary/item-categories');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({
-      profileId: 1,
+      salaryProfileId: 1,
       name: 'PPR',
       color: '#6c63ff',
       itemType: 'income',

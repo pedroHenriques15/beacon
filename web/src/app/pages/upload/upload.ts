@@ -1,8 +1,10 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { CurrencyPipe, NgClass, SlicePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { forkJoin, Observable, of } from 'rxjs';
+import { map, switchMap, tap } from 'rxjs/operators';
 import { FinanceService } from '../../core/services/finance.service';
 import { SalaryService } from '../../core/services/salary.service';
 import { GroceriesService } from '../../core/services/groceries.service';
@@ -10,6 +12,7 @@ import { GroceryCategoriesService } from '../../core/services/grocery-categories
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import {
   BatchUploadItemResult,
+  ParsedLineItemResponse,
   ParsedSlipResponse,
   SalaryItemCategory,
   SalaryProfile,
@@ -33,6 +36,7 @@ interface LineItemDraft {
   amount: number | null;
   sortOrder: number;
   hint?: string;
+  itemType?: 'income' | 'deduction' | 'tax';
   quantity?: number | null;
   unitValue?: number | null;
   percentage?: number | null;
@@ -58,7 +62,7 @@ const BANK_DETECT_ERROR = 'Could not detect bank';
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [NgClass, SlicePipe, FormsModule, CurrencyPipe, RouterLink],
+  imports: [NgClass, DatePipe, FormsModule, CurrencyPipe, RouterLink],
   templateUrl: './upload.html',
   styleUrl: './upload.scss',
 })
@@ -80,11 +84,8 @@ export class UploadComponent implements OnInit {
   showTransferReview = signal(false);
   transferCandidates = signal<TransferCandidate[]>([]);
   selectedTransfers = signal<Set<number>>(new Set());
-
-  backupState = signal<'idle' | 'running' | 'done' | 'error'>('idle');
-  backupMessage = signal('');
-  restoreState = signal<'idle' | 'running' | 'done' | 'error'>('idle');
-  restoreMessage = signal('');
+  transferSaving = signal(false);
+  transferError = signal('');
 
   mealCardText = signal('');
   mealCardState = signal<'idle' | 'review' | 'importing' | 'success' | 'error'>('idle');
@@ -109,6 +110,9 @@ export class UploadComponent implements OnInit {
   selectedExistingCatId = signal<number | null>(null);
   mappingLoading = signal(false);
   showMappingModal = signal(false);
+  groceryMappingFileIdx = signal(0);
+  groceryMappingFileTotal = signal(0);
+  private handledReceiptCategories = signal<Set<string>>(new Set());
   currentMappingCategory = computed(() => this.pendingMappingCategories()[this.mappingIndex()]);
   mappingProgress = computed(
     () => `${this.mappingIndex() + 1} of ${this.pendingMappingCategories().length}`,
@@ -138,10 +142,12 @@ export class UploadComponent implements OnInit {
   slipHourlyRate = signal<number | null>(null);
   slipTotalEspecie = signal<number | null>(null);
 
+  slipPendingProfileName = signal<string | null>(null);
+
   slipFormValid = computed(
     () =>
       !!(
-        this.slipProfileId() &&
+        (this.slipProfileId() || this.slipPendingProfileName()) &&
         this.slipPeriod() &&
         this.slipGross() != null &&
         this.slipNet() != null
@@ -151,6 +157,12 @@ export class UploadComponent implements OnInit {
   hasUnmatchedLineItems = computed(() =>
     this.slipLineItems().some((li) => li.hint !== undefined && li.salaryItemCategoryId === null),
   );
+
+  slipWarnings = computed(() => {
+    const idx = this.slipQueueIdx();
+    if (idx === null) return [];
+    return this.salaryQueue()[idx]?.parsed?.warnings ?? [];
+  });
 
   ngOnInit(): void {
     this.salaryService.getProfiles().subscribe((v) => this.profiles.set(v));
@@ -190,12 +202,17 @@ export class UploadComponent implements OnInit {
     this.showTransferReview.set(false);
     this.transferCandidates.set([]);
     this.selectedTransfers.set(new Set());
+    this.transferSaving.set(false);
+    this.transferError.set('');
     this.salaryQueue.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
     this.showMappingModal.set(false);
     this.pendingMappingCategories.set([]);
     this.mappingIndex.set(0);
+    this.groceryMappingFileIdx.set(0);
+    this.groceryMappingFileTotal.set(0);
+    this.handledReceiptCategories.set(new Set());
   }
 
   toggleTransferCandidate(index: number): void {
@@ -213,48 +230,24 @@ export class UploadComponent implements OnInit {
     const candidates = this.transferCandidates();
     const selected = [...this.selectedTransfers()];
     if (selected.length === 0) {
-      this.showTransferReview.set(false);
-      this.advanceDialogQueue();
+      this.dismissTransferReview();
       return;
     }
     const txIds: number[] = [];
     for (const idx of selected) {
       txIds.push(candidates[idx].newTxId, candidates[idx].existingTxId);
     }
-    this.finance.markTransfers(txIds).subscribe(() => {
-      this.finance.reload();
-      this.showTransferReview.set(false);
-      this.advanceDialogQueue();
-    });
-  }
-
-  createBackup(): void {
-    this.backupState.set('running');
-    this.backupMessage.set('');
-    this.http.post<{ message: string; path: string }>('/api/backup', {}).subscribe({
-      next: (body) => {
-        this.backupState.set('done');
-        this.backupMessage.set(body.path ?? 'Backup created.');
-      },
-      error: (err) => {
-        this.backupState.set('error');
-        this.backupMessage.set(err.error?.message ?? err.error ?? 'Backup failed.');
-      },
-    });
-  }
-
-  restoreBackup(): void {
-    this.restoreState.set('running');
-    this.restoreMessage.set('');
-    this.http.post<{ message: string }>('/api/backup/restore', {}).subscribe({
-      next: (body) => {
-        this.restoreState.set('done');
-        this.restoreMessage.set(body.message);
+    this.transferSaving.set(true);
+    this.transferError.set('');
+    this.finance.markTransfers(txIds).subscribe({
+      next: () => {
         this.finance.reload();
+        this.transferSaving.set(false);
+        this.dismissTransferReview();
       },
-      error: (err) => {
-        this.restoreState.set('error');
-        this.restoreMessage.set(err.error?.message ?? 'Restore failed.');
+      error: () => {
+        this.transferSaving.set(false);
+        this.transferError.set('Could not mark transfers. Try again, or skip for now.');
       },
     });
   }
@@ -371,11 +364,14 @@ export class UploadComponent implements OnInit {
           }
         }
 
-        if (groceryItems.length > 0) {
-          this.groceryResults.set(groceryItems.map((r) => r.groceryResult!));
+        const okGroceryItems = groceryItems.filter((r) => r.success && r.groceryResult);
+        const failedGroceryItems = groceryItems.filter((r) => !r.success || !r.groceryResult);
+
+        if (okGroceryItems.length > 0) {
+          this.groceryResults.set(okGroceryItems.map((r) => r.groceryResult!));
           this.groceriesSvc.reload();
           this.groceriesSvc.loadAllItems();
-          for (const item of groceryItems) {
+          for (const item of okGroceryItems) {
             if (item.groceryResult?.newReceiptCategories?.length) {
               dialogs.push({
                 type: 'grocery-mapping',
@@ -403,30 +399,35 @@ export class UploadComponent implements OnInit {
           });
         }
 
-        if (unknownItems.length > 0) {
-          const unknownBatchItems = unknownItems.map((r) => ({
+        const failedItems = [...failedGroceryItems, ...unknownItems];
+        if (failedItems.length > 0) {
+          const failedBatchItems = failedItems.map((r) => ({
             fileName: r.fileName,
             success: false,
             result: null,
-            error: r.error,
+            error: r.error ?? 'Import failed.',
           }));
           this.batchSummary.update((s) =>
             s
               ? {
                   ...s,
-                  errors: s.errors + unknownItems.length,
-                  items: [...s.items, ...unknownBatchItems],
+                  errors: s.errors + failedItems.length,
+                  items: [...s.items, ...failedBatchItems],
                 }
               : {
                   imported: 0,
                   duplicates: 0,
-                  errors: unknownItems.length,
+                  errors: failedItems.length,
                   unknownCount: 0,
-                  items: unknownBatchItems,
+                  items: failedBatchItems,
                 },
           );
         }
 
+        this.groceryMappingFileTotal.set(
+          dialogs.filter((d) => d.type === 'grocery-mapping').length,
+        );
+        this.groceryMappingFileIdx.set(0);
         this.pendingDialogs.set(dialogs);
         this.state.set('success');
         this.advanceDialogQueue();
@@ -473,43 +474,67 @@ export class UploadComponent implements OnInit {
     this.slipHoursWorked.set(parsed.hoursWorked ?? null);
     this.slipHourlyRate.set(parsed.hourlyRate ?? null);
     this.slipTotalEspecie.set(parsed.totalEspecie ?? null);
+    this.slipPendingProfileName.set(null);
 
-    const autoProfileId = this.profiles().length === 1 ? this.profiles()[0].id : null;
-    this.slipProfileId.set(autoProfileId);
+    const name = parsed.employer?.trim() || 'My Profile';
+    const match = this.profiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
 
-    const buildLineItems = (cats: SalaryItemCategory[]) => {
-      this.itemCategories.set(cats);
-      this.slipLineItems.set(
-        parsed.lineItems.map((li, i) => {
-          const catId =
-            cats.find((c) => c.name.toLowerCase() === li.description.toLowerCase())?.id ?? null;
-          return {
-            salaryItemCategoryId: catId,
-            amount: li.amount,
-            sortOrder: i,
-            hint: catId === null ? li.description : undefined,
-            quantity: li.quantity,
-            unitValue: li.unitValue,
-            percentage: li.percentage,
-            incidenciaBase: li.incidenciaBase,
-          };
-        }),
-      );
+    if (!match) {
+      this.slipPendingProfileName.set(name);
+      this.slipProfileId.set(null);
+      this.itemCategories.set([]);
+      this.slipLineItems.set(parsed.lineItems.map((li, i) => this.toDraft(li, i, [])));
       this.showSlipModal.set(true);
-    };
-
-    if (autoProfileId) {
-      this.salaryService.getItemCategories(autoProfileId).subscribe(buildLineItems);
-    } else {
-      buildLineItems([]);
+      return;
     }
+
+    this.slipProfileId.set(match.id);
+    this.salaryService.getItemCategories(match.id).subscribe({
+      next: (cats) => {
+        this.itemCategories.set(cats);
+        this.slipLineItems.set(parsed.lineItems.map((li, i) => this.toDraft(li, i, cats)));
+        this.showSlipModal.set(true);
+      },
+      error: () => {
+        this.updateSalaryItem(queueIdx, {
+          status: 'error',
+          error: 'Could not load salary categories - use Review & Save to retry.',
+        });
+        this.advanceDialogQueue();
+      },
+    });
+  }
+
+  private toDraft(
+    li: ParsedLineItemResponse,
+    sortOrder: number,
+    cats: SalaryItemCategory[],
+  ): LineItemDraft {
+    const catId =
+      cats.find((c) => c.name.toLowerCase() === li.description.toLowerCase())?.id ?? null;
+    return {
+      salaryItemCategoryId: catId,
+      amount: li.amount,
+      sortOrder,
+      itemType: li.itemType,
+      hint: catId === null ? li.description : undefined,
+      quantity: li.quantity,
+      unitValue: li.unitValue,
+      percentage: li.percentage,
+      incidenciaBase: li.incidenciaBase,
+    };
   }
 
   onSlipProfileChange(profileId: number | null): void {
     const id = profileId ? +profileId : null;
     this.slipProfileId.set(id);
-    if (id) {
-      this.salaryService.getItemCategories(id).subscribe((cats) => {
+    if (id !== null) this.slipPendingProfileName.set(null);
+    if (!id) {
+      this.itemCategories.set([]);
+      return;
+    }
+    this.salaryService.getItemCategories(id).subscribe({
+      next: (cats) => {
         this.itemCategories.set(cats);
         this.slipLineItems.update((items) =>
           items.map((li) => {
@@ -523,10 +548,54 @@ export class UploadComponent implements OnInit {
             };
           }),
         );
-      });
-    } else {
-      this.itemCategories.set([]);
-    }
+      },
+      error: () => this.slipError.set('Could not load categories for this profile.'),
+    });
+  }
+
+  private ensureProfile(employerName: string): Observable<number> {
+    const name = employerName?.trim() || 'My Profile';
+    const match = this.profiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (match) return of(match.id);
+    return this.salaryService.createProfile(name).pipe(
+      switchMap((profile) =>
+        this.salaryService.getProfiles().pipe(
+          tap((all) => this.profiles.set(all)),
+          map(() => profile.id),
+        ),
+      ),
+    );
+  }
+
+  private autoEnsureCategories(
+    profileId: number,
+    lineItems: ParsedLineItemResponse[],
+    existingCats: SalaryItemCategory[],
+  ): Observable<SalaryItemCategory[]> {
+    const seen = new Set<string>();
+    const toCreate = lineItems.filter((li) => {
+      const key = li.description.toLowerCase();
+      if (seen.has(key) || existingCats.some((c) => c.name.toLowerCase() === key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (toCreate.length === 0) return of(existingCats);
+    return forkJoin(
+      toCreate.map((li) =>
+        this.salaryService.createItemCategory(
+          profileId,
+          li.description,
+          this.colorForItemType(li.itemType),
+          li.itemType,
+        ),
+      ),
+    ).pipe(map((newCats) => [...existingCats, ...newCats]));
+  }
+
+  private colorForItemType(type: 'income' | 'deduction' | 'tax'): string {
+    if (type === 'income') return '#22c55e';
+    if (type === 'deduction') return '#ef4444';
+    return '#f59e0b';
   }
 
   onPdfSelected(event: Event): void {
@@ -571,47 +640,88 @@ export class UploadComponent implements OnInit {
     this.slipLoading.set(true);
     this.slipError.set('');
     const period = this.slipPeriod() + '-01';
-    const lineItems = this.slipLineItems()
-      .filter((li) => li.salaryItemCategoryId != null && li.amount != null)
-      .map((li, i) => ({
-        salaryItemCategoryId: li.salaryItemCategoryId!,
-        amount: li.amount!,
-        sortOrder: i,
-        quantity: li.quantity ?? undefined,
-        unitValue: li.unitValue ?? undefined,
-        percentage: li.percentage ?? undefined,
-        incidenciaBase: li.incidenciaBase ?? undefined,
-      }));
-    const body = {
-      salaryProfileId: this.slipProfileId()!,
-      period,
-      grossAmount: this.slipGross()!,
-      netAmount: this.slipNet()!,
-      notes: this.slipNotes() || undefined,
-      pdfPath: this.slipPdfPath() ?? undefined,
-      sourceFile: this.slipSourceFile() ?? undefined,
-      baseAmount: this.slipBaseAmount() ?? undefined,
-      hoursWorked: this.slipHoursWorked() ?? undefined,
-      hourlyRate: this.slipHourlyRate() ?? undefined,
-      totalEspecie: this.slipTotalEspecie() ?? undefined,
-      lineItems,
-    };
-    this.salaryService.createSlip(body).subscribe({
-      next: () => {
-        this.slipLoading.set(false);
-        this.showSlipModal.set(false);
-        const qIdx = this.slipQueueIdx();
-        if (qIdx !== null) {
-          this.updateSalaryItem(qIdx, { status: 'saved' });
-          this.slipQueueIdx.set(null);
-        }
-        this.advanceDialogQueue();
-      },
-      error: (err) => {
-        this.slipLoading.set(false);
-        this.slipError.set(err.error ?? 'Save failed.');
-      },
-    });
+
+    const profileId$: Observable<number> = this.slipProfileId()
+      ? of(this.slipProfileId()!)
+      : this.ensureProfile(this.slipPendingProfileName()!);
+
+    profileId$
+      .pipe(
+        switchMap((profileId) =>
+          this.salaryService.getItemCategories(profileId).pipe(
+            switchMap((cats) => {
+              const hinted: ParsedLineItemResponse[] = this.slipLineItems()
+                .filter((li) => li.salaryItemCategoryId === null && li.hint && li.itemType)
+                .map((li) => ({
+                  description: li.hint!,
+                  itemType: li.itemType!,
+                  amount: li.amount ?? 0,
+                  quantity: li.quantity ?? null,
+                  unitValue: li.unitValue ?? null,
+                  percentage: li.percentage ?? null,
+                  incidenciaBase: li.incidenciaBase ?? null,
+                }));
+              return this.autoEnsureCategories(profileId, hinted, cats);
+            }),
+            map((allCats) => ({ profileId, allCats })),
+          ),
+        ),
+        switchMap(({ profileId, allCats }) => {
+          const lineItems = this.slipLineItems()
+            .map((li) => {
+              if (li.salaryItemCategoryId !== null || !li.hint) return li;
+              const catId =
+                allCats.find((c) => c.name.toLowerCase() === li.hint!.toLowerCase())?.id ?? null;
+              return { ...li, salaryItemCategoryId: catId };
+            })
+            .filter((li) => li.salaryItemCategoryId != null && li.amount != null)
+            .map((li, i) => ({
+              salaryItemCategoryId: li.salaryItemCategoryId!,
+              amount: li.amount!,
+              sortOrder: i,
+              quantity: li.quantity ?? undefined,
+              unitValue: li.unitValue ?? undefined,
+              percentage: li.percentage ?? undefined,
+              incidenciaBase: li.incidenciaBase ?? undefined,
+            }));
+          return this.salaryService.createSlip({
+            salaryProfileId: profileId,
+            period,
+            grossAmount: this.slipGross()!,
+            netAmount: this.slipNet()!,
+            notes: this.slipNotes() || undefined,
+            pdfPath: this.slipPdfPath() ?? undefined,
+            sourceFile: this.slipSourceFile() ?? undefined,
+            baseAmount: this.slipBaseAmount() ?? undefined,
+            hoursWorked: this.slipHoursWorked() ?? undefined,
+            hourlyRate: this.slipHourlyRate() ?? undefined,
+            totalEspecie: this.slipTotalEspecie() ?? undefined,
+            lineItems,
+          });
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.slipLoading.set(false);
+          this.showSlipModal.set(false);
+          this.slipPendingProfileName.set(null);
+          const qIdx = this.slipQueueIdx();
+          if (qIdx !== null) {
+            this.updateSalaryItem(qIdx, { status: 'saved' });
+            this.slipQueueIdx.set(null);
+          }
+          this.advanceDialogQueue();
+        },
+        error: (err) => {
+          this.slipLoading.set(false);
+          const body = err?.error;
+          this.slipError.set(
+            typeof body === 'string'
+              ? body
+              : (body?.message ?? 'Save failed. Please check the form and try again.'),
+          );
+        },
+      });
   }
 
   formatPeriod(period: string): string {
@@ -636,11 +746,19 @@ export class UploadComponent implements OnInit {
       this.selectedTransfers.set(new Set(next.candidates.map((_, i) => i)));
       this.showTransferReview.set(true);
     } else if (next.type === 'grocery-mapping') {
+      const handled = this.handledReceiptCategories();
+      const filtered = next.categories.filter((c) => !handled.has(c));
+      if (filtered.length === 0) {
+        this.groceryMappingFileTotal.update((n) => Math.max(0, n - 1));
+        this.advanceDialogQueue();
+        return;
+      }
+      this.groceryMappingFileIdx.update((n) => n + 1);
       this.mappingReceiptId.set(next.receiptId);
-      this.pendingMappingCategories.set(next.categories);
+      this.pendingMappingCategories.set(filtered);
       this.mappingIndex.set(0);
       this.mappingMode.set('new');
-      this.newMappingName.set(next.categories[0]);
+      this.newMappingName.set(filtered[0]);
       this.newMappingColor.set('#a855f7');
       this.selectedExistingCatId.set(null);
       this.showMappingModal.set(true);
@@ -656,7 +774,10 @@ export class UploadComponent implements OnInit {
 
     const doMapping = (categoryId: number) => {
       this.groceryCatSvc.createReceiptMapping(cat, categoryId).subscribe({
-        next: () => this.advanceMappingOrClose(),
+        next: () => {
+          this.handledReceiptCategories.update((s) => new Set([...s, cat]));
+          this.advanceMappingOrClose();
+        },
         error: () => this.mappingLoading.set(false),
       });
     };
@@ -679,6 +800,7 @@ export class UploadComponent implements OnInit {
   }
 
   skipMapping(): void {
+    this.handledReceiptCategories.update((s) => new Set([...s, this.currentMappingCategory()]));
     this.advanceMappingOrClose();
   }
 
@@ -705,12 +827,15 @@ export class UploadComponent implements OnInit {
 
   dismissTransferReview(): void {
     this.showTransferReview.set(false);
+    this.transferSaving.set(false);
+    this.transferError.set('');
     this.advanceDialogQueue();
   }
 
   dismissSlipModal(): void {
     this.showSlipModal.set(false);
     this.slipQueueIdx.set(null);
+    this.slipPendingProfileName.set(null);
     this.advanceDialogQueue();
   }
 }

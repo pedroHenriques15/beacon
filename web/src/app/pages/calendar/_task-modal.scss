@@ -1,0 +1,22 @@
+.task-textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
+}
+
+.task-completed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+
+  .field-label {
+    margin: 0;
+  }
+}
+
+.task-actions-right {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: auto;
+}

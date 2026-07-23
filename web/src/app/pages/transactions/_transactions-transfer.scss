@@ -1,11 +1,11 @@
-tr.transfer-row td {
+tr.excluded-row td:not(.cat-cell) {
   opacity: 0.45;
 }
-tr.transfer-row:hover td {
+tr.excluded-row:hover td:not(.cat-cell) {
   opacity: 0.7;
 }
 
-.transfer-badge {
+.excluded-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -15,19 +15,14 @@ tr.transfer-row:hover td {
   letter-spacing: 0.04em;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
-  background: rgba(148, 163, 184, 0.1);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
   color: var(--text-muted);
   cursor: pointer;
   transition:
     background 0.15s,
     color 0.15s;
   &:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
-}
-
-.btn-secondary.active {
-  border-color: var(--primary);
-  color: var(--primary-light);
 }

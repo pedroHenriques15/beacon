@@ -28,7 +28,7 @@ export interface Transaction {
   categoryId: number | null;
   categoryRuleId: number | null;
   categorySetManually: boolean;
-  isInternalTransfer: boolean;
+  isExcluded: boolean;
   category: Category | null;
 }
 
@@ -82,6 +82,7 @@ export interface UploadResult {
   unknownCount: number;
   message: string | null;
   transferCandidates?: TransferCandidate[];
+  warnings?: string[] | null;
 }
 
 export interface BatchUploadItemResult {
@@ -98,11 +99,14 @@ export interface PagedTransactionsResult<T> {
   totalDebit: number;
 }
 
+export type HourlyRateFormula = 'hours' | 'workdays' | 'days';
+
 export interface SalaryProfile {
   id: number;
   name: string;
   description: string | null;
   slipCount: number;
+  hourlyRateFormula: HourlyRateFormula;
 }
 
 export interface SalaryItemCategory {
@@ -173,6 +177,42 @@ export interface UnifiedUploadItemResult {
   salaryResult: UnifiedSalaryResult | null;
 }
 
+export interface InvestmentLot {
+  id: number;
+  assetId: number;
+  date: string;
+  quantity: number;
+  pricePerUnit: number;
+  fees: number | null;
+  notes: string | null;
+}
+
+export interface InvestmentPriceSnapshot {
+  id: number;
+  assetId: number;
+  date: string;
+  pricePerUnit: number;
+}
+
+export interface InvestmentAsset {
+  id: number;
+  assetType: 'ETF' | 'Gold';
+  ticker: string | null;
+  name: string;
+  notes: string | null;
+  lots: InvestmentLot[];
+  priceSnapshots: InvestmentPriceSnapshot[];
+}
+
+export interface BackfillPriceHistoryResponse {
+  assetId: number;
+  snapshotsAdded: number;
+  snapshotsSkipped: number;
+  earliestDate: string | null;
+  latestDate: string | null;
+  message: string;
+}
+
 export interface ParsedSlipResponse {
   parserName: string;
   employer: string;
@@ -185,4 +225,5 @@ export interface ParsedSlipResponse {
   hoursWorked: number | null;
   hourlyRate: number | null;
   totalEspecie: number | null;
+  warnings?: string[] | null;
 }

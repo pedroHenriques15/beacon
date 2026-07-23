@@ -1,10 +1,10 @@
 .grocery-results-card {
-  border-color: rgba(52, 211, 153, 0.25);
+  border-color: color-mix(in srgb, var(--success) 25%, transparent);
   margin-top: 1rem;
 }
 
 .grocery-icon {
-  background: rgba(52, 211, 153, 0.12);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
   font-size: 1.1rem;
 }
@@ -39,8 +39,23 @@
   }
 }
 
+.modal-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .modal-progress {
   font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.modal-file-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   color: var(--text-muted);
 }
 

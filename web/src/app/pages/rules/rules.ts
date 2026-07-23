@@ -7,11 +7,12 @@ import { GroceriesService } from '../../core/services/groceries.service';
 import { Category, CategoryRule } from '../../core/models/statement.model';
 import { GroceryCategory, GroceryCategoryRule } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 @Component({
   selector: 'app-rules',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, ConfirmDialogComponent],
   templateUrl: './rules.html',
   styleUrl: './rules.scss',
 })
@@ -22,6 +23,10 @@ export class RulesComponent {
   groceriesSvc = inject(GroceriesService);
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
+
+  confirmPending = signal<{ message: string; action: () => void } | null>(null);
+
+  actionError = signal('');
 
   catSearch = signal('');
 
@@ -107,12 +112,20 @@ export class RulesComponent {
     const val = this.newValue();
     if (!catId || (!pat && val === null)) return;
     this.saving.set(true);
-    this.catSvc.createRule(catId, pat, val).subscribe(() => {
-      this.saving.set(false);
-      this.showAddRule.set(false);
-      this.newPattern.set('');
-      this.newValue.set(null);
-      this.newCategoryId.set(null);
+    this.actionError.set('');
+    this.catSvc.createRule(catId, pat, val).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.showAddRule.set(false);
+        this.newPattern.set('');
+        this.newValue.set(null);
+        this.newCategoryId.set(null);
+        this.finance.reload();
+      },
+      error: () => {
+        this.saving.set(false);
+        this.actionError.set('Could not create the rule. Please try again.');
+      },
     });
   }
 
@@ -126,10 +139,17 @@ export class RulesComponent {
     const cat = this.editingCat();
     if (!cat || !this.editName().trim()) return;
     this.editSaving.set(true);
-    this.catSvc.updateCategory(cat.id, this.editName().trim(), this.editColor()).subscribe(() => {
-      this.editSaving.set(false);
-      this.editingCat.set(null);
-      this.finance.reload();
+    this.actionError.set('');
+    this.catSvc.updateCategory(cat.id, this.editName().trim(), this.editColor()).subscribe({
+      next: () => {
+        this.editSaving.set(false);
+        this.editingCat.set(null);
+        this.finance.reload();
+      },
+      error: () => {
+        this.editSaving.set(false);
+        this.actionError.set('Could not save the category. Please try again.');
+      },
     });
   }
 
@@ -146,9 +166,17 @@ export class RulesComponent {
     const val = this.editRuleValue();
     if (!pat && val === null) return;
     this.editRuleSaving.set(true);
-    this.catSvc.updateRule(rule.id, pat, val).subscribe(() => {
-      this.editRuleSaving.set(false);
-      this.editingRule.set(null);
+    this.actionError.set('');
+    this.catSvc.updateRule(rule.id, pat, val).subscribe({
+      next: () => {
+        this.editRuleSaving.set(false);
+        this.editingRule.set(null);
+        this.finance.reload();
+      },
+      error: () => {
+        this.editRuleSaving.set(false);
+        this.actionError.set('Could not save the rule. Please try again.');
+      },
     });
   }
 
@@ -170,26 +198,39 @@ export class RulesComponent {
         this.createCatPattern().trim() || undefined,
         this.createCatValue(),
       )
-      .subscribe(() => {
-        this.createCatLoading.set(false);
-        this.showCreateCatModal.set(false);
+      .subscribe({
+        next: () => {
+          this.createCatLoading.set(false);
+          this.showCreateCatModal.set(false);
+          this.finance.reload();
+        },
+        error: () => {
+          this.createCatLoading.set(false);
+          this.actionError.set('Could not create the category. Please try again.');
+        },
       });
   }
 
   deleteRule(id: number): void {
-    if (!confirm('Delete this rule? Existing transactions will keep their current category.'))
-      return;
-    this.catSvc.deleteRule(id).subscribe();
+    this.confirmPending.set({
+      message: 'Delete this rule? Existing transactions will keep their current category.',
+      action: () =>
+        this.catSvc.deleteRule(id).subscribe({
+          next: () => this.finance.reload(),
+          error: () => this.actionError.set('Could not delete the rule. Please try again.'),
+        }),
+    });
   }
 
   deleteCategory(cat: Category): void {
-    if (
-      !confirm(
-        `Delete category "${cat.name}"? Rules will be removed and transactions will become uncategorized.`,
-      )
-    )
-      return;
-    this.catSvc.deleteCategory(cat.id).subscribe();
+    this.confirmPending.set({
+      message: `Delete category "${cat.name}"? Rules will be removed and transactions will become uncategorized.`,
+      action: () =>
+        this.catSvc.deleteCategory(cat.id).subscribe({
+          next: () => this.finance.reload(),
+          error: () => this.actionError.set('Could not delete the category. Please try again.'),
+        }),
+    });
   }
 
   gSubmitRule(): void {
@@ -198,12 +239,20 @@ export class RulesComponent {
     const val = this.gNewValue();
     if (!catId || (!pat && val === null)) return;
     this.gSaving.set(true);
-    this.gCatSvc.createRule(catId, pat, val).subscribe(() => {
-      this.gSaving.set(false);
-      this.gShowAddRule.set(false);
-      this.gNewPattern.set('');
-      this.gNewValue.set(null);
-      this.gNewCategoryId.set(null);
+    this.actionError.set('');
+    this.gCatSvc.createRule(catId, pat, val).subscribe({
+      next: () => {
+        this.gSaving.set(false);
+        this.gShowAddRule.set(false);
+        this.gNewPattern.set('');
+        this.gNewValue.set(null);
+        this.gNewCategoryId.set(null);
+        this.reloadGroceries();
+      },
+      error: () => {
+        this.gSaving.set(false);
+        this.actionError.set('Could not create the rule. Please try again.');
+      },
     });
   }
 
@@ -217,12 +266,18 @@ export class RulesComponent {
     const cat = this.gEditingCat();
     if (!cat || !this.gEditName().trim()) return;
     this.gEditSaving.set(true);
-    this.gCatSvc
-      .updateCategory(cat.id, this.gEditName().trim(), this.gEditColor())
-      .subscribe(() => {
+    this.actionError.set('');
+    this.gCatSvc.updateCategory(cat.id, this.gEditName().trim(), this.gEditColor()).subscribe({
+      next: () => {
         this.gEditSaving.set(false);
         this.gEditingCat.set(null);
-      });
+        this.reloadGroceries();
+      },
+      error: () => {
+        this.gEditSaving.set(false);
+        this.actionError.set('Could not save the category. Please try again.');
+      },
+    });
   }
 
   gOpenEditRule(rule: GroceryCategoryRule): void {
@@ -238,9 +293,17 @@ export class RulesComponent {
     const val = this.gEditRuleValue();
     if (!pat && val === null) return;
     this.gEditRuleSaving.set(true);
-    this.gCatSvc.updateRule(rule.id, pat, val).subscribe(() => {
-      this.gEditRuleSaving.set(false);
-      this.gEditingRule.set(null);
+    this.actionError.set('');
+    this.gCatSvc.updateRule(rule.id, pat, val).subscribe({
+      next: () => {
+        this.gEditRuleSaving.set(false);
+        this.gEditingRule.set(null);
+        this.reloadGroceries();
+      },
+      error: () => {
+        this.gEditRuleSaving.set(false);
+        this.actionError.set('Could not save the rule. Please try again.');
+      },
     });
   }
 
@@ -262,24 +325,49 @@ export class RulesComponent {
         this.gCreateCatPattern().trim() || undefined,
         this.gCreateCatValue(),
       )
-      .subscribe(() => {
-        this.gCreateCatLoading.set(false);
-        this.gShowCreateCatModal.set(false);
+      .subscribe({
+        next: () => {
+          this.gCreateCatLoading.set(false);
+          this.gShowCreateCatModal.set(false);
+          this.reloadGroceries();
+        },
+        error: () => {
+          this.gCreateCatLoading.set(false);
+          this.actionError.set('Could not create the category. Please try again.');
+        },
       });
   }
 
   gDeleteRule(id: number): void {
-    if (!confirm('Delete this rule? Existing items will keep their current category.')) return;
-    this.gCatSvc.deleteRule(id).subscribe();
+    this.confirmPending.set({
+      message: 'Delete this rule? Existing items will keep their current category.',
+      action: () =>
+        this.gCatSvc.deleteRule(id).subscribe({
+          next: () => this.reloadGroceries(),
+          error: () => this.actionError.set('Could not delete the rule. Please try again.'),
+        }),
+    });
   }
 
   gDeleteCategory(cat: GroceryCategory): void {
-    if (
-      !confirm(
-        `Delete category "${cat.name}"? Rules will be removed and items will become uncategorized.`,
-      )
-    )
-      return;
-    this.gCatSvc.deleteCategory(cat.id).subscribe();
+    this.confirmPending.set({
+      message: `Delete category "${cat.name}"? Rules will be removed and items will become uncategorized.`,
+      action: () =>
+        this.gCatSvc.deleteCategory(cat.id).subscribe({
+          next: () => this.reloadGroceries(),
+          error: () => this.actionError.set('Could not delete the category. Please try again.'),
+        }),
+    });
+  }
+
+  private reloadGroceries(): void {
+    this.groceriesSvc.reload();
+    this.groceriesSvc.loadAllItems();
+  }
+
+  onConfirmPending(): void {
+    const pending = this.confirmPending();
+    this.confirmPending.set(null);
+    pending?.action();
   }
 }

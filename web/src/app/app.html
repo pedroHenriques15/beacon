@@ -1,21 +1,18 @@
 <div class="layout">
-  <nav class="sidebar" [class.sidebar--collapsed]="!sidebarOpen()">
+  @if (sidebarOpen()) {
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+  }
+
+  <nav class="sidebar" [class.sidebar--mobile-open]="sidebarOpen()">
     <div class="sidebar__logo">
-      @if (sidebarOpen()) {
-        <a class="sidebar__logo-text" routerLink="/dashboard">Beacon</a>
-        <button class="sidebar__toggle" (click)="toggleSidebar()" title="Collapse sidebar">
-          ‹
-        </button>
-      } @else {
-        <button class="sidebar__toggle" (click)="toggleSidebar()" title="Expand sidebar">›</button>
-      }
+      <a class="sidebar__logo-text" routerLink="/dashboard" (click)="closeSidebar()">Beacon</a>
     </div>
 
     <a
       class="sidebar__link"
       routerLink="/dashboard"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Dashboard' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -33,16 +30,14 @@
         <rect x="14" y="14" width="7" height="7" />
         <rect x="3" y="14" width="7" height="7" />
       </svg>
-      @if (sidebarOpen()) {
-        Dashboard
-      }
+      Dashboard
     </a>
 
     <a
       class="sidebar__link"
       routerLink="/transactions"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Transactions' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -62,16 +57,14 @@
         <line x1="3" y1="12" x2="3.01" y2="12" />
         <line x1="3" y1="18" x2="3.01" y2="18" />
       </svg>
-      @if (sidebarOpen()) {
-        Transactions
-      }
+      Transactions
     </a>
 
     <a
       class="sidebar__link"
       routerLink="/analytics"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Analytics' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -87,16 +80,14 @@
         <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
         <path d="M22 12A10 10 0 0 0 12 2v10z" />
       </svg>
-      @if (sidebarOpen()) {
-        Analytics
-      }
+      Analytics
     </a>
 
     <a
       class="sidebar__link"
       routerLink="/calendar"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Calendar' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -114,17 +105,10 @@
         <line x1="8" y1="2" x2="8" y2="6" />
         <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
-      @if (sidebarOpen()) {
-        Calendar
-      }
+      Calendar
     </a>
 
-    <a
-      class="sidebar__link"
-      routerLink="/rules"
-      routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Rules' : ''"
-    >
+    <a class="sidebar__link" routerLink="/rules" routerLinkActive="active" (click)="closeSidebar()">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="18"
@@ -139,16 +123,37 @@
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
       </svg>
-      @if (sidebarOpen()) {
-        Rules
-      }
+      Categories
+    </a>
+
+    <a
+      class="sidebar__link"
+      routerLink="/investments"
+      routerLinkActive="active"
+      (click)="closeSidebar()"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+        <polyline points="16 7 22 7 22 13" />
+      </svg>
+      Investments
     </a>
 
     <a
       class="sidebar__link"
       routerLink="/salary"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Salary' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -164,16 +169,14 @@
         <line x1="12" y1="1" x2="12" y2="23" />
         <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
       </svg>
-      @if (sidebarOpen()) {
-        Salary
-      }
+      Salary
     </a>
 
     <a
       class="sidebar__link"
       routerLink="/upload"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Upload' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -190,16 +193,14 @@
         <polyline points="17 8 12 3 7 8" />
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
-      @if (sidebarOpen()) {
-        Upload
-      }
+      Upload
     </a>
 
     <a
-      class="sidebar__link sidebar__link--bottom"
+      class="sidebar__link"
       routerLink="/settings"
       routerLinkActive="active"
-      [title]="!sidebarOpen() ? 'Settings' : ''"
+      (click)="closeSidebar()"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -217,14 +218,35 @@
           d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
         />
       </svg>
-      @if (sidebarOpen()) {
-        Settings
-      }
+      Settings
     </a>
   </nav>
-  <main class="content">
-    <div class="page-inner">
-      <router-outlet />
-    </div>
-  </main>
+
+  <div class="content-wrapper">
+    <header class="mobile-header">
+      <a class="mobile-header__brand" routerLink="/dashboard">Beacon</a>
+      <button class="mobile-header__toggle" (click)="toggleSidebar()" aria-label="Open navigation">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+    </header>
+    <main class="content">
+      <div class="page-inner">
+        <router-outlet />
+      </div>
+    </main>
+  </div>
 </div>

@@ -57,7 +57,11 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true
+              "sourceMap": {
+                "scripts": true,
+                "styles": false,
+                "vendor": false
+              }
             }
           },
           "defaultConfiguration": "production"
@@ -65,7 +69,9 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "proxy.conf.json"
+            "proxyConfig": "proxy.conf.json",
+            "host": "0.0.0.0",
+            "allowedHosts": true
           },
           "configurations": {
             "production": {

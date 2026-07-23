@@ -62,9 +62,9 @@
 
 @if (state() === 'success') {
   @if (batchSummary(); as s) {
-    <div class="result-card success">
-      <div class="result-icon">✓</div>
-      <h2>Bank statements imported</h2>
+    <div class="result-card" [class.success]="s.imported > 0" [class.warning]="s.imported === 0">
+      <div class="result-icon">{{ s.imported > 0 ? '✓' : '≈' }}</div>
+      <h2>{{ s.imported > 0 ? 'Bank statements imported' : 'Nothing new imported' }}</h2>
 
       <div class="batch-stats">
         @if (s.imported > 0) {
@@ -112,13 +112,20 @@
             <span class="file-name">{{ item.fileName }}</span>
             @if (item.success && item.result) {
               <span class="file-detail"
-                >{{ item.result.bank }} · {{ item.result.periodFrom | slice: 0 : 7 }} ·
+                >{{ item.result.bank }} · {{ item.result.periodFrom | date: 'MMM yyyy' }} ·
                 {{ item.result.transactionCount }} tx</span
               >
             } @else if (!item.success && item.result) {
               <span class="file-detail">{{ item.result.message }}</span>
             } @else {
               <span class="file-detail">{{ item.error }}</span>
+            }
+            @if (item.result?.warnings?.length) {
+              <ul class="parse-warnings">
+                @for (w of item.result!.warnings!; track w) {
+                  <li>{{ w }}</li>
+                }
+              </ul>
             }
           </div>
         }
@@ -219,10 +226,19 @@
         @for (r of groceryResults(); track r.receiptId) {
           <div class="file-row" [class.file-ok]="!r.wasDuplicate" [class.file-dup]="r.wasDuplicate">
             <span class="file-icon">{{ r.wasDuplicate ? '≈' : '✓' }}</span>
-            <span class="file-name">{{ r.storeName }} · {{ r.receiptDate | slice: 0 : 10 }}</span>
+            <span class="file-name"
+              >{{ r.storeName }} · {{ r.receiptDate | date: 'dd-MM-yyyy' }}</span
+            >
             <span class="file-detail">
               {{ r.itemCount }} items · {{ r.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
             </span>
+            @if (r.warnings?.length) {
+              <ul class="parse-warnings">
+                @for (w of r.warnings!; track w) {
+                  <li>{{ w }}</li>
+                }
+              </ul>
+            }
           </div>
         }
       </div>
@@ -296,7 +312,9 @@
           />
         </div>
         <div>
-          <label class="field-label">Current balance (€)</label>
+          <label class="field-label"
+            >Current balance (€) - empty = derived from previous import</label
+          >
           <input
             class="field-input"
             type="number"
@@ -329,7 +347,7 @@
             <div class="stat-pill yellow">{{ r.unknownCount }} uncategorised</div>
           }
         </div>
-        <p class="backup-hint">Period: {{ r.periodFrom | slice: 0 : 7 }}</p>
+        <p class="backup-hint">Period: {{ r.periodFrom | date: 'MMM yyyy' }}</p>
         <div class="result-actions">
           <button class="btn-secondary" (click)="resetMealCard()">Import more</button>
           @if (r.unknownCount > 0) {
@@ -341,51 +359,12 @@
   }
 </div>
 
-<div class="backup-section">
-  <h2 class="section-title">Database Backup</h2>
-  <p class="backup-hint">
-    Creates a full backup of the current database. Any previous backup will be replaced.
-  </p>
-  <div class="backup-actions">
-    <button class="btn-secondary" [disabled]="backupState() === 'running'" (click)="createBackup()">
-      @if (backupState() === 'running') {
-        Backing up…
-      } @else {
-        Backup now
-      }
-    </button>
-    <button
-      class="btn-secondary"
-      [disabled]="restoreState() === 'running'"
-      (click)="restoreBackup()"
-    >
-      @if (restoreState() === 'running') {
-        Restoring…
-      } @else {
-        Restore backup
-      }
-    </button>
-  </div>
-  @if (backupState() === 'done') {
-    <div class="status backup-ok">Backup saved to: {{ backupMessage() }}</div>
-  }
-  @if (backupState() === 'error') {
-    <div class="status error">{{ backupMessage() }}</div>
-  }
-  @if (restoreState() === 'done') {
-    <div class="status backup-ok">{{ restoreMessage() }}</div>
-  }
-  @if (restoreState() === 'error') {
-    <div class="status error">{{ restoreMessage() }}</div>
-  }
-</div>
-
 @if (showTransferReview()) {
   <div class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
         <h3>Possible internal transfers detected</h3>
-        <button class="modal-close" (click)="showTransferReview.set(false)">✕</button>
+        <button class="modal-close" (click)="dismissTransferReview()">✕</button>
       </div>
       <p class="modal-sub">
         These transactions have the same amount and date but opposite directions across different
@@ -412,9 +391,20 @@
         }
       </div>
 
+      @if (transferError()) {
+        <p class="modal-error">{{ transferError() }}</p>
+      }
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="dismissTransferReview()">Skip</button>
-        <button class="btn-primary" (click)="confirmTransfers()">Mark selected as transfers</button>
+        <button
+          class="btn-secondary"
+          [disabled]="transferSaving()"
+          (click)="dismissTransferReview()"
+        >
+          Skip
+        </button>
+        <button class="btn-primary" [disabled]="transferSaving()" (click)="confirmTransfers()">
+          {{ transferSaving() ? 'Saving…' : 'Mark selected as transfers' }}
+        </button>
       </div>
     </div>
   </div>
@@ -427,6 +417,14 @@
         <h3>Review &amp; save slip</h3>
         <button class="modal-close" (click)="dismissSlipModal()">✕</button>
       </div>
+
+      @if (slipWarnings().length) {
+        <div class="parse-warning-box">
+          @for (w of slipWarnings(); track w) {
+            <p>{{ w }}</p>
+          }
+        </div>
+      }
 
       @if (slipSourceFile()) {
         <div class="parsed-banner">
@@ -458,7 +456,11 @@
             [ngModel]="slipProfileId()"
             (ngModelChange)="onSlipProfileChange($event)"
           >
-            <option [ngValue]="null">Select profile…</option>
+            @if (slipPendingProfileName(); as pending) {
+              <option [ngValue]="null">New profile: {{ pending }} (created on save)</option>
+            } @else {
+              <option [ngValue]="null">Select profile…</option>
+            }
             @for (p of profiles(); track p.id) {
               <option [value]="p.id">{{ p.name }}</option>
             }
@@ -560,15 +562,19 @@
               class="field-input li-cat"
               [ngModel]="li.salaryItemCategoryId"
               [class.unmatched]="li.hint && li.salaryItemCategoryId === null"
-              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', +$event)"
+              (ngModelChange)="
+                updateLineItem(i, 'salaryItemCategoryId', $event === null ? null : +$event)
+              "
             >
               <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
               @for (type of itemTypes; track type.value) {
-                <optgroup [label]="type.label">
-                  @for (c of catsByType(type.value); track c.id) {
-                    <option [value]="c.id">{{ c.name }}</option>
-                  }
-                </optgroup>
+                @if (catsByType(type.value).length > 0) {
+                  <optgroup [label]="type.label">
+                    @for (c of catsByType(type.value); track c.id) {
+                      <option [value]="c.id">{{ c.name }}</option>
+                    }
+                  </optgroup>
+                }
               }
             </select>
           </div>
@@ -610,7 +616,14 @@
     <div class="modal tx-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>New receipt category: {{ currentMappingCategory() }}</h3>
-        <span class="modal-progress">{{ mappingProgress() }}</span>
+        <div class="modal-progress-row">
+          @if (groceryMappingFileTotal() > 1) {
+            <span class="modal-file-badge"
+              >Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span
+            >
+          }
+          <span class="modal-progress">{{ mappingProgress() }}</span>
+        </div>
       </div>
 
       <div class="mapping-tabs">

@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { buildParams } from '../utils/http-params';
 import { Observable, forkJoin, of, switchMap } from 'rxjs';
 import {
-  BatchUploadItemResult,
   MonthlySummary,
   PagedTransactionsResult,
   Statement,
@@ -31,7 +30,7 @@ export class FinanceService {
   }
 
   reload(): void {
-    this.loading.set(true);
+    if (this.statements().length === 0) this.loading.set(true);
     this.error.set(null);
     this.loadAll();
   }
@@ -42,10 +41,8 @@ export class FinanceService {
     return this.http.post<UploadResult>('/api/statements/upload', form);
   }
 
-  uploadBatch(files: File[]): Observable<BatchUploadItemResult[]> {
-    const form = new FormData();
-    for (const f of files) form.append('files', f);
-    return this.http.post<BatchUploadItemResult[]>('/api/statements/upload-batch', form);
+  getStatementFile(id: number): Observable<Blob> {
+    return this.http.get(`/api/statements/${id}/file`, { responseType: 'blob' });
   }
 
   uploadUnified(files: File[]): Observable<UnifiedUploadItemResult[]> {
@@ -74,7 +71,6 @@ export class FinanceService {
     search?: string;
     skip?: number;
     take?: number;
-    includeTransfers?: boolean;
     sortBy?: string;
     sortDir?: string;
   }): Observable<PagedTransactionsResult<EnrichedTransaction>> {
@@ -86,7 +82,6 @@ export class FinanceService {
       search: params.search,
       skip: params.skip,
       take: params.take,
-      includeTransfers: params.includeTransfers || undefined,
       sortBy: params.sortBy,
       sortDir: params.sortDir,
     });
@@ -99,8 +94,27 @@ export class FinanceService {
     return this.http.patch('/api/transactions/mark-transfers', { txIds, unmark });
   }
 
+  removeTransactionLocally(txId: number): void {
+    this.statements.update((stmts) =>
+      stmts.map((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== txId) })),
+    );
+  }
+
+  updateTransactionLocally(txId: number, updates: Partial<Transaction>): void {
+    this.statements.update((stmts) =>
+      stmts.map((s) => ({
+        ...s,
+        transactions: s.transactions.map((t) => (t.id === txId ? { ...t, ...updates } : t)),
+      })),
+    );
+  }
+
   deleteTransaction(id: number): Observable<unknown> {
     return this.http.delete(`/api/transactions/${id}`);
+  }
+
+  deleteTransactions(ids: number[]): Observable<unknown> {
+    return this.http.delete('/api/transactions', { body: { ids } });
   }
 
   deleteStatement(id: number): Observable<unknown> {
@@ -177,12 +191,16 @@ export class FinanceService {
     [...this.latestPerBank().values()].reduce((sum, s) => sum + s.closingBalance, 0),
   );
 
+  unknownTypeCount = computed(
+    () => this.allTransactions().filter((tx) => tx.type === 'unknown').length,
+  );
+
   allTransactions = computed<EnrichedTransaction[]>(() =>
     this.statements()
       .flatMap((s) =>
         s.transactions
-          .filter((tx) => !tx.isInternalTransfer)
-          .map((tx) => ({ ...tx, bank: s.bank, month: s.periodFrom.slice(0, 7) })),
+          .filter((tx) => !tx.isExcluded)
+          .map((tx) => ({ ...tx, bank: s.bank, month: tx.datePosting.slice(0, 7) })),
       )
       .sort((a, b) => b.datePosting.localeCompare(a.datePosting)),
   );
@@ -190,53 +208,42 @@ export class FinanceService {
   allTransactionsRaw = computed<EnrichedTransaction[]>(() =>
     this.statements()
       .flatMap((s) =>
-        s.transactions.map((tx) => ({ ...tx, bank: s.bank, month: s.periodFrom.slice(0, 7) })),
+        s.transactions.map((tx) => ({ ...tx, bank: s.bank, month: tx.datePosting.slice(0, 7) })),
       )
       .sort((a, b) => b.datePosting.localeCompare(a.datePosting)),
   );
 
   monthlySummaries = computed<MonthlySummary[]>(() => {
-    const bpiByMonth = this.statements()
-      .filter((s) => s.bank === 'BPI')
-      .sort((a, b) => a.periodFrom.localeCompare(b.periodFrom));
+    const rows = new Map<string, MonthlySummary>();
+    const latestClosing = new Map<string, { periodTo: string; closing: number }>();
 
-    const result: MonthlySummary[] = [];
     for (const s of this.statements()) {
-      const month = s.periodFrom.slice(0, 7);
-      const credits = s.transactions
-        .filter((tx) => tx.type === 'credit' && !tx.isInternalTransfer)
-        .reduce((sum, tx) => sum + tx.amount, 0);
-      const debits = s.transactions
-        .filter((tx) => tx.type === 'debit' && !tx.isInternalTransfer)
-        .reduce((sum, tx) => sum + tx.amount, 0);
+      for (const tx of s.transactions) {
+        if (tx.isExcluded) continue;
+        if (tx.type !== 'credit' && tx.type !== 'debit') continue;
 
-      let income: number, expenses: number;
+        const month = tx.datePosting.slice(0, 7);
+        const key = `${month}|${s.bank}`;
 
-      if (s.bank === 'BPI') {
-        const idx = bpiByMonth.findIndex((b) => b.id === s.id);
-        const prevClosing =
-          s.openingBalance !== 0
-            ? s.openingBalance
-            : idx > 0
-              ? bpiByMonth[idx - 1].closingBalance
-              : 0;
-        const pprChange = s.closingBalance - prevClosing;
-        income = Math.max(0, pprChange) + credits;
-        expenses = Math.max(0, -pprChange) + debits;
-      } else {
-        income = credits;
-        expenses = debits;
+        let row = rows.get(key);
+        if (!row) {
+          row = { month, bank: s.bank, income: 0, expenses: 0, net: 0, closingBalance: 0 };
+          rows.set(key, row);
+        }
+        if (tx.type === 'credit') row.income += tx.amount;
+        else row.expenses += tx.amount;
+        row.net = row.income - row.expenses;
+
+        const cur = latestClosing.get(key);
+        if (!cur || s.periodTo.localeCompare(cur.periodTo) > 0)
+          latestClosing.set(key, { periodTo: s.periodTo, closing: s.closingBalance });
       }
-
-      result.push({
-        month,
-        bank: s.bank,
-        income,
-        expenses,
-        net: income - expenses,
-        closingBalance: s.closingBalance,
-      });
     }
-    return result.sort((a, b) => a.month.localeCompare(b.month) || a.bank.localeCompare(b.bank));
+
+    for (const [key, row] of rows) row.closingBalance = latestClosing.get(key)?.closing ?? 0;
+
+    return [...rows.values()].sort(
+      (a, b) => a.month.localeCompare(b.month) || a.bank.localeCompare(b.bank),
+    );
   });
 }

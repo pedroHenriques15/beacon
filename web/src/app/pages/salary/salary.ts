@@ -5,10 +5,12 @@ import { SalaryService } from '../../core/services/salary.service';
 import {
   SalaryItemCategory,
   SalaryLineItem,
+  HourlyRateFormula,
   SalaryProfile,
   SalarySlip,
 } from '../../core/models/statement.model';
 import { SalaryPieChartComponent } from './salary-pie-chart';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 
 type View = 'overview' | 'profile' | 'slip';
 
@@ -25,7 +27,13 @@ interface LineItemDraft {
 @Component({
   selector: 'app-salary',
   standalone: true,
-  imports: [CurrencyPipe, DecimalPipe, FormsModule, SalaryPieChartComponent],
+  imports: [
+    CurrencyPipe,
+    DecimalPipe,
+    FormsModule,
+    SalaryPieChartComponent,
+    ConfirmDialogComponent,
+  ],
   templateUrl: './salary.html',
   styleUrl: './salary.scss',
 })
@@ -40,6 +48,8 @@ export class SalaryComponent implements OnInit {
   itemCategories = signal<SalaryItemCategory[]>([]);
   slips = signal<SalarySlip[]>([]);
   loading = signal(true);
+
+  confirmPending = signal<{ message: string; action: () => void } | null>(null);
 
   selectedProfile = computed(
     () => this.profiles().find((p) => p.id === this.selectedProfileId()) ?? null,
@@ -267,19 +277,25 @@ export class SalaryComponent implements OnInit {
   }
 
   deleteSlip(slip: SalarySlip): void {
-    if (!confirm(`Delete salary slip for ${this.formatPeriod(slip.period)}?`)) return;
-    this.svc.deleteSlip(slip.id).subscribe(() => {
-      this.slips.update((s) => s.filter((x) => x.id !== slip.id));
-      this.svc.getProfiles().subscribe((v) => this.profiles.set(v));
-      if (this.view() === 'slip') this.exitSlip();
+    this.confirmPending.set({
+      message: `Delete salary slip for ${this.formatPeriod(slip.period)}?`,
+      action: () =>
+        this.svc.deleteSlip(slip.id).subscribe(() => {
+          this.slips.update((s) => s.filter((x) => x.id !== slip.id));
+          this.svc.getProfiles().subscribe((v) => this.profiles.set(v));
+          if (this.view() === 'slip') this.exitSlip();
+        }),
     });
   }
+
+  profileFormula = signal<HourlyRateFormula>('days');
 
   openProfileCreate(): void {
     this.profileModalMode.set('create');
     this.editingProfileId.set(null);
     this.profileName.set('');
     this.profileDesc.set('');
+    this.profileFormula.set('days');
     this.showProfileModal.set(true);
   }
 
@@ -288,6 +304,7 @@ export class SalaryComponent implements OnInit {
     this.editingProfileId.set(p.id);
     this.profileName.set(p.name);
     this.profileDesc.set(p.description ?? '');
+    this.profileFormula.set(p.hourlyRateFormula ?? 'days');
     this.showProfileModal.set(true);
   }
 
@@ -298,8 +315,8 @@ export class SalaryComponent implements OnInit {
     const desc = this.profileDesc().trim() || undefined;
     const obs =
       this.profileModalMode() === 'create'
-        ? this.svc.createProfile(name, desc)
-        : this.svc.updateProfile(this.editingProfileId()!, name, desc);
+        ? this.svc.createProfile(name, desc, this.profileFormula())
+        : this.svc.updateProfile(this.editingProfileId()!, name, desc, this.profileFormula());
     obs.subscribe({
       next: () => {
         this.profileLoading.set(false);
@@ -311,12 +328,21 @@ export class SalaryComponent implements OnInit {
   }
 
   deleteProfile(p: SalaryProfile): void {
-    if (!confirm(`Delete profile "${p.name}"? This will also delete all its salary slips.`)) return;
-    this.svc.deleteProfile(p.id).subscribe(() => {
-      this.profiles.update((list) => list.filter((x) => x.id !== p.id));
-      this.slips.update((list) => list.filter((x) => x.salaryProfileId !== p.id));
-      if (this.selectedProfileId() === p.id) this.exitProfile();
+    this.confirmPending.set({
+      message: `Delete profile "${p.name}"? This will also delete all its salary slips.`,
+      action: () =>
+        this.svc.deleteProfile(p.id).subscribe(() => {
+          this.profiles.update((list) => list.filter((x) => x.id !== p.id));
+          this.slips.update((list) => list.filter((x) => x.salaryProfileId !== p.id));
+          if (this.selectedProfileId() === p.id) this.exitProfile();
+        }),
     });
+  }
+
+  onConfirmPending(): void {
+    const pending = this.confirmPending();
+    this.confirmPending.set(null);
+    pending?.action();
   }
 
   lineItemCatName(id: number | null): string {
@@ -337,23 +363,29 @@ export class SalaryComponent implements OnInit {
     }, 0);
   }
 
-  private profileNameIncludes(slip: SalarySlip, term: string): boolean {
-    return slip.profileName.toLowerCase().includes(term.toLowerCase());
-  }
+  private profileFormulaMap = computed(
+    () => new Map(this.profiles().map((p) => [p.id, p.hourlyRateFormula])),
+  );
 
-  isDominos(slip: SalarySlip): boolean {
-    return this.profileNameIncludes(slip, 'dominos');
-  }
-
-  isKonkConsulting(slip: SalarySlip): boolean {
-    return this.profileNameIncludes(slip, 'konk');
+  private formulaFor(slip: SalarySlip): HourlyRateFormula {
+    return this.profileFormulaMap().get(slip.salaryProfileId) ?? 'days';
   }
 
   hoursWorkedLabel(slip: SalarySlip): string {
-    return this.isDominos(slip) ? 'Hours Worked' : 'Days Worked';
+    return this.formulaFor(slip) === 'hours' ? 'Hours Worked' : 'Days Worked';
   }
 
+  private readonly workdaysCache = new Map<string, number>();
+
   workdaysInMonth(period: string): number {
+    const cached = this.workdaysCache.get(period);
+    if (cached !== undefined) return cached;
+    const result = this.computeWorkdaysInMonth(period);
+    this.workdaysCache.set(period, result);
+    return result;
+  }
+
+  private computeWorkdaysInMonth(period: string): number {
     const d = new Date(period);
     const year = d.getFullYear();
     const month = d.getMonth();
@@ -367,15 +399,19 @@ export class SalaryComponent implements OnInit {
   }
 
   hasTrueHourlyRate(slip: SalarySlip): boolean {
-    if (this.isDominos(slip)) return !!slip.hoursWorked && slip.hoursWorked > 0;
-    if (this.isKonkConsulting(slip)) return true;
+    if (this.formulaFor(slip) === 'workdays') return true;
     return !!slip.hoursWorked && slip.hoursWorked > 0;
   }
 
   trueHourlyRate(slip: SalarySlip): number {
     const net = this.netFromLineItems(slip);
-    if (this.isDominos(slip)) return net / slip.hoursWorked!;
-    if (this.isKonkConsulting(slip)) return net / (this.workdaysInMonth(slip.period) * 8);
-    return net / (slip.hoursWorked! * 8);
+    switch (this.formulaFor(slip)) {
+      case 'hours':
+        return net / slip.hoursWorked!;
+      case 'workdays':
+        return net / (this.workdaysInMonth(slip.period) * 8);
+      default:
+        return net / (slip.hoursWorked! * 8);
+    }
   }
 }

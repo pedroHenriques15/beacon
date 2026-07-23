@@ -173,7 +173,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -188,7 +188,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
@@ -220,7 +220,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -252,7 +252,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -267,7 +267,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -299,7 +299,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
@@ -307,7 +307,7 @@ describe('FinanceService', () => {
     ]);
 
     expect(service.allTransactionsRaw().length).toBe(1);
-    expect(service.allTransactionsRaw()[0].isInternalTransfer).toBe(true);
+    expect(service.allTransactionsRaw()[0].isExcluded).toBe(true);
   });
 
   it('monthlySummaries() calculates income/expenses for non-BPI bank', () => {
@@ -331,7 +331,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
           {
@@ -346,7 +346,7 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: false,
+            isExcluded: false,
             category: null,
           },
         ],
@@ -362,6 +362,117 @@ describe('FinanceService', () => {
     expect(s.expenses).toBe(800);
     expect(s.net).toBe(200);
     expect(s.closingBalance).toBe(1200);
+  });
+
+  it('unknownTypeCount() counts non-excluded unknown-type transactions', () => {
+    service.reload();
+    flushLoadAll(controller, [
+      makeStatement({
+        id: 1,
+        bank: 'REVOLUT',
+        periodFrom: '2024-01-01',
+        transactions: [
+          {
+            id: 1,
+            statementId: 1,
+            datePosting: '2024-01-05',
+            dateValue: '2024-01-05',
+            description: 'Unverified',
+            amount: 50,
+            type: 'unknown',
+            balance: 950,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 2,
+            statementId: 1,
+            datePosting: '2024-01-06',
+            dateValue: '2024-01-06',
+            description: 'Excluded unknown',
+            amount: 20,
+            type: 'unknown',
+            balance: 930,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: true,
+            category: null,
+          },
+        ],
+      }),
+    ]);
+
+    expect(service.unknownTypeCount()).toBe(1);
+  });
+
+  it('monthlySummaries() does not double-count BPI net movement (audit Top-10 #4)', () => {
+    service.reload();
+    flushLoadAll(controller, [
+      makeStatement({
+        id: 1,
+        bank: 'BPI',
+        periodFrom: '2024-01-01',
+        openingBalance: 9500,
+        closingBalance: 10000,
+        transactions: [
+          {
+            id: 1,
+            statementId: 1,
+            datePosting: '2024-01-10',
+            dateValue: '2024-01-10',
+            description: 'Salary',
+            amount: 1000,
+            type: 'credit',
+            balance: 2000,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 2,
+            statementId: 1,
+            datePosting: '2024-01-15',
+            dateValue: '2024-01-15',
+            description: 'Rent',
+            amount: 500,
+            type: 'debit',
+            balance: 1500,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 3,
+            statementId: 1,
+            datePosting: '2024-01-31',
+            dateValue: '2024-01-31',
+            description: 'BPI Reforma - Ganhos',
+            amount: 300,
+            type: 'credit',
+            balance: 1800,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+        ],
+      }),
+    ]);
+
+    const s = service.monthlySummaries()[0];
+    // Income = credits only (salary + synthetic PPR gain, counted once each).
+    expect(s.income).toBe(1300);
+    expect(s.expenses).toBe(500);
+    expect(s.net).toBe(800);
   });
 
   it('monthlySummaries() excludes internal transfers from income/expenses', () => {
@@ -385,27 +496,94 @@ describe('FinanceService', () => {
             categoryId: null,
             categoryRuleId: null,
             categorySetManually: false,
-            isInternalTransfer: true,
+            isExcluded: true,
             category: null,
           },
         ],
       }),
     ]);
 
-    const s = service.monthlySummaries()[0];
-    expect(s.expenses).toBe(0);
-    expect(s.income).toBe(0);
+    // A statement whose only transaction is an excluded transfer contributes no
+    // summary rows at all - excluded movement never reaches income or expenses.
+    expect(service.monthlySummaries().length).toBe(0);
+  });
+
+  it('monthlySummaries() buckets transactions into their own months (mid-month statement)', () => {
+    service.reload();
+    flushLoadAll(controller, [
+      makeStatement({
+        id: 1,
+        bank: 'REVOLUT',
+        periodFrom: '2024-06-15',
+        periodTo: '2024-07-14',
+        closingBalance: 700,
+        transactions: [
+          {
+            id: 1,
+            statementId: 1,
+            datePosting: '2024-06-20',
+            dateValue: '2024-06-20',
+            description: 'June spend',
+            amount: 100,
+            type: 'debit',
+            balance: 900,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 2,
+            statementId: 1,
+            datePosting: '2024-07-05',
+            dateValue: '2024-07-05',
+            description: 'July spend',
+            amount: 200,
+            type: 'debit',
+            balance: 700,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+        ],
+      }),
+    ]);
+
+    const summaries = service.monthlySummaries();
+    expect(summaries.length).toBe(2);
+    expect(summaries[0].month).toBe('2024-06');
+    expect(summaries[0].expenses).toBe(100);
+    expect(summaries[1].month).toBe('2024-07');
+    expect(summaries[1].expenses).toBe(200);
   });
 
   it('monthlySummaries() is sorted by month then bank', () => {
     service.reload();
+    const makeTx = (id: number, statementId: number, datePosting: string) => ({
+      id,
+      statementId,
+      datePosting,
+      dateValue: datePosting,
+      description: 'TX',
+      amount: 10,
+      type: 'debit' as const,
+      balance: 90,
+      categoryId: null,
+      categoryRuleId: null,
+      categorySetManually: false,
+      isExcluded: false,
+      category: null,
+    });
     flushLoadAll(controller, [
       makeStatement({
         id: 1,
         bank: 'REVOLUT',
         periodFrom: '2024-02-01',
         closingBalance: 100,
-        transactions: [],
+        transactions: [makeTx(1, 1, '2024-02-10')],
       }),
       makeStatement({
         id: 2,
@@ -413,7 +591,7 @@ describe('FinanceService', () => {
         periodFrom: '2024-01-01',
         openingBalance: 0,
         closingBalance: 200,
-        transactions: [],
+        transactions: [makeTx(2, 2, '2024-01-10')],
       }),
     ]);
 
@@ -479,7 +657,7 @@ describe('FinanceService', () => {
       categoryId: null,
       categoryRuleId: null,
       categorySetManually: false,
-      isInternalTransfer: false,
+      isExcluded: false,
       category: null,
     });
   });

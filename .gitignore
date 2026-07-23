@@ -25,7 +25,6 @@ coverage/
 appsettings.json
 appsettings.*.json
 !appsettings.template.json
-api/FinanceHub.Api/Properties/launchSettings.json
 
 # ─── Certificates ────────────────────────────────────────────────────────────
 *.pfx
@@ -49,6 +48,9 @@ yarn-error.log*
 
 # ─── Deploy build staging ───────────────────────────────────────────────────
 .build/
+
+# ─── .NET runtime/tools (devcontainer local) ────────────────────────────────
+dotnet/
 
 # ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/

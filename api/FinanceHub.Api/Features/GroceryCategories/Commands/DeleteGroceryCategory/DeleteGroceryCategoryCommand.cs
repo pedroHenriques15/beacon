@@ -1,3 +1,0 @@
-namespace FinanceHub.Api.Features.GroceryCategories.Commands.DeleteGroceryCategory;
-
-public record DeleteGroceryCategoryCommand(int Id);

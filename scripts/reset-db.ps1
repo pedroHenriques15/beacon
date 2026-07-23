@@ -4,7 +4,7 @@ param([switch]$Force)
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$BackendDir = Join-Path $ProjectRoot "api\FinanceHub.Api"
+$BackendDir = Join-Path $ProjectRoot "api\Beacon.Api"
 
 function Write-Step { param($msg) Write-Host "" ; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
@@ -12,7 +12,7 @@ function Write-Fail { param($msg) Write-Host "" ; Write-Host "[ERROR] $msg" -For
 
 Write-Host ""
 Write-Host "Finance Hub - Database Reset" -ForegroundColor White
-Write-Host "This will DROP the FinanceHub database and recreate it from migrations." -ForegroundColor Yellow
+Write-Host "This will DROP the Beacon database and recreate it from migrations." -ForegroundColor Yellow
 Write-Host "All data (statements, transactions, categories, rules) will be lost." -ForegroundColor Yellow
 
 if (-not $Force) {
@@ -40,7 +40,7 @@ Write-Step "Reading connection string"
 
 $appSettings = Join-Path $BackendDir "appsettings.json"
 if (-not (Test-Path $appSettings)) {
-    Write-Fail "appsettings.json not found.`n    Copy api\FinanceHub.Api\appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
+    Write-Fail "appsettings.json not found.`n    Copy api\Beacon.Api\appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
 }
 
 $config = Get-Content $appSettings -Raw | ConvertFrom-Json
