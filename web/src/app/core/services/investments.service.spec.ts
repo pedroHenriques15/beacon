@@ -235,4 +235,68 @@ describe('InvestmentsService metrics', () => {
     expect(service.totalCostBasis()).toBeCloseTo(1000 + 3500, 6);
     expect(service.totalUnrealizedPnl()).toBeCloseTo(950, 6);
   });
+
+  it('computes portfolio history with net invested per date', () => {
+    load([
+      makeAsset(
+        [
+          makeLot({ date: '2026-01-05', quantity: 10, pricePerUnit: 100, fees: 2.5 }),
+          makeLot({ date: '2026-03-05', quantity: -4, pricePerUnit: 120, fees: 2 }),
+        ],
+        [
+          makeSnap({ date: '2026-03-10', pricePerUnit: 130 }),
+          makeSnap({ date: '2026-02-01', pricePerUnit: 110 }),
+          makeSnap({ date: '2026-01-05', pricePerUnit: 100 }),
+        ],
+      ),
+    ]);
+    const points = service.portfolioHistory();
+    expect(points.map((p) => p.date)).toEqual(['2026-01-05', '2026-02-01', '2026-03-10']);
+    expect(points[0].totalValue).toBeCloseTo(1000, 6);
+    expect(points[0].invested).toBeCloseTo(1002.5, 6);
+    expect(points[1].totalValue).toBeCloseTo(1100, 6);
+    expect(points[1].invested).toBeCloseTo(1002.5, 6);
+    expect(points[2].totalValue).toBeCloseTo(6 * 130, 6);
+    expect(points[2].invested).toBeCloseTo(1002.5 - 4 * 120 + 2, 6);
+  });
+
+  it('computes history and allocation for a filtered asset subset', () => {
+    const etf = makeAsset(
+      [makeLot({ assetId: 1, date: '2026-01-05', quantity: 10, pricePerUnit: 100 })],
+      [makeSnap({ assetId: 1, date: '2026-01-05', pricePerUnit: 120 })],
+      { id: 1 },
+    );
+    const gold = makeAsset(
+      [makeLot({ assetId: 2, date: '2026-01-05', quantity: 50, pricePerUnit: 70 })],
+      [makeSnap({ assetId: 2, date: '2026-01-05', pricePerUnit: 85 })],
+      { id: 2, assetType: 'Gold', ticker: null, name: 'Physical Gold' },
+    );
+    load([etf, gold]);
+
+    const goldHistory = service.portfolioHistoryFor([gold]);
+    expect(goldHistory).toHaveLength(1);
+    expect(goldHistory[0].totalValue).toBeCloseTo(50 * 85, 6);
+    expect(goldHistory[0].invested).toBeCloseTo(3500, 6);
+
+    const goldAllocation = service.allocationDataFor(
+      service.assetMetrics().filter((m) => m.asset.assetType === 'Gold'),
+    );
+    expect(goldAllocation).toHaveLength(1);
+    expect(goldAllocation[0].label).toBe('Physical Gold');
+    expect(goldAllocation[0].value).toBeCloseTo(50 * 85, 6);
+  });
+
+  it('drops history dates before any holdings exist', () => {
+    load([
+      makeAsset(
+        [makeLot({ date: '2026-01-05', quantity: 10, pricePerUnit: 100 })],
+        [
+          makeSnap({ date: '2026-01-05', pricePerUnit: 105 }),
+          makeSnap({ date: '2026-01-02', pricePerUnit: 100 }),
+        ],
+      ),
+    ]);
+    const points = service.portfolioHistory();
+    expect(points.map((p) => p.date)).toEqual(['2026-01-05']);
+  });
 });

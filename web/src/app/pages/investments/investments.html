@@ -357,7 +357,7 @@
     <div class="inv-charts">
       <div class="inv-chart-card">
         <h3 class="inv-chart-title">Allocation</h3>
-        <canvas #allocationCanvas></canvas>
+        <div class="inv-chart-body"><canvas #allocationCanvas></canvas></div>
       </div>
       <div class="inv-chart-card">
         <div class="inv-chart-card__head">
@@ -374,10 +374,10 @@
             }
           </div>
         </div>
-        @if (svc.portfolioHistory().length < 2) {
+        @if (tabHistory().length < 2) {
           <p class="inv-chart-placeholder">Add price snapshots to see the historical chart.</p>
         } @else {
-          <canvas #historyCanvas></canvas>
+          <div class="inv-chart-body"><canvas #historyCanvas></canvas></div>
         }
       </div>
     </div>

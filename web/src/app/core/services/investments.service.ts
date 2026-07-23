@@ -28,6 +28,7 @@ export interface AssetMetric {
 export interface PortfolioPoint {
   date: string;
   totalValue: number;
+  invested: number;
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -249,9 +250,11 @@ export class InvestmentsService {
   ];
   private readonly GOLD_COLOR = '#f59e0b';
 
-  allocationData = computed(() => {
+  allocationData = computed(() => this.allocationDataFor(this.assetMetrics()));
+
+  allocationDataFor(metrics: AssetMetric[]): { label: string; value: number; color: string }[] {
     let etfIndex = 0;
-    return this.assetMetrics()
+    return metrics
       .filter((m) => (m.currentValue ?? 0) > 0)
       .map((m) => ({
         label: m.asset.ticker ?? m.asset.name,
@@ -261,10 +264,11 @@ export class InvestmentsService {
             ? this.GOLD_COLOR
             : this.ETF_COLORS[etfIndex++ % this.ETF_COLORS.length],
       }));
-  });
+  }
 
-  portfolioHistory = computed<PortfolioPoint[]>(() => {
-    const assets = this.assets();
+  portfolioHistory = computed<PortfolioPoint[]>(() => this.portfolioHistoryFor(this.assets()));
+
+  portfolioHistoryFor(assets: InvestmentAsset[]): PortfolioPoint[] {
     if (assets.length === 0) return [];
 
     const allDates = [
@@ -275,7 +279,12 @@ export class InvestmentsService {
     return allDates
       .map((date) => {
         let totalValue = 0;
+        let invested = 0;
         for (const asset of assets) {
+          // Net money in up to this date: sells (negative quantity) reduce it, fees always add.
+          invested += asset.lots
+            .filter((l) => l.date <= date)
+            .reduce((s, l) => s + l.quantity * l.pricePerUnit + (l.fees ?? 0), 0);
           const snap = asset.priceSnapshots.find((s) => s.date <= date);
           if (!snap) continue;
           const netQty = asset.lots
@@ -283,8 +292,8 @@ export class InvestmentsService {
             .reduce((s, l) => s + l.quantity, 0);
           if (netQty > 0) totalValue += netQty * snap.pricePerUnit;
         }
-        return { date, totalValue };
+        return { date, totalValue, invested };
       })
       .filter((p) => p.totalValue > 0);
-  });
+  }
 }

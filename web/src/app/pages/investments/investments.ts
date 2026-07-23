@@ -22,6 +22,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  type Plugin,
 } from 'chart.js';
 import { InvestmentsService } from '../../core/services/investments.service';
 import {
@@ -82,6 +83,16 @@ export class InvestmentsComponent implements OnDestroy {
     return tab === 'all' ? metrics : metrics.filter((m) => m.asset.assetType === tab);
   });
 
+  // Charts follow the active tab: allocation from the tab's metrics, history from the tab's assets.
+  tabAllocation = computed(() => this.svc.allocationDataFor(this.filteredMetrics()));
+  tabHistory = computed(() => {
+    const tab = this.activeTab();
+    const assets = this.assets();
+    return this.svc.portfolioHistoryFor(
+      tab === 'all' ? assets : assets.filter((a) => a.assetType === tab),
+    );
+  });
+
   // ---- Asset modal ----
   showAssetModal = signal(false);
   assetModalMode = signal<'create' | 'edit'>('create');
@@ -140,7 +151,7 @@ export class InvestmentsComponent implements OnDestroy {
   private historyChart?: Chart;
 
   filteredHistory = computed(() => {
-    const points = this.svc.portfolioHistory();
+    const points = this.tabHistory();
     const range = this.historyRange();
     if (range === 'All' || points.length === 0) return points;
     const days = range === '1M' ? 30 : range === '3M' ? 91 : 365;
@@ -153,7 +164,7 @@ export class InvestmentsComponent implements OnDestroy {
   constructor() {
     effect(() => {
       this.allocationCanvas();
-      this.svc.allocationData();
+      this.tabAllocation();
       this.renderAllocationChart();
     });
     effect(() => {
@@ -473,14 +484,35 @@ export class InvestmentsComponent implements OnDestroy {
   // ---- Charts ----
   private renderAllocationChart(): void {
     this.allocationChart?.destroy();
-    const data = this.svc.allocationData();
+    const data = this.tabAllocation();
     const canvas = this.allocationCanvas()?.nativeElement;
     if (data.length === 0 || !canvas) return;
+
+    const total = data.reduce((s, d) => s + d.value, 0);
+    const pct = (v: number) => ((v / total) * 100).toFixed(1);
+    const centerTotal: Plugin<'doughnut'> = {
+      id: 'centerTotal',
+      afterDraw(chart) {
+        const { left, right, top, bottom } = chart.chartArea;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = "600 1rem 'Inter', sans-serif";
+        ctx.fillText(
+          `€${total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          (left + right) / 2,
+          (top + bottom) / 2,
+        );
+        ctx.restore();
+      },
+    };
 
     this.allocationChart = new Chart(canvas, {
       type: 'doughnut',
       data: {
-        labels: data.map((d) => d.label),
+        labels: data.map((d) => `${d.label} · ${pct(d.value)}%`),
         datasets: [
           {
             data: data.map((d) => d.value),
@@ -492,6 +524,7 @@ export class InvestmentsComponent implements OnDestroy {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         cutout: '62%',
         plugins: {
           legend: {
@@ -501,11 +534,12 @@ export class InvestmentsComponent implements OnDestroy {
           tooltip: {
             callbacks: {
               label: (ctx) =>
-                ` ${ctx.label}: €${(ctx.parsed as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                ` €${(ctx.parsed as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct(ctx.parsed as number)}%)`,
             },
           },
         },
       },
+      plugins: [centerTotal],
     });
   }
 
@@ -526,6 +560,7 @@ export class InvestmentsComponent implements OnDestroy {
         labels: points.map((p) => this.formatDate(p.date)),
         datasets: [
           {
+            label: 'Value',
             data: points.map((p) => p.totalValue),
             borderColor: '#6366f1',
             backgroundColor: gradient,
@@ -535,16 +570,29 @@ export class InvestmentsComponent implements OnDestroy {
             pointHoverRadius: 5,
             pointBackgroundColor: '#6366f1',
           },
+          {
+            label: 'Invested',
+            data: points.map((p) => p.invested),
+            borderColor: '#64748b',
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            fill: false,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+          },
         ],
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
           tooltip: {
             callbacks: {
               label: (ctx) =>
-                ` €${(ctx.parsed.y as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                ` ${ctx.dataset.label}: €${(ctx.parsed.y as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
           },
         },

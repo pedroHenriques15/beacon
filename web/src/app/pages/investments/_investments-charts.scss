@@ -2,13 +2,18 @@
 
 .inv-charts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
   gap: 1.5rem;
   margin-top: 2rem;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
+}
+
+.inv-chart-body {
+  position: relative;
+  height: 300px;
 }
 
 .inv-chart-card {
