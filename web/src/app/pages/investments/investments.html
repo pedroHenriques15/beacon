@@ -311,34 +311,46 @@
             }
 
             <!-- Price snapshots table -->
-            <h4 class="inv-section-title">Price History</h4>
+            <button
+              type="button"
+              class="inv-section-title inv-section-title--toggle"
+              [attr.aria-expanded]="priceHistoryOpen()"
+              (click)="togglePriceHistory()"
+            >
+              <span class="inv-section-toggle__chevron" [class.open]="priceHistoryOpen()">▸</span>
+              Price History ({{ m.asset.priceSnapshots.length }})
+            </button>
             <app-asset-history-chart
               [snapshots]="m.asset.priceSnapshots"
               [range]="historyRange()"
             />
-            @if (m.asset.priceSnapshots.length === 0) {
-              <p class="inv-empty">No prices recorded yet.</p>
-            } @else {
-              <table class="inv-table inv-table--compact">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Price/Unit</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (snap of m.asset.priceSnapshots; track snap.id) {
+            @if (priceHistoryOpen()) {
+              @if (m.asset.priceSnapshots.length === 0) {
+                <p class="inv-empty">No prices recorded yet.</p>
+              } @else {
+                <table class="inv-table inv-table--compact">
+                  <thead>
                     <tr>
-                      <td>{{ formatDate(snap.date) }}</td>
-                      <td>{{ snap.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
-                      <td class="inv-table__actions">
-                        <button class="btn-danger btn--xs" (click)="deletePrice(snap)">Del</button>
-                      </td>
+                      <th>Date</th>
+                      <th>Price/Unit</th>
+                      <th></th>
                     </tr>
-                  }
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    @for (snap of m.asset.priceSnapshots; track snap.id) {
+                      <tr>
+                        <td>{{ formatDate(snap.date) }}</td>
+                        <td>{{ snap.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
+                        <td class="inv-table__actions">
+                          <button class="btn-danger btn--xs" (click)="deletePrice(snap)">
+                            Del
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
             }
           </div>
         }

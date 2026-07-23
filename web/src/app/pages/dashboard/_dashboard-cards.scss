@@ -95,6 +95,14 @@
   }
 }
 
+.investments-card {
+  --accent: var(--success);
+
+  .bank-card__period {
+    font-size: 0.78rem;
+  }
+}
+
 .section-header {
   display: flex;
   align-items: center;

@@ -76,6 +76,7 @@ export class InvestmentsComponent implements OnDestroy {
   fetchError = signal<string | null>(null);
   backfillingAssetId = signal<number | null>(null);
   backfillNotice = signal<string | null>(null);
+  priceHistoryOpen = signal(false);
 
   filteredMetrics = computed(() => {
     const tab = this.activeTab();
@@ -419,6 +420,11 @@ export class InvestmentsComponent implements OnDestroy {
 
   toggleExpand(id: number): void {
     this.expandedAssetId.update((cur) => (cur === id ? null : id));
+    this.priceHistoryOpen.set(false);
+  }
+
+  togglePriceHistory(): void {
+    this.priceHistoryOpen.update((open) => !open);
   }
 
   // ---- Backfill history ----
