@@ -245,11 +245,17 @@ Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (beh
 
 ## Deployment
 
-`scripts/deploy.sh` builds both the API and frontend, applies pending migrations, and launches everything. In production mode it copies the build output to `/opt/beacon`, reloads the systemd service, and starts Nginx.
+`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), applies EF migrations, snapshots the current release to `/opt/beacon.prev`, deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx — verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
 
 ```bash
-./scripts/deploy.sh --production
+./scripts/deploy.sh --production   # deploy
+./scripts/deploy.sh --rollback     # restore the previous release (migrations are NOT reverted)
+journalctl -u beacon -f            # production logs (journald)
 ```
+
+Server prerequisites: a `beacon` systemd unit at `/etc/systemd/system/beacon.service`, Nginx, and a filled-in `local/environment` file (loaded via the unit's `EnvironmentFile`).
+
+Development mode (`./scripts/deploy.sh`) opens API and Web dev servers in two tiled gnome-terminal windows — a desktop convenience, not used in production.
 
 The app is designed to run on a home server and be accessed remotely over Tailscale. Nginx acts as a reverse proxy, serving the Angular build as static files and forwarding `/api/*` to Kestrel.
 
