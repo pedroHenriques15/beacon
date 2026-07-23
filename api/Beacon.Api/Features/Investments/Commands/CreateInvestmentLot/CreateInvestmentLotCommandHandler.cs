@@ -27,6 +27,15 @@ public class CreateInvestmentLotCommandHandler(AppDbContext db)
         if (command.PricePerUnit <= 0)
             return (null, "PricePerUnit must be greater than zero.");
 
+        if (command.Quantity < 0)
+        {
+            var held = await db.InvestmentLots
+                .Where(l => l.AssetId == command.AssetId)
+                .SumAsync(l => (decimal?)l.Quantity, ct) ?? 0;
+            if (held + command.Quantity < 0)
+                return (null, $"Cannot sell {Math.Abs(command.Quantity):0.####} — only {held:0.####} held.");
+        }
+
         var lot = new InvestmentLot
         {
             AssetId      = command.AssetId,

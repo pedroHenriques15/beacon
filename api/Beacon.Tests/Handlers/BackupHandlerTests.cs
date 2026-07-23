@@ -82,6 +82,7 @@ public class BackupHandlerTests : IDisposable
         {
             "categories", "categoryrules", "grocerycategories", "grocerycategoryrules",
             "groceryitems", "groceryreceiptcategorymappings", "groceryreceipts",
+            "investmentassets", "investmentlots", "investmentpricesnapshots",
             "monthlystatements", "salaryitemcategories", "salarylineitems",
             "salaryprofiles", "salaryslips", "transactions",
         };

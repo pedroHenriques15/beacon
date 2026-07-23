@@ -38,6 +38,9 @@ public class CreateBackupCommandHandler(AppDbContext db, IConfiguration config, 
             GroceryReceipts                 = await db.GroceryReceipts.AsNoTracking().ToListAsync(ct),
             GroceryItems                    = await db.GroceryItems.AsNoTracking().ToListAsync(ct),
             GroceryCategoryRules            = await db.GroceryCategoryRules.AsNoTracking().ToListAsync(ct),
+            InvestmentAssets                = await db.InvestmentAssets.AsNoTracking().ToListAsync(ct),
+            InvestmentLots                  = await db.InvestmentLots.AsNoTracking().ToListAsync(ct),
+            InvestmentPriceSnapshots        = await db.InvestmentPriceSnapshots.AsNoTracking().ToListAsync(ct),
         };
 
         await File.WriteAllTextAsync(backupFile, JsonSerializer.Serialize(payload, _jsonOptions), ct);
@@ -62,4 +65,7 @@ internal sealed class BackupPayload
     public List<GroceryReceipt>                GroceryReceipts                { get; set; } = [];
     public List<GroceryItem>                   GroceryItems                   { get; set; } = [];
     public List<GroceryCategoryRule>           GroceryCategoryRules           { get; set; } = [];
+    public List<InvestmentAsset>               InvestmentAssets               { get; set; } = [];
+    public List<InvestmentLot>                 InvestmentLots                 { get; set; } = [];
+    public List<InvestmentPriceSnapshot>       InvestmentPriceSnapshots       { get; set; } = [];
 }

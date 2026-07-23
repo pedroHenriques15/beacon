@@ -23,7 +23,7 @@ public class CreateInvestmentAssetCommandHandler(AppDbContext db)
         if (string.IsNullOrWhiteSpace(command.Name))
             return (null, "Name is required.");
 
-        var ticker = command.Ticker?.Trim().ToUpperInvariant();
+        var ticker = command.AssetType == "ETF" ? command.Ticker?.Trim().ToUpperInvariant() : null;
 
         if (command.AssetType == "ETF")
         {

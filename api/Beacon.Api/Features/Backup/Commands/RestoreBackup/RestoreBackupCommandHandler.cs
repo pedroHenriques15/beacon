@@ -33,6 +33,9 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentPriceSnapshots]",       ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentLots]",                 ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentAssets]",               ct);
             await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]",                   ct);
             await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]",          ct);
             await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceiptCategoryMappings]", ct);
@@ -60,6 +63,9 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
             await InsertWithIdentity(db, "GroceryReceipts",                payload.GroceryReceipts,                ct);
             await InsertWithIdentity(db, "GroceryItems",                   payload.GroceryItems,                   ct);
             await InsertWithIdentity(db, "GroceryCategoryRules",           payload.GroceryCategoryRules,           ct);
+            await InsertWithIdentity(db, "InvestmentAssets",               payload.InvestmentAssets,               ct);
+            await InsertWithIdentity(db, "InvestmentLots",                 payload.InvestmentLots,                 ct);
+            await InsertWithIdentity(db, "InvestmentPriceSnapshots",       payload.InvestmentPriceSnapshots,       ct);
 
             await tx.CommitAsync(ct);
         });

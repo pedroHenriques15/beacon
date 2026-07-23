@@ -18,13 +18,21 @@ public class UpdateInvestmentLotCommandHandler(AppDbContext db)
         UpdateInvestmentLotCommand command, CancellationToken ct = default)
     {
         var lot = await db.InvestmentLots.FindAsync([command.Id], ct);
-        if (lot is null) return (null, "Investment lot not found.");
+        if (lot is null) return (null, null);
 
         if (command.Quantity == 0)
             return (null, "Quantity must not be zero.");
 
         if (command.PricePerUnit <= 0)
             return (null, "PricePerUnit must be greater than zero.");
+
+        var heldExcludingThis = await db.InvestmentLots
+            .Where(l => l.AssetId == lot.AssetId && l.Id != command.Id)
+            .SumAsync(l => (decimal?)l.Quantity, ct) ?? 0;
+        if (heldExcludingThis + command.Quantity < 0)
+            return (null, command.Quantity < 0
+                ? $"Cannot sell {Math.Abs(command.Quantity):0.####} — only {heldExcludingThis:0.####} held."
+                : "This change would leave more sold than held.");
 
         lot.Date         = command.Date;
         lot.Quantity     = command.Quantity;

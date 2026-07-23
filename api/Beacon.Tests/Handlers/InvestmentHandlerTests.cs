@@ -125,15 +125,15 @@ public class InvestmentHandlerTests
     }
 
     [Fact]
-    public async Task UpdateAsset_NotFound_ReturnsError()
+    public async Task UpdateAsset_NotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(UpdateAsset_NotFound_ReturnsError));
+        await using var db = CreateDb(nameof(UpdateAsset_NotFound_ReturnsNullNull));
         var handler = new UpdateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new UpdateInvestmentAssetCommand(9999, "X", "Name", null));
 
         Assert.Null(result);
-        Assert.NotNull(error);
+        Assert.Null(error);
     }
 
     // ---- Asset: Delete ----
@@ -209,6 +209,8 @@ public class InvestmentHandlerTests
     {
         await using var db = CreateDb(nameof(CreateLot_Sell_PersistsNegativeQuantity));
         var asset = await SeedEtfAsync(db);
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 5, 1), Quantity = 5, PricePerUnit = 100 });
+        await db.SaveChangesAsync();
         var handler = new CreateInvestmentLotCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(
@@ -266,14 +268,14 @@ public class InvestmentHandlerTests
     }
 
     [Fact]
-    public async Task UpdateLot_NotFound_ReturnsError()
+    public async Task UpdateLot_NotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(UpdateLot_NotFound_ReturnsError));
+        await using var db = CreateDb(nameof(UpdateLot_NotFound_ReturnsNullNull));
         var (result, error) = await new UpdateInvestmentLotCommandHandler(db).HandleAsync(
             new UpdateInvestmentLotCommand(9999, new DateOnly(2025, 1, 1), 1, 100m, null, null));
 
         Assert.Null(result);
-        Assert.NotNull(error);
+        Assert.Null(error);
     }
 
     // ---- Lot: Delete ----

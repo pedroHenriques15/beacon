@@ -14,7 +14,7 @@ public class FetchInvestmentPriceCommandHandler(AppDbContext db, AlphaVantageSer
         FetchInvestmentPriceCommand command, CancellationToken ct = default)
     {
         var asset = await db.InvestmentAssets.FindAsync([command.AssetId], ct);
-        if (asset is null) return (null, "Investment asset not found.");
+        if (asset is null) return (null, null);
 
         decimal price;
         try

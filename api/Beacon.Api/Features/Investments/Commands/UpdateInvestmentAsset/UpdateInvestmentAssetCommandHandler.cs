@@ -16,7 +16,7 @@ public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
             .Include(a => a.PriceSnapshots)
             .FirstOrDefaultAsync(a => a.Id == command.Id, ct);
 
-        if (asset is null) return (null, "Investment asset not found.");
+        if (asset is null) return (null, null);
 
         if (string.IsNullOrWhiteSpace(command.Name))
             return (null, "Name is required.");
@@ -32,6 +32,14 @@ public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
             if (duplicate) return (null, $"An ETF with ticker '{ticker}' already exists.");
 
             asset.Ticker = ticker;
+        }
+        else
+        {
+            var duplicate = await db.InvestmentAssets
+                .AnyAsync(a => a.AssetType == "Gold" && a.Name == command.Name.Trim() && a.Id != command.Id, ct);
+            if (duplicate) return (null, "A Gold asset with this name already exists.");
+
+            asset.Ticker = null;
         }
 
         asset.Name  = command.Name.Trim();

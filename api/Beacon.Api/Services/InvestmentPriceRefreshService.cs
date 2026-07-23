@@ -47,34 +47,48 @@ public class InvestmentPriceRefreshService(
         }
     }
 
-    /// <summary>Refreshes prices for all assets and returns the asset count.</summary>
+    /// <summary>Refreshes prices for all assets and returns the asset count. Never throws.</summary>
     private async Task<int> RefreshAllAsync(CancellationToken ct)
     {
-        using var scope   = scopeFactory.CreateScope();
-        var db            = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var fetchHandler  = scope.ServiceProvider.GetRequiredService<FetchInvestmentPriceCommandHandler>();
-
-        var assets = await db.InvestmentAssets.ToListAsync(ct);
-        if (assets.Count == 0)
+        try
         {
-            logger.LogDebug("No investment assets to refresh.");
+            using var scope   = scopeFactory.CreateScope();
+            var db            = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var fetchHandler  = scope.ServiceProvider.GetRequiredService<FetchInvestmentPriceCommandHandler>();
+
+            var assets = await db.InvestmentAssets.ToListAsync(ct);
+            if (assets.Count == 0)
+            {
+                logger.LogDebug("No investment assets to refresh.");
+                return 0;
+            }
+
+            logger.LogInformation("Refreshing prices for {Count} investment asset(s).", assets.Count);
+
+            foreach (var asset in assets)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                var (result, error) = await fetchHandler.HandleAsync(new FetchInvestmentPriceCommand(asset.Id), ct);
+                if (error is not null)
+                    logger.LogWarning("Price fetch failed for {Name}: {Error}", asset.Name, error);
+                else if (result is null)
+                    logger.LogWarning("Price fetch skipped for {Name}: asset no longer exists.", asset.Name);
+                else
+                    logger.LogInformation("Updated price for {Name} ({Type})", asset.Name, asset.AssetType);
+            }
+
+            return assets.Count;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
             return 0;
         }
-
-        logger.LogInformation("Refreshing prices for {Count} investment asset(s).", assets.Count);
-
-        foreach (var asset in assets)
+        catch (Exception ex)
         {
-            if (ct.IsCancellationRequested) break;
-
-            var (_, error) = await fetchHandler.HandleAsync(new FetchInvestmentPriceCommand(asset.Id), ct);
-            if (error is not null)
-                logger.LogWarning("Price fetch failed for {Name}: {Error}", asset.Name, error);
-            else
-                logger.LogInformation("Updated price for {Name} ({Type})", asset.Name, asset.AssetType);
+            logger.LogError(ex, "Investment price refresh failed.");
+            return 0;
         }
-
-        return assets.Count;
     }
 
     /// <summary>
@@ -98,6 +112,9 @@ public class InvestmentPriceRefreshService(
             var intervalMins   = MarketMinutes / maxRounds;
             return TimeSpan.FromMinutes(intervalMins);
         }
+
+        if (isMarketOpen)
+            return TimeSpan.FromMinutes(60);
 
         // Outside market hours — sleep until next trading session opens
         var nextOpen = isWeekday && now < todayOpen ? todayOpen : todayOpen.AddDays(1);
