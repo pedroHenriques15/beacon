@@ -53,7 +53,7 @@ public partial class RevolutParser : IBankStatementParser
         var transactions = ParseTransactions(pages, opening);
         if (!sm.Success && transactions.Count == 0)
             throw new NotSupportedException(
-                "No EUR amounts found in this Revolut statement — only EUR statements are supported. " +
+                "No EUR amounts found in this Revolut statement - only EUR statements are supported. " +
                 "If this is a non-EUR Revolut export, it cannot be imported.");
 
         if (periodFrom == default || periodTo == default)

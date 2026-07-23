@@ -504,7 +504,7 @@ describe('FinanceService', () => {
     ]);
 
     // A statement whose only transaction is an excluded transfer contributes no
-    // summary rows at all — excluded movement never reaches income or expenses.
+    // summary rows at all - excluded movement never reaches income or expenses.
     expect(service.monthlySummaries().length).toBe(0);
   });
 

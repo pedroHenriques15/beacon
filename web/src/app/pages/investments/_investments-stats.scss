@@ -34,6 +34,19 @@
   font-weight: 700;
   color: var(--text-primary);
 
-  &.positive { color: var(--credit); }
-  &.negative { color: var(--debit); }
+  &.positive {
+    color: var(--credit);
+  }
+  &.negative {
+    color: var(--debit);
+  }
+}
+
+.inv-stats--changes {
+  .inv-stat {
+    padding: 0.8rem 1.4rem;
+  }
+  .inv-stat__value {
+    font-size: 1.1rem;
+  }
 }

@@ -48,7 +48,7 @@ public class StatementUploadService(
 
             if (!string.Equals(parsed.Currency, "EUR", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
-                    $"Only EUR statements are supported — this statement is in {parsed.Currency}.");
+                    $"Only EUR statements are supported - this statement is in {parsed.Currency}.");
 
             var warnings = ParseVerifier.VerifyStatement(parsed);
 
@@ -177,7 +177,7 @@ public class StatementUploadService(
 
             // Backfill correction runs AFTER the transfer-candidate scan so a synthetic
             // created on a later statement can never be proposed as a transfer counterpart.
-            // The import itself is already committed — a recompute failure must not fail
+            // The import itself is already committed - a recompute failure must not fail
             // the upload (or delete the stored PDF of a persisted statement).
             if (parsed.PprBalance.HasValue)
             {
@@ -217,7 +217,7 @@ public class StatementUploadService(
     /// <summary>
     /// Backfill correction (audit D1): when a BPI statement is inserted between two existing
     /// ones, the chronologically next statement's synthetic "BPI Reforma - Ganhos" transaction
-    /// was computed against an older baseline — recompute it against the new statement.
+    /// was computed against an older baseline - recompute it against the new statement.
     /// Returns the period of the recomputed statement, or null when there was nothing to do.
     /// </summary>
     internal static async Task<DateOnly?> RecomputeNextPprSyntheticAsync(

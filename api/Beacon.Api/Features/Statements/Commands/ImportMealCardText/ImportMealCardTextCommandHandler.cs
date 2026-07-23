@@ -52,19 +52,19 @@ public class ImportMealCardTextCommandHandler(
                 if (Math.Abs(expected - closingBalance) > 0.01m)
                     balanceWarnings.Add(
                         $"Provided balance {closingBalance:0.00} differs from the expected " +
-                        $"{expected:0.00} (previous closing + credits − debits) — double-check the amount.");
+                        $"{expected:0.00} (previous closing + credits − debits) - double-check the amount.");
             }
         }
         else
         {
             if (previous is null)
                 throw new NotSupportedException(
-                    "No previous MEAL CARD statement exists to derive the balance from — please fill in the current balance.");
+                    "No previous MEAL CARD statement exists to derive the balance from - please fill in the current balance.");
 
             if (!previousIsAdjacent)
                 throw new NotSupportedException(
                     $"The previous MEAL CARD statement ends {previous.PeriodTo:yyyy-MM-dd}, leaving a gap before " +
-                    $"{periodFrom:yyyy-MM-dd} — please fill in the current balance (or import the missing months first).");
+                    $"{periodFrom:yyyy-MM-dd} - please fill in the current balance (or import the missing months first).");
 
             openingBalance = previous.ClosingBalance;
             closingBalance = previous.ClosingBalance + credits - debits;
@@ -72,7 +72,7 @@ public class ImportMealCardTextCommandHandler(
 
         if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && s.PeriodFrom > periodFrom, ct))
             balanceWarnings.Add(
-                "A later MEAL CARD statement already exists — its balance was not recomputed and may need updating.");
+                "A later MEAL CARD statement already exists - its balance was not recomputed and may need updating.");
 
         var rules = await db.CategoryRules.ToListAsync(ct);
 

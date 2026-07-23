@@ -82,7 +82,7 @@ export class SettingsComponent implements OnInit {
         this.downloadState.set('error');
         this.downloadMessage.set(
           err.status === 404
-            ? 'No backup file exists yet — create a backup first.'
+            ? 'No backup file exists yet - create a backup first.'
             : 'Download failed. Please try again.',
         );
       },

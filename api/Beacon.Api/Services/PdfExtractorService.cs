@@ -10,7 +10,7 @@ public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorServ
         var python = config["Python:Executable"] ?? "python";
         var script = config["Python:ExtractorScript"]
             ?? throw new InvalidOperationException(
-                "Python:ExtractorScript is not configured — set it to the absolute path of scripts/pdfExtractor.py.");
+                "Python:ExtractorScript is not configured - set it to the absolute path of scripts/pdfExtractor.py.");
 
         var timeoutSeconds = config.GetValue("Python:TimeoutSeconds", 60);
 
@@ -54,7 +54,7 @@ public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorServ
 
             logger.LogError("PDF extraction timed out after {Seconds}s for {Path}", timeoutSeconds, pdfPath);
             throw new InvalidOperationException(
-                $"PDF extraction timed out after {timeoutSeconds} seconds — the file may be malformed.");
+                $"PDF extraction timed out after {timeoutSeconds} seconds - the file may be malformed.");
         }
 
         var stdout = await stdoutTask;
@@ -62,10 +62,10 @@ public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorServ
 
         if (process.ExitCode == 2)
             throw new NotSupportedException(
-                "This PDF is password-protected — remove the password and upload it again.");
+                "This PDF is password-protected - remove the password and upload it again.");
         if (process.ExitCode == 3)
             throw new NotSupportedException(
-                "This PDF could not be read — it may be corrupt or not a valid PDF.");
+                "This PDF could not be read - it may be corrupt or not a valid PDF.");
         if (process.ExitCode != 0)
         {
             logger.LogError("PDF extraction failed (exit {Code}) for {Path}: {Stderr}",
@@ -78,7 +78,7 @@ public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorServ
 
         if (pages.Count == 0)
             throw new NotSupportedException(
-                "No text could be extracted from this PDF — it looks like a scanned image. " +
+                "No text could be extracted from this PDF - it looks like a scanned image. " +
                 "Only digitally-generated documents with a text layer are supported.");
 
         return pages;

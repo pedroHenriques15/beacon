@@ -20,7 +20,9 @@
   cursor: pointer;
   user-select: none;
 
-  &:hover { background: rgba(255, 255, 255, 0.02); }
+  &:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
 
   @media (max-width: 768px) {
     flex-wrap: wrap;
@@ -64,8 +66,14 @@
   letter-spacing: 0.05em;
   flex-shrink: 0;
 
-  &.badge--etf  { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
-  &.badge--gold { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+  &.badge--etf {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+  }
+  &.badge--gold {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+  }
 }
 
 .inv-asset-metrics {
@@ -74,13 +82,25 @@
   flex: 1;
   justify-content: flex-start;
 
-  @media (max-width: 900px) { gap: 1rem; }
+  @media (max-width: 900px) {
+    gap: 1rem;
+  }
 }
 
 .inv-metric {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+.inv-metric--change .inv-metric__value {
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1100px) {
+  .inv-metric--change {
+    display: none;
+  }
 }
 
 .inv-metric__label {
@@ -95,8 +115,12 @@
   font-weight: 600;
   color: var(--text-primary);
 
-  &.positive { color: var(--credit); }
-  &.negative { color: var(--debit); }
+  &.positive {
+    color: var(--credit);
+  }
+  &.negative {
+    color: var(--debit);
+  }
 }
 
 .inv-asset-actions {
@@ -106,8 +130,14 @@
   flex-wrap: wrap;
 }
 
-.btn--sm  { padding: 0.3rem 0.65rem !important; font-size: 0.8rem !important; }
-.btn--xs  { padding: 0.2rem 0.5rem !important;  font-size: 0.75rem !important; }
+.btn--sm {
+  padding: 0.3rem 0.65rem !important;
+  font-size: 0.8rem !important;
+}
+.btn--xs {
+  padding: 0.2rem 0.5rem !important;
+  font-size: 0.75rem !important;
+}
 
 .inv-asset-body {
   border-top: 1px solid var(--border);
@@ -121,7 +151,9 @@
   letter-spacing: 0.06em;
   color: var(--text-muted);
 
-  & + & { margin-top: 1.5rem; }
+  & + & {
+    margin-top: 1.5rem;
+  }
 }
 
 .inv-table {
@@ -145,11 +177,19 @@
     color: var(--text-body);
   }
 
-  &--compact td { padding: 0.3rem 0.6rem; }
+  &--compact td {
+    padding: 0.3rem 0.6rem;
+  }
 }
 
-.inv-table__notes { color: var(--text-muted); max-width: 180px; }
-.inv-table__actions { white-space: nowrap; text-align: right; }
+.inv-table__notes {
+  color: var(--text-muted);
+  max-width: 180px;
+}
+.inv-table__actions {
+  white-space: nowrap;
+  text-align: right;
+}
 
 .inv-lot-badge {
   font-size: 0.65rem;
@@ -157,11 +197,33 @@
   border-radius: 4px;
   font-weight: 600;
 
-  &.badge--buy  { background: rgba(52, 211, 153, 0.15); color: #34d399; }
-  &.badge--sell { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+  &.badge--buy {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--credit);
+  }
+  &.badge--sell {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--debit);
+  }
 }
 
-.inv-empty       { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
-.inv-empty-state { color: var(--text-muted); text-align: center; padding: 3rem; }
-.inv-fetch-error { color: var(--debit); font-size: 0.85rem; margin-bottom: 0.75rem; }
-.inv-modal-error { color: var(--debit); font-size: 0.82rem; margin-top: 0.5rem; }
+.inv-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+.inv-empty-state {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 3rem;
+}
+.inv-fetch-error {
+  color: var(--debit);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.inv-modal-error {
+  color: var(--debit);
+  font-size: 0.82rem;
+  margin-top: 0.5rem;
+}

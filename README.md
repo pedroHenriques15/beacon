@@ -44,7 +44,7 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 Bank statement PDFs are uploaded through the web interface. A Python script (pdfplumber) extracts the raw text per page, and a bank-specific parser turns that into structured transaction records. From there you can set categories on transactions manually or create rules that apply categories automatically based on description patterns. The analytics page aggregates spending by category and month.
 
-Salary slip PDFs go through a similar flow — upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately.
+Salary slip PDFs go through a similar flow - upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately.
 
 Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, mapped to spending categories, and displayed in a filterable item list with monthly totals.
 
@@ -66,9 +66,9 @@ Everything is stored in SQL Server and served over a REST API. The Angular front
 | Salary slip (PDF) | CentralGest payroll | "CentralGest Software" footer |
 | Salary slip (PDF) | Domirest payroll | "DOMIREST" header |
 | Grocery receipt (PDF) | Continente | "Modelo Continente" |
-| Meal card | Pasted text (one transaction per line) | — |
+| Meal card | Pasted text (one transaction per line) | - |
 
-Bank statements must be EUR — non-EUR statements are rejected at upload (salary slips and grocery receipts are not currency-checked). Scanned (image-only) PDFs are rejected with a clear message. Files that match none of the formats are reported per file without failing the batch.
+Bank statements must be EUR - non-EUR statements are rejected at upload (salary slips and grocery receipts are not currency-checked). Scanned (image-only) PDFs are rejected with a clear message. Files that match none of the formats are reported per file without failing the batch.
 
 ---
 
@@ -87,7 +87,7 @@ Bank statements must be EUR — non-EUR statements are rejected at upload (salar
 
 ## Architecture
 
-The backend follows a feature-driven CQRS pattern without MediatR — each use case is a plain class injected via DI. There's no handler registry or reflection magic; everything is registered explicitly in `Program.cs`. Features live under `api/Beacon.Api/Features/`, each with `Commands/` and `Queries/` subdirectories.
+The backend follows a feature-driven CQRS pattern without MediatR - each use case is a plain class injected via DI. There's no handler registry or reflection magic; everything is registered explicitly in `Program.cs`. Features live under `api/Beacon.Api/Features/`, each with `Commands/` and `Queries/` subdirectories.
 
 ```
 Features/
@@ -102,7 +102,7 @@ Features/
   Statements/
 ```
 
-PDF parsers use a strategy pattern. Every parser implements `IBankStatementParser`, `ISalarySlipParser` or `IGroceryReceiptParser`, and a factory picks the right one at runtime by calling `CanParse()` against the extracted text. Adding a new bank means adding one file and one DI registration — nothing else changes. Meal-card text goes through the static `MealCardTextParser`, and every parsed document passes a `ParseVerifier` reconciliation (opening + credits − debits vs closing, line items vs totals) that surfaces warnings in the UI.
+PDF parsers use a strategy pattern. Every parser implements `IBankStatementParser`, `ISalarySlipParser` or `IGroceryReceiptParser`, and a factory picks the right one at runtime by calling `CanParse()` against the extracted text. Adding a new bank means adding one file and one DI registration - nothing else changes. Meal-card text goes through the static `MealCardTextParser`, and every parsed document passes a `ParseVerifier` reconciliation (opening + credits − debits vs closing, line items vs totals) that surfaces warnings in the UI.
 
 The frontend uses Angular signals for state. `FinanceService` is the single source of truth and exposes computed signals that derived components consume directly. There are no NgModules; everything is standalone components with lazy-loaded routes.
 
@@ -149,11 +149,11 @@ beacon/
 
 Copy `api/Beacon.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
 
-- `ApiKey` — **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether — set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production, where `deploy.sh` injects it into the frontend build.
-- `ConnectionStrings.DefaultConnection` — SQL Server connection string
-- `Storage.Path` — where uploaded PDFs will be stored
-- `Python.Executable` — `python3` on Linux/macOS, `python` on Windows (the stock `python3` alias on Windows opens the Microsoft Store instead of running Python)
-- `Python.ExtractorScript` — absolute path to `scripts/pdfExtractor.py`
+- `ApiKey` - **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether - set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production, where `deploy.sh` injects it into the frontend build.
+- `ConnectionStrings.DefaultConnection` - SQL Server connection string
+- `Storage.Path` - where uploaded PDFs will be stored
+- `Python.Executable` - `python3` on Linux/macOS, `python` on Windows (the stock `python3` alias on Windows opens the Microsoft Store instead of running Python)
+- `Python.ExtractorScript` - absolute path to `scripts/pdfExtractor.py`
 
 The committed `api/Beacon.Api/Properties/launchSettings.json` sets `ASPNETCORE_ENVIRONMENT=Development` and port `5098`, so `dotnet run` picks up `appsettings.Development.json` and matches the frontend proxy with no extra flags.
 
@@ -167,12 +167,12 @@ dotnet ef database update
 ### Linux / macOS
 
 ```bash
-# Terminal 1 — API (http://localhost:5098)
+# Terminal 1 - API (http://localhost:5098)
 cd api/Beacon.Api
 export ApiKey=dev-only-key
 dotnet run
 
-# Terminal 2 — Frontend (http://localhost:4200)
+# Terminal 2 - Frontend (http://localhost:4200)
 cd web
 npm install
 npx ng serve
@@ -183,12 +183,12 @@ Swagger UI: `http://localhost:5098/swagger` (no API key needed in development).
 ### Windows
 
 ```powershell
-# Terminal 1 — API
+# Terminal 1 - API
 cd api\Beacon.Api
 $env:ApiKey="dev-only-key"
 dotnet run
 
-# Terminal 2 — Frontend
+# Terminal 2 - Frontend
 cd web
 npm install
 npx ng serve
@@ -208,7 +208,7 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `ConnectionStrings__DefaultConnection` | SQL Server connection string                                                                  |
 | `Python__Executable`                   | Python binary (`python` or `python3`)                                                         |
 | `Python__ExtractorScript`              | Absolute path to `scripts/pdfExtractor.py`                                                    |
-| `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional — only needed for Google Calendar/Tasks sync)            |
+| `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional - only needed for Google Calendar/Tasks sync)            |
 | `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
 | `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console                                         |
 | `GoogleServices__FrontendUrl`          | Base URL of the Angular frontend, used to redirect after OAuth (e.g. `http://localhost:4200`) |
@@ -230,11 +230,11 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend — xUnit (427 tests)
+# Backend - xUnit (427 tests)
 cd api
 dotnet test Beacon.Tests/
 
-# Frontend — Vitest
+# Frontend - Vitest
 cd web
 npx ng test --watch=false
 ```
@@ -245,7 +245,7 @@ Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (beh
 
 ## Deployment
 
-`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), applies EF migrations, snapshots the current release to `/opt/beacon.prev`, deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx — verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
+`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), applies EF migrations, snapshots the current release to `/opt/beacon.prev`, deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx - verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
 
 ```bash
 ./scripts/deploy.sh --production   # deploy
@@ -255,7 +255,7 @@ journalctl -u beacon -f            # production logs (journald)
 
 Server prerequisites: a `beacon` systemd unit at `/etc/systemd/system/beacon.service`, Nginx, and a filled-in `local/environment` file (loaded via the unit's `EnvironmentFile`).
 
-Development mode (`./scripts/deploy.sh`) opens API and Web dev servers in two tiled gnome-terminal windows — a desktop convenience, not used in production.
+Development mode (`./scripts/deploy.sh`) opens API and Web dev servers in two tiled gnome-terminal windows - a desktop convenience, not used in production.
 
 The app is designed to run on a home server and be accessed remotely over Tailscale. Nginx acts as a reverse proxy, serving the Angular build as static files and forwarding `/api/*` to Kestrel.
 
@@ -263,10 +263,10 @@ The app is designed to run on a home server and be accessed remotely over Tailsc
 
 ## Security model
 
-A single shared API key (`X-Api-Key` header) protects every endpoint — there are no user accounts. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
+A single shared API key (`X-Api-Key` header) protects every endpoint - there are no user accounts. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

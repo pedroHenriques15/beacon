@@ -1,3 +1,4 @@
+using Beacon.Api.Features.Investments.Commands.BackfillPriceHistory;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
@@ -24,7 +25,8 @@ public class InvestmentsController(
     DeleteInvestmentLotCommandHandler deleteLot,
     UpsertInvestmentPriceCommandHandler upsertPrice,
     DeleteInvestmentPriceSnapshotCommandHandler deletePrice,
-    FetchInvestmentPriceCommandHandler fetchPrice) : ControllerBase
+    FetchInvestmentPriceCommandHandler fetchPrice,
+    BackfillPriceHistoryCommandHandler backfillHistory) : ControllerBase
 {
     [HttpGet("assets")]
     public async Task<IActionResult> GetAssets(CancellationToken ct) =>
@@ -58,6 +60,14 @@ public class InvestmentsController(
     public async Task<IActionResult> FetchPrice(int id, CancellationToken ct)
     {
         var (result, error) = await fetchPrice.HandleAsync(new FetchInvestmentPriceCommand(id), ct);
+        if (result is null && error is null) return NotFound();
+        return error is not null ? BadRequest(error) : Ok(result);
+    }
+
+    [HttpPost("assets/{id:int}/backfill")]
+    public async Task<IActionResult> BackfillHistory(int id, CancellationToken ct)
+    {
+        var (result, error) = await backfillHistory.HandleAsync(new BackfillPriceHistoryCommand(id), ct);
         if (result is null && error is null) return NotFound();
         return error is not null ? BadRequest(error) : Ok(result);
     }

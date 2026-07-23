@@ -55,7 +55,7 @@ export class AnalyticsComponent implements OnDestroy {
   router = inject(Router);
 
   // Signal queries: effects depending on these re-run when @if branches create the
-  // canvases — a synchronous decorator @ViewChild read here is undefined on the very
+  // canvases - a synchronous decorator @ViewChild read here is undefined on the very
   // change-detection pass that creates the canvas, leaving charts blank (audit #9).
   spendingCanvas = viewChild<ElementRef<HTMLCanvasElement>>('spendingCanvas');
   incomeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('incomeCanvas');

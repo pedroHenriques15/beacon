@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Beacon — Build and run the app
+# Beacon - Build and run the app
 # Usage:
 #   ./scripts/deploy.sh                  # development (default)
 #   ./scripts/deploy.sh --development    # development
@@ -77,7 +77,7 @@ restart_services() {
 
 # ── Rollback ──────────────────────────────────────────────────────────────────
 if [[ "$MODE" == "rollback" ]]; then
-    echo -e "\nBeacon — Rollback\n"
+    echo -e "\nBeacon - Rollback\n"
     [[ -d "$PREV_DIR" ]] || err "No previous release found at $PREV_DIR"
     step "Restoring previous release"
     sudo rsync -a --delete "$PREV_DIR/" "$INSTALL_DIR/"
@@ -88,7 +88,7 @@ if [[ "$MODE" == "rollback" ]]; then
     exit 0
 fi
 
-echo -e "\nBeacon — ${MODE^}\n"
+echo -e "\nBeacon - ${MODE^}\n"
 
 # ── Preflight ─────────────────────────────────────────────────────────────────
 step "Preflight checks"
@@ -102,7 +102,7 @@ fi
 [[ -n "$CONN_STR" && "$CONN_STR" != *REPLACE* ]] || err "ConnectionStrings not set in $ENV_FILE"
 
 command -v dotnet &>/dev/null || err "dotnet not found"
-command -v node   &>/dev/null || err "node not found — install via nvm"
+command -v node   &>/dev/null || err "node not found - install via nvm"
 
 if [[ "$MODE" == "production" ]]; then
     command -v nginx &>/dev/null || err "nginx not found"
@@ -114,7 +114,7 @@ fi
 ok "All checks passed"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PRODUCTION — sequential, headless-safe, fail-loud (set -e applies throughout).
+# PRODUCTION - sequential, headless-safe, fail-loud (set -e applies throughout).
 # Both artifacts are built BEFORE the live service is touched.
 # ══════════════════════════════════════════════════════════════════════════════
 if [[ "$MODE" == "production" ]]; then
@@ -137,12 +137,12 @@ if [[ "$MODE" == "production" ]]; then
     ESCAPED_KEY=$(printf '%s' "$API_KEY" | sed -e 's/[&|\\]/\\&/g')
     mapfile -t KEY_FILES < <(grep -rl "$PLACEHOLDER" "$BUILD_DIR/wwwroot" || true)
     [[ ${#KEY_FILES[@]} -gt 0 ]] \
-        || err "Placeholder '$PLACEHOLDER' not found in the built bundle — check environment.prod.ts"
+        || err "Placeholder '$PLACEHOLDER' not found in the built bundle - check environment.prod.ts"
     for f in "${KEY_FILES[@]}"; do
         sed -i "s|$PLACEHOLDER|$ESCAPED_KEY|g" "$f"
     done
     grep -rq "$PLACEHOLDER" "$BUILD_DIR/wwwroot" \
-        && err "Placeholder still present after injection — aborting"
+        && err "Placeholder still present after injection - aborting"
     ok "Key injected into ${#KEY_FILES[@]} file(s); tracked sources untouched"
 
     step "Running migrations"
@@ -204,7 +204,7 @@ if [[ "$MODE" == "production" ]]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DEVELOPMENT — two terminals (API + Web), tiled with wmctrl when available.
+# DEVELOPMENT - two terminals (API + Web), tiled with wmctrl when available.
 # ══════════════════════════════════════════════════════════════════════════════
 
 BACKEND_SCRIPT=$(mktemp /tmp/beacon-backend-XXXX.sh)
@@ -240,7 +240,7 @@ if ! dotnet ef --version &>/dev/null; then
     export PATH="$PATH:$HOME/.dotnet/tools"
 fi
 ConnectionStrings__DefaultConnection="$CONN_STR" dotnet ef database update \
-    || fail "Migrations failed — not starting the API against a stale schema"
+    || fail "Migrations failed - not starting the API against a stale schema"
 ok "Migrations applied"
 
 step "Starting .NET API (development)"
@@ -291,10 +291,10 @@ BODY
 } > "$FRONTEND_SCRIPT"
 
 step "Launching terminals"
-gnome-terminal --title="Beacon — API ($MODE)" -- bash "$BACKEND_SCRIPT"
-gnome-terminal --title="Beacon — Web ($MODE)" -- bash "$FRONTEND_SCRIPT"
+gnome-terminal --title="Beacon - API ($MODE)" -- bash "$BACKEND_SCRIPT"
+gnome-terminal --title="Beacon - Web ($MODE)" -- bash "$FRONTEND_SCRIPT"
 
-# wmctrl positions windows by pixel — gnome-terminal ignores +X+Y in --geometry
+# wmctrl positions windows by pixel - gnome-terminal ignores +X+Y in --geometry
 tile_windows() {
     set +e
     WA=$(wmctrl -d | head -1 | grep -oP 'WA: \K\S+ \S+')
@@ -337,7 +337,7 @@ tile_windows() {
 if command -v wmctrl &>/dev/null; then
     ( tile_windows ) || true
 else
-    ok "wmctrl not found — install it with: sudo apt install wmctrl"
+    ok "wmctrl not found - install it with: sudo apt install wmctrl"
 fi
 
 ok "Backend terminal launched"

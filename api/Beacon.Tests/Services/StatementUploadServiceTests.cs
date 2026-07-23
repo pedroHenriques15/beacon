@@ -46,7 +46,7 @@ public class StatementUploadServiceTests
         await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_Backfill_UpdatesNextStatementsSynthetic));
 
         // Audit scenario: Jan (1000) then Mar (1300, synthetic 300 vs Jan). Backfilling
-        // Feb (1100) must shrink Mar's synthetic gain to 200 — not leave 300 forever.
+        // Feb (1100) must shrink Mar's synthetic gain to 200 - not leave 300 forever.
         db.MonthlyStatements.Add(MakeBpiStatement(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), 1000m));
         db.MonthlyStatements.Add(MakeBpiStatement(
@@ -85,7 +85,7 @@ public class StatementUploadServiceTests
     {
         await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_MissingSynthetic_CreatesIt));
 
-        // Next statement never got a synthetic (it was the first upload) — a lower
+        // Next statement never got a synthetic (it was the first upload) - a lower
         // backfilled baseline reveals a loss that must now be recorded.
         db.MonthlyStatements.Add(MakeBpiStatement(
             new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), 900m));

@@ -204,6 +204,15 @@ export interface InvestmentAsset {
   priceSnapshots: InvestmentPriceSnapshot[];
 }
 
+export interface BackfillPriceHistoryResponse {
+  assetId: number;
+  snapshotsAdded: number;
+  snapshotsSkipped: number;
+  earliestDate: string | null;
+  latestDate: string | null;
+  message: string;
+}
+
 export interface ParsedSlipResponse {
   parserName: string;
   employer: string;

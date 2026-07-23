@@ -4,17 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Services;
 
-/// <summary>
-/// Fetches current prices for all investment assets on startup and at regular intervals
-/// during US market hours (9:30 AM – 4:00 PM ET), spreading the Alpha Vantage free-tier
-/// quota (25 req/day) evenly across the trading session.
-/// </summary>
 public class InvestmentPriceRefreshService(
     IServiceScopeFactory scopeFactory,
     ILogger<InvestmentPriceRefreshService> logger,
     IConfiguration configuration) : BackgroundService
 {
-    // Cross-platform: Linux uses "America/New_York", Windows uses "Eastern Standard Time"
     private static readonly TimeZoneInfo EasternZone = GetEasternZone();
     private static readonly TimeOnly MarketOpen  = new(9, 30);
     private static readonly TimeOnly MarketClose = new(16, 0);
@@ -28,12 +22,15 @@ public class InvestmentPriceRefreshService(
     {
         if (string.IsNullOrWhiteSpace(configuration["AlphaVantage:ApiKey"]))
         {
-            logger.LogWarning("AlphaVantage:ApiKey is not configured — investment price auto-refresh disabled.");
+            logger.LogWarning("AlphaVantage:ApiKey is not configured - investment price auto-refresh disabled.");
             return;
         }
 
-        // Fetch immediately on startup regardless of market hours
-        var numAssets = await RefreshAllAsync(stoppingToken);
+        var (covered, numAssets) = await TodayCoverageAsync(stoppingToken);
+        if (!covered)
+            numAssets = await RefreshAllAsync(stoppingToken);
+        else if (numAssets > 0)
+            logger.LogInformation("All investment assets already have today's snapshot - skipping startup refresh.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -47,7 +44,6 @@ public class InvestmentPriceRefreshService(
         }
     }
 
-    /// <summary>Refreshes prices for all assets and returns the asset count. Never throws.</summary>
     private async Task<int> RefreshAllAsync(CancellationToken ct)
     {
         try
@@ -65,10 +61,12 @@ public class InvestmentPriceRefreshService(
 
             logger.LogInformation("Refreshing prices for {Count} investment asset(s).", assets.Count);
 
-            foreach (var asset in assets)
+            for (var i = 0; i < assets.Count; i++)
             {
                 if (ct.IsCancellationRequested) break;
+                if (i > 0) await Task.Delay(TimeSpan.FromSeconds(13), ct);
 
+                var asset = assets[i];
                 var (result, error) = await fetchHandler.HandleAsync(new FetchInvestmentPriceCommand(asset.Id), ct);
                 if (error is not null)
                     logger.LogWarning("Price fetch failed for {Name}: {Error}", asset.Name, error);
@@ -91,11 +89,32 @@ public class InvestmentPriceRefreshService(
         }
     }
 
-    /// <summary>
-    /// Computes how long to wait before the next refresh.
-    /// During market hours: interval = market duration / (autoQuota / numAssets).
-    /// Outside market hours: wait until next market open (skips weekends).
-    /// </summary>
+    private async Task<(bool AllCovered, int Count)> TodayCoverageAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var count = await db.InvestmentAssets.CountAsync(ct);
+            if (count == 0) return (true, 0);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var covered = await db.InvestmentPriceSnapshots
+                .Where(p => p.Date == today)
+                .Select(p => p.AssetId)
+                .Distinct()
+                .CountAsync(ct);
+
+            return (covered >= count, count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Investment snapshot coverage check failed.");
+            return (true, 0);
+        }
+    }
+
     private TimeSpan ComputeNextDelay(int numAssets)
     {
         var now        = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, EasternZone);
@@ -107,7 +126,6 @@ public class InvestmentPriceRefreshService(
 
         if (isMarketOpen && numAssets > 0)
         {
-            // How many full refresh rounds fit in the trading day within the auto quota?
             var maxRounds      = Math.Max(1, AutoQuota / numAssets);
             var intervalMins   = MarketMinutes / maxRounds;
             return TimeSpan.FromMinutes(intervalMins);
@@ -116,7 +134,6 @@ public class InvestmentPriceRefreshService(
         if (isMarketOpen)
             return TimeSpan.FromMinutes(60);
 
-        // Outside market hours — sleep until next trading session opens
         var nextOpen = isWeekday && now < todayOpen ? todayOpen : todayOpen.AddDays(1);
         while (nextOpen.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
             nextOpen = nextOpen.AddDays(1);

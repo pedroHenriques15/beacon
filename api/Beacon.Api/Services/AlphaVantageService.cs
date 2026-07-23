@@ -5,13 +5,11 @@ namespace Beacon.Api.Services;
 public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
 {
     private const string BaseUrl = "https://www.alphavantage.co/query";
-    // Troy ounce to grams conversion constant
     private const decimal TroyOzToGrams = 31.1035m;
 
     private string ApiKey => configuration["AlphaVantage:ApiKey"]
         ?? throw new InvalidOperationException("AlphaVantage:ApiKey is not configured.");
 
-    /// <summary>Fetches latest price per share for an ETF or stock ticker.</summary>
     public async Task<decimal> FetchEtfPriceAsync(string ticker, CancellationToken ct = default)
     {
         var client = httpClientFactory.CreateClient("alpha-vantage");
@@ -37,7 +35,6 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
         return price;
     }
 
-    /// <summary>Fetches latest gold price per gram in EUR via XAU/EUR exchange rate.</summary>
     public async Task<decimal> FetchGoldPricePerGramAsync(CancellationToken ct = default)
     {
         var client = httpClientFactory.CreateClient("alpha-vantage");
@@ -61,6 +58,50 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
             throw new InvalidOperationException("Invalid exchange rate value returned for XAU/EUR.");
 
         return Math.Round(pricePerTroyOz / TroyOzToGrams, 4);
+    }
+
+    public async Task<Dictionary<DateOnly, decimal>> FetchDailySeriesAsync(Models.InvestmentAsset asset, CancellationToken ct = default)
+    {
+        var isEtf = asset.AssetType == "ETF";
+        if (isEtf && string.IsNullOrWhiteSpace(asset.Ticker))
+            throw new InvalidOperationException("Asset has no ticker configured.");
+
+        var client = httpClientFactory.CreateClient("alpha-vantage");
+        var url = isEtf
+            ? $"{BaseUrl}?function=TIME_SERIES_DAILY&symbol={Uri.EscapeDataString(asset.Ticker!)}&outputsize=full&apikey={ApiKey}"
+            : $"{BaseUrl}?function=FX_DAILY&from_symbol=XAU&to_symbol=EUR&outputsize=full&apikey={ApiKey}";
+        var response = await client.GetStringAsync(url, ct);
+
+        using var doc = JsonDocument.Parse(response);
+        var root = doc.RootElement;
+
+        var seriesKey = isEtf ? "Time Series (Daily)" : "Time Series FX (Daily)";
+        if (!root.TryGetProperty(seriesKey, out var series))
+        {
+            ThrowIfLimited(root);
+            throw new InvalidOperationException(isEtf
+                ? $"Unexpected Alpha Vantage response for ticker '{asset.Ticker}'."
+                : "Unexpected Alpha Vantage response for XAU/EUR.");
+        }
+
+        var result = new Dictionary<DateOnly, decimal>();
+        foreach (var day in series.EnumerateObject())
+        {
+            if (!DateOnly.TryParseExact(day.Name, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var date))
+                continue;
+
+            if (!day.Value.TryGetProperty("4. close", out var closeEl) || closeEl.GetString() is not string closeStr)
+                continue;
+
+            if (!decimal.TryParse(closeStr, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var close) || close <= 0)
+                continue;
+
+            result[date] = isEtf ? close : Math.Round(close / TroyOzToGrams, 4);
+        }
+
+        return result;
     }
 
     private static void ThrowIfLimited(JsonElement root)

@@ -35,6 +35,7 @@ using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
 using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
+using Beacon.Api.Features.Investments.Commands.BackfillPriceHistory;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -194,6 +195,7 @@ builder.Services.AddScoped<DeleteInvestmentLotCommandHandler>();
 builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
 builder.Services.AddScoped<FetchInvestmentPriceCommandHandler>();
+builder.Services.AddScoped<BackfillPriceHistoryCommandHandler>();
 builder.Services.AddHostedService<InvestmentPriceRefreshService>();
 
 builder.Services.AddCors(options =>
@@ -208,11 +210,11 @@ if (!app.Environment.IsDevelopment())
 {
     if (string.IsNullOrEmpty(app.Configuration["ApiKey"]))
         throw new InvalidOperationException(
-            "ApiKey is not configured — set the ApiKey environment variable before starting.");
+            "ApiKey is not configured - set the ApiKey environment variable before starting.");
 
     if (string.IsNullOrEmpty(app.Configuration["Storage:Path"]))
         throw new InvalidOperationException(
-            "Storage:Path is not configured — uploaded PDFs would land in the deploy directory " +
+            "Storage:Path is not configured - uploaded PDFs would land in the deploy directory " +
             "and be erased on the next deploy. Set Storage__Path to a persistent directory.");
 }
 

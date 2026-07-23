@@ -158,7 +158,7 @@ public class SalaryController(
         var (found, isProtected, inUse) = await deleteItemCategory.HandleAsync(new DeleteSalaryItemCategoryCommand(id), ct);
         if (!found) return NotFound();
         if (isProtected) return Conflict("This is a system category and cannot be deleted.");
-        if (inUse) return Conflict("This category is used by existing salary slips — reassign or delete those line items first.");
+        if (inUse) return Conflict("This category is used by existing salary slips - reassign or delete those line items first.");
         return NoContent();
     }
 }

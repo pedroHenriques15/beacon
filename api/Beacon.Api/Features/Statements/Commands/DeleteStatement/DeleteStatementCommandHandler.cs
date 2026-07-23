@@ -86,7 +86,7 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
                 else
                 {
                     // The successor is now the first PPR-bearing statement: its synthetic
-                    // has no baseline any more — remove it unless the user touched it.
+                    // has no baseline any more - remove it unless the user touched it.
                     var successor = await db.MonthlyStatements
                         .Include(s => s.Transactions)
                         .Where(s => s.Bank == "BPI" && s.PprBalance.HasValue)

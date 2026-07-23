@@ -489,7 +489,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.pageLoading.set(false);
-          this.fetchError.set('Could not load transactions — the server may be unavailable.');
+          this.fetchError.set('Could not load transactions - the server may be unavailable.');
         },
       });
   }
@@ -1254,7 +1254,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.gPageLoading.set(false);
-        this.gFetchError.set('Could not load grocery items — the server may be unavailable.');
+        this.gFetchError.set('Could not load grocery items - the server may be unavailable.');
       },
     });
   }

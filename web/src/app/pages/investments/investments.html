@@ -5,8 +5,12 @@
       <p class="subtitle">ETFs and physical gold positions</p>
     </div>
     <div class="page-header__actions">
-      <button class="btn-secondary" (click)="openCreateAsset('ETF')">+ Add ETF</button>
-      <button class="btn-secondary" (click)="openCreateAsset('Gold')">+ Add Gold</button>
+      <button class="btn-secondary" [disabled]="!!error()" (click)="openCreateAsset('ETF')">
+        + Add ETF
+      </button>
+      <button class="btn-secondary" [disabled]="!!error()" (click)="openCreateAsset('Gold')">
+        + Add Gold
+      </button>
     </div>
   </div>
 </div>
@@ -14,29 +18,75 @@
 @if (loading()) {
   <div class="loading">Loading investments…</div>
 } @else if (error()) {
-  <div class="error">{{ error() }}</div>
+  <div class="inv-error-card">
+    <p>{{ error() }}</p>
+    <button class="btn-secondary btn--sm" (click)="svc.load()">Retry</button>
+  </div>
 } @else {
-
   <!-- Stats strip -->
   <div class="inv-stats">
     <div class="inv-stat">
       <span class="inv-stat__label">Total Value</span>
-      <span class="inv-stat__value">{{ totalValue() | currency:'EUR':'symbol':'1.2-2' }}</span>
+      <span class="inv-stat__value">{{ totalValue() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
     </div>
     <div class="inv-stat">
       <span class="inv-stat__label">Cost Basis</span>
-      <span class="inv-stat__value">{{ totalCost() | currency:'EUR':'symbol':'1.2-2' }}</span>
+      <span class="inv-stat__value">{{ totalCost() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
     </div>
     <div class="inv-stat">
       <span class="inv-stat__label">Unrealised P&amp;L</span>
       <span class="inv-stat__value" [ngClass]="pnlClass(totalPnl())">
-        {{ totalPnl() >= 0 ? '+' : '' }}{{ totalPnl() | currency:'EUR':'symbol':'1.2-2' }}
+        {{ totalPnl() >= 0 ? '+' : '' }}{{ totalPnl() | currency: 'EUR' : 'symbol' : '1.2-2' }}
       </span>
     </div>
     <div class="inv-stat">
-      <span class="inv-stat__label">Total Return</span>
+      <span class="inv-stat__label">Realised P&amp;L</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(totalRealized())">
+        {{ totalRealized() >= 0 ? '+' : ''
+        }}{{ totalRealized() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+      </span>
+    </div>
+  </div>
+
+  <div class="inv-stats inv-stats--changes">
+    <div class="inv-stat">
+      <span class="inv-stat__label">24h</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(change24h())">
+        @if (change24h() != null) {
+          {{ change24h()! >= 0 ? '+' : '' }}{{ change24h() | number: '1.2-2' }}%
+        } @else {
+          –
+        }
+      </span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">1 Week</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(change1w())">
+        @if (change1w() != null) {
+          {{ change1w()! >= 0 ? '+' : '' }}{{ change1w() | number: '1.2-2' }}%
+        } @else {
+          –
+        }
+      </span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">1 Month</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(change1m())">
+        @if (change1m() != null) {
+          {{ change1m()! >= 0 ? '+' : '' }}{{ change1m() | number: '1.2-2' }}%
+        } @else {
+          –
+        }
+      </span>
+    </div>
+    <div class="inv-stat">
+      <span class="inv-stat__label">Since Purchase</span>
       <span class="inv-stat__value" [ngClass]="pnlClass(totalPct())">
-        {{ totalPct() >= 0 ? '+' : '' }}{{ totalPct() | number:'1.2-2' }}%
+        @if (totalPct() != null) {
+          {{ totalPct()! >= 0 ? '+' : '' }}{{ totalPct() | number: '1.2-2' }}%
+        } @else {
+          –
+        }
       </span>
     </div>
   </div>
@@ -44,12 +94,21 @@
   @if (fetchError()) {
     <div class="inv-fetch-error">{{ fetchError() }}</div>
   }
+  @if (backfillNotice()) {
+    <div class="inv-backfill-notice">{{ backfillNotice() }}</div>
+  }
 
   <!-- Tab bar -->
   <div class="tab-bar">
-    <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">All</button>
-    <button class="tab-btn" [class.active]="activeTab() === 'ETF'" (click)="activeTab.set('ETF')">ETFs</button>
-    <button class="tab-btn" [class.active]="activeTab() === 'Gold'" (click)="activeTab.set('Gold')">Gold</button>
+    <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">
+      All
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'ETF'" (click)="activeTab.set('ETF')">
+      ETFs
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'Gold'" (click)="activeTab.set('Gold')">
+      Gold
+    </button>
   </div>
 
   <!-- Asset list -->
@@ -65,7 +124,10 @@
             @if (m.asset.ticker) {
               <span class="inv-asset-name">{{ m.asset.name }}</span>
             }
-            <span class="inv-asset-type-badge" [ngClass]="m.asset.assetType === 'Gold' ? 'badge--gold' : 'badge--etf'">
+            <span
+              class="inv-asset-type-badge"
+              [ngClass]="m.asset.assetType === 'Gold' ? 'badge--gold' : 'badge--etf'"
+            >
               {{ m.asset.assetType }}
             </span>
           </div>
@@ -73,28 +135,82 @@
           <div class="inv-asset-metrics">
             <div class="inv-metric">
               <span class="inv-metric__label">Qty</span>
-              <span class="inv-metric__value">{{ formatQty(m.totalQuantity, m.asset.assetType) }}</span>
+              <span class="inv-metric__value">{{
+                formatQty(m.totalQuantity, m.asset.assetType)
+              }}</span>
             </div>
             <div class="inv-metric">
               <span class="inv-metric__label">Price</span>
               <span class="inv-metric__value">
-                {{ m.currentPrice != null ? (m.currentPrice | currency:'EUR':'symbol':'1.2-4') : '—' }}
+                {{
+                  m.currentPrice != null
+                    ? (m.currentPrice | currency: 'EUR' : 'symbol' : '1.2-4')
+                    : '–'
+                }}
               </span>
             </div>
             <div class="inv-metric">
               <span class="inv-metric__label">Value</span>
               <span class="inv-metric__value">
-                {{ m.currentValue != null ? (m.currentValue | currency:'EUR':'symbol':'1.2-2') : '—' }}
+                {{
+                  m.currentValue != null
+                    ? (m.currentValue | currency: 'EUR' : 'symbol' : '1.2-2')
+                    : '–'
+                }}
               </span>
             </div>
             <div class="inv-metric">
               <span class="inv-metric__label">P&amp;L</span>
               <span class="inv-metric__value" [ngClass]="pnlClass(m.unrealizedPnl)">
                 @if (m.unrealizedPnl != null) {
-                  {{ m.unrealizedPnl >= 0 ? '+' : '' }}{{ m.unrealizedPnl | currency:'EUR':'symbol':'1.2-2' }}
-                  ({{ m.unrealizedPct! >= 0 ? '+' : '' }}{{ m.unrealizedPct! | number:'1.1-1' }}%)
+                  {{ m.unrealizedPnl >= 0 ? '+' : ''
+                  }}{{ m.unrealizedPnl | currency: 'EUR' : 'symbol' : '1.2-2' }}
+                  @if (m.unrealizedPct != null) {
+                    ({{ m.unrealizedPct >= 0 ? '+' : '' }}{{ m.unrealizedPct | number: '1.1-1' }}%)
+                  }
                 } @else {
-                  —
+                  –
+                }
+              </span>
+            </div>
+            <div class="inv-metric inv-metric--change">
+              <span class="inv-metric__label">24h</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.change24h)">
+                @if (m.change24h != null) {
+                  {{ m.change24h >= 0 ? '+' : '' }}{{ m.change24h | number: '1.1-1' }}%
+                } @else {
+                  –
+                }
+              </span>
+            </div>
+            <div class="inv-metric inv-metric--change">
+              <span class="inv-metric__label">1W</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1w)">
+                @if (m.change1w != null) {
+                  {{ m.change1w >= 0 ? '+' : '' }}{{ m.change1w | number: '1.1-1' }}%
+                } @else {
+                  –
+                }
+              </span>
+            </div>
+            <div class="inv-metric inv-metric--change">
+              <span class="inv-metric__label">1M</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1m)">
+                @if (m.change1m != null) {
+                  {{ m.change1m >= 0 ? '+' : '' }}{{ m.change1m | number: '1.1-1' }}%
+                } @else {
+                  –
+                }
+              </span>
+            </div>
+            <div class="inv-metric inv-metric--change">
+              <span class="inv-metric__label">Since Buy</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.changeSincePurchase)">
+                @if (m.changeSincePurchase != null) {
+                  {{ m.changeSincePurchase >= 0 ? '+' : ''
+                  }}{{ m.changeSincePurchase | number: '1.1-1' }}%
+                } @else {
+                  –
                 }
               </span>
             </div>
@@ -105,12 +221,19 @@
               class="btn-secondary btn--sm"
               [disabled]="fetchingAssetId() === m.asset.id"
               (click)="fetchPrice(m.asset)"
-              title="Fetch latest price from Alpha Vantage">
+              title="Fetch latest price from Alpha Vantage"
+            >
               {{ fetchingAssetId() === m.asset.id ? '…' : '⟳' }}
             </button>
-            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'buy')">Buy</button>
-            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'sell')">Sell</button>
-            <button class="btn-secondary btn--sm" (click)="openPriceModal(m.asset.id)">Price</button>
+            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'buy')">
+              Buy
+            </button>
+            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'sell')">
+              Sell
+            </button>
+            <button class="btn-secondary btn--sm" (click)="openPriceModal(m.asset.id)">
+              Price
+            </button>
             <button class="btn-secondary btn--sm" (click)="openEditAsset(m.asset)">Edit</button>
             <button class="btn-danger btn--sm" (click)="deleteAsset(m.asset)">Delete</button>
           </div>
@@ -119,6 +242,21 @@
         <!-- Expanded body -->
         @if (expandedAssetId() === m.asset.id) {
           <div class="inv-asset-body">
+            @if (needsBackfill(m.asset)) {
+              <div class="inv-backfill-hint">
+                <span>
+                  Price history doesn't reach back to your first purchase - Backfill imports daily
+                  closes since then (uses 1 of the 5 daily manual quota calls).
+                </span>
+                <button
+                  class="btn-secondary btn--sm"
+                  [disabled]="backfillingAssetId() === m.asset.id"
+                  (click)="backfillHistory(m.asset)"
+                >
+                  {{ backfillingAssetId() === m.asset.id ? 'Backfilling…' : 'Backfill History' }}
+                </button>
+              </div>
+            }
 
             <!-- Lots table -->
             <h4 class="inv-section-title">Entries</h4>
@@ -142,16 +280,28 @@
                     <tr>
                       <td>{{ formatDate(lot.date) }}</td>
                       <td>
-                        <span class="inv-lot-badge" [ngClass]="lot.quantity > 0 ? 'badge--buy' : 'badge--sell'">
+                        <span
+                          class="inv-lot-badge"
+                          [ngClass]="lot.quantity > 0 ? 'badge--buy' : 'badge--sell'"
+                        >
                           {{ lot.quantity > 0 ? 'Buy' : 'Sell' }}
                         </span>
                       </td>
                       <td>{{ formatQty(Math.abs(lot.quantity), m.asset.assetType) }}</td>
-                      <td>{{ lot.pricePerUnit | currency:'EUR':'symbol':'1.2-4' }}</td>
-                      <td>{{ lot.fees != null ? (lot.fees | currency:'EUR':'symbol':'1.2-2') : '—' }}</td>
-                      <td class="inv-table__notes">{{ lot.notes ?? '—' }}</td>
+                      <td>{{ lot.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
+                      <td>
+                        {{
+                          lot.fees != null ? (lot.fees | currency: 'EUR' : 'symbol' : '1.2-2') : '–'
+                        }}
+                      </td>
+                      <td class="inv-table__notes">{{ lot.notes ?? '–' }}</td>
                       <td class="inv-table__actions">
-                        <button class="btn-secondary btn--xs" (click)="openEditLot(lot, m.asset.id)">Edit</button>
+                        <button
+                          class="btn-secondary btn--xs"
+                          (click)="openEditLot(lot, m.asset.id)"
+                        >
+                          Edit
+                        </button>
                         <button class="btn-danger btn--xs" (click)="deleteLot(lot)">Del</button>
                       </td>
                     </tr>
@@ -162,6 +312,10 @@
 
             <!-- Price snapshots table -->
             <h4 class="inv-section-title">Price History</h4>
+            <app-asset-history-chart
+              [snapshots]="m.asset.priceSnapshots"
+              [range]="historyRange()"
+            />
             @if (m.asset.priceSnapshots.length === 0) {
               <p class="inv-empty">No prices recorded yet.</p>
             } @else {
@@ -177,7 +331,7 @@
                   @for (snap of m.asset.priceSnapshots; track snap.id) {
                     <tr>
                       <td>{{ formatDate(snap.date) }}</td>
-                      <td>{{ snap.pricePerUnit | currency:'EUR':'symbol':'1.2-4' }}</td>
+                      <td>{{ snap.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
                       <td class="inv-table__actions">
                         <button class="btn-danger btn--xs" (click)="deletePrice(snap)">Del</button>
                       </td>
@@ -192,7 +346,9 @@
     }
 
     @if (filteredMetrics().length === 0) {
-      <p class="inv-empty-state">No investments yet. Use the buttons above to add your first ETF or gold position.</p>
+      <p class="inv-empty-state">
+        No investments yet. Use the buttons above to add your first ETF or gold position.
+      </p>
     }
   </div>
 
@@ -204,7 +360,20 @@
         <canvas #allocationCanvas></canvas>
       </div>
       <div class="inv-chart-card">
-        <h3 class="inv-chart-title">Portfolio Value</h3>
+        <div class="inv-chart-card__head">
+          <h3 class="inv-chart-title">Portfolio Value</h3>
+          <div class="inv-chart-timeframe">
+            @for (r of historyRanges; track r) {
+              <button
+                class="inv-range-btn"
+                [class.active]="historyRange() === r"
+                (click)="historyRange.set(r)"
+              >
+                {{ r }}
+              </button>
+            }
+          </div>
+        </div>
         @if (svc.portfolioHistory().length < 2) {
           <p class="inv-chart-placeholder">Add price snapshots to see the historical chart.</p>
         } @else {
@@ -227,23 +396,62 @@
       @if (assetModalMode() === 'create') {
         <label class="field-label">Asset Type</label>
         <div class="inv-radio-group">
-          <label class="inv-radio"><input type="radio" name="assetType" value="ETF" [(ngModel)]="modalAssetType" [ngModelOptions]="{standalone:true}" (change)="modalAssetType.set('ETF')"> ETF</label>
-          <label class="inv-radio"><input type="radio" name="assetType" value="Gold" [(ngModel)]="modalAssetType" [ngModelOptions]="{standalone:true}" (change)="modalAssetType.set('Gold')"> Gold</label>
+          <label class="inv-radio"
+            ><input
+              type="radio"
+              name="assetType"
+              value="ETF"
+              [(ngModel)]="modalAssetType"
+              [ngModelOptions]="{ standalone: true }"
+              (change)="modalAssetType.set('ETF')"
+            />
+            ETF</label
+          >
+          <label class="inv-radio"
+            ><input
+              type="radio"
+              name="assetType"
+              value="Gold"
+              [(ngModel)]="modalAssetType"
+              [ngModelOptions]="{ standalone: true }"
+              (change)="modalAssetType.set('Gold')"
+            />
+            Gold</label
+          >
         </div>
       }
 
       @if (modalAssetType() === 'ETF') {
         <label class="field-label">Ticker Symbol</label>
-        <input class="field-input" type="text" placeholder="e.g. VWCE" [value]="modalTicker()" (input)="modalTicker.set($any($event.target).value)">
+        <input
+          class="field-input"
+          type="text"
+          placeholder="e.g. VWCE"
+          [value]="modalTicker()"
+          (input)="modalTicker.set($any($event.target).value)"
+        />
       }
 
       <label class="field-label">Name</label>
-      <input class="field-input" type="text" placeholder="e.g. Vanguard FTSE All-World ETF" [value]="modalAssetName()" (input)="modalAssetName.set($any($event.target).value)">
+      <input
+        class="field-input"
+        type="text"
+        placeholder="e.g. Vanguard FTSE All-World ETF"
+        [value]="modalAssetName()"
+        (input)="modalAssetName.set($any($event.target).value)"
+      />
 
       <label class="field-label">Notes (optional)</label>
-      <input class="field-input" type="text" [value]="modalAssetNotes()" (input)="modalAssetNotes.set($any($event.target).value)">
+      <input
+        class="field-input"
+        type="text"
+        [value]="modalAssetNotes()"
+        (input)="modalAssetNotes.set($any($event.target).value)"
+      />
 
-      @if (assetError()) { <p class="inv-modal-error">{{ assetError() }}</p> }
+      @if (assetError()) {
+        <p class="inv-modal-error">{{ assetError() }}</p>
+      }
 
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showAssetModal.set(false)">Cancel</button>
@@ -265,21 +473,59 @@
       </div>
 
       <label class="field-label">Date</label>
-      <input class="field-input" type="date" [value]="lotDate()" (input)="lotDate.set($any($event.target).value)">
+      <input
+        class="field-input"
+        type="date"
+        [value]="lotDate()"
+        (input)="lotDate.set($any($event.target).value)"
+      />
 
       <label class="field-label">{{ lotUnitLabel() }}</label>
-      <input class="field-input" type="number" min="0" step="any" placeholder="0" [value]="lotQuantity() ?? ''" (input)="lotQuantity.set(+$any($event.target).value || null)">
+      <input
+        class="field-input"
+        type="number"
+        min="0"
+        step="any"
+        placeholder="0"
+        [value]="lotQuantity() ?? ''"
+        (input)="lotQuantity.set(+$any($event.target).value || null)"
+      />
 
-      <label class="field-label">Price per {{ lotAssetType() === 'Gold' ? 'Gram' : 'Share' }} (€)</label>
-      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="lotPrice() ?? ''" (input)="lotPrice.set(+$any($event.target).value || null)">
+      <label class="field-label"
+        >Price per {{ lotAssetType() === 'Gold' ? 'Gram' : 'Share' }} (€)</label
+      >
+      <input
+        class="field-input"
+        type="number"
+        min="0"
+        step="any"
+        placeholder="0.00"
+        [value]="lotPrice() ?? ''"
+        (input)="lotPrice.set(+$any($event.target).value || null)"
+      />
 
       <label class="field-label">Fees (€, optional)</label>
-      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="lotFees() ?? ''" (input)="lotFees.set(+$any($event.target).value || null)">
+      <input
+        class="field-input"
+        type="number"
+        min="0"
+        step="any"
+        placeholder="0.00"
+        [value]="lotFees() ?? ''"
+        (input)="lotFees.set(+$any($event.target).value || null)"
+      />
 
       <label class="field-label">Notes (optional)</label>
-      <input class="field-input" type="text" [value]="lotNotes()" (input)="lotNotes.set($any($event.target).value)">
+      <input
+        class="field-input"
+        type="text"
+        [value]="lotNotes()"
+        (input)="lotNotes.set($any($event.target).value)"
+      />
 
-      @if (lotError()) { <p class="inv-modal-error">{{ lotError() }}</p> }
+      @if (lotError()) {
+        <p class="inv-modal-error">{{ lotError() }}</p>
+      }
 
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showLotModal.set(false)">Cancel</button>
@@ -296,17 +542,32 @@
   <div class="modal-overlay" (click)="showPriceModal.set(false)">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>Update Price — {{ priceAssetLabel() }}</h3>
+        <h3>Update Price - {{ priceAssetLabel() }}</h3>
         <button class="modal-close" (click)="showPriceModal.set(false)">✕</button>
       </div>
 
       <label class="field-label">Date</label>
-      <input class="field-input" type="date" [value]="priceDate()" (input)="priceDate.set($any($event.target).value)">
+      <input
+        class="field-input"
+        type="date"
+        [value]="priceDate()"
+        (input)="priceDate.set($any($event.target).value)"
+      />
 
       <label class="field-label">Current Price (€)</label>
-      <input class="field-input" type="number" min="0" step="any" placeholder="0.00" [value]="priceValue() ?? ''" (input)="priceValue.set(+$any($event.target).value || null)">
+      <input
+        class="field-input"
+        type="number"
+        min="0"
+        step="any"
+        placeholder="0.00"
+        [value]="priceValue() ?? ''"
+        (input)="priceValue.set(+$any($event.target).value || null)"
+      />
 
-      @if (priceError()) { <p class="inv-modal-error">{{ priceError() }}</p> }
+      @if (priceError()) {
+        <p class="inv-modal-error">{{ priceError() }}</p>
+      }
 
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showPriceModal.set(false)">Cancel</button>

@@ -31,7 +31,7 @@ public class UpdateInvestmentLotCommandHandler(AppDbContext db)
             .SumAsync(l => (decimal?)l.Quantity, ct) ?? 0;
         if (heldExcludingThis + command.Quantity < 0)
             return (null, command.Quantity < 0
-                ? $"Cannot sell {Math.Abs(command.Quantity):0.####} — only {heldExcludingThis:0.####} held."
+                ? $"Cannot sell {Math.Abs(command.Quantity):0.####} - only {heldExcludingThis:0.####} held."
                 : "This change would leave more sold than held.");
 
         lot.Date         = command.Date;

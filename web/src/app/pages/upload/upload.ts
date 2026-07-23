@@ -498,7 +498,7 @@ export class UploadComponent implements OnInit {
       error: () => {
         this.updateSalaryItem(queueIdx, {
           status: 'error',
-          error: 'Could not load salary categories — use Review & Save to retry.',
+          error: 'Could not load salary categories - use Review & Save to retry.',
         });
         this.advanceDialogQueue();
       },

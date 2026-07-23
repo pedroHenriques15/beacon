@@ -1,4 +1,4 @@
-# Beacon — Frontend
+# Beacon - Frontend
 
 Angular 21 frontend for the Beacon personal finance dashboard.
 
@@ -8,11 +8,11 @@ Angular 21 frontend for the Beacon personal finance dashboard.
 # Install dependencies (first time)
 npm install
 
-# Start dev server — proxies /api/* to http://localhost:5098
+# Start dev server - proxies /api/* to http://localhost:5098
 npx ng serve
 ```
 
-Open http://localhost:4200. The API must be running separately — see the root README.
+Open http://localhost:4200. The API must be running separately - see the root README.
 
 ## Commands
 
@@ -27,6 +27,6 @@ Open http://localhost:4200. The API must be running separately — see the root 
 ## Architecture
 
 - Standalone Angular components, no NgModules
-- Signal-based state — `FinanceService` is the single source of truth
+- Signal-based state - `FinanceService` is the single source of truth
 - Lazy-loaded routes defined in `app.routes.ts`
 - `apiKeyInterceptor` injects `X-Api-Key` on every `/api` request

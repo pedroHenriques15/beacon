@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Beacon — Drop and recreate the database from EF Core migrations
+# Beacon - Drop and recreate the database from EF Core migrations
 # Usage: ./scripts/reset-db.sh [--force]
 
 set -euo pipefail
@@ -19,7 +19,7 @@ for arg in "$@"; do
 done
 
 echo ""
-echo -e "${YELLOW}Beacon — Database Reset${NC}"
+echo -e "${YELLOW}Beacon - Database Reset${NC}"
 echo -e "${YELLOW}This will DROP the Beacon database and recreate it from migrations.${NC}"
 echo -e "${YELLOW}All data (statements, transactions, categories, rules) will be lost.${NC}"
 
@@ -61,7 +61,7 @@ ok "Target database: $DB_NAME"
 step "Building project"
 
 ( cd "$BACKEND_DIR" && dotnet build -c Release --nologo -v q ) \
-    || err "Build failed — fix compilation errors before resetting the database"
+    || err "Build failed - fix compilation errors before resetting the database"
 ok "Build succeeded"
 
 step "Dropping database '$DB_NAME'"
