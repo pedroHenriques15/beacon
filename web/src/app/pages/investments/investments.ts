@@ -99,9 +99,9 @@ export class InvestmentsComponent implements OnDestroy {
   editingLotId = signal<number | null>(null);
   lotAssetId = signal<number | null>(null);
   lotDate = signal('');
-  lotQuantity = signal<number | null>(null);
-  lotPrice = signal<number | null>(null);
-  lotFees = signal<number | null>(null);
+  lotQuantity = signal('');
+  lotPrice = signal('');
+  lotFees = signal('');
   lotNotes = signal('');
   lotSaving = signal(false);
   lotError = signal('');
@@ -123,7 +123,7 @@ export class InvestmentsComponent implements OnDestroy {
   showPriceModal = signal(false);
   priceAssetId = signal<number | null>(null);
   priceDate = signal('');
-  priceValue = signal<number | null>(null);
+  priceValue = signal('');
   priceSaving = signal(false);
   priceError = signal('');
   priceAssetLabel = computed(() => {
@@ -246,9 +246,9 @@ export class InvestmentsComponent implements OnDestroy {
     this.lotAssetId.set(assetId);
     this.lotOriginalSign.set(1);
     this.lotDate.set(new Date().toISOString().slice(0, 10));
-    this.lotQuantity.set(null);
-    this.lotPrice.set(null);
-    this.lotFees.set(null);
+    this.lotQuantity.set('');
+    this.lotPrice.set('');
+    this.lotFees.set('');
     this.lotNotes.set('');
     this.lotError.set('');
     this.showLotModal.set(true);
@@ -260,17 +260,18 @@ export class InvestmentsComponent implements OnDestroy {
     this.lotAssetId.set(assetId);
     this.lotOriginalSign.set(lot.quantity < 0 ? -1 : 1);
     this.lotDate.set(lot.date);
-    this.lotQuantity.set(Math.abs(lot.quantity));
-    this.lotPrice.set(lot.pricePerUnit);
-    this.lotFees.set(lot.fees);
+    this.lotQuantity.set(String(Math.abs(lot.quantity)));
+    this.lotPrice.set(String(lot.pricePerUnit));
+    this.lotFees.set(lot.fees != null ? String(lot.fees) : '');
     this.lotNotes.set(lot.notes ?? '');
     this.lotError.set('');
     this.showLotModal.set(true);
   }
 
   submitLot(): void {
-    const qty = this.lotQuantity();
-    const price = this.lotPrice();
+    const qty = InvestmentsComponent.parseDecimal(this.lotQuantity());
+    const price = InvestmentsComponent.parseDecimal(this.lotPrice());
+    const fees = InvestmentsComponent.parseDecimal(this.lotFees());
     if (!qty || qty <= 0) {
       this.lotError.set('Quantity must be greater than zero.');
       return;
@@ -316,7 +317,7 @@ export class InvestmentsComponent implements OnDestroy {
             date: this.lotDate(),
             quantity: finalQty,
             pricePerUnit: price,
-            fees: this.lotFees(),
+            fees,
             notes: this.lotNotes() || null,
           })
         : this.svc.createLot({
@@ -324,7 +325,7 @@ export class InvestmentsComponent implements OnDestroy {
             date: this.lotDate(),
             quantity: finalQty,
             pricePerUnit: price,
-            fees: this.lotFees(),
+            fees,
             notes: this.lotNotes() || null,
           });
 
@@ -353,13 +354,13 @@ export class InvestmentsComponent implements OnDestroy {
   openPriceModal(assetId: number): void {
     this.priceAssetId.set(assetId);
     this.priceDate.set(new Date().toISOString().slice(0, 10));
-    this.priceValue.set(null);
+    this.priceValue.set('');
     this.priceError.set('');
     this.showPriceModal.set(true);
   }
 
   submitPrice(): void {
-    const val = this.priceValue();
+    const val = InvestmentsComponent.parseDecimal(this.priceValue());
     if (!val || val <= 0) {
       this.priceError.set('Price must be greater than zero.');
       return;
@@ -444,6 +445,14 @@ export class InvestmentsComponent implements OnDestroy {
   }
 
   // ---- Helpers ----
+  /** Parses a decimal string accepting both '.' and ',' as separator. Returns null when empty or invalid. */
+  private static parseDecimal(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const value = Number(trimmed.replace(',', '.'));
+    return Number.isFinite(value) ? value : null;
+  }
+
   pnlClass(v: number | null): string {
     if (v == null) return '';
     return v >= 0 ? 'positive' : 'negative';

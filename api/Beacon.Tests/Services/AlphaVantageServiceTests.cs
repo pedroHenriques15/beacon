@@ -17,8 +17,8 @@ public class AlphaVantageServiceTests
     private const string EtfQuoteBody =
         """{"Global Quote": {"01. symbol": "VWCE", "05. price": "130.2500"}}""";
 
-    private const string GoldRateBody =
-        """{"Realtime Currency Exchange Rate": {"5. Exchange Rate": "2000.00000000"}}""";
+    private const string GoldQuoteBody =
+        """{"Global Quote": {"01. symbol": "4GLD.DEX", "05. price": "117.1900"}}""";
 
     [Fact]
     public async Task FetchEtfPrice_ValidResponse_ReturnsPrice()
@@ -65,26 +65,66 @@ public class AlphaVantageServiceTests
     }
 
     [Fact]
-    public async Task FetchGoldPrice_ConvertsTroyOunceToGrams()
+    public async Task FetchGoldPrice_ErrorMessageMentioningApiKey_ThrowsInvalidKeyHint()
     {
-        var service = MakeService(new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, GoldRateBody));
+        var service = MakeService(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.OK,
+            """{"Error Message": "the parameter apikey is invalid or missing."}"""));
 
-        var price = await service.FetchGoldPricePerGramAsync();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.FetchGoldPricePerGramAsync());
 
-        Assert.Equal(Math.Round(2000m / 31.1035m, 4), price);
+        Assert.Contains("API key", ex.Message);
     }
 
     [Fact]
-    public async Task FetchGoldPrice_PinsCurrencyExchangeUri()
+    public async Task FetchEtfPrice_ErrorMessageResponse_SurfacesAlphaVantageError()
     {
-        var handler = new RecordingHttpMessageHandler(System.Net.HttpStatusCode.OK, GoldRateBody);
+        var service = MakeService(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.OK,
+            """{"Error Message": "Invalid API call. Please retry or visit the documentation."}"""));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.FetchEtfPriceAsync("BADTICKER"));
+
+        Assert.Contains("Invalid API call", ex.Message);
+    }
+
+    [Fact]
+    public async Task FetchGoldPrice_ReturnsProxyQuoteAsEurPerGram()
+    {
+        var service = MakeService(new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, GoldQuoteBody));
+
+        var price = await service.FetchGoldPricePerGramAsync();
+
+        Assert.Equal(117.19m, price);
+    }
+
+    [Fact]
+    public async Task FetchGoldPrice_PinsGoldProxyQuoteUri()
+    {
+        var handler = new RecordingHttpMessageHandler(System.Net.HttpStatusCode.OK, GoldQuoteBody);
 
         await MakeService(handler).FetchGoldPricePerGramAsync();
 
         var query = handler.Requests.Single().Query;
-        Assert.Contains("function=CURRENCY_EXCHANGE_RATE", query);
-        Assert.Contains("from_currency=XAU", query);
-        Assert.Contains("to_currency=EUR", query);
+        Assert.Contains("function=GLOBAL_QUOTE", query);
+        Assert.Contains("symbol=4GLD.DEX", query);
+    }
+
+    [Fact]
+    public async Task FetchGoldPrice_UsesConfiguredProxyTicker()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AlphaVantage:ApiKey"] = "test-key",
+                ["AlphaVantage:GoldProxyTicker"] = "EWG2.DEX",
+            })
+            .Build();
+        var handler = new RecordingHttpMessageHandler(System.Net.HttpStatusCode.OK, GoldQuoteBody);
+
+        await new AlphaVantageService(new FakeHttpClientFactory(handler), config).FetchGoldPricePerGramAsync();
+
+        Assert.Contains("symbol=EWG2.DEX", handler.Requests.Single().Query);
     }
 
     [Fact]
@@ -110,19 +150,18 @@ public class AlphaVantageServiceTests
     }
 
     [Fact]
-    public async Task FetchDailySeries_Gold_ConvertsAndPinsFxDailyUri()
+    public async Task FetchDailySeries_Gold_UsesProxyTickerDailySeries()
     {
-        var body = """{"Time Series FX (Daily)": {"2026-07-22": {"4. close": "3110.35"}}}""";
+        var body = """{"Time Series (Daily)": {"2026-07-22": {"4. close": "117.1900"}}}""";
         var handler = new RecordingHttpMessageHandler(System.Net.HttpStatusCode.OK, body);
         var asset = new InvestmentAsset { AssetType = "Gold", Name = "Physical Gold" };
 
         var series = await MakeService(handler).FetchDailySeriesAsync(asset);
 
-        Assert.Equal(100.0000m, series[new DateOnly(2026, 7, 22)]);
+        Assert.Equal(117.19m, series[new DateOnly(2026, 7, 22)]);
         var query = handler.Requests.Single().Query;
-        Assert.Contains("function=FX_DAILY", query);
-        Assert.Contains("from_symbol=XAU", query);
-        Assert.Contains("to_symbol=EUR", query);
+        Assert.Contains("function=TIME_SERIES_DAILY", query);
+        Assert.Contains("symbol=4GLD.DEX", query);
     }
 
     [Fact]

@@ -5,10 +5,15 @@ namespace Beacon.Api.Services;
 public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
 {
     private const string BaseUrl = "https://www.alphavantage.co/query";
-    private const decimal TroyOzToGrams = 31.1035m;
+
+    // Alpha Vantage removed precious metals (XAU) from its currency endpoints, so gold is priced
+    // via an EUR-listed physical gold ETC. Xetra-Gold (4GLD): 1 unit = 1 gram, so quotes are EUR/gram.
+    private const string DefaultGoldProxyTicker = "4GLD.DEX";
 
     private string ApiKey => configuration["AlphaVantage:ApiKey"]
         ?? throw new InvalidOperationException("AlphaVantage:ApiKey is not configured.");
+
+    private string GoldProxyTicker => configuration["AlphaVantage:GoldProxyTicker"] ?? DefaultGoldProxyTicker;
 
     public async Task<decimal> FetchEtfPriceAsync(string ticker, CancellationToken ct = default)
     {
@@ -35,30 +40,8 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
         return price;
     }
 
-    public async Task<decimal> FetchGoldPricePerGramAsync(CancellationToken ct = default)
-    {
-        var client = httpClientFactory.CreateClient("alpha-vantage");
-        var url = $"{BaseUrl}?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=EUR&apikey={ApiKey}";
-        var response = await client.GetStringAsync(url, ct);
-
-        using var doc = JsonDocument.Parse(response);
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("Realtime Currency Exchange Rate", out var rate))
-        {
-            ThrowIfLimited(root);
-            throw new InvalidOperationException("Unexpected Alpha Vantage response for XAU/EUR.");
-        }
-
-        if (!rate.TryGetProperty("5. Exchange Rate", out var rateEl) || rateEl.GetString() is not string rateStr)
-            throw new InvalidOperationException("No exchange rate data found for XAU/EUR.");
-
-        if (!decimal.TryParse(rateStr, System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture, out var pricePerTroyOz) || pricePerTroyOz <= 0)
-            throw new InvalidOperationException("Invalid exchange rate value returned for XAU/EUR.");
-
-        return Math.Round(pricePerTroyOz / TroyOzToGrams, 4);
-    }
+    public Task<decimal> FetchGoldPricePerGramAsync(CancellationToken ct = default) =>
+        FetchEtfPriceAsync(GoldProxyTicker, ct);
 
     public async Task<Dictionary<DateOnly, decimal>> FetchDailySeriesAsync(Models.InvestmentAsset asset, CancellationToken ct = default)
     {
@@ -66,22 +49,18 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
         if (isEtf && string.IsNullOrWhiteSpace(asset.Ticker))
             throw new InvalidOperationException("Asset has no ticker configured.");
 
+        var ticker = isEtf ? asset.Ticker! : GoldProxyTicker;
         var client = httpClientFactory.CreateClient("alpha-vantage");
-        var url = isEtf
-            ? $"{BaseUrl}?function=TIME_SERIES_DAILY&symbol={Uri.EscapeDataString(asset.Ticker!)}&outputsize=full&apikey={ApiKey}"
-            : $"{BaseUrl}?function=FX_DAILY&from_symbol=XAU&to_symbol=EUR&outputsize=full&apikey={ApiKey}";
+        var url = $"{BaseUrl}?function=TIME_SERIES_DAILY&symbol={Uri.EscapeDataString(ticker)}&outputsize=full&apikey={ApiKey}";
         var response = await client.GetStringAsync(url, ct);
 
         using var doc = JsonDocument.Parse(response);
         var root = doc.RootElement;
 
-        var seriesKey = isEtf ? "Time Series (Daily)" : "Time Series FX (Daily)";
-        if (!root.TryGetProperty(seriesKey, out var series))
+        if (!root.TryGetProperty("Time Series (Daily)", out var series))
         {
             ThrowIfLimited(root);
-            throw new InvalidOperationException(isEtf
-                ? $"Unexpected Alpha Vantage response for ticker '{asset.Ticker}'."
-                : "Unexpected Alpha Vantage response for XAU/EUR.");
+            throw new InvalidOperationException($"Unexpected Alpha Vantage response for ticker '{ticker}'.");
         }
 
         var result = new Dictionary<DateOnly, decimal>();
@@ -98,7 +77,7 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
                     System.Globalization.CultureInfo.InvariantCulture, out var close) || close <= 0)
                 continue;
 
-            result[date] = isEtf ? close : Math.Round(close / TroyOzToGrams, 4);
+            result[date] = close;
         }
 
         return result;
@@ -108,6 +87,12 @@ public class AlphaVantageService(IHttpClientFactory httpClientFactory, IConfigur
     {
         if (root.TryGetProperty("Note", out _))
             throw new InvalidOperationException("Alpha Vantage daily rate limit reached. Try again later.");
+
+        if (root.TryGetProperty("Error Message", out var error))
+            throw new InvalidOperationException(
+                error.GetString()?.Contains("apikey", StringComparison.OrdinalIgnoreCase) == true
+                    ? "Alpha Vantage API key is invalid or missing. Set AlphaVantage__ApiKey."
+                    : $"Alpha Vantage error: {error.GetString()}");
 
         if (root.TryGetProperty("Information", out var info))
             throw new InvalidOperationException(

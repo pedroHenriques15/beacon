@@ -483,12 +483,11 @@
       <label class="field-label">{{ lotUnitLabel() }}</label>
       <input
         class="field-input"
-        type="number"
-        min="0"
-        step="any"
+        type="text"
+        inputmode="decimal"
         placeholder="0"
-        [value]="lotQuantity() ?? ''"
-        (input)="lotQuantity.set(+$any($event.target).value || null)"
+        [value]="lotQuantity()"
+        (input)="lotQuantity.set($any($event.target).value)"
       />
 
       <label class="field-label"
@@ -496,23 +495,21 @@
       >
       <input
         class="field-input"
-        type="number"
-        min="0"
-        step="any"
+        type="text"
+        inputmode="decimal"
         placeholder="0.00"
-        [value]="lotPrice() ?? ''"
-        (input)="lotPrice.set(+$any($event.target).value || null)"
+        [value]="lotPrice()"
+        (input)="lotPrice.set($any($event.target).value)"
       />
 
       <label class="field-label">Fees (€, optional)</label>
       <input
         class="field-input"
-        type="number"
-        min="0"
-        step="any"
+        type="text"
+        inputmode="decimal"
         placeholder="0.00"
-        [value]="lotFees() ?? ''"
-        (input)="lotFees.set(+$any($event.target).value || null)"
+        [value]="lotFees()"
+        (input)="lotFees.set($any($event.target).value)"
       />
 
       <label class="field-label">Notes (optional)</label>
@@ -557,12 +554,11 @@
       <label class="field-label">Current Price (€)</label>
       <input
         class="field-input"
-        type="number"
-        min="0"
-        step="any"
+        type="text"
+        inputmode="decimal"
         placeholder="0.00"
-        [value]="priceValue() ?? ''"
-        (input)="priceValue.set(+$any($event.target).value || null)"
+        [value]="priceValue()"
+        (input)="priceValue.set($any($event.target).value)"
       />
 
       @if (priceError()) {

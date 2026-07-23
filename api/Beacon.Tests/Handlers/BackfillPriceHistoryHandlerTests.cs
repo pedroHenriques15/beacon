@@ -88,15 +88,15 @@ public class BackfillPriceHistoryHandlerTests
     }
 
     [Fact]
-    public async Task BackfillHistory_Gold_ConvertsTroyOunceToGrams()
+    public async Task BackfillHistory_Gold_UsesProxyTickerSeries()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_Gold_ConvertsTroyOunceToGrams));
+        await using var db = CreateDb(nameof(BackfillHistory_Gold_UsesProxyTickerSeries));
         var asset = new InvestmentAsset { AssetType = "Gold", Name = "Physical Gold" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 50, PricePerUnit = 70 });
         await db.SaveChangesAsync();
-        var body = """{"Time Series FX (Daily)": {"2026-01-06": {"4. close": "3110.35"}}}""";
+        var body = """{"Time Series (Daily)": {"2026-01-06": {"4. close": "117.1900"}}}""";
 
         var (result, error) = await MakeHandler(db, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, body))
             .HandleAsync(new BackfillPriceHistoryCommand(asset.Id));
@@ -104,7 +104,7 @@ public class BackfillPriceHistoryHandlerTests
         Assert.Null(error);
         Assert.Equal(1, result!.SnapshotsAdded);
         var snap = await db.InvestmentPriceSnapshots.SingleAsync();
-        Assert.Equal(100.0000m, snap.PricePerUnit);
+        Assert.Equal(117.19m, snap.PricePerUnit);
     }
 
     [Fact]
