@@ -31,8 +31,7 @@ public class GetInvestmentAssetsQueryHandler(AppDbContext db)
 {
     public async Task<List<InvestmentAssetResponse>> HandleAsync(CancellationToken ct = default) =>
         await db.InvestmentAssets
-            .Include(a => a.Lots)
-            .Include(a => a.PriceSnapshots)
+            .AsSplitQuery()
             .OrderBy(a => a.Name)
             .Select(a => new InvestmentAssetResponse(
                 a.Id, a.AssetType, a.Ticker, a.Name, a.Notes,

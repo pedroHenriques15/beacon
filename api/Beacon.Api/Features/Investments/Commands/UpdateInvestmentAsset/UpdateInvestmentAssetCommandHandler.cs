@@ -14,6 +14,7 @@ public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
         var asset = await db.InvestmentAssets
             .Include(a => a.Lots)
             .Include(a => a.PriceSnapshots)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == command.Id, ct);
 
         if (asset is null) return (null, null);
