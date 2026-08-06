@@ -89,6 +89,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddSingleton<IBankStatementParser, ActivoBankParser>();
 builder.Services.AddSingleton<IBankStatementParser, BpiParser>();
 builder.Services.AddSingleton<IBankStatementParser, RevolutParser>();
+builder.Services.AddSingleton<IBankStatementParser, TradeRepublicParser>();
 builder.Services.AddSingleton<BankStatementParserFactory>();
 
 builder.Services.AddSingleton<IGroceryReceiptParser, ContinenteParser>();

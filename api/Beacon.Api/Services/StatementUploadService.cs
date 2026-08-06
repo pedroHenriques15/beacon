@@ -68,6 +68,9 @@ public class StatementUploadService(
                     .OrderBy(r => r.Id)
                     .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
 
+                var isSavingsPlan = parsed.Bank == "TRADE REPUBLIC"
+                    && tx.Description.Contains("Savings plan execution", StringComparison.Ordinal);
+
                 return new Transaction
                 {
                     DatePosting = tx.DatePosting,
@@ -78,7 +81,8 @@ public class StatementUploadService(
                     Balance = tx.Balance,
                     CategoryId = matchedRule?.CategoryId,
                     CategoryRuleId = matchedRule?.Id,
-                    CategorySetManually = false
+                    CategorySetManually = false,
+                    IsExcluded = isSavingsPlan
                 };
             }).ToList();
 
@@ -159,6 +163,8 @@ public class StatementUploadService(
 
             foreach (var newTx in transactions)
             {
+                if (newTx.IsExcluded) continue;
+
                 var opposite = existingTxs.FirstOrDefault(e =>
                     !usedExisting.Contains(e.Id) &&
                     e.DatePosting == newTx.DatePosting &&
