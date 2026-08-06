@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services.Parsing;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public class StatementUploadService(
     IPdfExtractor extractor,
     BankStatementParserFactory parserFactory,
     FileStorageService fileStorage,
+    SavingsPlanImportService savingsPlanImport,
     ILogger<StatementUploadService> logger)
 {
     public async Task<UploadResult> ImportAsync(IFormFile file, IReadOnlyList<string>? preExtractedPages = null, CancellationToken ct = default)
@@ -141,6 +143,20 @@ public class StatementUploadService(
 
             logger.LogInformation("Imported {Count} transactions for {Bank} {Period} ({Unknown} uncategorised)",
                 parsed.Transactions.Count, parsed.Bank, parsed.PeriodFrom, unknownCount);
+
+            try
+            {
+                var lots = await savingsPlanImport.ImportAsync(statement, ct);
+                if (lots > 0)
+                    logger.LogInformation(
+                        "Auto-imported {Count} Trade Republic savings-plan lot(s) for {Period}",
+                        lots, parsed.PeriodFrom);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to auto-import Trade Republic savings-plan lots for {Period}", parsed.PeriodFrom);
+            }
 
             var newTxIds = transactions.Select(t => t.Id).ToHashSet();
             var existingTxs = new List<Transaction>();

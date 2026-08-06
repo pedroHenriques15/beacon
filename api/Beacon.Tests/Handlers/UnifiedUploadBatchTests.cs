@@ -1,5 +1,6 @@
 using System.Text;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
@@ -50,7 +51,9 @@ public class UnifiedUploadBatchTests : IDisposable
         var groceryFactory = new GroceryReceiptParserFactory([new ContinenteParser()]);
         var salaryFactory = new SalarySlipParserFactory([new CentralGestParser(), new DomirestParser()]);
         var statementService = new StatementUploadService(
-            db, extractor, bankFactory, _fileStorage, NullLogger<StatementUploadService>.Instance);
+            db, extractor, bankFactory, _fileStorage,
+            new SavingsPlanImportService(db, NullLogger<SavingsPlanImportService>.Instance),
+            NullLogger<StatementUploadService>.Instance);
         var groceryService = new GroceryReceiptUploadService(
             db, extractor, groceryFactory, _fileStorage, NullLogger<GroceryReceiptUploadService>.Instance);
 

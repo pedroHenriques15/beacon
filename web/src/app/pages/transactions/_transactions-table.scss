@@ -117,6 +117,10 @@ tr.selected td {
     background: color-mix(in srgb, var(--warning) 15%, transparent);
     color: var(--warning);
   }
+  &[data-bank='TRADE REPUBLIC'] {
+    background: rgba(20, 184, 166, 0.15);
+    color: #14b8a6;
+  }
 }
 
 .act-col {

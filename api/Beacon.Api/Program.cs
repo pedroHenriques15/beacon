@@ -36,6 +36,7 @@ using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
 using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.BackfillPriceHistory;
+using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -197,6 +198,7 @@ builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
 builder.Services.AddScoped<FetchInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<BackfillPriceHistoryCommandHandler>();
+builder.Services.AddScoped<SavingsPlanImportService>();
 builder.Services.AddHostedService<InvestmentPriceRefreshService>();
 
 builder.Services.AddCors(options =>

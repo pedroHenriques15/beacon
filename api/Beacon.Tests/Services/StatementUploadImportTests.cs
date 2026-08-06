@@ -1,5 +1,6 @@
 using System.Text;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
 using Microsoft.AspNetCore.Http;
@@ -46,6 +47,7 @@ public class StatementUploadImportTests : IDisposable
 
     private StatementUploadService MakeService(AppDbContext db, IReadOnlyList<string> pages) =>
         new(db, new StubExtractor(pages), _parserFactory, _fileStorage,
+            new SavingsPlanImportService(db, NullLogger<SavingsPlanImportService>.Instance),
             NullLogger<StatementUploadService>.Instance);
 
     private static FormFile MakeFormFile(string content, string fileName = "statement.pdf")
@@ -176,6 +178,13 @@ public class StatementUploadImportTests : IDisposable
         Assert.False(card.IsExcluded);
         Assert.True(savings.IsExcluded);
         Assert.Equal("debit", savings.Type);
+
+        var asset = await freshDb.InvestmentAssets.Include(a => a.Lots).SingleAsync();
+        Assert.Equal("IE00BK5BQT80", asset.Isin);
+        Assert.Equal("ETF", asset.AssetType);
+        var lot = Assert.Single(asset.Lots);
+        Assert.Equal(0.303000m, lot.Quantity);
+        Assert.Equal(new DateOnly(2026, 8, 3), lot.Date);
     }
 
     [Fact]
