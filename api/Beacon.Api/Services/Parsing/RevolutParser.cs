@@ -12,7 +12,7 @@ public partial class RevolutParser : IBankStatementParser
 
     private static readonly CultureInfo PtCulture = CultureInfo.GetCultureInfo("pt-PT");
 
-    private const string AmountPat = @"[\d\.]+,\d{2}";
+    private const string AmountPat = @"\d{1,3}(?:[\s.]\d{3})*,\d{2}";
     private const string DatePat   = @"\d{2}/\d{2}/\d{4}";
 
     [GeneratedRegex(@"IBAN\s+(PT\w+)")]
@@ -21,8 +21,9 @@ public partial class RevolutParser : IBankStatementParser
     [GeneratedRegex(@"(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})")]
     private static partial Regex PeriodFromFilenameRegex();
 
-    [GeneratedRegex(@"Conta \(Conta Corrente\)\s+([\d\.]+,\d{2})€\s+[\d\.]+,\d{2}€\s+[\d\.]+,\d{2}€\s+([\d\.]+,\d{2})€")]
-    private static partial Regex SummaryRegex();
+    private static readonly Regex SummaryRegexInstance = new(
+        $@"Conta \(Conta Corrente\)\s+({AmountPat})€\s+{AmountPat}€\s+{AmountPat}€\s+({AmountPat})€",
+        RegexOptions.Compiled);
 
     private static readonly Regex TxRegex = new(
         $@"^({DatePat})\s+({DatePat})\s+(.*?)\s+({AmountPat})€\s+({AmountPat})€\s*$",
@@ -43,7 +44,7 @@ public partial class RevolutParser : IBankStatementParser
         }
 
         decimal opening = 0, closing = 0;
-        var sm = SummaryRegex().Match(fullText);
+        var sm = SummaryRegexInstance.Match(fullText);
         if (sm.Success)
         {
             opening = ParseAmount(sm.Groups[1].Value);
@@ -114,5 +115,7 @@ public partial class RevolutParser : IBankStatementParser
     }
 
     private static decimal ParseAmount(string s) =>
-        decimal.Parse(s.Replace(".", "").Replace(",", "."), CultureInfo.InvariantCulture);
+        decimal.Parse(
+            s.Replace(".", "").Replace(" ", "").Replace(" ", "").Replace(",", "."),
+            CultureInfo.InvariantCulture);
 }
