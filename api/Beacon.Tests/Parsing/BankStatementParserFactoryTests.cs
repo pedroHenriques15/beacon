@@ -11,7 +11,8 @@ public class BankStatementParserFactoryTests
         {
             new ActivoBankParser(),
             new BpiParser(),
-            new RevolutParser()
+            new RevolutParser(),
+            new TradeRepublicParser()
         };
         return new BankStatementParserFactory(parsers);
     }
@@ -23,6 +24,8 @@ public class BankStatementParserFactoryTests
     [InlineData("bpi")]
     [InlineData("REVOLUT")]
     [InlineData("revolut")]
+    [InlineData("TRADE REPUBLIC")]
+    [InlineData("trade republic")]
     public void GetParser_ReturnsParserForKnownBankName(string bankName)
     {
         var factory = CreateFactory();
@@ -53,6 +56,8 @@ public class BankStatementParserFactoryTests
     [InlineData("EXTRACTO INTEGRADO", "BPI")]
     [InlineData("REVOPTP2",           "REVOLUT")]
     [InlineData("Revolut Bank UAB",   "REVOLUT")]
+    [InlineData("TRBKPTP2",                "TRADE REPUBLIC")]
+    [InlineData("TRADE REPUBLIC BANK GMBH", "TRADE REPUBLIC")]
     public void DetectParser_IdentifiesCorrectBankFromText(string signal, string expectedBank)
     {
         var factory = CreateFactory();

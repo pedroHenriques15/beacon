@@ -196,8 +196,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(a => a.Id);
             e.Property(a => a.AssetType).HasMaxLength(20).IsRequired();
             e.Property(a => a.Ticker).HasMaxLength(20);
+            e.Property(a => a.Isin).HasMaxLength(12);
             e.Property(a => a.Name).HasMaxLength(200).IsRequired();
             e.Property(a => a.Notes).HasMaxLength(500);
+            // Filtered unique index: many assets may have no ISIN, but a set ISIN identifies one asset.
+            e.HasIndex(a => a.Isin).IsUnique().HasFilter("[Isin] IS NOT NULL");
             e.HasMany(a => a.Lots)
              .WithOne(l => l.Asset)
              .HasForeignKey(l => l.AssetId)
@@ -211,7 +214,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<InvestmentLot>(e =>
         {
             e.HasKey(l => l.Id);
-            e.Property(l => l.Quantity).HasColumnType("decimal(18,4)");
+            // 6dp so fractional savings-plan shares (e.g. Trade Republic quantity: 0.031295) are exact.
+            e.Property(l => l.Quantity).HasColumnType("decimal(18,6)");
             e.Property(l => l.PricePerUnit).HasColumnType("decimal(18,4)");
             e.Property(l => l.Fees).HasColumnType("decimal(18,2)");
             e.Property(l => l.Notes).HasMaxLength(500);

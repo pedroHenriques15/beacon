@@ -174,6 +174,7 @@ export class DashboardComponent {
       ACTIVOBANK: '#00b4d8',
       REVOLUT: '#6c63ff',
       BPI: '#fb923c',
+      'TRADE REPUBLIC': '#14b8a6',
     };
     return colors[bank] ?? '#94a3b8';
   }

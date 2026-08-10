@@ -1,5 +1,6 @@
 using System.Text;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
 using Microsoft.AspNetCore.Http;
@@ -26,7 +27,7 @@ public class StatementUploadImportTests : IDisposable
             .Build();
         _fileStorage = new FileStorageService(config, NullLogger<FileStorageService>.Instance);
         _parserFactory = new BankStatementParserFactory(
-            [new ActivoBankParser(), new BpiParser(), new RevolutParser()]);
+            [new ActivoBankParser(), new BpiParser(), new RevolutParser(), new TradeRepublicParser()]);
     }
 
     public void Dispose()
@@ -46,6 +47,7 @@ public class StatementUploadImportTests : IDisposable
 
     private StatementUploadService MakeService(AppDbContext db, IReadOnlyList<string> pages) =>
         new(db, new StubExtractor(pages), _parserFactory, _fileStorage,
+            new SavingsPlanImportService(db, NullLogger<SavingsPlanImportService>.Instance),
             NullLogger<StatementUploadService>.Instance);
 
     private static FormFile MakeFormFile(string content, string fileName = "statement.pdf")
@@ -138,6 +140,51 @@ public class StatementUploadImportTests : IDisposable
         await using var freshDb = new AppDbContext(DbOptions(dbName));
         Assert.Equal(0, await freshDb.MonthlyStatements.CountAsync());
         Assert.Empty(Directory.GetFiles(_tempStorageRoot));
+    }
+
+    private static string TradeRepublicPage() => """
+        TRADE REPUBLIC BANK GMBH, SUCURSAL EM PORTUGAL
+        TEST USER DATE 01 Aug 2026 - 05 Aug 2026
+        IBAN PT50000000000000000000000
+        BIC TRBKPTP2XXX
+        Checking Account €1,000.00 €0.00 €57.30 €942.70
+        ACCOUNT TRANSACTIONS
+        02 Aug Card
+        MINI MERCADO €7.30 €992.70
+        2026 Transaction
+        03 Aug Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All-
+        Trade €50.00€942.70
+        2026 World UCITS ETF (USD) Accumulating, quantity: 0.303000
+        """;
+
+    [Fact]
+    public async Task Import_TradeRepublic_ExcludesSavingsPlanRowsButNotSpending()
+    {
+        var dbName = nameof(Import_TradeRepublic_ExcludesSavingsPlanRowsButNotSpending);
+        await using var db = new AppDbContext(DbOptions(dbName));
+        var service = MakeService(db, [TradeRepublicPage()]);
+
+        var result = await service.ImportAsync(MakeFormFile("trade-republic-file"));
+
+        Assert.True(result.Imported);
+        Assert.Equal("TRADE REPUBLIC", result.Bank);
+
+        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        var stmt = await freshDb.MonthlyStatements.Include(s => s.Transactions).SingleAsync();
+
+        var card    = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
+        var savings = stmt.Transactions.Single(t => t.Description.Contains("Savings plan execution"));
+
+        Assert.False(card.IsExcluded);
+        Assert.True(savings.IsExcluded);
+        Assert.Equal("debit", savings.Type);
+
+        var asset = await freshDb.InvestmentAssets.Include(a => a.Lots).SingleAsync();
+        Assert.Equal("IE00BK5BQT80", asset.Isin);
+        Assert.Equal("ETF", asset.AssetType);
+        var lot = Assert.Single(asset.Lots);
+        Assert.Equal(0.303000m, lot.Quantity);
+        Assert.Equal(new DateOnly(2026, 8, 3), lot.Date);
     }
 
     [Fact]

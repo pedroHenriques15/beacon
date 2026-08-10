@@ -65,6 +65,7 @@ Everything is stored in SQL Server and served over a REST API. The Angular front
 | Bank statement (PDF) | ActivoBank | BIC `ACTVPTPL` or "EXTRATO COMBINADO" |
 | Bank statement (PDF) | BPI | SWIFT `BBPIPTPL` or "EXTRACTO INTEGRADO" |
 | Bank statement (PDF) | Revolut (EUR accounts) | BIC `REVOPTP2` or "Revolut Bank UAB" |
+| Bank statement (PDF) | Trade Republic | BIC `TRBKPTP2` or "TRADE REPUBLIC BANK GMBH" |
 | Salary slip (PDF) | CentralGest payroll | "CentralGest Software" footer |
 | Salary slip (PDF) | Domirest payroll | "DOMIREST" header |
 | Grocery receipt (PDF) | Continente | "Modelo Continente" |
