@@ -98,6 +98,8 @@ export class UploadComponent implements OnInit {
   salaryQueue = signal<SalaryQueueItem[]>([]);
   profiles = signal<SalaryProfile[]>([]);
 
+  micro1Unpaired = signal<{ fileName: string; error: string }[]>([]);
+
   groceryResults = signal<GroceryReceiptUploadResult[]>([]);
   pendingDialogs = signal<PendingDialog[]>([]);
 
@@ -205,6 +207,7 @@ export class UploadComponent implements OnInit {
     this.transferSaving.set(false);
     this.transferError.set('');
     this.salaryQueue.set([]);
+    this.micro1Unpaired.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
     this.showMappingModal.set(false);
@@ -327,6 +330,7 @@ export class UploadComponent implements OnInit {
     this.singleResult.set(null);
     this.batchSummary.set(null);
     this.salaryQueue.set([]);
+    this.micro1Unpaired.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
 
@@ -336,6 +340,7 @@ export class UploadComponent implements OnInit {
         const groceryItems = results.filter((r) => r.documentType === 'GroceryReceipt');
         const salaryItems = results.filter((r) => r.documentType === 'SalarySlip');
         const unknownItems = results.filter((r) => r.documentType === 'Unknown');
+        const micro1Items = results.filter((r) => r.documentType === 'Micro1Unpaired');
 
         const dialogs: PendingDialog[] = [];
 
@@ -397,6 +402,15 @@ export class UploadComponent implements OnInit {
               dialogs.push({ type: 'salary-review', queueIdx: startIdx + i });
             }
           });
+        }
+
+        if (micro1Items.length > 0) {
+          this.micro1Unpaired.set(
+            micro1Items.map((r) => ({
+              fileName: r.fileName,
+              error: r.error ?? 'This micro1 file is missing its counterpart and was not imported.',
+            })),
+          );
         }
 
         const failedItems = [...failedGroceryItems, ...unknownItems];

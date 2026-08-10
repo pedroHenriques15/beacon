@@ -168,7 +168,7 @@ export interface UnifiedSalaryResult {
 
 export interface UnifiedUploadItemResult {
   fileName: string;
-  documentType: 'BankStatement' | 'GroceryReceipt' | 'SalarySlip' | 'Unknown';
+  documentType: 'BankStatement' | 'GroceryReceipt' | 'SalarySlip' | 'Unknown' | 'Micro1Unpaired';
   success: boolean;
   wasDuplicate: boolean;
   error: string | null;

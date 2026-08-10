@@ -100,6 +100,9 @@ builder.Services.AddSingleton<ISalarySlipParser, CentralGestParser>();
 builder.Services.AddSingleton<ISalarySlipParser, DomirestParser>();
 builder.Services.AddSingleton<SalarySlipParserFactory>();
 
+builder.Services.AddSingleton<Micro1InvoiceParser>();
+builder.Services.AddSingleton<DeelWithdrawalParser>();
+
 builder.Services.AddSingleton<FileStorageService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("google-oauth")

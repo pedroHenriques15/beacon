@@ -54,7 +54,8 @@
 
       <p class="supported">
         Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Grocery receipts: Continente
-        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest
+        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest &nbsp;·&nbsp; micro1: invoice + Deel
+        withdrawal (upload both)
       </p>
     }
   </div>
@@ -252,7 +253,37 @@
     </div>
   }
 
-  @if (!batchSummary() && salaryQueue().length === 0 && groceryResults().length === 0) {
+  @if (micro1Unpaired().length > 0) {
+    <div class="result-card warning">
+      <div class="result-icon">≈</div>
+      <h2>micro1 files waiting for a match</h2>
+      <p class="backup-hint">
+        A micro1 paycheck needs both PDFs - the invoice and its Deel withdrawal - uploaded together.
+        These were recognised but not imported:
+      </p>
+
+      <div class="file-list">
+        @for (item of micro1Unpaired(); track item.fileName) {
+          <div class="file-row file-err">
+            <span class="file-icon">✕</span>
+            <span class="file-name">{{ item.fileName }}</span>
+            <span class="file-detail">{{ item.error }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+      </div>
+    </div>
+  }
+
+  @if (
+    !batchSummary() &&
+    salaryQueue().length === 0 &&
+    groceryResults().length === 0 &&
+    micro1Unpaired().length === 0
+  ) {
     <div class="result-card success">
       <div class="result-icon">✓</div>
       <h2>Done</h2>

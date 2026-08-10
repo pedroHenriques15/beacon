@@ -17,7 +17,29 @@ public record ParsedSalarySlipResponse(
     decimal? HoursWorked,
     decimal? HourlyRate,
     decimal? TotalEspecie,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null)
+{
+    /// <summary>Maps a parsed slip (+ its verification warnings) to the API response DTO. Shared by the
+    /// salary parse endpoint and the unified upload handler so the two never drift out of shape.</summary>
+    public static ParsedSalarySlipResponse From(
+        string parserName, ParsedSalarySlip slip, IReadOnlyList<string> warnings) =>
+        new(parserName,
+            slip.Employer,
+            slip.EmployerNif,
+            slip.Period,
+            slip.GrossAmount,
+            slip.NetAmount,
+            slip.LineItems
+                .Select(li => new ParsedSalaryLineItemResponse(
+                    li.Description, li.Amount, li.ItemType,
+                    li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase))
+                .ToList(),
+            slip.BaseAmount,
+            slip.HoursWorked,
+            slip.HourlyRate,
+            slip.TotalEspecie,
+            warnings.Count > 0 ? warnings : null);
+}
 
 public record ParsedSalaryLineItemResponse(
     string Description,
@@ -55,28 +77,7 @@ public class ParseSalarySlipCommandHandler(
         {
             var slip     = parser.Parse(Path.GetFileName(command.PdfPath), pages);
             var warnings = ParseVerifier.VerifySalarySlip(slip);
-            var response = new ParsedSalarySlipResponse(
-                parser.ParserName,
-                slip.Employer,
-                slip.EmployerNif,
-                slip.Period,
-                slip.GrossAmount,
-                slip.NetAmount,
-                slip.LineItems
-                    .Select(li => new ParsedSalaryLineItemResponse(
-                        li.Description,
-                        li.Amount,
-                        li.ItemType,
-                        li.Quantity,
-                        li.UnitValue,
-                        li.Percentage,
-                        li.IncidenciaBase))
-                    .ToList(),
-                slip.BaseAmount,
-                slip.HoursWorked,
-                slip.HourlyRate,
-                slip.TotalEspecie,
-                warnings.Count > 0 ? warnings : null);
+            var response = ParsedSalarySlipResponse.From(parser.ParserName, slip, warnings);
             return (response, null);
         }
         catch (Exception ex)
