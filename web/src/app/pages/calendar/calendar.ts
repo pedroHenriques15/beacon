@@ -200,6 +200,7 @@ export class CalendarPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.googleAuth.loadStatus();
     this.calendarService.loadEvents(this.year(), this.month());
     this.tasksService.loadTaskLists();
   }

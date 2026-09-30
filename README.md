@@ -225,8 +225,13 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `AlphaVantage__ReservedForManual`      | Quota reserved for manual fetches and backfills (default 5)                                   |
 | `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional - only needed for Google Calendar/Tasks sync)            |
 | `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
-| `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console                                         |
+| `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console (see below)                             |
 | `GoogleServices__FrontendUrl`          | Base URL of the Angular frontend, used to redirect after OAuth (e.g. `http://localhost:4200`) |
+
+Google Calendar and Tasks (optional):
+
+- Google accepts a plain-HTTP or IP-address redirect URI only for localhost. Locally, use `http://localhost:5098/api/auth/google/callback`. For remote access, serve Beacon on its Tailscale HTTPS name (`tailscale serve`), use `https://<device>.<tailnet>.ts.net/api/auth/google/callback`, and set `GoogleServices__FrontendUrl` to `https://<device>.<tailnet>.ts.net`.
+- Set the OAuth consent screen's publishing status to "In production". In "Testing", Google expires the refresh token after 7 days and Beacon asks you to reconnect. The app stays unverified, so Google shows a warning screen when you connect; that is fine for personal use.
 
 ---
 
@@ -257,7 +262,7 @@ The tool only reads the SQL Server database. It copies every table, ids included
 ## Tests
 
 ```bash
-# Backend - xUnit (617 tests)
+# Backend - xUnit (633 tests)
 cd api
 dotnet test Beacon.Tests/
 

@@ -12,7 +12,8 @@ public class GoogleOAuthService(
     IHttpClientFactory httpClientFactory,
     IConfiguration config,
     AppDbContext db,
-    IMemoryCache cache)
+    IMemoryCache cache,
+    ILogger<GoogleOAuthService> logger)
 {
     private const string StateCacheKey = "google_oauth_state";
     private const int ExpiryBufferSeconds = 60;
@@ -74,24 +75,34 @@ public class GoogleOAuthService(
         await UpsertTokenAsync(body, ct);
     }
 
-    public async Task<string?> GetValidAccessTokenAsync(CancellationToken ct = default)
+    /// <summary>
+    /// An access token that works, refreshed first when it has expired. Throws
+    /// <see cref="GoogleConnectionException"/> when there is none: no account is connected,
+    /// Google rejected the refresh token, or Google could not be reached.
+    /// </summary>
+    public async Task<string> GetValidAccessTokenAsync(CancellationToken ct = default)
     {
-        var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
-        if (token is null) return null;
+        var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct)
+            ?? throw new GoogleConnectionException(GoogleConnectionState.NotConnected);
 
-        if (token.ExpiresAt > DateTime.UtcNow.AddSeconds(ExpiryBufferSeconds))
-            return token.AccessToken;
-
-        return await RefreshAccessTokenAsync(token, ct);
+        var state = await RefreshIfExpiredAsync(token, ct);
+        return state == GoogleConnectionState.Connected
+            ? token.AccessToken
+            : throw new GoogleConnectionException(state);
     }
 
+    /// <summary>
+    /// Whether the stored token still works. An expired access token is refreshed first, so a
+    /// refresh token Google no longer accepts shows here, not only as an empty calendar.
+    /// </summary>
     public async Task<GoogleAuthStatus> GetStatusAsync(CancellationToken ct = default)
     {
         var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
         if (token is null)
-            return new GoogleAuthStatus(false, null, null);
+            return new GoogleAuthStatus(GoogleConnectionState.NotConnected, null, null);
 
-        return new GoogleAuthStatus(true, token.ExpiresAt, token.ConnectedAt);
+        var state = await RefreshIfExpiredAsync(token, ct);
+        return new GoogleAuthStatus(state, token.ExpiresAt, token.ConnectedAt);
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
@@ -101,12 +112,24 @@ public class GoogleOAuthService(
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<string?> RefreshAccessTokenAsync(Models.GoogleOAuthToken token, CancellationToken ct)
+    /// <summary>
+    /// Refreshes an expired access token and returns the connection's state. When Google rejects
+    /// the refresh token (<c>invalid_grant</c>: it expired or was revoked), the row stays with
+    /// both tokens blanked, so every later check reports ReconnectRequired until the account is
+    /// connected again or disconnected. Any other failure keeps the token for the next attempt.
+    /// </summary>
+    private async Task<string> RefreshIfExpiredAsync(Models.GoogleOAuthToken token, CancellationToken ct)
     {
+        if (token.RefreshToken.Length == 0)
+            return GoogleConnectionState.ReconnectRequired;
+
+        if (token.ExpiresAt > DateTime.UtcNow.AddSeconds(ExpiryBufferSeconds))
+            return GoogleConnectionState.Connected;
+
         try
         {
             var client = httpClientFactory.CreateClient("google-oauth");
-            var response = await client.PostAsync("https://oauth2.googleapis.com/token",
+            using var response = await client.PostAsync("https://oauth2.googleapis.com/token",
                 new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     ["refresh_token"] = token.RefreshToken,
@@ -117,24 +140,35 @@ public class GoogleOAuthService(
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync(ct);
-                if (error.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
-                    await DisconnectAsync(ct);
-                return null;
+                var error = await response.Content.ReadFromJsonAsync<TokenErrorResponse>(cancellationToken: ct);
+                if (error?.Error != "invalid_grant")
+                {
+                    logger.LogWarning("Refreshing the Google access token failed with {Status} ({Error}); keeping the token.",
+                        (int)response.StatusCode, error?.Error);
+                    return GoogleConnectionState.Unreachable;
+                }
+
+                logger.LogWarning("Google rejected the stored refresh token; the account must be connected again.");
+                token.AccessToken = "";
+                token.RefreshToken = "";
+                await db.SaveChangesAsync(ct);
+                return GoogleConnectionState.ReconnectRequired;
             }
 
             var body = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct)
-                ?? throw new InvalidOperationException("Empty refresh response from Google.");
+                ?? throw new JsonException("Empty refresh response from Google.");
 
             token.AccessToken = body.AccessToken;
             token.ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn);
             await db.SaveChangesAsync(ct);
-
-            return token.AccessToken;
+            return GoogleConnectionState.Connected;
         }
-        catch (HttpRequestException)
+        // No answer (network, DNS, the client's timeout) or one that is not the JSON Google sends.
+        catch (Exception ex) when (ex is HttpRequestException or JsonException
+            || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
-            return null;
+            logger.LogWarning(ex, "Refreshing the Google access token failed; keeping the token.");
+            return GoogleConnectionState.Unreachable;
         }
     }
 
@@ -158,6 +192,15 @@ public class GoogleOAuthService(
         }
         else
         {
+            // A blank refresh token is one Google rejected: this is a new connection, and it
+            // needs a new refresh token.
+            if (existing.RefreshToken.Length == 0)
+            {
+                if (string.IsNullOrEmpty(body.RefreshToken))
+                    throw new InvalidOperationException("Google did not return a refresh token.");
+                existing.ConnectedAt = DateTime.UtcNow;
+            }
+
             existing.AccessToken = body.AccessToken;
             if (!string.IsNullOrEmpty(body.RefreshToken))
                 existing.RefreshToken = body.RefreshToken;
@@ -178,6 +221,29 @@ public class GoogleOAuthService(
         [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; set; }
     }
+
+    private sealed class TokenErrorResponse
+    {
+        [JsonPropertyName("error")]
+        public string? Error { get; set; }
+    }
 }
 
-public record GoogleAuthStatus(bool Connected, DateTime? ExpiresAt, DateTime? ConnectedAt);
+/// <summary>The states of the Google connection that <see cref="GoogleAuthStatus"/> reports.</summary>
+public static class GoogleConnectionState
+{
+    public const string NotConnected = "notConnected";
+    public const string Connected = "connected";
+
+    /// <summary>Google rejected the refresh token (it expired or was revoked): connect again.</summary>
+    public const string ReconnectRequired = "reconnectRequired";
+
+    /// <summary>The access token expired and refreshing it failed for another reason; the token is kept.</summary>
+    public const string Unreachable = "unreachable";
+}
+
+public record GoogleAuthStatus(string State, DateTime? ExpiresAt, DateTime? ConnectedAt)
+{
+    /// <summary>The stored token works, or will once Google answers again.</summary>
+    public bool Connected => State is GoogleConnectionState.Connected or GoogleConnectionState.Unreachable;
+}

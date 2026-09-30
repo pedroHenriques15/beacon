@@ -16,9 +16,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             var lists = await tasksService.GetTaskListsAsync(ct);
             return Ok(lists);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -36,9 +36,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             var tasks = await tasksService.GetTasksAsync(listId, ct);
             return Ok(tasks);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -54,9 +54,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             var created = await tasksService.CreateTaskAsync(request, ct);
             return StatusCode(201, created);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -72,9 +72,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             var updated = await tasksService.UpdateTaskAsync(id, request, ct);
             return Ok(updated);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -92,9 +92,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             var moved = await tasksService.MoveTaskAsync(id, request, ct);
             return Ok(moved);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -114,9 +114,9 @@ public class TasksController(GoogleTasksService tasksService) : ControllerBase
             await tasksService.DeleteTaskAsync(id, listId, ct);
             return NoContent();
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {

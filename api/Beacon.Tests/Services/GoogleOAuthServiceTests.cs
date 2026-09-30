@@ -4,6 +4,7 @@ using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -11,6 +12,9 @@ namespace Beacon.Tests.Services;
 
 public class GoogleOAuthServiceTests : IDisposable
 {
+    private const string InvalidGrant =
+        """{"error":"invalid_grant","error_description":"Token has been expired or revoked."}""";
+
     private readonly SqliteTestDatabase _database = new();
 
     public void Dispose() => _database.Dispose();
@@ -19,6 +23,33 @@ public class GoogleOAuthServiceTests : IDisposable
 
     private static IMemoryCache CreateCache() =>
         new MemoryCache(Options.Create(new MemoryCacheOptions()));
+
+    private static async Task SeedExpiredTokenAsync(AppDbContext db)
+    {
+        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
+        {
+            Id = 1,
+            AccessToken = "old-token",
+            RefreshToken = "good-refresh",
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
+            ConnectedAt = DateTime.UtcNow.AddDays(-30),
+        });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>The row a rejected refresh token leaves behind: both tokens blank.</summary>
+    private static async Task SeedRejectedTokenAsync(AppDbContext db)
+    {
+        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
+        {
+            Id = 1,
+            AccessToken = "",
+            RefreshToken = "",
+            ExpiresAt = DateTime.UtcNow.AddDays(-8),
+            ConnectedAt = DateTime.UtcNow.AddDays(-30),
+        });
+        await db.SaveChangesAsync();
+    }
 
     private static GoogleOAuthService CreateService(AppDbContext db, IMemoryCache cache,
         IHttpClientFactory? factory = null)
@@ -37,7 +68,7 @@ public class GoogleOAuthServiceTests : IDisposable
             System.Net.HttpStatusCode.OK,
             """{"access_token":"test-access","refresh_token":"test-refresh","expires_in":3600}"""));
 
-        return new GoogleOAuthService(factory, config, db, cache);
+        return new GoogleOAuthService(factory, config, db, cache, NullLogger<GoogleOAuthService>.Instance);
     }
 
     [Fact]
@@ -140,13 +171,14 @@ public class GoogleOAuthServiceTests : IDisposable
 
         var status = await svc.GetStatusAsync();
 
+        Assert.Equal(GoogleConnectionState.NotConnected, status.State);
         Assert.False(status.Connected);
         Assert.Null(status.ExpiresAt);
         Assert.Null(status.ConnectedAt);
     }
 
     [Fact]
-    public async Task GetStatusAsync_WithToken_ReturnsConnected()
+    public async Task GetStatusAsync_ValidToken_ReturnsConnected_WithoutHttpCall()
     {
         using var db = CreateDb();
         var now = DateTime.UtcNow;
@@ -161,13 +193,97 @@ public class GoogleOAuthServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         using var cache = CreateCache();
-        var svc = CreateService(db, cache);
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(new ThrowingHttpMessageHandler()));
 
         var status = await svc.GetStatusAsync();
 
+        Assert.Equal(GoogleConnectionState.Connected, status.State);
         Assert.True(status.Connected);
         Assert.NotNull(status.ExpiresAt);
         Assert.NotNull(status.ConnectedAt);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ExpiredToken_RefreshSucceeds_ReturnsConnected()
+    {
+        using var db = CreateDb();
+        await SeedExpiredTokenAsync(db);
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.OK, """{"access_token":"new-token","expires_in":3600}"""));
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, factory);
+
+        var status = await svc.GetStatusAsync();
+
+        Assert.Equal(GoogleConnectionState.Connected, status.State);
+        Assert.True(status.ExpiresAt > DateTime.UtcNow);
+        using var check = CreateDb();
+        Assert.Equal("new-token", (await check.GoogleOAuthTokens.SingleAsync()).AccessToken);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_RefreshTokenRejected_ReturnsReconnectRequired_AndBlanksTokens()
+    {
+        using var db = CreateDb();
+        await SeedExpiredTokenAsync(db);
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.BadRequest, InvalidGrant));
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, factory);
+
+        var status = await svc.GetStatusAsync();
+
+        Assert.Equal(GoogleConnectionState.ReconnectRequired, status.State);
+        Assert.False(status.Connected);
+        Assert.NotNull(status.ConnectedAt);
+        using var check = CreateDb();
+        var stored = await check.GoogleOAuthTokens.SingleAsync();
+        Assert.Equal("", stored.AccessToken);
+        Assert.Equal("", stored.RefreshToken);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_AfterRejection_KeepsReturningReconnectRequired_WithoutHttpCall()
+    {
+        using var db = CreateDb();
+        await SeedRejectedTokenAsync(db);
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(new ThrowingHttpMessageHandler()));
+
+        var status = await svc.GetStatusAsync();
+
+        Assert.Equal(GoogleConnectionState.ReconnectRequired, status.State);
+        Assert.False(status.Connected);
+    }
+
+    [Theory]
+    [InlineData("Google answers 503")]
+    [InlineData("Google answers invalid_client")]
+    [InlineData("network failure")]
+    [InlineData("timeout")]
+    public async Task GetStatusAsync_RefreshFails_ReturnsUnreachable_AndKeepsToken(string failure)
+    {
+        using var db = CreateDb();
+        await SeedExpiredTokenAsync(db);
+        HttpMessageHandler handler = failure switch
+        {
+            "Google answers 503" => new FakeHttpMessageHandler(System.Net.HttpStatusCode.ServiceUnavailable, ""),
+            "Google answers invalid_client" => new FakeHttpMessageHandler(
+                System.Net.HttpStatusCode.Unauthorized, """{"error":"invalid_client"}"""),
+            "network failure" => new FailingHttpMessageHandler(new HttpRequestException("No such host is known.")),
+            _ => new FailingHttpMessageHandler(new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.")),
+        };
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(handler));
+
+        var status = await svc.GetStatusAsync();
+
+        Assert.Equal(GoogleConnectionState.Unreachable, status.State);
+        Assert.True(status.Connected);
+        using var check = CreateDb();
+        var stored = await check.GoogleOAuthTokens.SingleAsync();
+        Assert.Equal("old-token", stored.AccessToken);
+        Assert.Equal("good-refresh", stored.RefreshToken);
     }
 
     [Fact]
@@ -193,53 +309,88 @@ public class GoogleOAuthServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects()
+    public async Task GetValidAccessTokenAsync_NoToken_ThrowsNotConnected()
     {
         using var db = CreateDb();
-        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
-        {
-            Id = 1,
-            AccessToken = "old-token",
-            RefreshToken = "bad-refresh",
-            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
-            ConnectedAt = DateTime.UtcNow.AddDays(-1),
-        });
-        await db.SaveChangesAsync();
-
-        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
-            System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"""));
         using var cache = CreateCache();
-        var svc = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(new ThrowingHttpMessageHandler()));
 
-        var result = await svc.GetValidAccessTokenAsync();
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(() => svc.GetValidAccessTokenAsync());
 
-        Assert.Null(result);
-        Assert.Empty(await db.GoogleOAuthTokens.ToListAsync());
+        Assert.Equal(GoogleConnectionState.NotConnected, ex.State);
     }
 
     [Fact]
-    public async Task GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens()
+    public async Task GetValidAccessTokenAsync_RefreshInvalidGrant_ThrowsReconnectRequired_AndBlanksTokens()
     {
         using var db = CreateDb();
-        db.GoogleOAuthTokens.Add(new GoogleOAuthToken
-        {
-            Id = 1,
-            AccessToken = "old-token",
-            RefreshToken = "good-refresh",
-            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
-            ConnectedAt = DateTime.UtcNow.AddDays(-1),
-        });
-        await db.SaveChangesAsync();
+        await SeedExpiredTokenAsync(db);
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.BadRequest, InvalidGrant));
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, factory);
 
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(() => svc.GetValidAccessTokenAsync());
+
+        Assert.Equal(GoogleConnectionState.ReconnectRequired, ex.State);
+        using var check = CreateDb();
+        var stored = await check.GoogleOAuthTokens.SingleAsync();
+        Assert.Equal("", stored.AccessToken);
+        Assert.Equal("", stored.RefreshToken);
+    }
+
+    [Fact]
+    public async Task GetValidAccessTokenAsync_RejectedToken_ThrowsReconnectRequired_WithoutHttpCall()
+    {
+        using var db = CreateDb();
+        await SeedRejectedTokenAsync(db);
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(new ThrowingHttpMessageHandler()));
+
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(() => svc.GetValidAccessTokenAsync());
+
+        Assert.Equal(GoogleConnectionState.ReconnectRequired, ex.State);
+    }
+
+    [Fact]
+    public async Task GetValidAccessTokenAsync_RefreshTransientError_ThrowsUnreachable_KeepsToken()
+    {
+        using var db = CreateDb();
+        await SeedExpiredTokenAsync(db);
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.ServiceUnavailable, ""));
         using var cache = CreateCache();
         var svc = CreateService(db, cache, factory);
 
-        var result = await svc.GetValidAccessTokenAsync();
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(() => svc.GetValidAccessTokenAsync());
 
-        Assert.Null(result);
-        Assert.Single(await db.GoogleOAuthTokens.ToListAsync());
+        Assert.Equal(GoogleConnectionState.Unreachable, ex.State);
+        using var check = CreateDb();
+        Assert.Equal("good-refresh", (await check.GoogleOAuthTokens.SingleAsync()).RefreshToken);
+    }
+
+    [Fact]
+    public async Task GetValidAccessTokenAsync_CallerCancelsDuringRefresh_IsNotReportedAsUnreachable()
+    {
+        using var db = CreateDb();
+        await SeedExpiredTokenAsync(db);
+        using var cts = new CancellationTokenSource();
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, new FakeHttpClientFactory(new CancellingHttpMessageHandler(cts)));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => svc.GetValidAccessTokenAsync(cts.Token));
+    }
+
+    /// <summary>The caller gives up while Google is still answering.</summary>
+    private sealed class CancellingHttpMessageHandler(CancellationTokenSource caller) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            caller.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("The caller's token should have cancelled this request.");
+        }
     }
 
     [Fact]
@@ -317,6 +468,47 @@ public class GoogleOAuthServiceTests : IDisposable
         Assert.Equal("new-access", token.AccessToken);
         Assert.Equal("test-refresh", token.RefreshToken);
         Assert.Equal(1, token.Id);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_AfterRejection_ConnectsAgain()
+    {
+        using var db = CreateDb();
+        await SeedRejectedTokenAsync(db);
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache);
+
+        svc.GetAuthorizationUrl();
+        cache.TryGetValue("google_oauth_state", out string? state);
+        await svc.ExchangeCodeAsync("auth-code", state!);
+
+        var status = await svc.GetStatusAsync();
+        Assert.Equal(GoogleConnectionState.Connected, status.State);
+        Assert.True(status.ConnectedAt > DateTime.UtcNow.AddMinutes(-1));
+        using var check = CreateDb();
+        var stored = await check.GoogleOAuthTokens.SingleAsync();
+        Assert.Equal("test-access", stored.AccessToken);
+        Assert.Equal("test-refresh", stored.RefreshToken);
+    }
+
+    [Fact]
+    public async Task ExchangeCodeAsync_AfterRejection_WithoutRefreshToken_Throws()
+    {
+        using var db = CreateDb();
+        await SeedRejectedTokenAsync(db);
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+            System.Net.HttpStatusCode.OK,
+            """{"access_token":"test-access","expires_in":3600}"""));
+        using var cache = CreateCache();
+        var svc = CreateService(db, cache, factory);
+
+        svc.GetAuthorizationUrl();
+        cache.TryGetValue("google_oauth_state", out string? state);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.ExchangeCodeAsync("auth-code", state!));
+        using var check = CreateDb();
+        Assert.Equal("", (await check.GoogleOAuthTokens.SingleAsync()).RefreshToken);
     }
 
     [Fact]

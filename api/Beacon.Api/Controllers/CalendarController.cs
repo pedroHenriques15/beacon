@@ -18,9 +18,9 @@ public class CalendarController(GoogleCalendarService calendarService) : Control
             var events = await calendarService.GetEventsAsync(start, end, ct);
             return Ok(events);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -38,9 +38,9 @@ public class CalendarController(GoogleCalendarService calendarService) : Control
             var created = await calendarService.CreateEventAsync(request, ct);
             return StatusCode(201, created);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -61,9 +61,9 @@ public class CalendarController(GoogleCalendarService calendarService) : Control
             var updated = await calendarService.UpdateEventAsync(id, calendarId, request, ct);
             return Ok(updated);
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
@@ -82,9 +82,9 @@ public class CalendarController(GoogleCalendarService calendarService) : Control
             await calendarService.DeleteEventAsync(id, resolvedCalendarId, ct);
             return NoContent();
         }
-        catch (GoogleNotConnectedException)
+        catch (GoogleConnectionException ex)
         {
-            return StatusCode(503, new { error = "Google account is not connected." });
+            return GoogleConnectionErrors.ToResult(ex);
         }
         catch (InvalidOperationException ex)
         {
