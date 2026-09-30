@@ -13,11 +13,10 @@ removes it. Settled decisions go to DECISIONS.md.
 | Groceries | built |
 | Investments | built · how transfers count in totals is open |
 | Calendar and tasks (Google) | built · reconnect bug open |
-| Workflow and tooling | markdown tasks in place · hooks and CI checks open |
+| Workflow and tooling | markdown tasks and git hooks in place · CI checks open |
 
 ## Now
 
-- Git hooks for the protected branches, commit subjects and task branches.
 - CI formatting checks, a PR template and GitHub settings that match the branch model.
 
 ## Next

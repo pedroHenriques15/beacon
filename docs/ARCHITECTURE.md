@@ -98,6 +98,7 @@ beacon/
 │   ├── seed-demo.sql             # (WIP) Synthetic demo data
 │   ├── seed-demo.ps1 / .sh       # (WIP) Seed the demo database (Windows, through SeedRunner / Linux server)
 │   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a connection string
+│   ├── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
 │   └── readPdf.py                # Print a PDF's extracted text page by page (parser debugging)
 ├── docs/
 │   ├── ARCHITECTURE.md           # This file
@@ -106,6 +107,8 @@ beacon/
 │   ├── tasks/                    # git-ignored: private task files, one per piece of work
 │   └── screenshots/              # README images
 ├── .claude/                      # agents/ (scaffolders), skills/task/, settings.json (shared permissions)
+├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
+├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
 ├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
 ├── .github/workflows/ci.yml      # Backend tests; frontend tests and production build

@@ -145,6 +145,8 @@ beacon/
 
 ## Getting started
 
+After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: it enables the git hooks in `.githooks/`, which check commit subjects and guard the protected branches.
+
 ### Requirements
 
 - .NET 8 SDK (plus the EF tool: `dotnet tool install --global dotnet-ef`)

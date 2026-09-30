@@ -43,7 +43,9 @@ api/Beacon.Api/     ASP.NET Core 8 API: Controllers/, Features/ (one folder per 
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests on EF Core InMemory
 web/src/app/        Angular 21 client: core/ (services, models, interceptors), pages/ (routes)
-scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend
+scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
+                    setup (enables the git hooks)
+.githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
 docs/               ARCHITECTURE, DECISIONS, ROADMAP, screenshots/; tasks/ (git-ignored)
 .claude/            agents/ (scaffolders), skills/task/ (task workflow), settings.json (shared)
 local/              git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
@@ -161,8 +163,14 @@ Before a task's PR:
   through a `merge/NNN-main-into-development` branch merged with a merge commit.
 - **Never push directly to `main` or `development`**, with one exception: a planning commit,
   which changes only `docs/ROADMAP.md`, may go straight to `development` (subject like
-  `chore: update roadmap`), so updating the plan needs no PR. Git hooks that enforce this and
-  the subject format are planned (ROADMAP.md, "Now").
+  `chore: update roadmap`), so updating the plan needs no PR.
+- **Hooks** in `.githooks/` enforce these rules locally once a clone has run
+  `scripts/setup.ps1` or `scripts/setup.sh`. `commit-msg` rejects a subject over 72
+  characters and, on a task branch, one that does not start with the branch's
+  `prefix(NNN): `. `pre-push` refuses deleting `main` or `development`, any push to `main`,
+  a push to `development` with anything but planning commits, and a task branch whose task
+  file is missing or `dropped` (skipped in a clone without `docs/tasks/`). Never bypass them
+  with `--no-verify`.
 - Commit, push or open PRs only when asked to.
 
 ## Commands
@@ -172,6 +180,7 @@ Development runs on the host (ADR-019): .NET 8 SDK, Node 22 or newer, Python 3 w
 `local/environment.demo`).
 
 ```
+scripts/setup.ps1              once per clone: enable the git hooks (scripts/setup.sh on Linux)
 scripts/run-backend.ps1        load local/environment.dev, apply migrations, API on :5098 (/swagger)
 scripts/run-frontend.ps1       wait for the API, then ng serve on :4200
 scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo)
