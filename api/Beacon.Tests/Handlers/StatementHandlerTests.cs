@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
+using Beacon.Api.Features.Statements.Queries.DownloadStatementFile;
 using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -67,8 +68,10 @@ public class StatementHandlerTests : IDisposable
         await using var db = CreateDb(nameof(DeleteStatement_ReturnsTrue_AndRemovesStatement));
         var stmt = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31)
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31)
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();
@@ -79,20 +82,85 @@ public class StatementHandlerTests : IDisposable
         Assert.False(await db.MonthlyStatements.AnyAsync(s => s.Id == stmt.Id));
     }
 
+    private async Task<(MonthlyStatement Statement, string FullPath)> SeedStatementWithStoredPdfAsync(AppDbContext db)
+    {
+        var fileName = $"{Guid.NewGuid()}.pdf";
+        var fullPath = Path.Combine(_tempStorageRoot, fileName);
+        await File.WriteAllBytesAsync(fullPath, "statement pdf"u8.ToArray());
+        var stmt = new MonthlyStatement
+        {
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            SourceFile = "january.pdf",
+            PdfPath = fileName,
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31)
+        };
+        db.MonthlyStatements.Add(stmt);
+        await db.SaveChangesAsync();
+        return (stmt, fullPath);
+    }
+
+    [Fact]
+    public async Task DeleteStatement_DeletesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_DeletesPdfStoredAsFileName));
+        var (stmt, fullPath) = await SeedStatementWithStoredPdfAsync(db);
+
+        var result = await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmt.Id));
+
+        Assert.True(result);
+        Assert.False(File.Exists(fullPath));
+    }
+
+    [Fact]
+    public async Task DownloadStatementFile_ServesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DownloadStatementFile_ServesPdfStoredAsFileName));
+        var (stmt, _) = await SeedStatementWithStoredPdfAsync(db);
+        var handler = new DownloadStatementFileQueryHandler(db, _fileStorage, NullLogger<DownloadStatementFileQueryHandler>.Instance);
+
+        var file = await handler.HandleAsync(new DownloadStatementFileQuery(stmt.Id));
+
+        Assert.NotNull(file);
+        await using (file.Stream)
+        {
+            using var reader = new StreamReader(file.Stream);
+            Assert.Equal("statement pdf", await reader.ReadToEndAsync());
+        }
+        Assert.Equal("january.pdf", file.FileName);
+    }
+
     [Fact]
     public async Task DeleteStatement_RemovesCascadedTransactions()
     {
         await using var db = CreateDb(nameof(DeleteStatement_RemovesCascadedTransactions));
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL",   Amount = 20, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 980 },
-                new Transaction { Description = "SALARY", Amount = 1000, Type = "credit",
-                    DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 1980 }
+                new Transaction
+                {
+                    Description = "LIDL",
+                    Amount = 20,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 980
+                },
+                new Transaction
+                {
+                    Description = "SALARY",
+                    Amount = 1000,
+                    Type = "credit",
+                    DatePosting = new DateOnly(2026, 1, 10),
+                    DateValue = new DateOnly(2026, 1, 10),
+                    Balance = 1980
+                }
             ]
         };
         db.MonthlyStatements.Add(stmt);
@@ -112,23 +180,43 @@ public class StatementHandlerTests : IDisposable
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER OUT", Amount = 500, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 500, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER OUT",
+                    Amount = 500,
+                    Type = "debit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 500,
+                    IsExcluded = true
+                }
             ]
         };
 
         var stmtB = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER IN", Amount = 500, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1500, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER IN",
+                    Amount = 500,
+                    Type = "credit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 1500,
+                    IsExcluded = true
+                }
             ]
         };
 
@@ -150,25 +238,52 @@ public class StatementHandlerTests : IDisposable
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER", Amount = 200, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 800, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER",
+                    Amount = 200,
+                    Type = "debit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 800,
+                    IsExcluded = true
+                }
             ]
         };
 
         var stmtB = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER", Amount = 200, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1200, IsExcluded = true },
-                new Transaction { Description = "LIDL", Amount = 15, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 12), DateValue = new DateOnly(2026, 1, 12), Balance = 1185 }
+                new Transaction
+                {
+                    Description = "TRANSFER",
+                    Amount = 200,
+                    Type = "credit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 1200,
+                    IsExcluded = true
+                },
+                new Transaction
+                {
+                    Description = "LIDL",
+                    Amount = 15,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 12),
+                    DateValue = new DateOnly(2026, 1, 12),
+                    Balance = 1185
+                }
             ]
         };
 
@@ -190,43 +305,83 @@ public class StatementHandlerTests : IDisposable
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER OUT", Amount = 500, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 500, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER OUT",
+                    Amount = 500,
+                    Type = "debit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 500,
+                    IsExcluded = true
+                }
             ]
         };
         var stmtB = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER IN", Amount = 500, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1500, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER IN",
+                    Amount = 500,
+                    Type = "credit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 1500,
+                    IsExcluded = true
+                }
             ]
         };
 
         var stmtC = new MonthlyStatement
         {
-            Bank = "REVOLUT", Account = "PT52",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "REVOLUT",
+            Account = "PT52",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "OTHER TRANSFER OUT", Amount = 500, Type = "debit",
-                    DatePosting = date.AddDays(3), DateValue = date.AddDays(3), Balance = 100, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "OTHER TRANSFER OUT",
+                    Amount = 500,
+                    Type = "debit",
+                    DatePosting = date.AddDays(3),
+                    DateValue = date.AddDays(3),
+                    Balance = 100,
+                    IsExcluded = true
+                }
             ]
         };
         var stmtD = new MonthlyStatement
         {
-            Bank = "MEAL CARD", Account = "PT53",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "MEAL CARD",
+            Account = "PT53",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "OTHER TRANSFER IN", Amount = 500, Type = "credit",
-                    DatePosting = date.AddDays(3), DateValue = date.AddDays(3), Balance = 600, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "OTHER TRANSFER IN",
+                    Amount = 500,
+                    Type = "credit",
+                    DatePosting = date.AddDays(3),
+                    DateValue = date.AddDays(3),
+                    Balance = 600,
+                    IsExcluded = true
+                }
             ]
         };
 
@@ -250,25 +405,53 @@ public class StatementHandlerTests : IDisposable
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER OUT", Amount = 300, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 700, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER OUT",
+                    Amount = 300,
+                    Type = "debit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 700,
+                    IsExcluded = true
+                }
             ]
         };
 
         var stmtB = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER IN", Amount = 300, Type = "credit",
-                    DatePosting = date, DateValue = date, Balance = 1300, IsExcluded = true },
-                new Transaction { Description = "OTHER CREDIT", Amount = 300, Type = "credit",
-                    DatePosting = date.AddDays(5), DateValue = date.AddDays(5), Balance = 1600, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER IN",
+                    Amount = 300,
+                    Type = "credit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 1300,
+                    IsExcluded = true
+                },
+                new Transaction
+                {
+                    Description = "OTHER CREDIT",
+                    Amount = 300,
+                    Type = "credit",
+                    DatePosting = date.AddDays(5),
+                    DateValue = date.AddDays(5),
+                    Balance = 1600,
+                    IsExcluded = true
+                }
             ]
         };
 
@@ -292,23 +475,43 @@ public class StatementHandlerTests : IDisposable
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER OUT", Amount = 400, Type = "debit",
-                    DatePosting = date, DateValue = date, Balance = 600, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER OUT",
+                    Amount = 400,
+                    Type = "debit",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 600,
+                    IsExcluded = true
+                }
             ]
         };
 
         var stmtB = new MonthlyStatement
         {
-            Bank = "REVOLUT", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "REVOLUT",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER IN", Amount = 400, Type = "unknown",
-                    DatePosting = date, DateValue = date, Balance = 1400, IsExcluded = true }
+                new Transaction
+                {
+                    Description = "TRANSFER IN",
+                    Amount = 400,
+                    Type = "unknown",
+                    DatePosting = date,
+                    DateValue = date,
+                    Balance = 1400,
+                    IsExcluded = true
+                }
             ]
         };
 
@@ -328,15 +531,20 @@ public class StatementHandlerTests : IDisposable
 
         MonthlyStatement MakeBpi(int month, decimal ppr, decimal? syntheticAmount) => new()
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, month, 1), PeriodTo = new DateOnly(2026, month, 28),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, month, 1),
+            PeriodTo = new DateOnly(2026, month, 28),
             PprBalance = ppr,
             Transactions = syntheticAmount is null ? [] :
             [
                 new Transaction
                 {
-                    Description = "BPI Reforma - Ganhos", Amount = syntheticAmount.Value, Type = "credit",
-                    DatePosting = new DateOnly(2026, month, 28), DateValue = new DateOnly(2026, month, 28),
+                    Description = "BPI Reforma - Ganhos",
+                    Amount = syntheticAmount.Value,
+                    Type = "credit",
+                    DatePosting = new DateOnly(2026, month, 28),
+                    DateValue = new DateOnly(2026, month, 28),
                     Balance = ppr
                 }
             ]
@@ -414,7 +622,7 @@ public class StatementHandlerTests : IDisposable
     {
         await using var db = CreateDb(nameof(ImportMealCardText_AppliesCategoryRules));
 
-        var cat  = new Category { Name = "Groceries", Color = "#00ff00" };
+        var cat = new Category { Name = "Groceries", Color = "#00ff00" };
         db.Categories.Add(cat);
         await db.SaveChangesAsync();
         var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "LIDL" };
@@ -426,7 +634,7 @@ public class StatementHandlerTests : IDisposable
 
         var txs = await db.Transactions.ToListAsync();
         var lidl = txs.Single(t => t.Description.Contains("LIDL"));
-        Assert.Equal(cat.Id,  lidl.CategoryId);
+        Assert.Equal(cat.Id, lidl.CategoryId);
         Assert.Equal(rule.Id, lidl.CategoryRuleId);
         Assert.Null(txs.First(t => t.Description.Contains("PINGO")).CategoryId);
     }
@@ -438,12 +646,21 @@ public class StatementHandlerTests : IDisposable
 
         var existing = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "CARD RELOAD", Amount = 100, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 900 }
+                new Transaction
+                {
+                    Description = "CARD RELOAD",
+                    Amount = 100,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 900
+                }
             ]
         };
         db.MonthlyStatements.Add(existing);
@@ -466,8 +683,10 @@ public class StatementHandlerTests : IDisposable
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
-            Bank = "MEAL CARD", Account = "",
-            PeriodFrom = new DateOnly(2025, 12, 1), PeriodTo = new DateOnly(2025, 12, 31),
+            Bank = "MEAL CARD",
+            Account = "",
+            PeriodFrom = new DateOnly(2025, 12, 1),
+            PeriodTo = new DateOnly(2025, 12, 31),
             ClosingBalance = 150m
         });
         await db.SaveChangesAsync();
@@ -479,7 +698,7 @@ public class StatementHandlerTests : IDisposable
         var stmt = await db.MonthlyStatements
             .Where(s => s.PeriodFrom == new DateOnly(2026, 1, 1))
             .SingleAsync();
-        Assert.Equal(150m,    stmt.OpeningBalance);
+        Assert.Equal(150m, stmt.OpeningBalance);
         Assert.Equal(229.20m, stmt.ClosingBalance);
     }
 
@@ -490,8 +709,10 @@ public class StatementHandlerTests : IDisposable
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
-            Bank = "MEAL CARD", Account = "",
-            PeriodFrom = new DateOnly(2025, 12, 1), PeriodTo = new DateOnly(2025, 12, 31),
+            Bank = "MEAL CARD",
+            Account = "",
+            PeriodFrom = new DateOnly(2025, 12, 1),
+            PeriodTo = new DateOnly(2025, 12, 31),
             ClosingBalance = 150m
         });
         await db.SaveChangesAsync();
@@ -525,8 +746,10 @@ public class StatementHandlerTests : IDisposable
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
-            Bank = "MEAL CARD", Account = "",
-            PeriodFrom = new DateOnly(2025, 9, 1), PeriodTo = new DateOnly(2025, 9, 30),
+            Bank = "MEAL CARD",
+            Account = "",
+            PeriodFrom = new DateOnly(2025, 9, 1),
+            PeriodTo = new DateOnly(2025, 9, 30),
             ClosingBalance = 150m
         });
         await db.SaveChangesAsync();
@@ -545,8 +768,10 @@ public class StatementHandlerTests : IDisposable
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
-            Bank = "MEAL CARD", Account = "",
-            PeriodFrom = new DateOnly(2026, 2, 1), PeriodTo = new DateOnly(2026, 2, 28),
+            Bank = "MEAL CARD",
+            Account = "",
+            PeriodFrom = new DateOnly(2026, 2, 1),
+            PeriodTo = new DateOnly(2026, 2, 28),
             ClosingBalance = 300m
         });
         await db.SaveChangesAsync();

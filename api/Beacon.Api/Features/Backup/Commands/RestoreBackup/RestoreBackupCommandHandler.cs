@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Backup.Commands.CreateBackup;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Backup.Commands.RestoreBackup;
@@ -22,9 +24,10 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
         if (!File.Exists(backupFile))
             return null;
 
-        var json    = await File.ReadAllTextAsync(backupFile, ct);
-        var payload = JsonSerializer.Deserialize<CreateBackup.BackupPayload>(json, _jsonOptions)
+        var json = await File.ReadAllTextAsync(backupFile, ct);
+        var payload = JsonSerializer.Deserialize<BackupPayload>(json, _jsonOptions)
                       ?? throw new InvalidOperationException("Backup file is empty or corrupt.");
+        StorePdfPathsAsFileNames(payload);
 
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
@@ -33,45 +36,60 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentPriceSnapshots]",       ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentLots]",                 ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentAssets]",               ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]",                   ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]",          ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentPriceSnapshots]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentLots]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentAssets]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]", ct);
             await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceiptCategoryMappings]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceipts]",               ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategories]",             ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryLineItems]",               ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalarySlips]",                   ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryItemCategories]",          ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Transactions]",                  ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [CategoryRules]",                 ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [MonthlyStatements]",             ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryProfiles]",                ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]",                    ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceipts]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategories]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryLineItems]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalarySlips]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryItemCategories]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Transactions]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [CategoryRules]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [MonthlyStatements]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryProfiles]", ct);
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]", ct);
 
-            await InsertWithIdentity(db, "Categories",                     payload.Categories,                     ct);
-            await InsertWithIdentity(db, "CategoryRules",                  payload.CategoryRules,                  ct);
-            await InsertWithIdentity(db, "MonthlyStatements",              payload.MonthlyStatements,              ct);
-            await InsertWithIdentity(db, "Transactions",                   payload.Transactions,                   ct);
-            await InsertWithIdentity(db, "SalaryProfiles",                 payload.SalaryProfiles,                 ct);
-            await InsertWithIdentity(db, "SalaryItemCategories",           payload.SalaryItemCategories,           ct);
-            await InsertWithIdentity(db, "SalarySlips",                    payload.SalarySlips,                    ct);
-            await InsertWithIdentity(db, "SalaryLineItems",                payload.SalaryLineItems,                ct);
-            await InsertWithIdentity(db, "GroceryCategories",              payload.GroceryCategories,              ct);
+            await InsertWithIdentity(db, "Categories", payload.Categories, ct);
+            await InsertWithIdentity(db, "CategoryRules", payload.CategoryRules, ct);
+            await InsertWithIdentity(db, "MonthlyStatements", payload.MonthlyStatements, ct);
+            await InsertWithIdentity(db, "Transactions", payload.Transactions, ct);
+            await InsertWithIdentity(db, "SalaryProfiles", payload.SalaryProfiles, ct);
+            await InsertWithIdentity(db, "SalaryItemCategories", payload.SalaryItemCategories, ct);
+            await InsertWithIdentity(db, "SalarySlips", payload.SalarySlips, ct);
+            await InsertWithIdentity(db, "SalaryLineItems", payload.SalaryLineItems, ct);
+            await InsertWithIdentity(db, "GroceryCategories", payload.GroceryCategories, ct);
             await InsertWithIdentity(db, "GroceryReceiptCategoryMappings", payload.GroceryReceiptCategoryMappings, ct);
-            await InsertWithIdentity(db, "GroceryReceipts",                payload.GroceryReceipts,                ct);
-            await InsertWithIdentity(db, "GroceryItems",                   payload.GroceryItems,                   ct);
-            await InsertWithIdentity(db, "GroceryCategoryRules",           payload.GroceryCategoryRules,           ct);
-            await InsertWithIdentity(db, "InvestmentAssets",               payload.InvestmentAssets,               ct);
-            await InsertWithIdentity(db, "InvestmentLots",                 payload.InvestmentLots,                 ct);
-            await InsertWithIdentity(db, "InvestmentPriceSnapshots",       payload.InvestmentPriceSnapshots,       ct);
+            await InsertWithIdentity(db, "GroceryReceipts", payload.GroceryReceipts, ct);
+            await InsertWithIdentity(db, "GroceryItems", payload.GroceryItems, ct);
+            await InsertWithIdentity(db, "GroceryCategoryRules", payload.GroceryCategoryRules, ct);
+            await InsertWithIdentity(db, "InvestmentAssets", payload.InvestmentAssets, ct);
+            await InsertWithIdentity(db, "InvestmentLots", payload.InvestmentLots, ct);
+            await InsertWithIdentity(db, "InvestmentPriceSnapshots", payload.InvestmentPriceSnapshots, ct);
 
             await tx.CommitAsync(ct);
         });
 
         logger.LogInformation("Database restored from {Path}", backupFile);
         return backupFile;
+    }
+
+    /// <summary>
+    /// A backup taken before PDF paths became file names holds absolute paths from the machine that
+    /// wrote it; keep only the file name, which <see cref="FileStorageService"/> resolves against this
+    /// machine's storage root.
+    /// </summary>
+    internal static void StorePdfPathsAsFileNames(BackupPayload payload)
+    {
+        foreach (var statement in payload.MonthlyStatements)
+            statement.PdfPath = FileStorageService.FileNameOf(statement.PdfPath);
+        foreach (var slip in payload.SalarySlips)
+            slip.PdfPath = FileStorageService.FileNameOf(slip.PdfPath);
+        foreach (var receipt in payload.GroceryReceipts)
+            receipt.PdfPath = FileStorageService.FileNameOf(receipt.PdfPath);
     }
 
     private static async Task InsertWithIdentity<T>(AppDbContext db, string tableName, IEnumerable<T> entities, CancellationToken ct)

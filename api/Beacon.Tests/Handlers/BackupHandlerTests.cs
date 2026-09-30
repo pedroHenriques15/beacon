@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Backup.Commands.CreateBackup;
+using Beacon.Api.Features.Backup.Commands.RestoreBackup;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +40,27 @@ public class BackupHandlerTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Backup:Path"] = _tempBackupDir })
             .Build();
         return new CreateBackupCommandHandler(db, config, NullLogger<CreateBackupCommandHandler>.Instance);
+    }
+
+    [Fact]
+    public void Restore_StorePdfPathsAsFileNames_KeepsOnlyTheFileName()
+    {
+        var payload = new BackupPayload
+        {
+            MonthlyStatements =
+            [
+                new MonthlyStatement { PdfPath = @"C:\beacon\local\uploads\statement.pdf" },
+                new MonthlyStatement { PdfPath = null },
+            ],
+            SalarySlips = [new SalarySlip { PdfPath = "/workspaces/beacon/local/uploads/slip.pdf" }],
+            GroceryReceipts = [new GroceryReceipt { PdfPath = "receipt.pdf" }],
+        };
+
+        RestoreBackupCommandHandler.StorePdfPathsAsFileNames(payload);
+
+        Assert.Equal(["statement.pdf", null], payload.MonthlyStatements.Select(s => s.PdfPath));
+        Assert.Equal("slip.pdf", Assert.Single(payload.SalarySlips).PdfPath);
+        Assert.Equal("receipt.pdf", Assert.Single(payload.GroceryReceipts).PdfPath);
     }
 
     [Fact]
@@ -98,12 +120,21 @@ public class BackupHandlerTests : IDisposable
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 975 }
+                new Transaction
+                {
+                    Description = "LIDL",
+                    Amount = 25,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 975
+                }
             ]
         };
         db.MonthlyStatements.Add(stmt);
@@ -148,11 +179,16 @@ public class BackupHandlerTests : IDisposable
         await db.SaveChangesAsync();
         db.InvestmentLots.Add(new InvestmentLot
         {
-            AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 10, PricePerUnit = 100
+            AssetId = asset.Id,
+            Date = new DateOnly(2026, 1, 5),
+            Quantity = 10,
+            PricePerUnit = 100
         });
         db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
         {
-            AssetId = asset.Id, Date = new DateOnly(2026, 1, 20), PricePerUnit = 105
+            AssetId = asset.Id,
+            Date = new DateOnly(2026, 1, 20),
+            PricePerUnit = 105
         });
         await db.SaveChangesAsync();
 

@@ -22,11 +22,11 @@ public partial class Micro1InvoiceParser : ISalarySlipParser
     {
         var fullText = string.Join("\n", pages);
 
-        var period    = ExtractPeriod(fullText);
-        var totalUsd  = ExtractTotal(fullText);
-        var basePay   = ExtractSummaryValue(BasePayRegex(), fullText, "Base Pay");
-        var hours     = ExtractSummaryValue(HoursRegex(), fullText, "Hours");
-        var payRate   = ExtractSummaryValue(PayRateRegex(), fullText, "Pay Rate");
+        var period = ExtractPeriod(fullText);
+        var totalUsd = ExtractTotal(fullText);
+        var basePay = ExtractSummaryValue(BasePayRegex(), fullText, "Base Pay");
+        var hours = ExtractSummaryValue(HoursRegex(), fullText, "Hours");
+        var payRate = ExtractSummaryValue(PayRateRegex(), fullText, "Pay Rate");
 
         // An invoice with nothing beyond base pay omits the "| Other → $x" segment entirely, so it is
         // optional. Falling back to total − base pay also folds in any segment this parser does not
@@ -54,7 +54,7 @@ public partial class Micro1InvoiceParser : ISalarySlipParser
             throw new InvalidOperationException("Could not find work period ('between …') in micro1 invoice.");
 
         var month = EnMonthToNumber(m.Groups[1].Value.ToLowerInvariant());
-        var year  = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+        var year = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
         return new DateOnly(year, month, 1);
     }
 
@@ -84,18 +84,18 @@ public partial class Micro1InvoiceParser : ISalarySlipParser
 
     private static int EnMonthToNumber(string month) => month switch
     {
-        "january"   => 1,
-        "february"  => 2,
-        "march"     => 3,
-        "april"     => 4,
-        "may"       => 5,
-        "june"      => 6,
-        "july"      => 7,
-        "august"    => 8,
+        "january" => 1,
+        "february" => 2,
+        "march" => 3,
+        "april" => 4,
+        "may" => 5,
+        "june" => 6,
+        "july" => 7,
+        "august" => 8,
         "september" => 9,
-        "october"   => 10,
-        "november"  => 11,
-        "december"  => 12,
+        "october" => 10,
+        "november" => 11,
+        "december" => 12,
         _ => throw new InvalidOperationException($"Unknown English month: '{month}'")
     };
 

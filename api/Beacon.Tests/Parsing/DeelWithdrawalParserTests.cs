@@ -9,9 +9,9 @@ public class DeelWithdrawalParserTests
 
     private static string BuildSamplePage(
         string source = "1,541.50",
-        string fee    = "10.79",
-        string rate   = "0.86788828",
-        string total  = "1,328.49") => $"""
+        string fee = "10.79",
+        string rate = "0.86788828",
+        string total = "1,328.49") => $"""
         Confirmation Statement
         Withdrawn from Pages 1 of 1
         Example account Deel transaction ID 99999999

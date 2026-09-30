@@ -55,7 +55,7 @@ public partial class TradeRepublicParser : IBankStatementParser
         if (pm.Success)
         {
             periodFrom = ParseFullDate(pm.Groups[1].Value);
-            periodTo   = ParseFullDate(pm.Groups[2].Value);
+            periodTo = ParseFullDate(pm.Groups[2].Value);
         }
 
         decimal opening = 0, closing = 0;
@@ -73,7 +73,7 @@ public partial class TradeRepublicParser : IBankStatementParser
             if (transactions.Count > 0)
             {
                 periodFrom = transactions.Min(t => t.DatePosting);
-                periodTo   = transactions.Max(t => t.DatePosting);
+                periodTo = transactions.Max(t => t.DatePosting);
             }
             else
             {
@@ -90,7 +90,7 @@ public partial class TradeRepublicParser : IBankStatementParser
     private static List<ParsedTransaction> ParseTransactions(
         IReadOnlyList<string> pages, decimal openingBalance)
     {
-        var result  = new List<ParsedTransaction>();
+        var result = new List<ParsedTransaction>();
         decimal balance = openingBalance;
 
         var lines = new List<string>();
@@ -104,7 +104,7 @@ public partial class TradeRepublicParser : IBankStatementParser
                 if (line.Length > 0) lines.Add(line);
             }
         }
-        collected:
+    collected:
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -114,8 +114,8 @@ public partial class TradeRepublicParser : IBankStatementParser
             int next = i + 1;
             while (next < lines.Count && !DateLineRegex().IsMatch(lines[next])) next++;
 
-            var day          = dm.Groups[1].Value;
-            var mon          = dm.Groups[2].Value;
+            var day = dm.Groups[1].Value;
+            var mon = dm.Groups[2].Value;
             var dateTrailing = dm.Groups[3].Value.Trim();
 
             string moneyLeading = "", yearTrailing = "", yearValue = "";
@@ -128,8 +128,8 @@ public partial class TradeRepublicParser : IBankStatementParser
                     var euros = EuroRegex().Matches(lines[k]);
                     if (euros.Count >= 2)
                     {
-                        amount       = ParseAmount(euros[0].Groups[1].Value);
-                        saldo        = ParseAmount(euros[^1].Groups[1].Value);
+                        amount = ParseAmount(euros[0].Groups[1].Value);
+                        saldo = ParseAmount(euros[^1].Groups[1].Value);
                         moneyLeading = lines[k][..lines[k].IndexOf('€')].Trim();
                         continue;
                     }
@@ -140,7 +140,7 @@ public partial class TradeRepublicParser : IBankStatementParser
                     var ym = YearLineRegex().Match(lines[k]);
                     if (ym.Success)
                     {
-                        yearValue    = ym.Groups[1].Value;
+                        yearValue = ym.Groups[1].Value;
                         yearTrailing = ym.Groups[2].Value.Trim();
                     }
                 }
@@ -157,7 +157,7 @@ public partial class TradeRepublicParser : IBankStatementParser
                     .Where(p => p.Length > 0)),
                 " ").Trim();
 
-            var type  = "unknown";
+            var type = "unknown";
             var delta = Math.Round(saldo.Value - balance, 2);
             if (Math.Abs(Math.Abs(delta) - amount.Value) < 0.02m)
                 type = delta > 0 ? "credit" : "debit";

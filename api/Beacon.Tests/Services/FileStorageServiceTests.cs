@@ -32,7 +32,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task SaveAsync_WritesFileToDisk()
     {
-        var content  = "fake pdf bytes"u8.ToArray();
+        var content = "fake pdf bytes"u8.ToArray();
         var formFile = new FormFileStub(content, "statement.pdf");
 
         var relativePath = await _service.SaveAsync(formFile);
@@ -46,11 +46,33 @@ public class FileStorageServiceTests : IDisposable
     public async Task SaveAsync_ReturnsGuidBasedRelativePath()
     {
         var formFile = new FormFileStub("data"u8.ToArray(), "any.pdf");
-        var path     = await _service.SaveAsync(formFile);
+        var path = await _service.SaveAsync(formFile);
 
         var name = Path.GetFileNameWithoutExtension(path);
         Assert.True(Guid.TryParse(name, out _));
         Assert.Equal(".pdf", Path.GetExtension(path));
+    }
+
+    [Fact]
+    public async Task SaveAsync_ReturnsTheFileNameWithoutADirectory()
+    {
+        var name = await _service.SaveAsync(new FormFileStub("data"u8.ToArray(), "any.pdf"));
+
+        Assert.Equal(Path.GetFileName(name), name);
+        Assert.True(File.Exists(Path.Combine(_tempRoot, name)));
+    }
+
+    [Fact]
+    public async Task GetFullPath_OfASavedFileName_PointsAtTheFile()
+    {
+        // What parse-pdf does with the pdfPath the client sends back from upload-pdf.
+        var content = "slip bytes"u8.ToArray();
+        var name = await _service.SaveAsync(new FormFileStub(content, "slip.pdf"));
+
+        var fullPath = _service.GetFullPath(name);
+
+        Assert.True(Path.IsPathRooted(fullPath));
+        Assert.Equal(content, await File.ReadAllBytesAsync(fullPath));
     }
 
     [Fact]
@@ -66,7 +88,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task GetFile_ReturnsStreamAndMetadata()
     {
-        var content  = "pdf content"u8.ToArray();
+        var content = "pdf content"u8.ToArray();
         var formFile = new FormFileStub(content, "original.pdf");
         var relative = await _service.SaveAsync(formFile);
 
@@ -115,7 +137,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task GetFile_PathTraversal_ThrowsUnauthorized()
     {
-        var parentDir  = Path.GetDirectoryName(_tempRoot)!;
+        var parentDir = Path.GetDirectoryName(_tempRoot)!;
         var outsideFile = Path.Combine(parentDir, $"outside_{Guid.NewGuid()}.pdf");
         try
         {
@@ -153,18 +175,28 @@ public class FileStorageServiceTests : IDisposable
         Assert.Null(ex);
     }
 
+    [Theory]
+    [InlineData("3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData("/data/beacon/uploads/3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData(@"C:\beacon\local\uploads\3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData(@"uploads/nested\3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    public void FileNameOf_ReturnsTheNameAfterTheLastSeparator(string storedPath)
+    {
+        Assert.Equal("3f2b6c1e-0000-4000-8000-000000000001.pdf", FileStorageService.FileNameOf(storedPath));
+    }
+
     private sealed class FormFileStub(byte[] content, string fileName) : IFormFile
     {
-        public string ContentType        => "application/pdf";
+        public string ContentType => "application/pdf";
         public string ContentDisposition => string.Empty;
         public IHeaderDictionary Headers => new HeaderDictionary();
-        public long Length               => content.Length;
-        public string Name               => "file";
-        public string FileName           => fileName;
+        public long Length => content.Length;
+        public string Name => "file";
+        public string FileName => fileName;
 
-        public void CopyTo(Stream target)                    => new MemoryStream(content).CopyTo(target);
+        public void CopyTo(Stream target) => new MemoryStream(content).CopyTo(target);
         public Task CopyToAsync(Stream target, CancellationToken ct = default)
             => new MemoryStream(content).CopyToAsync(target, ct);
-        public Stream OpenReadStream()                       => new MemoryStream(content);
+        public Stream OpenReadStream() => new MemoryStream(content);
     }
 }

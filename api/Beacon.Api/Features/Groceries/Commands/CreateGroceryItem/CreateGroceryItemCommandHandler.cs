@@ -27,12 +27,12 @@ public class CreateGroceryItemCommandHandler(AppDbContext db, ILogger<CreateGroc
 
         var item = new GroceryItem
         {
-            ReceiptId            = cmd.ReceiptId,
-            Description          = cmd.Description.Trim(),
-            Amount               = cmd.Amount,
-            Quantity             = cmd.Quantity,
-            CategoryRuleId       = matchedRule?.Id,
-            CategorySetManually  = false
+            ReceiptId = cmd.ReceiptId,
+            Description = cmd.Description.Trim(),
+            Amount = cmd.Amount,
+            Quantity = cmd.Quantity,
+            CategoryRuleId = matchedRule?.Id,
+            CategorySetManually = false
         };
 
         ExcludedCategory.ApplyCategory(

@@ -10,13 +10,13 @@ public class InvestmentPriceRefreshService(
     IConfiguration configuration) : BackgroundService
 {
     private static readonly TimeZoneInfo EasternZone = GetEasternZone();
-    private static readonly TimeOnly MarketOpen  = new(9, 30);
+    private static readonly TimeOnly MarketOpen = new(9, 30);
     private static readonly TimeOnly MarketClose = new(16, 0);
     private static readonly double MarketMinutes = (MarketClose - MarketOpen).TotalMinutes; // 390
 
-    private int DailyQuota      => configuration.GetValue<int>("AlphaVantage:DailyQuota", 25);
+    private int DailyQuota => configuration.GetValue<int>("AlphaVantage:DailyQuota", 25);
     private int ReservedForUser => configuration.GetValue<int>("AlphaVantage:ReservedForManual", 5);
-    private int AutoQuota       => Math.Max(1, DailyQuota - ReservedForUser);
+    private int AutoQuota => Math.Max(1, DailyQuota - ReservedForUser);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,9 +48,9 @@ public class InvestmentPriceRefreshService(
     {
         try
         {
-            using var scope   = scopeFactory.CreateScope();
-            var db            = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var fetchHandler  = scope.ServiceProvider.GetRequiredService<FetchInvestmentPriceCommandHandler>();
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var fetchHandler = scope.ServiceProvider.GetRequiredService<FetchInvestmentPriceCommandHandler>();
 
             var assets = await db.InvestmentAssets.ToListAsync(ct);
             if (assets.Count == 0)
@@ -117,17 +117,17 @@ public class InvestmentPriceRefreshService(
 
     private TimeSpan ComputeNextDelay(int numAssets)
     {
-        var now        = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, EasternZone);
-        var todayOpen  = now.Date.Add(MarketOpen.ToTimeSpan());
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, EasternZone);
+        var todayOpen = now.Date.Add(MarketOpen.ToTimeSpan());
         var todayClose = now.Date.Add(MarketClose.ToTimeSpan());
 
-        bool isWeekday    = now.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday;
+        bool isWeekday = now.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday;
         bool isMarketOpen = isWeekday && now >= todayOpen && now < todayClose;
 
         if (isMarketOpen && numAssets > 0)
         {
-            var maxRounds      = Math.Max(1, AutoQuota / numAssets);
-            var intervalMins   = MarketMinutes / maxRounds;
+            var maxRounds = Math.Max(1, AutoQuota / numAssets);
+            var intervalMins = MarketMinutes / maxRounds;
             return TimeSpan.FromMinutes(intervalMins);
         }
 

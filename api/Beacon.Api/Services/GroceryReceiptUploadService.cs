@@ -35,7 +35,7 @@ public class GroceryReceiptUploadService(
 
             var fileBytes = await File.ReadAllBytesAsync(tempPath);
             var hashBytes = SHA256.HashData(fileBytes);
-            var fileHash  = Convert.ToHexString(hashBytes);
+            var fileHash = Convert.ToHexString(hashBytes);
 
             var existing = await db.GroceryReceipts
                 .Include(r => r.Items)
@@ -54,14 +54,14 @@ public class GroceryReceiptUploadService(
                     NewReceiptCategories: []);
             }
 
-            var pages    = preExtractedPages ?? await extractor.ExtractPagesAsync(tempPath, ct);
+            var pages = preExtractedPages ?? await extractor.ExtractPagesAsync(tempPath, ct);
             var fullText = string.Join("\n", pages);
-            var parser   = parserFactory.DetectParser(fullText);
-            var parsed   = parser.Parse(file.FileName, pages);
+            var parser = parserFactory.DetectParser(fullText);
+            var parsed = parser.Parse(file.FileName, pages);
             var warnings = ParseVerifier.VerifyGroceryReceipt(parsed);
 
-            var rules              = await db.GroceryCategoryRules.ToListAsync();
-            var categoryMappings   = await db.GroceryReceiptCategoryMappings.ToListAsync();
+            var rules = await db.GroceryCategoryRules.ToListAsync();
+            var categoryMappings = await db.GroceryReceiptCategoryMappings.ToListAsync();
             var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
 
             savedPath = await fileStorage.SaveAsync(file);
@@ -78,12 +78,12 @@ public class GroceryReceiptUploadService(
 
                 var item = new GroceryItem
                 {
-                    Description          = pi.Description,
-                    Amount               = pi.Amount,
-                    Quantity             = pi.Quantity,
-                    ReceiptCategory      = pi.ReceiptCategory,
-                    CategoryRuleId       = matchedRule?.Id,
-                    CategorySetManually  = false
+                    Description = pi.Description,
+                    Amount = pi.Amount,
+                    Quantity = pi.Quantity,
+                    ReceiptCategory = pi.ReceiptCategory,
+                    CategoryRuleId = matchedRule?.Id,
+                    CategorySetManually = false
                 };
 
                 ExcludedCategory.ApplyCategory(
@@ -102,14 +102,14 @@ public class GroceryReceiptUploadService(
 
             var receipt = new GroceryReceipt
             {
-                StoreName  = parsed.StoreName,
+                StoreName = parsed.StoreName,
                 ReceiptDate = parsed.ReceiptDate,
-                Total      = parsed.Total,
+                Total = parsed.Total,
                 SourceFile = file.FileName,
-                PdfPath    = savedPath,
-                FileHash   = fileHash,
+                PdfPath = savedPath,
+                FileHash = fileHash,
                 ImportedAt = DateTime.UtcNow,
-                Items      = items
+                Items = items
             };
 
             db.GroceryReceipts.Add(receipt);

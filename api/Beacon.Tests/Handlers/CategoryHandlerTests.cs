@@ -23,7 +23,7 @@ public class CategoryHandlerTests
     private static CreateCategoryRuleCommandHandler CreateHandler(AppDbContext db)
     {
         var applyRule = new ApplyRuleService(db);
-        var logger    = NullLogger<CreateCategoryRuleCommandHandler>.Instance;
+        var logger = NullLogger<CreateCategoryRuleCommandHandler>.Instance;
         return new CreateCategoryRuleCommandHandler(db, applyRule, logger);
     }
 
@@ -36,7 +36,7 @@ public class CategoryHandlerTests
     private static CreateCategoryCommandHandler CreateCategoryHandler(AppDbContext db)
     {
         var applyRule = new ApplyRuleService(db);
-        var logger    = NullLogger<CreateCategoryCommandHandler>.Instance;
+        var logger = NullLogger<CreateCategoryCommandHandler>.Instance;
         return new CreateCategoryCommandHandler(db, applyRule, logger);
     }
 
@@ -51,10 +51,10 @@ public class CategoryHandlerTests
 
         var stmt = new MonthlyStatement
         {
-            Bank       = "TESTBANK",
-            Account    = "123",
+            Bank = "TESTBANK",
+            Account = "123",
             PeriodFrom = new DateOnly(2024, 1, 1),
-            PeriodTo   = new DateOnly(2024, 1, 31),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions = transactions.ToList()
         };
         db.MonthlyStatements.Add(stmt);
@@ -70,21 +70,21 @@ public class CategoryHandlerTests
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Groceries",
         [
-            new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 970 },
-            new Transaction { Description = "SALARY",      Amount = 1000, Type = "credit", DatePosting = new DateOnly(2024,1,5), DateValue = new DateOnly(2024,1,5), Balance = 1970 }
+            new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 },
+            new Transaction { Description = "SALARY", Amount = 1000, Type = "credit", DatePosting = new DateOnly(2024, 1, 5), DateValue = new DateOnly(2024, 1, 5), Balance = 1970 }
         ]);
 
         var handler = CreateHandler(db);
-        var result  = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, "LIDL", null));
+        var result = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, "LIDL", null));
 
         Assert.NotNull(result);
         Assert.Equal("LIDL", result.Pattern);
         Assert.Null(result.Value);
 
-        var matched   = await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa");
+        var matched = await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa");
         var unmatched = await db.Transactions.FirstAsync(t => t.Description == "SALARY");
 
-        Assert.Equal(cat.Id,    matched.CategoryId);
+        Assert.Equal(cat.Id, matched.CategoryId);
         Assert.Equal(result.Id, matched.CategoryRuleId);
         Assert.Null(unmatched.CategoryId);
     }
@@ -96,12 +96,12 @@ public class CategoryHandlerTests
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Salary",
         [
-            new Transaction { Description = "EMPLOYER CREDIT", Amount = 1500, Type = "credit", DatePosting = new DateOnly(2024,1,5), DateValue = new DateOnly(2024,1,5), Balance = 1500 },
-            new Transaction { Description = "OTHER CREDIT",    Amount = 200,  Type = "credit", DatePosting = new DateOnly(2024,1,6), DateValue = new DateOnly(2024,1,6), Balance = 1700 }
+            new Transaction { Description = "EMPLOYER CREDIT", Amount = 1500, Type = "credit", DatePosting = new DateOnly(2024, 1, 5), DateValue = new DateOnly(2024, 1, 5), Balance = 1500 },
+            new Transaction { Description = "OTHER CREDIT", Amount = 200, Type = "credit", DatePosting = new DateOnly(2024, 1, 6), DateValue = new DateOnly(2024, 1, 6), Balance = 1700 }
         ]);
 
         var handler = CreateHandler(db);
-        var result  = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, null, 1500m));
+        var result = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, null, 1500m));
 
         Assert.NotNull(result);
         Assert.Equal(string.Empty, result.Pattern);
@@ -111,10 +111,10 @@ public class CategoryHandlerTests
         Assert.Equal(1500m, savedRule.Value);
         Assert.Equal(cat.Id, savedRule.CategoryId);
 
-        var matched   = await db.Transactions.FirstAsync(t => t.Description == "EMPLOYER CREDIT");
+        var matched = await db.Transactions.FirstAsync(t => t.Description == "EMPLOYER CREDIT");
         var unmatched = await db.Transactions.FirstAsync(t => t.Description == "OTHER CREDIT");
 
-        Assert.Equal(cat.Id,    matched.CategoryId);
+        Assert.Equal(cat.Id, matched.CategoryId);
         Assert.Equal(result.Id, matched.CategoryRuleId);
         Assert.False(matched.CategorySetManually);
         Assert.Null(unmatched.CategoryId);
@@ -127,24 +127,24 @@ public class CategoryHandlerTests
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Groceries",
         [
-            new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 970 },
-            new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024,1,2), DateValue = new DateOnly(2024,1,2), Balance = 871 },
-            new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,3), DateValue = new DateOnly(2024,1,3), Balance = 841 }
+            new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 },
+            new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024, 1, 2), DateValue = new DateOnly(2024, 1, 2), Balance = 871 },
+            new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 3), DateValue = new DateOnly(2024, 1, 3), Balance = 841 }
         ]);
 
         var handler = CreateHandler(db);
-        var result  = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, "LIDL", 30m));
+        var result = await handler.HandleAsync(new CreateCategoryRuleCommand(cat.Id, "LIDL", 30m));
 
         Assert.NotNull(result);
         Assert.Equal("LIDL", result.Pattern);
         Assert.Equal(30m, result.Value);
 
-        var txs     = await db.Transactions.ToListAsync();
-        var lidl30  = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 30);
-        var lidl99  = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 99);
+        var txs = await db.Transactions.ToListAsync();
+        var lidl30 = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 30);
+        var lidl99 = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 99);
         var other30 = txs.First(t => t.Description == "OTHER STORE");
 
-        Assert.Equal(cat.Id,    lidl30.CategoryId);
+        Assert.Equal(cat.Id, lidl30.CategoryId);
         Assert.Equal(result.Id, lidl30.CategoryRuleId);
         Assert.Null(lidl99.CategoryId);
         Assert.Null(other30.CategoryId);
@@ -170,7 +170,7 @@ public class CategoryHandlerTests
         await using var db = CreateDb(nameof(CreateCategoryRule_WithUnknownCategoryId_ReturnsNull));
 
         var handler = CreateHandler(db);
-        var result  = await handler.HandleAsync(new CreateCategoryRuleCommand(9999, "LIDL", null));
+        var result = await handler.HandleAsync(new CreateCategoryRuleCommand(9999, "LIDL", null));
 
         Assert.Null(result);
     }
@@ -187,7 +187,7 @@ public class CategoryHandlerTests
         await db.SaveChangesAsync();
 
         var handler = CreateUpdateHandler(db);
-        var result  = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "NEW", null));
+        var result = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "NEW", null));
 
         Assert.True(result);
 
@@ -208,7 +208,7 @@ public class CategoryHandlerTests
         await db.SaveChangesAsync();
 
         var handler = CreateUpdateHandler(db);
-        var result  = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, null, 500m));
+        var result = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, null, 500m));
 
         Assert.True(result);
 
@@ -229,7 +229,7 @@ public class CategoryHandlerTests
         await db.SaveChangesAsync();
 
         var handler = CreateUpdateHandler(db);
-        var result  = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "NEW", 200m));
+        var result = await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "NEW", 200m));
 
         Assert.True(result);
 
@@ -244,7 +244,7 @@ public class CategoryHandlerTests
         await using var db = CreateDb(nameof(UpdateCategoryRule_WithUnknownId_ReturnsFalse));
 
         var handler = CreateUpdateHandler(db);
-        var result  = await handler.HandleAsync(new UpdateCategoryRuleCommand(9999, "X", null));
+        var result = await handler.HandleAsync(new UpdateCategoryRuleCommand(9999, "X", null));
 
         Assert.False(result);
     }
@@ -270,7 +270,7 @@ public class CategoryHandlerTests
     {
         await using var db = CreateDb(nameof(CreateCategory_WithPatternAndValue_CreatesRuleWithValue));
 
-        var handler  = CreateCategoryHandler(db);
+        var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", "MB WAY", 50m));
 
         var rules = await db.CategoryRules.Where(r => r.CategoryId == response.Id).ToListAsync();
@@ -284,7 +284,7 @@ public class CategoryHandlerTests
     {
         await using var db = CreateDb(nameof(CreateCategory_WithPatternOnly_CreatesRuleWithNullValue));
 
-        var handler  = CreateCategoryHandler(db);
+        var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", "MB WAY", null));
 
         var rules = await db.CategoryRules.Where(r => r.CategoryId == response.Id).ToListAsync();
@@ -298,7 +298,7 @@ public class CategoryHandlerTests
     {
         await using var db = CreateDb(nameof(CreateCategory_WithoutPattern_NoRuleCreated));
 
-        var handler  = CreateCategoryHandler(db);
+        var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", null, null));
 
         var rules = await db.CategoryRules.Where(r => r.CategoryId == response.Id).ToListAsync();

@@ -20,6 +20,7 @@ if (-not (Test-Path $EnvFile)) {
     Write-Host "    [ERROR] Missing $EnvFile" -ForegroundColor Red
     Write-Host "    Create local/environment.demo by copying local/environment.dev" -ForegroundColor Gray
     Write-Host "    and changing Database=Beacon to Database=BeaconDemo" -ForegroundColor Gray
+    Write-Host "    (uploads and backups always go to local/uploads-demo and local/backups-demo)" -ForegroundColor Gray
     exit 1
 }
 
@@ -38,7 +39,15 @@ Get-Content $EnvFile | ForEach-Object {
 }
 if (-not $env:ApiKey) { $env:ApiKey = 'dev-only-key' }
 $env:ASPNETCORE_ENVIRONMENT = 'Demo'
+
+# The demo database references no stored PDF, so it must never share a folder with real
+# uploads: the startup cleanup would treat them all as orphans. Whatever the environment file
+# says, the demo keeps its uploads and backups in folders of its own.
+$env:Storage__Path = Join-Path $ProjectRoot 'local/uploads-demo'
+$env:Backup__Path  = Join-Path $ProjectRoot 'local/backups-demo'
+New-Item -ItemType Directory -Force -Path $env:Storage__Path, $env:Backup__Path | Out-Null
 Write-Ok "Environment loaded (ApiKey=$env:ApiKey, DB=BeaconDemo)"
+Write-Ok 'Demo files: local/uploads-demo, local/backups-demo'
 
 # ── Migrations ────────────────────────────────────────────────────────────────
 Write-Step 'Running migrations'

@@ -2,6 +2,7 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
 using Beacon.Api.Models;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
@@ -48,27 +49,27 @@ public class UpdateSalarySlipCommandHandler(AppDbContext db)
                 return (null, $"Category {lineItem.SalaryItemCategoryId} does not belong to profile {slip.SalaryProfileId}.");
         }
 
-        slip.Period       = command.Period;
-        slip.GrossAmount  = command.GrossAmount;
-        slip.NetAmount    = command.NetAmount;
-        slip.Notes        = command.Notes?.Trim();
-        slip.PdfPath      = command.PdfPath;
-        slip.SourceFile   = command.SourceFile;
-        slip.BaseAmount   = command.BaseAmount;
-        slip.HoursWorked  = command.HoursWorked;
-        slip.HourlyRate   = command.HourlyRate;
+        slip.Period = command.Period;
+        slip.GrossAmount = command.GrossAmount;
+        slip.NetAmount = command.NetAmount;
+        slip.Notes = command.Notes?.Trim();
+        slip.PdfPath = FileStorageService.FileNameOf(command.PdfPath);
+        slip.SourceFile = command.SourceFile;
+        slip.BaseAmount = command.BaseAmount;
+        slip.HoursWorked = command.HoursWorked;
+        slip.HourlyRate = command.HourlyRate;
         slip.TotalEspecie = command.TotalEspecie;
 
         db.SalaryLineItems.RemoveRange(slip.LineItems);
         slip.LineItems = command.LineItems.Select(li => new SalaryLineItem
         {
             SalaryItemCategoryId = li.SalaryItemCategoryId,
-            Amount               = li.Amount,
-            SortOrder            = li.SortOrder,
-            Quantity             = li.Quantity,
-            UnitValue            = li.UnitValue,
-            Percentage           = li.Percentage,
-            IncidenciaBase       = li.IncidenciaBase,
+            Amount = li.Amount,
+            SortOrder = li.SortOrder,
+            Quantity = li.Quantity,
+            UnitValue = li.UnitValue,
+            Percentage = li.Percentage,
+            IncidenciaBase = li.IncidenciaBase,
         }).ToList();
 
         await db.SaveChangesAsync(ct);

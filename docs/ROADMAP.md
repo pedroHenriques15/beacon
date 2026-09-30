@@ -13,16 +13,11 @@ removes it. Settled decisions go to DECISIONS.md.
 | Groceries | built |
 | Investments | built · how transfers count in totals is open |
 | Calendar and tasks (Google) | built · reconnect bug open |
-| Workflow and tooling | markdown tasks in place · hooks and CI checks open |
+| Workflow and tooling | markdown tasks, git hooks and CI formatting checks in place |
 
 ## Now
 
-- Stop the startup cleanup from deleting PDFs that are stored with relative paths (critical:
-  it deletes files).
-- Store PDF paths relative to `Storage__Path`, so the database is not tied to one machine
-  (after the cleanup fix).
-- Git hooks for the protected branches, commit subjects and task branches.
-- CI formatting checks, a PR template and GitHub settings that match the branch model.
+Nothing is in progress; the next items come from "Next".
 
 ## Next
 

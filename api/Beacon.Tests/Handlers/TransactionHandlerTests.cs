@@ -34,10 +34,24 @@ public class TransactionHandlerTests
             PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "TRANSFER OUT", Amount = 500, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 1500 },
-                new Transaction { Description = "TRANSFER IN",  Amount = 500, Type = "credit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 2000 }
+                new Transaction
+                {
+                    Description = "TRANSFER OUT",
+                    Amount = 500,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 1500
+                },
+                new Transaction
+                {
+                    Description = "TRANSFER IN",
+                    Amount = 500,
+                    Type = "credit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 2000
+                }
             ]
         };
         db.MonthlyStatements.Add(stmt);
@@ -188,9 +202,19 @@ public class TransactionHandlerTests
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-            Transactions = [new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975 }]
+            Bank = "BPI",
+            Account = "A",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction
+            {
+                Description = "LIDL",
+                Amount = 25,
+                Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10),
+                DateValue = new DateOnly(2026, 1, 10),
+                Balance = 975
+            }]
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();
@@ -218,10 +242,21 @@ public class TransactionHandlerTests
         db.CategoryRules.Add(rule);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-            Transactions = [new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975,
-                CategoryId = cat1.Id, CategoryRuleId = rule.Id }]
+            Bank = "BPI",
+            Account = "A",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction
+            {
+                Description = "LIDL",
+                Amount = 25,
+                Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10),
+                DateValue = new DateOnly(2026, 1, 10),
+                Balance = 975,
+                CategoryId = cat1.Id,
+                CategoryRuleId = rule.Id
+            }]
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();
@@ -248,9 +283,19 @@ public class TransactionHandlerTests
         db.CategoryRules.Add(rule);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-            Transactions = [new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975 }]
+            Bank = "BPI",
+            Account = "A",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction
+            {
+                Description = "LIDL",
+                Amount = 25,
+                Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10),
+                DateValue = new DateOnly(2026, 1, 10),
+                Balance = 975
+            }]
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();
@@ -279,10 +324,20 @@ public class TransactionHandlerTests
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-            Transactions = [new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975,
-                CategoryId = cat.Id }]
+            Bank = "BPI",
+            Account = "A",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction
+            {
+                Description = "LIDL",
+                Amount = 25,
+                Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10),
+                DateValue = new DateOnly(2026, 1, 10),
+                Balance = 975,
+                CategoryId = cat.Id
+            }]
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();
@@ -303,25 +358,50 @@ public class TransactionHandlerTests
 
         var stmtA = new MonthlyStatement
         {
-            Bank = "ACTIVOBANK", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "ACTIVOBANK",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL Lisboa",   Amount = 30,  Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 970,
-                    CategoryId = cat.Id },
-                new Transaction { Description = "SALARY",        Amount = 1500, Type = "credit",
-                    DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 2470 }
+                new Transaction
+                {
+                    Description = "LIDL Lisboa",
+                    Amount = 30,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 970,
+                    CategoryId = cat.Id
+                },
+                new Transaction
+                {
+                    Description = "SALARY",
+                    Amount = 1500,
+                    Type = "credit",
+                    DatePosting = new DateOnly(2026, 1, 10),
+                    DateValue = new DateOnly(2026, 1, 10),
+                    Balance = 2470
+                }
             ]
         };
         var stmtB = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT51",
-            PeriodFrom = new DateOnly(2026, 2, 1), PeriodTo = new DateOnly(2026, 2, 28),
+            Bank = "BPI",
+            Account = "PT51",
+            PeriodFrom = new DateOnly(2026, 2, 1),
+            PeriodTo = new DateOnly(2026, 2, 28),
             Transactions =
             [
-                new Transaction { Description = "CONTINENTE",    Amount = 50, Type = "debit",
-                    DatePosting = new DateOnly(2026, 2, 3), DateValue = new DateOnly(2026, 2, 3), Balance = 1000 }
+                new Transaction
+                {
+                    Description = "CONTINENTE",
+                    Amount = 50,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 2, 3),
+                    DateValue = new DateOnly(2026, 2, 3),
+                    Balance = 1000
+                }
             ]
         };
         db.MonthlyStatements.AddRange(stmtA, stmtB);
@@ -373,12 +453,21 @@ public class TransactionHandlerTests
 
         var stmt = new MonthlyStatement
         {
-            Bank = "REVOLUT", Account = "PT52",
-            PeriodFrom = new DateOnly(2026, 6, 15), PeriodTo = new DateOnly(2026, 7, 14),
+            Bank = "REVOLUT",
+            Account = "PT52",
+            PeriodFrom = new DateOnly(2026, 6, 15),
+            PeriodTo = new DateOnly(2026, 7, 14),
             Transactions =
             [
-                new Transaction { Description = "JULY SPEND", Amount = 40, Type = "debit",
-                    DatePosting = new DateOnly(2026, 7, 3), DateValue = new DateOnly(2026, 7, 3), Balance = 960 }
+                new Transaction
+                {
+                    Description = "JULY SPEND",
+                    Amount = 40,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 7, 3),
+                    DateValue = new DateOnly(2026, 7, 3),
+                    Balance = 960
+                }
             ]
         };
         db.MonthlyStatements.Add(stmt);
@@ -519,13 +608,23 @@ public class TransactionHandlerTests
     private static async Task<(Category excluded, Category other, Transaction tx)> SeedForExclusionAsync(AppDbContext db)
     {
         var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
-        var other    = new Category { Name = "Food", Color = "#ff0000" };
+        var other = new Category { Name = "Food", Color = "#ff0000" };
         db.Categories.AddRange(excluded, other);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-            Transactions = [new Transaction { Description = "TRF MB WAY", Amount = 25, Type = "debit",
-                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975 }]
+            Bank = "BPI",
+            Account = "A",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction
+            {
+                Description = "TRF MB WAY",
+                Amount = 25,
+                Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10),
+                DateValue = new DateOnly(2026, 1, 10),
+                Balance = 975
+            }]
         };
         db.MonthlyStatements.Add(stmt);
         await db.SaveChangesAsync();

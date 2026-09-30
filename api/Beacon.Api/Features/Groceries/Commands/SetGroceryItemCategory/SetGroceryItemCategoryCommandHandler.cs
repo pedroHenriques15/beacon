@@ -15,7 +15,7 @@ public class SetGroceryItemCategoryCommandHandler(AppDbContext db, ILogger<SetGr
         var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
         ExcludedCategory.ApplyCategory(item, cmd.CategoryId, excludedCategoryId);
         item.CategorySetManually = true;
-        item.CategoryRuleId      = null;
+        item.CategoryRuleId = null;
 
         if (cmd.DeleteRuleId.HasValue)
         {

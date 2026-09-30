@@ -43,10 +43,13 @@ api/Beacon.Api/     ASP.NET Core 8 API: Controllers/, Features/ (one folder per 
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests on EF Core InMemory
 web/src/app/        Angular 21 client: core/ (services, models, interceptors), pages/ (routes)
-scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend
+scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
+                    setup (enables the git hooks)
+.githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
 docs/               ARCHITECTURE, DECISIONS, ROADMAP, screenshots/; tasks/ (git-ignored)
 .claude/            agents/ (scaffolders), skills/task/ (task workflow), settings.json (shared)
-local/              git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
+local/              git-ignored: environment.dev/.demo, uploads/, backups/ (the demo's own:
+                    uploads-demo/, backups-demo/), sample PDFs
 ```
 
 The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the layout changes.
@@ -85,6 +88,8 @@ Backend:
 - A new entity gets a `DbSet<T>` in `Data/AppDbContext.cs` and a migration.
 - The `beacon-feature-scaffolder` and `beacon-parser-scaffolder` agents generate new use cases
   and parsers in this shape.
+- Run `dotnet format beacon.sln` (repository root) before committing. It uses the default .NET
+  style, so don't align columns with extra spaces; the formatter removes them.
 
 Frontend:
 
@@ -136,7 +141,8 @@ Before a task's PR:
 
 - New logic has tests. `dotnet test Beacon.Tests/` (in `api/`) and `ng test --watch=false`
   (in `web/`) pass, and `npm run build` stays within its budgets.
-- Prettier has run on frontend changes.
+- The formatters have run: `npx prettier --write .` in `web/` and `dotnet format beacon.sln`.
+  CI fails otherwise (`prettier --check`, `dotnet format --verify-no-changes`).
 - If the work was a ROADMAP.md item, the PR removes its line.
 - The docs follow the code: ARCHITECTURE.md for how things work, a new ADR in DECISIONS.md
   for a settled decision, README.md (public) for setup, commands or environment variables,
@@ -161,8 +167,18 @@ Before a task's PR:
   through a `merge/NNN-main-into-development` branch merged with a merge commit.
 - **Never push directly to `main` or `development`**, with one exception: a planning commit,
   which changes only `docs/ROADMAP.md`, may go straight to `development` (subject like
-  `chore: update roadmap`), so updating the plan needs no PR. Git hooks that enforce this and
-  the subject format are planned (ROADMAP.md, "Now").
+  `chore: update roadmap`), so updating the plan needs no PR.
+- **Hooks** in `.githooks/` enforce these rules locally once a clone has run
+  `scripts/setup.ps1` or `scripts/setup.sh`. `commit-msg` rejects a subject over 72
+  characters and, on a task branch, one that does not start with the branch's
+  `prefix(NNN): `. `pre-push` refuses deleting `main` or `development`, any push to `main`,
+  a push to `development` with anything but planning commits, and a task branch whose task
+  file is missing or `dropped` (skipped in a clone without `docs/tasks/`). Never bypass them
+  with `--no-verify`.
+- **Pull requests** open with `.github/pull_request_template.md` (What, Why, How tested,
+  screenshots or `No visual change.`). CI checks formatting, runs the tests and builds the
+  client. On GitHub the default branch is `development`, squash and merge commits are
+  allowed (rebase merging is off), and head branches are deleted after the merge.
 - Commit, push or open PRs only when asked to.
 
 ## Commands
@@ -172,13 +188,15 @@ Development runs on the host (ADR-019): .NET 8 SDK, Node 22 or newer, Python 3 w
 `local/environment.demo`).
 
 ```
+scripts/setup.ps1              once per clone: enable the git hooks (scripts/setup.sh on Linux)
 scripts/run-backend.ps1        load local/environment.dev, apply migrations, API on :5098 (/swagger)
 scripts/run-frontend.ps1       wait for the API, then ng serve on :4200
-scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo)
+scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo), local/uploads-demo and backups-demo
 VS Code "Beacon: Start All"    backend and frontend together (also "Start All (Demo)")
 scripts/reset-db.ps1           drop and recreate the local database (reads appsettings.json)
 
 cd api && dotnet test Beacon.Tests/                     backend tests
+dotnet format beacon.sln                                format the backend (repository root)
 cd api/Beacon.Api && dotnet ef migrations add <Name>    new migration
 cd api/Beacon.Api && dotnet ef database update          apply migrations (run-backend does it on start)
 cd web && ng test --watch=false                         frontend tests

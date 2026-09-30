@@ -28,10 +28,10 @@ public class GoogleOAuthServiceTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["GoogleServices:ClientId"]     = "test-client-id",
+                ["GoogleServices:ClientId"] = "test-client-id",
                 ["GoogleServices:ClientSecret"] = "test-client-secret",
-                ["GoogleServices:RedirectUri"]  = "http://localhost/callback",
-                ["GoogleServices:FrontendUrl"]  = "http://localhost:4200",
+                ["GoogleServices:RedirectUri"] = "http://localhost/callback",
+                ["GoogleServices:FrontendUrl"] = "http://localhost:4200",
             })
             .Build();
 
@@ -45,26 +45,26 @@ public class GoogleOAuthServiceTests
     [Fact]
     public void GetAuthorizationUrl_ReturnsGoogleUrl_WithRequiredParams()
     {
-        using var db    = CreateDb(nameof(GetAuthorizationUrl_ReturnsGoogleUrl_WithRequiredParams));
+        using var db = CreateDb(nameof(GetAuthorizationUrl_ReturnsGoogleUrl_WithRequiredParams));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         var url = svc.GetAuthorizationUrl();
 
         Assert.StartsWith("https://accounts.google.com/o/oauth2/v2/auth?", url);
-        Assert.Contains("client_id=test-client-id",        url);
-        Assert.Contains("response_type=code",              url);
-        Assert.Contains("access_type=offline",             url);
-        Assert.Contains("prompt=consent",                  url);
-        Assert.Contains("state=",                          url);
+        Assert.Contains("client_id=test-client-id", url);
+        Assert.Contains("response_type=code", url);
+        Assert.Contains("access_type=offline", url);
+        Assert.Contains("prompt=consent", url);
+        Assert.Contains("state=", url);
     }
 
     [Fact]
     public void GetAuthorizationUrl_StoresStateInCache()
     {
-        using var db    = CreateDb(nameof(GetAuthorizationUrl_StoresStateInCache));
+        using var db = CreateDb(nameof(GetAuthorizationUrl_StoresStateInCache));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         svc.GetAuthorizationUrl();
 
@@ -75,9 +75,9 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_InvalidState_Throws()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_InvalidState_Throws));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_InvalidState_Throws));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => svc.ExchangeCodeAsync("auth-code", "wrong-state"));
@@ -86,9 +86,9 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_ValidState_StoresToken()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_ValidState_StoresToken));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_ValidState_StoresToken));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         svc.GetAuthorizationUrl();
         cache.TryGetValue("google_oauth_state", out string? state);
@@ -97,16 +97,16 @@ public class GoogleOAuthServiceTests
 
         var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync();
         Assert.NotNull(token);
-        Assert.Equal("test-access",  token.AccessToken);
+        Assert.Equal("test-access", token.AccessToken);
         Assert.Equal("test-refresh", token.RefreshToken);
     }
 
     [Fact]
     public async Task ExchangeCodeAsync_ConsumesState_SecondCallFails()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_ConsumesState_SecondCallFails));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_ConsumesState_SecondCallFails));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         svc.GetAuthorizationUrl();
         cache.TryGetValue("google_oauth_state", out string? state);
@@ -119,12 +119,12 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_NoRefreshToken_Throws()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_NoRefreshToken_Throws));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_NoRefreshToken_Throws));
         using var cache = CreateCache();
-        var factory     = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.OK,
             """{"access_token":"test-access","expires_in":3600}"""));
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         svc.GetAuthorizationUrl();
         cache.TryGetValue("google_oauth_state", out string? state);
@@ -136,9 +136,9 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetStatusAsync_NoToken_ReturnsDisconnected()
     {
-        using var db    = CreateDb(nameof(GetStatusAsync_NoToken_ReturnsDisconnected));
+        using var db = CreateDb(nameof(GetStatusAsync_NoToken_ReturnsDisconnected));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         var status = await svc.GetStatusAsync();
 
@@ -150,20 +150,20 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetStatusAsync_WithToken_ReturnsConnected()
     {
-        using var db    = CreateDb(nameof(GetStatusAsync_WithToken_ReturnsConnected));
-        var now         = DateTime.UtcNow;
+        using var db = CreateDb(nameof(GetStatusAsync_WithToken_ReturnsConnected));
+        var now = DateTime.UtcNow;
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "tok",
+            Id = 1,
+            AccessToken = "tok",
             RefreshToken = "ref",
-            ExpiresAt    = now.AddHours(1),
-            ConnectedAt  = now,
+            ExpiresAt = now.AddHours(1),
+            ConnectedAt = now,
         });
         await db.SaveChangesAsync();
 
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         var status = await svc.GetStatusAsync();
 
@@ -178,16 +178,16 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(DisconnectAsync_RemovesAllTokens));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "tok",
+            Id = 1,
+            AccessToken = "tok",
             RefreshToken = "ref",
-            ExpiresAt    = DateTime.UtcNow.AddHours(1),
-            ConnectedAt  = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ConnectedAt = DateTime.UtcNow,
         });
         await db.SaveChangesAsync();
 
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         await svc.DisconnectAsync();
 
@@ -200,18 +200,18 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "old-token",
+            Id = 1,
+            AccessToken = "old-token",
             RefreshToken = "bad-refresh",
-            ExpiresAt    = DateTime.UtcNow.AddMinutes(-5),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         await db.SaveChangesAsync();
 
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"""));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         var result = await svc.GetValidAccessTokenAsync();
 
@@ -225,18 +225,18 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "old-token",
+            Id = 1,
+            AccessToken = "old-token",
             RefreshToken = "good-refresh",
-            ExpiresAt    = DateTime.UtcNow.AddMinutes(-5),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         await db.SaveChangesAsync();
 
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.ServiceUnavailable, ""));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         var result = await svc.GetValidAccessTokenAsync();
 
@@ -250,11 +250,11 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_StaleToken_RefreshSucceeds_ReturnsNewToken));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "old-token",
+            Id = 1,
+            AccessToken = "old-token",
             RefreshToken = "good-refresh",
-            ExpiresAt    = DateTime.UtcNow.AddMinutes(-5),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-5),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         await db.SaveChangesAsync();
 
@@ -262,7 +262,7 @@ public class GoogleOAuthServiceTests
             System.Net.HttpStatusCode.OK,
             """{"access_token":"new-token","expires_in":3600}"""));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         var result = await svc.GetValidAccessTokenAsync();
 
@@ -278,17 +278,17 @@ public class GoogleOAuthServiceTests
         using var db = CreateDb(nameof(GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall));
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "still-valid",
+            Id = 1,
+            AccessToken = "still-valid",
             RefreshToken = "refresh",
-            ExpiresAt    = DateTime.UtcNow.AddHours(1),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         await db.SaveChangesAsync();
 
         var factory = new FakeHttpClientFactory(new ThrowingHttpMessageHandler());
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         var result = await svc.GetValidAccessTokenAsync();
 
@@ -298,7 +298,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_ReconnectWithoutDisconnect_UpdatesTokenAndPreservesRefreshToken()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_ReconnectWithoutDisconnect_UpdatesTokenAndPreservesRefreshToken));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_ReconnectWithoutDisconnect_UpdatesTokenAndPreservesRefreshToken));
         using var cache = CreateCache();
 
         var svc = CreateService(db, cache);
@@ -316,19 +316,19 @@ public class GoogleOAuthServiceTests
 
         var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync();
         Assert.NotNull(token);
-        Assert.Equal("new-access",   token.AccessToken);
+        Assert.Equal("new-access", token.AccessToken);
         Assert.Equal("test-refresh", token.RefreshToken);
-        Assert.Equal(1,              token.Id);
+        Assert.Equal(1, token.Id);
     }
 
     [Fact]
     public async Task ExchangeCodeAsync_GoogleReturnsError_ThrowsHttpRequestException()
     {
-        using var db    = CreateDb(nameof(ExchangeCodeAsync_GoogleReturnsError_ThrowsHttpRequestException));
+        using var db = CreateDb(nameof(ExchangeCodeAsync_GoogleReturnsError_ThrowsHttpRequestException));
         using var cache = CreateCache();
-        var factory     = new FakeHttpClientFactory(new FakeHttpMessageHandler(
+        var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant"}"""));
-        var svc         = CreateService(db, cache, factory);
+        var svc = CreateService(db, cache, factory);
 
         svc.GetAuthorizationUrl();
         cache.TryGetValue("google_oauth_state", out string? state);
@@ -342,9 +342,9 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ConnectDisconnectReconnect_StoresNewTokenWithIdOne()
     {
-        using var db    = CreateDb(nameof(ConnectDisconnectReconnect_StoresNewTokenWithIdOne));
+        using var db = CreateDb(nameof(ConnectDisconnectReconnect_StoresNewTokenWithIdOne));
         using var cache = CreateCache();
-        var svc         = CreateService(db, cache);
+        var svc = CreateService(db, cache);
 
         svc.GetAuthorizationUrl();
         cache.TryGetValue("google_oauth_state", out string? state1);

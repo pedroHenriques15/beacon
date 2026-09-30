@@ -37,7 +37,7 @@ public class StatementUploadService(
 
             var fileBytes = await File.ReadAllBytesAsync(tempPath);
             var hashBytes = SHA256.HashData(fileBytes);
-            var fileHash  = Convert.ToHexString(hashBytes);
+            var fileHash = Convert.ToHexString(hashBytes);
 
             if (await db.MonthlyStatements.AnyAsync(s => s.FileHash == fileHash))
                 return new UploadResult(false, string.Empty, DateOnly.MinValue,

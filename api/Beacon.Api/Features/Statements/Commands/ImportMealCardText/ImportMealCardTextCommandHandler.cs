@@ -23,7 +23,7 @@ public class ImportMealCardTextCommandHandler(
         }
 
         var periodFrom = command.PeriodFrom ?? parsed.PeriodFrom;
-        var periodTo   = command.PeriodTo   ?? parsed.PeriodTo;
+        var periodTo = command.PeriodTo ?? parsed.PeriodTo;
 
         if (await db.MonthlyStatements.AnyAsync(
                 s => s.Bank == parsed.Bank && s.PeriodFrom == periodFrom, ct))
@@ -36,7 +36,7 @@ public class ImportMealCardTextCommandHandler(
             .FirstOrDefaultAsync(ct);
         var previousIsAdjacent = previous is not null && periodFrom <= previous.PeriodTo.AddDays(45);
         var credits = parsed.Transactions.Where(t => t.Type == "credit").Sum(t => t.Amount);
-        var debits  = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
+        var debits = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
 
         var balanceWarnings = new List<string>();
         decimal openingBalance = parsed.OpeningBalance;
@@ -84,14 +84,14 @@ public class ImportMealCardTextCommandHandler(
 
             return new Transaction
             {
-                DatePosting        = tx.DatePosting,
-                DateValue          = tx.DateValue,
-                Description        = tx.Description,
-                Amount             = tx.Amount,
-                Type               = tx.Type,
-                Balance            = tx.Balance,
-                CategoryId         = matchedRule?.CategoryId,
-                CategoryRuleId     = matchedRule?.Id,
+                DatePosting = tx.DatePosting,
+                DateValue = tx.DateValue,
+                Description = tx.Description,
+                Amount = tx.Amount,
+                Type = tx.Type,
+                Balance = tx.Balance,
+                CategoryId = matchedRule?.CategoryId,
+                CategoryRuleId = matchedRule?.Id,
                 CategorySetManually = false
             };
         }).ToList();
@@ -100,17 +100,17 @@ public class ImportMealCardTextCommandHandler(
 
         var statement = new MonthlyStatement
         {
-            Bank           = parsed.Bank,
-            Account        = parsed.Account ?? string.Empty,
-            PeriodFrom     = periodFrom,
-            PeriodTo       = periodTo,
-            Currency       = parsed.Currency,
+            Bank = parsed.Bank,
+            Account = parsed.Account ?? string.Empty,
+            PeriodFrom = periodFrom,
+            PeriodTo = periodTo,
+            Currency = parsed.Currency,
             OpeningBalance = openingBalance,
             ClosingBalance = closingBalance,
-            SourceFile     = parsed.SourceFile,
-            PdfPath        = null,
-            FileHash       = null,
-            Transactions   = transactions
+            SourceFile = parsed.SourceFile,
+            PdfPath = null,
+            FileHash = null,
+            Transactions = transactions
         };
 
         db.MonthlyStatements.Add(statement);
@@ -120,7 +120,7 @@ public class ImportMealCardTextCommandHandler(
             "Imported {Count} meal card transactions ({PeriodFrom}–{PeriodTo}, {Unknown} uncategorised)",
             parsed.Transactions.Count, periodFrom, periodTo, unknownCount);
 
-        var newTxIds    = transactions.Select(t => t.Id).ToHashSet();
+        var newTxIds = transactions.Select(t => t.Id).ToHashSet();
         var existingTxs = new List<Transaction>();
         if (transactions.Count > 0)
         {
@@ -136,7 +136,7 @@ public class ImportMealCardTextCommandHandler(
                 .ToListAsync(ct);
         }
 
-        var candidates  = new List<TransferCandidate>();
+        var candidates = new List<TransferCandidate>();
         var usedExisting = new HashSet<int>();
 
         foreach (var newTx in transactions)
@@ -144,14 +144,14 @@ public class ImportMealCardTextCommandHandler(
             var opposite = existingTxs.FirstOrDefault(e =>
                 !usedExisting.Contains(e.Id) &&
                 e.DatePosting == newTx.DatePosting &&
-                e.Amount      == newTx.Amount &&
-                e.Type        != newTx.Type);
+                e.Amount == newTx.Amount &&
+                e.Type != newTx.Type);
 
             if (opposite is not null)
             {
                 usedExisting.Add(opposite.Id);
                 candidates.Add(new TransferCandidate(
-                    newTx.Id,    newTx.Description,    newTx.Type,    parsed.Bank,
+                    newTx.Id, newTx.Description, newTx.Type, parsed.Bank,
                     opposite.Id, opposite.Description, opposite.Type, opposite.Statement.Bank,
                     newTx.DatePosting, newTx.Amount));
             }

@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
 using Beacon.Api.Models;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
@@ -53,26 +54,26 @@ public class CreateSalarySlipCommandHandler(AppDbContext db)
         var slip = new SalarySlip
         {
             SalaryProfileId = command.SalaryProfileId,
-            Period          = command.Period,
-            GrossAmount     = command.GrossAmount,
-            NetAmount       = command.NetAmount,
-            Notes           = command.Notes?.Trim(),
-            PdfPath         = command.PdfPath,
-            SourceFile      = command.SourceFile,
-            ImportedAt      = DateTime.UtcNow,
-            BaseAmount      = command.BaseAmount,
-            HoursWorked     = command.HoursWorked,
-            HourlyRate      = command.HourlyRate,
-            TotalEspecie    = command.TotalEspecie,
-            LineItems       = command.LineItems.Select(li => new SalaryLineItem
+            Period = command.Period,
+            GrossAmount = command.GrossAmount,
+            NetAmount = command.NetAmount,
+            Notes = command.Notes?.Trim(),
+            PdfPath = FileStorageService.FileNameOf(command.PdfPath),
+            SourceFile = command.SourceFile,
+            ImportedAt = DateTime.UtcNow,
+            BaseAmount = command.BaseAmount,
+            HoursWorked = command.HoursWorked,
+            HourlyRate = command.HourlyRate,
+            TotalEspecie = command.TotalEspecie,
+            LineItems = command.LineItems.Select(li => new SalaryLineItem
             {
                 SalaryItemCategoryId = li.SalaryItemCategoryId,
-                Amount               = li.Amount,
-                SortOrder            = li.SortOrder,
-                Quantity             = li.Quantity,
-                UnitValue            = li.UnitValue,
-                Percentage           = li.Percentage,
-                IncidenciaBase       = li.IncidenciaBase,
+                Amount = li.Amount,
+                SortOrder = li.SortOrder,
+                Quantity = li.Quantity,
+                UnitValue = li.UnitValue,
+                Percentage = li.Percentage,
+                IncidenciaBase = li.IncidenciaBase,
             }).ToList()
         };
 

@@ -94,10 +94,11 @@ beacon/
 │   ├── reset-db.sh / .ps1        # Drop and recreate the local database (reads appsettings.json)
 │   ├── run-backend.ps1           # Load local/environment.dev, apply migrations, start the API on :5098
 │   ├── run-frontend.ps1          # Wait for the API, then ng serve on :4200
-│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (BeaconDemo, local/environment.demo)
+│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (BeaconDemo), with its own uploads-demo/ and backups-demo/
 │   ├── seed-demo.sql             # (WIP) Synthetic demo data
 │   ├── seed-demo.ps1 / .sh       # (WIP) Seed the demo database (Windows, through SeedRunner / Linux server)
 │   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a connection string
+│   ├── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
 │   └── readPdf.py                # Print a PDF's extracted text page by page (parser debugging)
 ├── docs/
 │   ├── ARCHITECTURE.md           # This file
@@ -106,9 +107,13 @@ beacon/
 │   ├── tasks/                    # git-ignored: private task files, one per piece of work
 │   └── screenshots/              # README images
 ├── .claude/                      # agents/ (scaffolders), skills/task/, settings.json (shared permissions)
+├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
+├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
-├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
-├── .github/workflows/ci.yml      # Backend tests; frontend tests and production build
+├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/ (demo: uploads-demo/, backups-demo/), sample PDFs
+├── .github/
+│   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
+│   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
 └── beacon.sln
 ```
 
@@ -278,8 +283,9 @@ the profile modal.
 
 Salary parse flow:
 
-1. `POST /api/salary/upload-pdf`: stores the PDF, returns `pdfPath`.
-2. `POST /api/salary/parse-pdf`: accepts `{ pdfPath }`, returns pre-filled financial data for review.
+1. `POST /api/salary/upload-pdf`: stores the PDF, returns `pdfPath` (the stored file name).
+2. `POST /api/salary/parse-pdf`: accepts `{ pdfPath }`, resolves it under the storage root and
+   returns pre-filled financial data for review.
 3. `POST /api/salary/slips`: the user submits the reviewed data to persist.
 
 #### Merging a second pay run into a month
@@ -342,17 +348,31 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 `FileStorageService` (singleton) keeps uploaded PDFs in one flat folder, `Storage__Path`
 (default `statements/` next to the binaries), as `<guid>.pdf`.
 
-- `SaveAsync` writes the file and returns its **absolute** path, which the upload flows store
-  in `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) and `upload-pdf` returns
-  to the client. Stored paths are therefore tied to one machine's storage root (a fix is
-  planned: ROADMAP.md, "Now").
-- `GetFullPath`, `GetFile` and `Delete` accept an absolute path or a path relative to the
-  storage root, and refuse anything that resolves outside it.
-- At startup `Program.cs` runs `CleanupOrphanedPdfsAsync`: every `*.pdf` in the storage root
-  that no `PdfPath` references and that is older than 24 hours is deleted. It compares with
-  `Path.GetFullPath(PdfPath)`, which resolves a relative path against the working directory
-  instead of the storage root, so a file referenced by a relative path is deleted too (a fix
-  is planned: ROADMAP.md, "Now").
+- `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) holds only the file name
+  (ADR-023). `SaveAsync` writes the file and returns its name, which the upload flows store and
+  `upload-pdf` returns to the client; no absolute server path leaves the API. Create, update
+  and merge of a salary slip store `FileNameOf` whatever `pdfPath` the client sends.
+- `GetFullPath`, `GetFile` and `Delete` resolve a file name (or a legacy absolute path) under
+  the storage root and refuse anything that resolves outside it. Anything that opens a stored
+  file goes through them: `parse-pdf` hands the extractor `GetFullPath(pdfPath)`.
+- Older data: the `StorePdfPathsAsFileNames` migration cut existing rows down to their file
+  names, and a backup restore does the same to every restored `PdfPath`
+  (`RestoreBackupCommandHandler.StorePdfPathsAsFileNames`), so an old backup cannot bring
+  absolute paths back.
+- At startup `Program.cs` runs `OrphanedPdfCleanup` (scoped, in `Services/`) when
+  `Storage__Path` is set: every `*.pdf` in the storage root that no `PdfPath` references and
+  that is older than 24 hours is deleted; a file that cannot be deleted is logged and
+  skipped. A row references a file by the name its `PdfPath` ends in
+  (`FileStorageService.FileNameOf`, which splits on both `/` and `\`), so a relative path, an
+  absolute path under the root and an absolute path written on another machine (a restored
+  backup) all protect their file.
+- The cleanup deletes nothing, and logs a warning, when the database references none of the
+  PDFs in the folder: the two do not belong together. That covers the demo database (no
+  `PdfPath` at all) or a restored database pointed at another machine's uploads. The cost:
+  PDFs left behind after every row is gone stay until a new upload is referenced.
+- The demo backend never shares the folder: `scripts/run-backend-demo.ps1` sets
+  `Storage__Path` and `Backup__Path` to `local/uploads-demo` and `local/backups-demo`,
+  whatever `local/environment.demo` says.
 
 ### Investments
 
@@ -442,7 +462,7 @@ Google Cloud Console at the same time.
 | Service type | Lifetime |
 |---|---|
 | Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
 | `InvestmentPriceRefreshService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
@@ -533,8 +553,10 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `GoogleServices__FrontendUrl` | Angular app origin the OAuth callback redirects to (e.g. `http://localhost:4200`) |
 
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
-`scripts/run-backend.ps1`) and `local/environment.demo`; in production in
-`/etc/beacon/environment` (loaded by systemd `EnvironmentFile`).
+`scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
+`scripts/run-backend-demo.ps1`, which always sets `Storage__Path` to `local/uploads-demo` and
+`Backup__Path` to `local/backups-demo`); in production in `/etc/beacon/environment` (loaded
+by systemd `EnvironmentFile`).
 
 ## Tests
 
@@ -545,9 +567,10 @@ Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,
 `ExceptionHandlingMiddleware`, `ApplyRuleService` (incl. Excluded-category rules setting
-`IsExcluded`), `FileStorageService`, `SavingsPlanImportService`, `StatementUploadService`
-(PPR recompute helper, Trade Republic savings-plan exclusion), `AlphaVantageService` (incl.
-request-URI pinning), CQRS handlers for Backup (incl. investment tables), Categories,
+`IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
+stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
+Trade Republic savings-plan exclusion), `AlphaVantageService` (incl. request-URI pinning),
+CQRS handlers for Backup (incl. investment tables), Categories,
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
 Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell

@@ -114,7 +114,9 @@ public class BackfillPriceHistoryHandlerTests
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 3, 1));
         db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
         {
-            AssetId = asset.Id, Date = new DateOnly(2026, 3, 20), PricePerUnit = 105m
+            AssetId = asset.Id,
+            Date = new DateOnly(2026, 3, 20),
+            PricePerUnit = 105m
         });
         await db.SaveChangesAsync();
         var body = EtfSeries(("2026-03-19", "104.00"), ("2026-03-20", "999.99"), ("2026-03-21", "106.00"));

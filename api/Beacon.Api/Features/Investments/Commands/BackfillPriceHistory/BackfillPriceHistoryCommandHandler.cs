@@ -55,7 +55,7 @@ public class BackfillPriceHistoryCommandHandler(AppDbContext db, AlphaVantageSer
             .OrderBy(kv => kv.Key)
             .ToList();
 
-        var added   = 0;
+        var added = 0;
         var skipped = 0;
         foreach (var (date, price) in candidates)
         {
@@ -67,10 +67,10 @@ public class BackfillPriceHistoryCommandHandler(AppDbContext db, AlphaVantageSer
 
             db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
             {
-                AssetId      = command.AssetId,
-                Date         = date,
+                AssetId = command.AssetId,
+                Date = date,
                 PricePerUnit = price,
-                ImportedAt   = DateTime.UtcNow,
+                ImportedAt = DateTime.UtcNow,
             });
             added++;
         }

@@ -29,7 +29,7 @@ public class BankStatementParserFactoryTests
     public void GetParser_ReturnsParserForKnownBankName(string bankName)
     {
         var factory = CreateFactory();
-        var parser  = factory.GetParser(bankName);
+        var parser = factory.GetParser(bankName);
         Assert.NotNull(parser);
     }
 
@@ -50,18 +50,18 @@ public class BankStatementParserFactoryTests
     }
 
     [Theory]
-    [InlineData("ACTVPTPL",           "ACTIVOBANK")]
-    [InlineData("EXTRATO COMBINADO",  "ACTIVOBANK")]
-    [InlineData("BBPIPTPL",           "BPI")]
+    [InlineData("ACTVPTPL", "ACTIVOBANK")]
+    [InlineData("EXTRATO COMBINADO", "ACTIVOBANK")]
+    [InlineData("BBPIPTPL", "BPI")]
     [InlineData("EXTRACTO INTEGRADO", "BPI")]
-    [InlineData("REVOPTP2",           "REVOLUT")]
-    [InlineData("Revolut Bank UAB",   "REVOLUT")]
-    [InlineData("TRBKPTP2",                "TRADE REPUBLIC")]
+    [InlineData("REVOPTP2", "REVOLUT")]
+    [InlineData("Revolut Bank UAB", "REVOLUT")]
+    [InlineData("TRBKPTP2", "TRADE REPUBLIC")]
     [InlineData("TRADE REPUBLIC BANK GMBH", "TRADE REPUBLIC")]
     public void DetectParser_IdentifiesCorrectBankFromText(string signal, string expectedBank)
     {
         var factory = CreateFactory();
-        var parser  = factory.DetectParser($"some content {signal} more content");
+        var parser = factory.DetectParser($"some content {signal} more content");
         Assert.Equal(expectedBank, parser.BankName);
     }
 
@@ -78,8 +78,8 @@ public class BankStatementParserFactoryTests
         var factory = CreateFactory();
         var ex = Assert.Throws<NotSupportedException>(() => factory.GetParser("UNKNOWN"));
         Assert.Contains("ACTIVOBANK", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("BPI",        ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("REVOLUT",    ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("BPI", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("REVOLUT", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

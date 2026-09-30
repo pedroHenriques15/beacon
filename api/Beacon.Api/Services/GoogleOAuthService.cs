@@ -108,7 +108,7 @@ public class GoogleOAuthService(
             var client = httpClientFactory.CreateClient("google-oauth");
             var response = await client.PostAsync("https://oauth2.googleapis.com/token",
                 new FormUrlEncodedContent(new Dictionary<string, string>
-                {   
+                {
                     ["refresh_token"] = token.RefreshToken,
                     ["client_id"] = ClientId,
                     ["client_secret"] = ClientSecret,

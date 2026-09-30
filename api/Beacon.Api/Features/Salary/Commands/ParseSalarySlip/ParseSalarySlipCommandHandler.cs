@@ -68,14 +68,14 @@ public class ParseSalarySlipCommandHandler(
         }
 
         var fullText = string.Join("\n", pages);
-        var parser   = factory.FindParser(fullText);
+        var parser = factory.FindParser(fullText);
 
         if (parser is null)
             return (null, "No salary slip parser recognised this PDF format.");
 
         try
         {
-            var slip     = parser.Parse(Path.GetFileName(command.PdfPath), pages);
+            var slip = parser.Parse(Path.GetFileName(command.PdfPath), pages);
             var warnings = ParseVerifier.VerifySalarySlip(slip);
             var response = ParsedSalarySlipResponse.From(parser.ParserName, slip, warnings);
             return (response, null);

@@ -62,13 +62,25 @@ public class BackupRestoreSqlTests
 
             var statement = new MonthlyStatement
             {
-                Bank = "ACTIVOBANK", Account = "PT50",
-                PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
-                Currency = "EUR", OpeningBalance = 1000m, ClosingBalance = 970m,
+                Bank = "ACTIVOBANK",
+                Account = "PT50",
+                PeriodFrom = new DateOnly(2026, 1, 1),
+                PeriodTo = new DateOnly(2026, 1, 31),
+                Currency = "EUR",
+                OpeningBalance = 1000m,
+                ClosingBalance = 970m,
+                PdfPath = @"C:\beacon\local\uploads\statement.pdf",
                 Transactions =
                 [
-                    new Transaction { Description = "LIDL LISBOA", Amount = 30m, Type = "debit",
-                        DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 970m }
+                    new Transaction
+                    {
+                        Description = "LIDL LISBOA",
+                        Amount = 30m,
+                        Type = "debit",
+                        DatePosting = new DateOnly(2026, 1, 5),
+                        DateValue = new DateOnly(2026, 1, 5),
+                        Balance = 970m
+                    }
                 ]
             };
             db.MonthlyStatements.Add(statement);
@@ -79,19 +91,28 @@ public class BackupRestoreSqlTests
 
             var itemCategory = new SalaryItemCategory
             {
-                SalaryProfileId = profile.Id, Name = "Base", Color = "#22c55e", ItemType = "income"
+                SalaryProfileId = profile.Id,
+                Name = "Base",
+                Color = "#22c55e",
+                ItemType = "income"
             };
             db.SalaryItemCategories.Add(itemCategory);
             var slip = new SalarySlip
             {
-                SalaryProfileId = profile.Id, Period = new DateOnly(2026, 1, 1),
-                GrossAmount = 1000m, NetAmount = 800m,
+                SalaryProfileId = profile.Id,
+                Period = new DateOnly(2026, 1, 1),
+                GrossAmount = 1000m,
+                NetAmount = 800m,
+                PdfPath = "/workspaces/beacon/local/uploads/slip.pdf",
             };
             db.SalarySlips.Add(slip);
             await db.SaveChangesAsync();
             db.SalaryLineItems.Add(new SalaryLineItem
             {
-                SalarySlipId = slip.Id, SalaryItemCategoryId = itemCategory.Id, Amount = 1000m, SortOrder = 0
+                SalarySlipId = slip.Id,
+                SalaryItemCategoryId = itemCategory.Id,
+                Amount = 1000m,
+                SortOrder = 0
             });
 
             var groceryCategory = new GroceryCategory { Name = "Fruit", Color = "#a855f7" };
@@ -100,11 +121,15 @@ public class BackupRestoreSqlTests
             db.GroceryCategoryRules.Add(new GroceryCategoryRule { CategoryId = groceryCategory.Id, Pattern = "BANANA" });
             db.GroceryReceiptCategoryMappings.Add(new GroceryReceiptCategoryMapping
             {
-                ReceiptCategoryName = "Frutas", GroceryCategoryId = groceryCategory.Id
+                ReceiptCategoryName = "Frutas",
+                GroceryCategoryId = groceryCategory.Id
             });
             var receipt = new GroceryReceipt
             {
-                StoreName = "Continente", ReceiptDate = new DateOnly(2026, 1, 10), Total = 1.5m,
+                StoreName = "Continente",
+                ReceiptDate = new DateOnly(2026, 1, 10),
+                Total = 1.5m,
+                PdfPath = "receipt.pdf",
                 Items = [new GroceryItem { Description = "BANANA", Amount = 1.5m, Quantity = 1 }]
             };
             db.GroceryReceipts.Add(receipt);
@@ -115,11 +140,16 @@ public class BackupRestoreSqlTests
             await db.SaveChangesAsync();
             db.InvestmentLots.Add(new InvestmentLot
             {
-                AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 10m, PricePerUnit = 100m
+                AssetId = asset.Id,
+                Date = new DateOnly(2026, 1, 5),
+                Quantity = 10m,
+                PricePerUnit = 100m
             });
             db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
             {
-                AssetId = asset.Id, Date = new DateOnly(2026, 1, 20), PricePerUnit = 105m
+                AssetId = asset.Id,
+                Date = new DateOnly(2026, 1, 20),
+                PricePerUnit = 105m
             });
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
@@ -159,6 +189,11 @@ public class BackupRestoreSqlTests
             Assert.Equal(1, await verifyDb.GroceryReceiptCategoryMappings.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryReceipts.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryItems.CountAsync());
+
+            // A backup holds the paths the other machine wrote; the restore keeps only file names.
+            Assert.Equal("statement.pdf", (await verifyDb.MonthlyStatements.SingleAsync()).PdfPath);
+            Assert.Equal("slip.pdf", (await verifyDb.SalarySlips.SingleAsync()).PdfPath);
+            Assert.Equal("receipt.pdf", (await verifyDb.GroceryReceipts.SingleAsync()).PdfPath);
 
             var restoredAsset = await verifyDb.InvestmentAssets.SingleAsync();
             Assert.Equal("VWCE", restoredAsset.Ticker);

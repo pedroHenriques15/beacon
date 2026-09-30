@@ -20,12 +20,12 @@ public class PdfExtractorService(IConfiguration config, ILogger<PdfExtractorServ
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName               = python,
-                Arguments              = $"\"{script}\" \"{pdfPath}\"",
+                FileName = python,
+                Arguments = $"\"{script}\" \"{pdfPath}\"",
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-                CreateNoWindow         = true
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             }
         };
 

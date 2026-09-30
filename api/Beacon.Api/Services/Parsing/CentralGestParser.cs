@@ -14,13 +14,13 @@ public partial class CentralGestParser : ISalarySlipParser
     {
         var fullText = string.Join("\n", pages);
 
-        var employer    = ExtractEmployer(fullText);
+        var employer = ExtractEmployer(fullText);
         var employerNif = ExtractEmployerNif(fullText);
-        var period      = ExtractPeriod(fullText);
+        var period = ExtractPeriod(fullText);
         var (gross, net, totalEspecie) = ExtractTotals(fullText);
-        var baseAmount  = ExtractBaseAmount(fullText);
-        var hourlyRate  = ExtractHourlyRate(fullText);
-        var lineItems   = ExtractLineItems(fullText);
+        var baseAmount = ExtractBaseAmount(fullText);
+        var hourlyRate = ExtractHourlyRate(fullText);
+        var lineItems = ExtractLineItems(fullText);
 
         return new ParsedSalarySlip(
             employer, employerNif, period, gross, net, lineItems,
@@ -53,7 +53,7 @@ public partial class CentralGestParser : ISalarySlipParser
             throw new InvalidOperationException("Could not find period (Mês:) in CentralGest payslip.");
 
         var month = PtMonthToNumber(m.Groups[1].Value.ToLowerInvariant());
-        var year  = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+        var year = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
         return new DateOnly(year, month, 1);
     }
 
@@ -63,7 +63,7 @@ public partial class CentralGestParser : ISalarySlipParser
         if (!m.Success)
             throw new InvalidOperationException("Could not find gross/net totals in CentralGest payslip.");
 
-        var gross      = ParseUs(m.Groups[1].Value);
+        var gross = ParseUs(m.Groups[1].Value);
         var totalAPagar = ParsePt(m.Groups[5].Value);
         decimal? especie = m.Groups[4].Success ? ParsePt(m.Groups[4].Value) : null;
 
@@ -150,18 +150,18 @@ public partial class CentralGestParser : ISalarySlipParser
 
     private static int PtMonthToNumber(string month) => month switch
     {
-        "janeiro"   => 1,
+        "janeiro" => 1,
         "fevereiro" => 2,
-        "março"     => 3,
-        "abril"     => 4,
-        "maio"      => 5,
-        "junho"     => 6,
-        "julho"     => 7,
-        "agosto"    => 8,
-        "setembro"  => 9,
-        "outubro"   => 10,
-        "novembro"  => 11,
-        "dezembro"  => 12,
+        "março" => 3,
+        "abril" => 4,
+        "maio" => 5,
+        "junho" => 6,
+        "julho" => 7,
+        "agosto" => 8,
+        "setembro" => 9,
+        "outubro" => 10,
+        "novembro" => 11,
+        "dezembro" => 12,
         _ => throw new InvalidOperationException($"Unknown Portuguese month: '{month}'")
     };
 

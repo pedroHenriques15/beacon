@@ -1,19 +1,37 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Beacon.Api.Services;
 
 public class FileStorageService(IConfiguration config, ILogger<FileStorageService> logger)
 {
+    private static readonly char[] PathSeparators = ['/', '\\'];
+
     private string StorageRoot => string.IsNullOrEmpty(config["Storage:Path"])
         ? Path.Combine(AppContext.BaseDirectory, "statements")
         : config["Storage:Path"]!;
 
+    /// <summary>
+    /// The file name a stored <c>PdfPath</c> ends in, whichever machine wrote it. Every stored file is
+    /// <c>&lt;guid&gt;.pdf</c> in the storage root, so the name alone identifies it. Splits on both
+    /// separators: on Linux, <see cref="Path.GetFileName(string)"/> leaves a Windows path whole.
+    /// </summary>
+    [return: NotNullIfNotNull(nameof(storedPath))]
+    public static string? FileNameOf(string? storedPath) =>
+        storedPath?[(storedPath.LastIndexOfAny(PathSeparators) + 1)..];
+
+    /// <summary>
+    /// Writes the file to the storage root and returns its name, which is what <c>PdfPath</c>
+    /// stores. Resolve it with <see cref="GetFullPath"/> before opening the file.
+    /// </summary>
     public async Task<string> SaveAsync(IFormFile file)
     {
         Directory.CreateDirectory(StorageRoot);
-        var fullPath = Path.Combine(StorageRoot, $"{Guid.NewGuid()}.pdf");
+        var fileName = $"{Guid.NewGuid()}.pdf";
+        var fullPath = Path.Combine(StorageRoot, fileName);
         await using var fs = File.Create(fullPath);
         await file.CopyToAsync(fs);
         logger.LogInformation("Saved PDF to {Path}", fullPath);
-        return fullPath;
+        return fileName;
     }
 
     public string GetFullPath(string path)

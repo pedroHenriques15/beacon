@@ -2,6 +2,7 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
+using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.DeleteSalarySlip;
 using Beacon.Api.Services;
 using Microsoft.Extensions.Configuration;
@@ -65,7 +66,10 @@ public class SalaryHandlerTests
 
         var cat = new SalaryItemCategory
         {
-            SalaryProfileId = profile.Id, Name = "Base", Color = "#22c55e", ItemType = "income"
+            SalaryProfileId = profile.Id,
+            Name = "Base",
+            Color = "#22c55e",
+            ItemType = "income"
         };
         db.SalaryItemCategories.Add(cat);
 
@@ -132,7 +136,10 @@ public class SalaryHandlerTests
         await db.SaveChangesAsync();
         var foreignCat = new SalaryItemCategory
         {
-            SalaryProfileId = other.Id, Name = "Foreign", Color = "#fff", ItemType = "income"
+            SalaryProfileId = other.Id,
+            Name = "Foreign",
+            Color = "#fff",
+            ItemType = "income"
         };
         db.SalaryItemCategories.Add(foreignCat);
         await db.SaveChangesAsync();
@@ -162,7 +169,10 @@ public class SalaryHandlerTests
             slip.PdfPath = pdfPath;
             db.SalaryLineItems.Add(new SalaryLineItem
             {
-                SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+                SalarySlipId = slip.Id,
+                SalaryItemCategoryId = cat.Id,
+                Amount = 100m,
+                SortOrder = 0
             });
             await db.SaveChangesAsync();
 
@@ -185,6 +195,98 @@ public class SalaryHandlerTests
         }
     }
 
+    private static FileStorageService StorageAt(string storageRoot) =>
+        new(new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Path"] = storageRoot })
+                .Build(),
+            NullLogger<FileStorageService>.Instance);
+
+    [Fact]
+    public async Task DeleteSlip_DeletesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DeleteSlip_DeletesPdfStoredAsFileName));
+        var (_, _, slip) = await SeedSlipAsync(db);
+
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_salary_del_{Guid.NewGuid()}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            var fileName = $"{Guid.NewGuid()}.pdf";
+            await File.WriteAllBytesAsync(Path.Combine(storageRoot, fileName), "pdf"u8.ToArray());
+            slip.PdfPath = fileName;
+            await db.SaveChangesAsync();
+
+            var handler = new DeleteSalarySlipCommandHandler(db, StorageAt(storageRoot), NullLogger<DeleteSalarySlipCommandHandler>.Instance);
+            var deleted = await handler.HandleAsync(new DeleteSalarySlipCommand(slip.Id));
+
+            Assert.True(deleted);
+            Assert.False(File.Exists(Path.Combine(storageRoot, fileName)));
+        }
+        finally
+        {
+            Directory.Delete(storageRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteProfile_DeletesSlipPdfsStoredAsFileNames()
+    {
+        await using var db = CreateDb(nameof(DeleteProfile_DeletesSlipPdfsStoredAsFileNames));
+        var (profile, _, slip) = await SeedSlipAsync(db);
+
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_profile_del_{Guid.NewGuid()}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            var fileName = $"{Guid.NewGuid()}.pdf";
+            await File.WriteAllBytesAsync(Path.Combine(storageRoot, fileName), "pdf"u8.ToArray());
+            slip.PdfPath = fileName;
+            await db.SaveChangesAsync();
+
+            var handler = new DeleteSalaryProfileCommandHandler(db, StorageAt(storageRoot), NullLogger<DeleteSalaryProfileCommandHandler>.Instance);
+            var deleted = await handler.HandleAsync(new DeleteSalaryProfileCommand(profile.Id));
+
+            Assert.True(deleted);
+            Assert.False(File.Exists(Path.Combine(storageRoot, fileName)));
+        }
+        finally
+        {
+            Directory.Delete(storageRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CreateSlip_StoresTheFileNameOfAFullPdfPath()
+    {
+        await using var db = CreateDb(nameof(CreateSlip_StoresTheFileNameOfAFullPdfPath));
+        var (profile, _, _) = await SeedSlipAsync(db);
+
+        var handler = new CreateSalarySlipCommandHandler(db);
+        var (_, error) = await handler.HandleAsync(new CreateSalarySlipCommand(
+            profile.Id, new DateOnly(2026, 4, 1), 500m, 400m, null,
+            "/workspaces/beacon/local/uploads/april.pdf", "april.pdf", []));
+
+        Assert.Null(error);
+        var persisted = await db.SalarySlips.AsNoTracking().SingleAsync(s => s.Period == new DateOnly(2026, 4, 1));
+        Assert.Equal("april.pdf", persisted.PdfPath);
+    }
+
+    [Fact]
+    public async Task UpdateSlip_StoresTheFileNameOfAFullPdfPath()
+    {
+        await using var db = CreateDb(nameof(UpdateSlip_StoresTheFileNameOfAFullPdfPath));
+        var (_, _, slip) = await SeedSlipAsync(db);
+
+        var handler = new UpdateSalarySlipCommandHandler(db);
+        var (_, error) = await handler.HandleAsync(new UpdateSalarySlipCommand(
+            slip.Id, slip.Period, 1000m, 800m, null, [],
+            PdfPath: @"C:\beacon\local\uploads\january.pdf", SourceFile: "january.pdf"));
+
+        Assert.Null(error);
+        var persisted = await db.SalarySlips.AsNoTracking().SingleAsync(s => s.Id == slip.Id);
+        Assert.Equal("january.pdf", persisted.PdfPath);
+    }
+
     [Fact]
     public async Task DeleteItemCategory_InUse_ReturnsConflictSignal()
     {
@@ -192,7 +294,10 @@ public class SalaryHandlerTests
         var (_, cat, slip) = await SeedSlipAsync(db);
         db.SalaryLineItems.Add(new SalaryLineItem
         {
-            SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+            SalarySlipId = slip.Id,
+            SalaryItemCategoryId = cat.Id,
+            Amount = 100m,
+            SortOrder = 0
         });
         await db.SaveChangesAsync();
 
@@ -256,7 +361,10 @@ public class SalaryHandlerTests
         await db.SaveChangesAsync();
         var foreignCat = new SalaryItemCategory
         {
-            SalaryProfileId = otherProfile.Id, Name = "Foreign", Color = "#ef4444", ItemType = "deduction"
+            SalaryProfileId = otherProfile.Id,
+            Name = "Foreign",
+            Color = "#ef4444",
+            ItemType = "deduction"
         };
         db.SalaryItemCategories.Add(foreignCat);
         await db.SaveChangesAsync();

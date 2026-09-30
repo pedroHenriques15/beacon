@@ -19,7 +19,7 @@ public class SetTransactionCategoryCommandHandler(AppDbContext db, ILogger<SetTr
         var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
         ExcludedCategory.ApplyCategory(tx, cmd.CategoryId, excludedCategoryId);
         tx.CategorySetManually = true;
-        tx.CategoryRuleId      = null;
+        tx.CategoryRuleId = null;
 
         if (cmd.DeleteRuleId.HasValue)
         {

@@ -22,10 +22,10 @@ public class GoogleTasksServiceTests
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["GoogleServices:ClientId"]     = "test-id",
+                ["GoogleServices:ClientId"] = "test-id",
                 ["GoogleServices:ClientSecret"] = "test-secret",
-                ["GoogleServices:RedirectUri"]  = "http://localhost/callback",
-                ["GoogleServices:FrontendUrl"]  = "http://localhost:4200",
+                ["GoogleServices:RedirectUri"] = "http://localhost/callback",
+                ["GoogleServices:FrontendUrl"] = "http://localhost:4200",
             })
             .Build();
 
@@ -33,11 +33,11 @@ public class GoogleTasksServiceTests
     {
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "test-token",
+            Id = 1,
+            AccessToken = "test-token",
             RefreshToken = "test-refresh",
-            ExpiresAt    = DateTime.UtcNow.AddHours(1),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         db.SaveChanges();
 
@@ -294,8 +294,8 @@ public class GoogleTasksServiceTests
         using var db = CreateDb(nameof(MoveTaskAsync_CrossList_NoPosition_ReturnsTaskWithTargetListId));
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var handler = new SequentialHttpMessageHandler(
-            (System.Net.HttpStatusCode.OK,    """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }"""),
-            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-2", "title": "Buy milk", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK, """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK, """{ "id": "new-task-2", "title": "Buy milk", "status": "needsAction" }"""),
             (System.Net.HttpStatusCode.NoContent, ""));
         var svc = CreateTasksSvc(oauthSvc, handler);
 
@@ -313,9 +313,9 @@ public class GoogleTasksServiceTests
         using var db = CreateDb(nameof(MoveTaskAsync_CrossList_WithPosition_ReturnsTaskWithTargetListId));
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var handler = new SequentialHttpMessageHandler(
-            (System.Net.HttpStatusCode.OK,    """{ "id": "task1", "title": "Call doctor", "status": "needsAction", "due": "2026-06-10T00:00:00.000Z" }"""),
-            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
-            (System.Net.HttpStatusCode.OK,    """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK, """{ "id": "task1", "title": "Call doctor", "status": "needsAction", "due": "2026-06-10T00:00:00.000Z" }"""),
+            (System.Net.HttpStatusCode.OK, """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
+            (System.Net.HttpStatusCode.OK, """{ "id": "new-task-3", "title": "Call doctor", "status": "needsAction" }"""),
             (System.Net.HttpStatusCode.NoContent, ""));
         var svc = CreateTasksSvc(oauthSvc, handler);
 

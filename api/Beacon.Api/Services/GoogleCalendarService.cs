@@ -126,19 +126,19 @@ public class GoogleCalendarService(GoogleOAuthService oauthService, IHttpClientF
     {
         var body = new Dictionary<string, object?> { ["summary"] = title };
         if (!string.IsNullOrEmpty(description)) body["description"] = description;
-        if (!string.IsNullOrEmpty(location))    body["location"]    = location;
-        if (!string.IsNullOrEmpty(colorId))     body["colorId"]     = colorId;
+        if (!string.IsNullOrEmpty(location)) body["location"] = location;
+        if (!string.IsNullOrEmpty(colorId)) body["colorId"] = colorId;
 
         if (isAllDay)
         {
             var exclusiveEnd = DateOnly.Parse(end ?? start).AddDays(1).ToString("yyyy-MM-dd");
             body["start"] = new { date = start };
-            body["end"]   = new { date = exclusiveEnd };
+            body["end"] = new { date = exclusiveEnd };
         }
         else
         {
             body["start"] = new { dateTime = start };
-            body["end"]   = new { dateTime = end ?? start };
+            body["end"] = new { dateTime = end ?? start };
         }
 
         return body;

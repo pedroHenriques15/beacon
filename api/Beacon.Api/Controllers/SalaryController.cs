@@ -46,7 +46,7 @@ public class SalaryController(
         if (!file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
             return BadRequest("Only PDF files are supported.");
 
-        var pdfPath  = await fileStorage.SaveAsync(file);
+        var pdfPath = await fileStorage.SaveAsync(file);
         var fileName = file.FileName;
         return Ok(new { pdfPath, fileName });
     }

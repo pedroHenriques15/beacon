@@ -54,17 +54,17 @@ public class MergeSalarySlipTests
         var slip = new SalarySlip
         {
             SalaryProfileId = profile.Id,
-            Period          = new DateOnly(2026, 7, 1),
-            GrossAmount     = 1337.85m,
-            NetAmount       = 1328.49m,
-            BaseAmount      = 1246.72m,
-            HoursWorked     = 28.73m,
-            HourlyRate      = 43.39m,
-            SourceFile      = "invoice-jul1-15.pdf",
+            Period = new DateOnly(2026, 7, 1),
+            GrossAmount = 1337.85m,
+            NetAmount = 1328.49m,
+            BaseAmount = 1246.72m,
+            HoursWorked = 28.73m,
+            HourlyRate = 43.39m,
+            SourceFile = "invoice-jul1-15.pdf",
             LineItems =
             [
                 new SalaryLineItem { SalaryItemCategoryId = basePay.Id, Amount = 1246.72m, SortOrder = 0 },
-                new SalaryLineItem { SalaryItemCategoryId = fee.Id,     Amount = 9.36m,    SortOrder = 1 },
+                new SalaryLineItem { SalaryItemCategoryId = fee.Id, Amount = 9.36m, SortOrder = 1 },
             ],
         };
         db.SalarySlips.Add(slip);
@@ -196,7 +196,7 @@ public class MergeSalarySlipTests
 
         var slip = await db.SalarySlips.FirstAsync();
         slip.HoursWorked = null;
-        slip.HourlyRate  = null;
+        slip.HourlyRate = null;
         await db.SaveChangesAsync();
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -238,7 +238,7 @@ public class MergeSalarySlipTests
             await using var db = CreateDb(nameof(Merge_KeepsFirstPdfAndDeletesTheSupersededOne));
             var seed = await SeedFirstHalfAsync(db);
 
-            var firstPdf  = Path.Combine(storageRoot, "first.pdf");
+            var firstPdf = Path.Combine(storageRoot, "first.pdf");
             var secondPdf = Path.Combine(storageRoot, "second.pdf");
             await File.WriteAllTextAsync(firstPdf, "first");
             await File.WriteAllTextAsync(secondPdf, "second");
@@ -276,8 +276,35 @@ public class MergeSalarySlipTests
             var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = incomingPdf };
             var (result, _) = await CreateHandler(db, storageRoot).HandleAsync(command);
 
-            Assert.Equal(incomingPdf, result!.PdfPath);
+            Assert.Equal("incoming.pdf", result!.PdfPath);
             Assert.True(File.Exists(incomingPdf));
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task Merge_SamePdfUnderAnOldFullPath_IsKept()
+    {
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_merge_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            await using var db = CreateDb(nameof(Merge_SamePdfUnderAnOldFullPath_IsKept));
+            var seed = await SeedFirstHalfAsync(db);
+
+            var pdf = Path.Combine(storageRoot, "slip.pdf");
+            await File.WriteAllTextAsync(pdf, "slip");
+            var slip = await db.SalarySlips.FirstAsync();
+            slip.PdfPath = "/workspaces/beacon/local/uploads/slip.pdf";
+            await db.SaveChangesAsync();
+
+            var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = "slip.pdf" };
+            await CreateHandler(db, storageRoot).HandleAsync(command);
+
+            Assert.True(File.Exists(pdf));
         }
         finally
         {

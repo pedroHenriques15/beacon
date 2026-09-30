@@ -26,19 +26,19 @@ public class DomirestParserTests
     }
 
     private static string BuildSamplePage(
-        string employer   = "DOMIREST - RESTAURAÇÃO, LDA",
-        string nif        = "999000001",
-        string date       = "31-03-2026",
-        string gross      = "436,55",
-        string net        = "394,22",
+        string employer = "DOMIREST - RESTAURAÇÃO, LDA",
+        string nif = "999000001",
+        string date = "31-03-2026",
+        string gross = "436,55",
+        string net = "394,22",
         string deductions = "42,33",
         string incomeLines = """
             1 Remuner. Normal 68,70 5,31 364,80
             45 Premio Produtividade 1,00 20,00 20,00
             72 Sub.Kms/Deslocaç 115,00 0,45 51,75
             """,
-        string ssLine     = "Segurança Social 11,00% 384,80 42,33",
-        string irsLine    = "Acumulados para Irs: - Incidência: 434,18 - Retenção: 0,00")
+        string ssLine = "Segurança Social 11,00% 384,80 42,33",
+        string irsLine = "Acumulados para Irs: - Incidência: 434,18 - Retenção: 0,00")
     {
         var section = $"""
             {employer} RECIBO DE REMUNERAÇÕES
@@ -113,7 +113,7 @@ public class DomirestParserTests
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage(date: dateStr)]);
 
-        Assert.Equal(expectedYear,  result.Period.Year);
+        Assert.Equal(expectedYear, result.Period.Year);
         Assert.Equal(expectedMonth, result.Period.Month);
         Assert.Equal(1, result.Period.Day);
     }
@@ -223,8 +223,8 @@ public class DomirestParserTests
 
     [Theory]
     [InlineData("364,80", 364.80)]
-    [InlineData("42,33",  42.33)]
-    [InlineData("51,75",  51.75)]
+    [InlineData("42,33", 42.33)]
+    [InlineData("51,75", 51.75)]
     [InlineData("436,55", 436.55)]
     [InlineData("394,22", 394.22)]
     public void ParsePt_ConvertsPortugueseDecimals(string input, double expected)

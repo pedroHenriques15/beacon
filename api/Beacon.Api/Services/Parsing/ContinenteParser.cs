@@ -11,12 +11,12 @@ public class ContinenteParser : IGroceryReceiptParser
 
     public ParsedGroceryReceipt Parse(string fileName, IReadOnlyList<string> pages)
     {
-        var text  = string.Join("\n", pages);
+        var text = string.Join("\n", pages);
         var lines = text.Split('\n');
 
         var receiptDate = ExtractDate(text);
-        var total       = ExtractTotal(text);
-        var items       = ExtractItems(lines);
+        var total = ExtractTotal(text);
+        var items = ExtractItems(lines);
 
         return new ParsedGroceryReceipt("Continente", receiptDate, total, items);
     }
@@ -57,13 +57,13 @@ public class ContinenteParser : IGroceryReceiptParser
         }
         if (endIdx < 0) return [];
 
-        var body   = lines[(startIdx + 1)..endIdx];
+        var body = lines[(startIdx + 1)..endIdx];
         var result = new List<ParsedGroceryItem>();
 
         string? currentCategory = null;
-        var qtyOnlyPattern      = new Regex(@"^(\d+)\s+X\s+");
-        var vatItemPattern      = new Regex(@"^\([A-Z]+\)\s+(.+)");
-        var qtyLinePattern      = new Regex(@"^(\d+)\s+X\s+([\d,]+)\s+([\d,]+)$");
+        var qtyOnlyPattern = new Regex(@"^(\d+)\s+X\s+");
+        var vatItemPattern = new Regex(@"^\([A-Z]+\)\s+(.+)");
+        var qtyLinePattern = new Regex(@"^(\d+)\s+X\s+([\d,]+)\s+([\d,]+)$");
         var trailingPricePattern = new Regex(@"\s+([\d]+,[\d]+)$");
 
         var i2 = 0;
@@ -98,7 +98,7 @@ public class ContinenteParser : IGroceryReceiptParser
                 if (priceMatch.Success)
                 {
                     var description = descPart[..priceMatch.Index].Trim();
-                    var amount      = ParsePt(priceMatch.Groups[1].Value);
+                    var amount = ParsePt(priceMatch.Groups[1].Value);
                     result.Add(new ParsedGroceryItem(description, amount, 1, currentCategory));
                     i2++;
                 }
@@ -108,7 +108,7 @@ public class ContinenteParser : IGroceryReceiptParser
                     var qtyMatch = qtyLinePattern.Match(nextLine);
                     if (qtyMatch.Success)
                     {
-                        var qty    = decimal.Parse(qtyMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                        var qty = decimal.Parse(qtyMatch.Groups[1].Value, CultureInfo.InvariantCulture);
                         var amount = ParsePt(qtyMatch.Groups[3].Value);
                         result.Add(new ParsedGroceryItem(descPart.Trim(), amount, qty, currentCategory));
                         i2 += 2;
@@ -135,7 +135,7 @@ public class ContinenteParser : IGroceryReceiptParser
                 if (inlinePrice.Success)
                 {
                     var cleanDesc = description[..inlinePrice.Index].Trim();
-                    var amount    = ParsePt(inlinePrice.Groups[1].Value);
+                    var amount = ParsePt(inlinePrice.Groups[1].Value);
                     result.Add(new ParsedGroceryItem(cleanDesc, amount, 1, currentCategory));
                     i2++;
                     continue;
@@ -147,7 +147,7 @@ public class ContinenteParser : IGroceryReceiptParser
                     var qtyMatch = qtyLinePattern.Match(nextLine);
                     if (qtyMatch.Success)
                     {
-                        var qty    = decimal.Parse(qtyMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                        var qty = decimal.Parse(qtyMatch.Groups[1].Value, CultureInfo.InvariantCulture);
                         var amount = ParsePt(qtyMatch.Groups[3].Value);
                         result.Add(new ParsedGroceryItem(description, amount, qty, currentCategory));
                         i2 += 2;

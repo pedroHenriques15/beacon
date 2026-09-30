@@ -34,11 +34,11 @@ public class UpdateInvestmentLotCommandHandler(AppDbContext db)
                 ? $"Cannot sell {Math.Abs(command.Quantity):0.####} - only {heldExcludingThis:0.####} held."
                 : "This change would leave more sold than held.");
 
-        lot.Date         = command.Date;
-        lot.Quantity     = command.Quantity;
+        lot.Date = command.Date;
+        lot.Quantity = command.Quantity;
         lot.PricePerUnit = command.PricePerUnit;
-        lot.Fees         = command.Fees;
-        lot.Notes        = command.Notes?.Trim();
+        lot.Fees = command.Fees;
+        lot.Notes = command.Notes?.Trim();
         await db.SaveChangesAsync(ct);
 
         return (new InvestmentLotResponse(lot.Id, lot.AssetId, lot.Date, lot.Quantity, lot.PricePerUnit, lot.Fees, lot.Notes), null);

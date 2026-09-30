@@ -90,7 +90,8 @@ public class StatementUploadImportTests : IDisposable
         Assert.Equal(2, stmt.Transactions.Count);
         Assert.Equal(1300.00m, stmt.ClosingBalance);
         Assert.NotNull(stmt.PdfPath);
-        Assert.True(File.Exists(stmt.PdfPath));
+        Assert.Equal(Path.GetFileName(stmt.PdfPath), stmt.PdfPath);
+        Assert.True(File.Exists(_fileStorage.GetFullPath(stmt.PdfPath)));
     }
 
     [Fact]
@@ -172,7 +173,7 @@ public class StatementUploadImportTests : IDisposable
         await using var freshDb = new AppDbContext(DbOptions(dbName));
         var stmt = await freshDb.MonthlyStatements.Include(s => s.Transactions).SingleAsync();
 
-        var card    = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
+        var card = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
         var savings = stmt.Transactions.Single(t => t.Description.Contains("Savings plan execution"));
 
         Assert.False(card.IsExcluded);

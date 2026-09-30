@@ -12,7 +12,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_ReturnsDomirestParser_ForDomirestText()
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser("some text DOMIREST RECIBO DE REMUNERAÇÕES");
+        var parser = factory.FindParser("some text DOMIREST RECIBO DE REMUNERAÇÕES");
 
         Assert.NotNull(parser);
         Assert.Equal("Domirest", parser.ParserName);
@@ -22,7 +22,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_ReturnsCentralGestParser_ForCentralGestText()
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser("Recibo de Remuneração CentralGest Software - RECIBA5.RPT");
+        var parser = factory.FindParser("Recibo de Remuneração CentralGest Software - RECIBA5.RPT");
 
         Assert.NotNull(parser);
         Assert.Equal("CentralGest", parser.ParserName);
@@ -32,7 +32,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_ReturnsNull_ForUnknownText()
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser("This is a completely unrelated document");
+        var parser = factory.FindParser("This is a completely unrelated document");
 
         Assert.Null(parser);
     }
@@ -41,7 +41,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_ReturnsNull_ForEmptyText()
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser(string.Empty);
+        var parser = factory.FindParser(string.Empty);
 
         Assert.Null(parser);
     }
@@ -50,7 +50,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_EmptyFactory_ReturnsNull()
     {
         var factory = new SalarySlipParserFactory(Array.Empty<ISalarySlipParser>());
-        var parser  = factory.FindParser("DOMIREST anything");
+        var parser = factory.FindParser("DOMIREST anything");
 
         Assert.Null(parser);
     }
@@ -61,7 +61,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_ReturnsCorrectParserForSignalText(string signal, string expectedParserName)
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser($"prefix {signal} suffix");
+        var parser = factory.FindParser($"prefix {signal} suffix");
 
         Assert.NotNull(parser);
         Assert.Equal(expectedParserName, parser.ParserName);
@@ -71,7 +71,7 @@ public class SalarySlipParserFactoryTests
     public void FindParser_WithBothSignals_ReturnsFirstRegisteredParser()
     {
         var factory = CreateFactory();
-        var parser  = factory.FindParser("DOMIREST CentralGest Software mixed document");
+        var parser = factory.FindParser("DOMIREST CentralGest Software mixed document");
 
         Assert.NotNull(parser);
         Assert.Equal("Domirest", parser.ParserName);

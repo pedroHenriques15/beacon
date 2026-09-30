@@ -19,7 +19,7 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
             return BadRequest("No files provided.");
 
         var toProcess = new List<(string FileName, MemoryStream Content)>();
-        var errors    = new List<UnifiedUploadItemResult>();
+        var errors = new List<UnifiedUploadItemResult>();
         long totalDecompressed = 0;
         try
         {

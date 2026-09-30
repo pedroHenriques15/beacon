@@ -13,7 +13,7 @@ public partial class RevolutParser : IBankStatementParser
     private static readonly CultureInfo PtCulture = CultureInfo.GetCultureInfo("pt-PT");
 
     private const string AmountPat = @"\d{1,3}(?:[\s.]\d{3})*,\d{2}";
-    private const string DatePat   = @"\d{2}/\d{2}/\d{4}";
+    private const string DatePat = @"\d{2}/\d{2}/\d{4}";
 
     [GeneratedRegex(@"IBAN\s+(PT\w+)")]
     private static partial Regex IbanRegex();
@@ -40,7 +40,7 @@ public partial class RevolutParser : IBankStatementParser
         if (pfm.Success)
         {
             periodFrom = DateOnly.Parse(pfm.Groups[1].Value);
-            periodTo   = DateOnly.Parse(pfm.Groups[2].Value);
+            periodTo = DateOnly.Parse(pfm.Groups[2].Value);
         }
 
         decimal opening = 0, closing = 0;
@@ -62,7 +62,7 @@ public partial class RevolutParser : IBankStatementParser
             if (transactions.Count > 0)
             {
                 periodFrom = transactions.Min(t => t.DatePosting);
-                periodTo   = transactions.Max(t => t.DatePosting);
+                periodTo = transactions.Max(t => t.DatePosting);
             }
             else
             {
@@ -79,7 +79,7 @@ public partial class RevolutParser : IBankStatementParser
     private static List<ParsedTransaction> ParseTransactions(
         IReadOnlyList<string> pages, decimal openingBalance)
     {
-        var result  = new List<ParsedTransaction>();
+        var result = new List<ParsedTransaction>();
         decimal balance = openingBalance;
 
         foreach (var page in pages)
@@ -90,12 +90,12 @@ public partial class RevolutParser : IBankStatementParser
                 if (!m.Success) continue;
 
                 var datePost = ParseDate(m.Groups[1].Value);
-                var dateVal  = ParseDate(m.Groups[2].Value);
-                var desc     = m.Groups[3].Value.Trim();
-                var amount   = ParseAmount(m.Groups[4].Value);
-                var saldo    = ParseAmount(m.Groups[5].Value);
+                var dateVal = ParseDate(m.Groups[2].Value);
+                var desc = m.Groups[3].Value.Trim();
+                var amount = ParseAmount(m.Groups[4].Value);
+                var saldo = ParseAmount(m.Groups[5].Value);
 
-                var type  = "unknown";
+                var type = "unknown";
                 var delta = Math.Round(saldo - balance, 2);
                 if (Math.Abs(Math.Abs(delta) - amount) < 0.02m)
                     type = delta > 0 ? "credit" : "debit";

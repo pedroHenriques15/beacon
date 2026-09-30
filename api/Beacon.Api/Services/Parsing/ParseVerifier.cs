@@ -13,7 +13,7 @@ public static class ParseVerifier
         }
 
         var credit = parsed.Transactions.Where(t => t.Type == "credit").Sum(t => t.Amount);
-        var debit  = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
+        var debit = parsed.Transactions.Where(t => t.Type == "debit").Sum(t => t.Amount);
         var expected = parsed.OpeningBalance + credit - debit;
 
         if (Math.Abs(expected - parsed.ClosingBalance) > 0.01m)
@@ -37,9 +37,9 @@ public static class ParseVerifier
             return warnings;
         }
 
-        var incomeSum    = parsed.LineItems.Where(li => li.ItemType == "income").Sum(li => li.Amount);
+        var incomeSum = parsed.LineItems.Where(li => li.ItemType == "income").Sum(li => li.Amount);
         var deductionSum = parsed.LineItems.Where(li => li.ItemType == "deduction").Sum(li => li.Amount);
-        var taxSum       = parsed.LineItems.Where(li => li.ItemType == "tax").Sum(li => li.Amount);
+        var taxSum = parsed.LineItems.Where(li => li.ItemType == "tax").Sum(li => li.Amount);
 
         if (Math.Abs(incomeSum - parsed.GrossAmount) > 0.01m)
             warnings.Add(

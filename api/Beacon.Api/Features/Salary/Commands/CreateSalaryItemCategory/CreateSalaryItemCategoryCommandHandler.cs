@@ -15,8 +15,8 @@ public class CreateSalaryItemCategoryCommandHandler(AppDbContext db)
         var cat = new SalaryItemCategory
         {
             SalaryProfileId = command.SalaryProfileId,
-            Name     = command.Name.Trim(),
-            Color    = command.Color,
+            Name = command.Name.Trim(),
+            Color = command.Color,
             ItemType = command.ItemType
         };
         db.SalaryItemCategories.Add(cat);

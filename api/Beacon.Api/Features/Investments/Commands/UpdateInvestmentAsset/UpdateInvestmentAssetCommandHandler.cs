@@ -43,7 +43,7 @@ public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
             asset.Ticker = null;
         }
 
-        asset.Name  = command.Name.Trim();
+        asset.Name = command.Name.Trim();
         asset.Notes = command.Notes?.Trim();
         await db.SaveChangesAsync(ct);
 

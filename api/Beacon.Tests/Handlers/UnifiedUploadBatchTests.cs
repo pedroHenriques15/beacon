@@ -185,6 +185,11 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.Equal(91.13m, parsed.LineItems.First(li => li.Description == "Other").Amount);
         Assert.Equal(9.36m, parsed.LineItems.First(li => li.Description == "Deel exchange fee").Amount);
         Assert.Null(parsed.Warnings);
+
+        // The client sends this back when it saves the slip: a file name, not a server path.
+        var pdfPath = item.SalaryResult.PdfPath;
+        Assert.Equal(Path.GetFileName(pdfPath), pdfPath);
+        Assert.True(File.Exists(_fileStorage.GetFullPath(pdfPath)));
     }
 
     [Fact]

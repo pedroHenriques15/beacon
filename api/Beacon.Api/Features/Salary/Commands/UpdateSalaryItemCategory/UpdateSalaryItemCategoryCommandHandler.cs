@@ -11,8 +11,8 @@ public class UpdateSalaryItemCategoryCommandHandler(AppDbContext db)
     {
         var cat = await db.SalaryItemCategories.FindAsync([command.Id], ct);
         if (cat is null) return null;
-        cat.Name     = command.Name.Trim();
-        cat.Color    = command.Color;
+        cat.Name = command.Name.Trim();
+        cat.Color = command.Color;
         cat.ItemType = command.ItemType;
         await db.SaveChangesAsync(ct);
         return new SalaryItemCategoryResponse(cat.Id, cat.SalaryProfileId, cat.Name, cat.Color, cat.ItemType, cat.IsProtected);

@@ -24,17 +24,17 @@ public class UpsertInvestmentPriceCommandHandler(AppDbContext db)
         if (existing is not null)
         {
             existing.PricePerUnit = command.PricePerUnit;
-            existing.ImportedAt   = DateTime.UtcNow;
+            existing.ImportedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return (new InvestmentPriceSnapshotResponse(existing.Id, existing.AssetId, existing.Date, existing.PricePerUnit), null);
         }
 
         var snapshot = new InvestmentPriceSnapshot
         {
-            AssetId      = command.AssetId,
-            Date         = command.Date,
+            AssetId = command.AssetId,
+            Date = command.Date,
             PricePerUnit = command.PricePerUnit,
-            ImportedAt   = DateTime.UtcNow,
+            ImportedAt = DateTime.UtcNow,
         };
 
         db.InvestmentPriceSnapshots.Add(snapshot);

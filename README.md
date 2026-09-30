@@ -145,6 +145,8 @@ beacon/
 
 ## Getting started
 
+After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: it enables the git hooks in `.githooks/`, which check commit subjects and guard the protected branches.
+
 ### Requirements
 
 - .NET 8 SDK (plus the EF tool: `dotnet tool install --global dotnet-ef`)
@@ -244,16 +246,20 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend - xUnit (577 tests)
+# Backend - xUnit (601 tests)
 cd api
 dotnet test Beacon.Tests/
 
 # Frontend - Vitest
 cd web
 npx ng test --watch=false
+
+# Formatting, checked by CI: dotnet format from the repository root, Prettier in web/
+dotnet format beacon.sln
+cd web && npx prettier --write .
 ```
 
-Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 

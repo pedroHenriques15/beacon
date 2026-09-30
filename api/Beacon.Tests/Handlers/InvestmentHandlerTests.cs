@@ -385,7 +385,7 @@ public class InvestmentHandlerTests
     public async Task GetInvestmentAssets_ReturnsAllAssetsWithLotsAndSnapshots()
     {
         await using var db = CreateDb(nameof(GetInvestmentAssets_ReturnsAllAssetsWithLotsAndSnapshots));
-        var etf  = await SeedEtfAsync(db);
+        var etf = await SeedEtfAsync(db);
         var gold = await SeedGoldAsync(db);
 
         db.InvestmentLots.Add(new InvestmentLot { AssetId = etf.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 90 });

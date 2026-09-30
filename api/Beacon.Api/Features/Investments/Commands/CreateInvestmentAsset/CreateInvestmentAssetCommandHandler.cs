@@ -40,10 +40,10 @@ public class CreateInvestmentAssetCommandHandler(AppDbContext db)
 
         var asset = new InvestmentAsset
         {
-            AssetType  = command.AssetType,
-            Ticker     = ticker,
-            Name       = command.Name.Trim(),
-            Notes      = command.Notes?.Trim(),
+            AssetType = command.AssetType,
+            Ticker = ticker,
+            Name = command.Name.Trim(),
+            Notes = command.Notes?.Trim(),
             ImportedAt = DateTime.UtcNow,
         };
 

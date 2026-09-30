@@ -38,13 +38,13 @@ public class CreateInvestmentLotCommandHandler(AppDbContext db)
 
         var lot = new InvestmentLot
         {
-            AssetId      = command.AssetId,
-            Date         = command.Date,
-            Quantity     = command.Quantity,
+            AssetId = command.AssetId,
+            Date = command.Date,
+            Quantity = command.Quantity,
             PricePerUnit = command.PricePerUnit,
-            Fees         = command.Fees,
-            Notes        = command.Notes?.Trim(),
-            ImportedAt   = DateTime.UtcNow,
+            Fees = command.Fees,
+            Notes = command.Notes?.Trim(),
+            ImportedAt = DateTime.UtcNow,
         };
 
         db.InvestmentLots.Add(lot);

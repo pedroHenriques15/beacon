@@ -105,7 +105,7 @@ public class ActivoBankParserTests
     {
         var result = _parser.Parse("statement.pdf", [BuildSamplePage()]);
         Assert.All(result.Transactions, tx => Assert.DoesNotContain("A TRANSPORTAR", tx.Description));
-        Assert.All(result.Transactions, tx => Assert.DoesNotContain("SALDO FINAL",   tx.Description));
+        Assert.All(result.Transactions, tx => Assert.DoesNotContain("SALDO FINAL", tx.Description));
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class ActivoBankParserTests
         var result = _parser.Parse("statement.pdf", [page1, page2]);
 
         Assert.Equal(2, result.Transactions.Count);
-        Assert.Equal("FIRST TX",  result.Transactions[0].Description);
+        Assert.Equal("FIRST TX", result.Transactions[0].Description);
         Assert.Equal("SECOND TX", result.Transactions[1].Description);
     }
 

@@ -150,9 +150,9 @@ public class UnifiedUploadBatchCommandHandler(
             try
             {
                 savedPath = await fileStorage.SaveAsync(formFile);
-                var slip     = salaryParser.Parse(fileName, pages);
+                var slip = salaryParser.Parse(fileName, pages);
                 var warnings = ParseVerifier.VerifySalarySlip(slip);
-                var parsed   = ParsedSalarySlipResponse.From(salaryParser.ParserName, slip, warnings);
+                var parsed = ParsedSalarySlipResponse.From(salaryParser.ParserName, slip, warnings);
 
                 logger.LogInformation("Unified upload: {File} detected as SalarySlip ({Parser})", fileName, salaryParser.ParserName);
                 return new UnifiedUploadItemResult(fileName, "SalarySlip", true, false, null,
@@ -184,7 +184,7 @@ public class UnifiedUploadBatchCommandHandler(
         foreach (var amount in amounts)
         {
             var inv = invoices.Where(i => AmountUtils.Round2(i.InvoiceUsd.GrossAmount) == amount).ToList();
-            var wd  = withdrawals.Where(w => AmountUtils.Round2(w.Withdrawal.SourceAmountUsd) == amount).ToList();
+            var wd = withdrawals.Where(w => AmountUtils.Round2(w.Withdrawal.SourceAmountUsd) == amount).ToList();
 
             if (inv.Count == 1 && wd.Count == 1)
             {
@@ -214,9 +214,9 @@ public class UnifiedUploadBatchCommandHandler(
             var formFile = BuildFormFile(invoice.Content, invoice.FileName);
             savedPath = await fileStorage.SaveAsync(formFile);
 
-            var slip     = Micro1Reconciler.Reconcile(invoice.InvoiceUsd, withdrawal.Withdrawal);
+            var slip = Micro1Reconciler.Reconcile(invoice.InvoiceUsd, withdrawal.Withdrawal);
             var warnings = ParseVerifier.VerifySalarySlip(slip);
-            var parsed   = ParsedSalarySlipResponse.From("Micro1", slip, warnings);
+            var parsed = ParsedSalarySlipResponse.From("Micro1", slip, warnings);
 
             logger.LogInformation("Unified upload: paired micro1 invoice {Invoice} + Deel withdrawal {Withdrawal}",
                 invoice.FileName, withdrawal.FileName);

@@ -1,0 +1,66 @@
+#!/bin/sh
+# Guards the branch model in CLAUDE.md, "Git workflow" (ADR-021):
+# - 'main' and 'development' are never deleted, and 'main' changes only through a release PR;
+# - 'development' takes a direct push only of planning commits, which change docs/ROADMAP.md
+#   and nothing else;
+# - a task branch (prefix/NNN-work-name) needs its task file, docs/tasks/NNN-*.md or
+#   docs/tasks/done/NNN-*.md, and the task must not be dropped. Task files are git-ignored
+#   (ADR-018), so this check is skipped in a clone that has no docs/tasks/.
+#
+# Creating 'main' or 'development' on a remote that lacks them is allowed; that is how a
+# repository is bootstrapped. Enabled by scripts/setup.ps1 or scripts/setup.sh
+# (core.hooksPath). It stops accidents, not determination: `git push --no-verify` skips it,
+# and doing that breaks the workflow.
+
+zero=0000000000000000000000000000000000000000
+tasks="$(git rev-parse --show-toplevel)/docs/tasks"
+status=0
+
+refuse() {
+  echo "pre-push: $1" >&2
+  status=1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  branch=${remote_ref#refs/heads/}
+  [ "$branch" != "$remote_ref" ] || continue # not a branch, a tag for example
+
+  case "$branch" in
+    main | development)
+      if [ "$local_sha" = "$zero" ]; then
+        refuse "refusing to delete '$branch'."
+      elif [ "$remote_sha" = "$zero" ]; then
+        : # creating the branch on the remote
+      elif [ "$branch" = main ]; then
+        refuse "refusing to push to 'main': it changes only through a release PR from 'development'."
+      elif ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+        refuse "refusing a push to 'development' that is not a fast-forward: fetch and rebase first."
+      else
+        for commit in $(git rev-list "$remote_sha..$local_sha"); do
+          files=$(git diff-tree --no-commit-id --name-only -r -m "$commit")
+          if [ "$files" != "docs/ROADMAP.md" ]; then
+            refuse "refusing to push $(git log -1 --format='%h "%s"' "$commit") to 'development'."
+            echo "          Only planning commits, which change docs/ROADMAP.md alone, go straight" >&2
+            echo "          to 'development'. Push a task branch and open a pull request instead." >&2
+            break
+          fi
+        done
+      fi
+      ;;
+    feature/[0-9][0-9][0-9]-* | fix/[0-9][0-9][0-9]-* | refactor/[0-9][0-9][0-9]-* | \
+    tests/[0-9][0-9][0-9]-* | chore/[0-9][0-9][0-9]-* | merge/[0-9][0-9][0-9]-*)
+      [ "$local_sha" != "$zero" ] || continue # deleting a task branch is fine
+      [ -d "$tasks" ] || continue             # another clone: the task files are not here
+      number=${branch#*/}
+      number=${number%%-*}
+      task=$(ls "$tasks/$number"-*.md "$tasks/done/$number"-*.md 2>/dev/null | head -n 1)
+      if [ -z "$task" ]; then
+        refuse "no task file for '$branch': expected docs/tasks/$number-*.md or docs/tasks/done/$number-*.md."
+      elif grep -q '^status: dropped' "$task"; then
+        refuse "task $number is dropped (${task#"$tasks"/}), so its branch is not pushed."
+      fi
+      ;;
+  esac
+done
+
+exit $status
