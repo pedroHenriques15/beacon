@@ -45,7 +45,7 @@ Write-Host "    This will DROP $dbName and reapply all migrations." -ForegroundC
 
 $profileHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
 $tools = Join-Path $profileHome '.dotnet/tools'
-if ($env:PATH -notlike "*$tools*") { $env:PATH = "${tools}:$env:PATH" }
+if ($env:PATH -notlike "*$tools*") { $env:PATH = "${tools}$([IO.Path]::PathSeparator)$env:PATH" }
 
 $BackendDir = Join-Path $ProjectRoot 'api/Beacon.Api'
 Push-Location $BackendDir

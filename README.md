@@ -132,7 +132,12 @@ beacon/
 ├── scripts/
 │   ├── pdfExtractor.py        # Python: PDF → page text (called by .NET)
 │   ├── deploy.sh              # Build and launch dev/prod in new terminals
+│   ├── run-backend.ps1        # API with local/environment.dev (applies migrations first)
+│   ├── run-frontend.ps1       # Angular dev server, once the API answers
 │   └── reset-db.sh / .ps1     # Drop + recreate database
+├── docs/                      # Architecture, decisions (ADRs), roadmap, screenshots
+├── .claude/                   # Claude Code agents, the task skill, shared permissions
+├── CLAUDE.md                  # Working rules: invariants, conventions, git workflow
 └── beacon.sln
 ```
 
@@ -197,6 +202,8 @@ cd web
 npm install
 npx ng serve
 ```
+
+Or keep the settings in `local/environment.dev` (git-ignored; the variables from "Environment variables" below, one `KEY=value` per line): `scripts/run-backend.ps1` loads it, applies migrations and starts the API, and `scripts/run-frontend.ps1` starts the client once the API answers. The VS Code task "Beacon: Start All" runs both.
 
 The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/proxy.conf.json`.
 
@@ -271,6 +278,15 @@ The app is designed to run on a home server and be accessed remotely over Tailsc
 ## Security model
 
 A single shared API key (`X-Api-Key` header) protects every endpoint - there are no user accounts. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
+
+---
+
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - how Beacon is built and where each kind of logic lives.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) - settled design decisions and why they were made.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) - what is planned.
+- [`CLAUDE.md`](CLAUDE.md) - the working rules (invariants, conventions, git workflow, commands). Written for Claude Code; useful for anyone contributing.
 
 ---
 
