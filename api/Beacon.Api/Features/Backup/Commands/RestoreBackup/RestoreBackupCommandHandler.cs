@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Backup.Commands.CreateBackup;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Backup.Commands.RestoreBackup;
@@ -23,8 +25,9 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
             return null;
 
         var json    = await File.ReadAllTextAsync(backupFile, ct);
-        var payload = JsonSerializer.Deserialize<CreateBackup.BackupPayload>(json, _jsonOptions)
+        var payload = JsonSerializer.Deserialize<BackupPayload>(json, _jsonOptions)
                       ?? throw new InvalidOperationException("Backup file is empty or corrupt.");
+        StorePdfPathsAsFileNames(payload);
 
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
@@ -72,6 +75,21 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
 
         logger.LogInformation("Database restored from {Path}", backupFile);
         return backupFile;
+    }
+
+    /// <summary>
+    /// A backup taken before PDF paths became file names holds absolute paths from the machine that
+    /// wrote it; keep only the file name, which <see cref="FileStorageService"/> resolves against this
+    /// machine's storage root.
+    /// </summary>
+    internal static void StorePdfPathsAsFileNames(BackupPayload payload)
+    {
+        foreach (var statement in payload.MonthlyStatements)
+            statement.PdfPath = FileStorageService.FileNameOf(statement.PdfPath);
+        foreach (var slip in payload.SalarySlips)
+            slip.PdfPath = FileStorageService.FileNameOf(slip.PdfPath);
+        foreach (var receipt in payload.GroceryReceipts)
+            receipt.PdfPath = FileStorageService.FileNameOf(receipt.PdfPath);
     }
 
     private static async Task InsertWithIdentity<T>(AppDbContext db, string tableName, IEnumerable<T> entities, CancellationToken ct)

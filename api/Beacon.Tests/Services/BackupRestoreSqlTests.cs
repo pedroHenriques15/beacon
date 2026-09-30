@@ -65,6 +65,7 @@ public class BackupRestoreSqlTests
                 Bank = "ACTIVOBANK", Account = "PT50",
                 PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
                 Currency = "EUR", OpeningBalance = 1000m, ClosingBalance = 970m,
+                PdfPath = @"C:\beacon\local\uploads\statement.pdf",
                 Transactions =
                 [
                     new Transaction { Description = "LIDL LISBOA", Amount = 30m, Type = "debit",
@@ -85,7 +86,7 @@ public class BackupRestoreSqlTests
             var slip = new SalarySlip
             {
                 SalaryProfileId = profile.Id, Period = new DateOnly(2026, 1, 1),
-                GrossAmount = 1000m, NetAmount = 800m,
+                GrossAmount = 1000m, NetAmount = 800m, PdfPath = "/workspaces/beacon/local/uploads/slip.pdf",
             };
             db.SalarySlips.Add(slip);
             await db.SaveChangesAsync();
@@ -105,6 +106,7 @@ public class BackupRestoreSqlTests
             var receipt = new GroceryReceipt
             {
                 StoreName = "Continente", ReceiptDate = new DateOnly(2026, 1, 10), Total = 1.5m,
+                PdfPath = "receipt.pdf",
                 Items = [new GroceryItem { Description = "BANANA", Amount = 1.5m, Quantity = 1 }]
             };
             db.GroceryReceipts.Add(receipt);
@@ -159,6 +161,11 @@ public class BackupRestoreSqlTests
             Assert.Equal(1, await verifyDb.GroceryReceiptCategoryMappings.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryReceipts.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryItems.CountAsync());
+
+            // A backup holds the paths the other machine wrote; the restore keeps only file names.
+            Assert.Equal("statement.pdf", (await verifyDb.MonthlyStatements.SingleAsync()).PdfPath);
+            Assert.Equal("slip.pdf", (await verifyDb.SalarySlips.SingleAsync()).PdfPath);
+            Assert.Equal("receipt.pdf", (await verifyDb.GroceryReceipts.SingleAsync()).PdfPath);
 
             var restoredAsset = await verifyDb.InvestmentAssets.SingleAsync();
             Assert.Equal("VWCE", restoredAsset.Ticker);

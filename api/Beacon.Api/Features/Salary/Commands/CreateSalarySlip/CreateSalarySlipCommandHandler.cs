@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
 using Beacon.Api.Models;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
@@ -57,7 +58,7 @@ public class CreateSalarySlipCommandHandler(AppDbContext db)
             GrossAmount     = command.GrossAmount,
             NetAmount       = command.NetAmount,
             Notes           = command.Notes?.Trim(),
-            PdfPath         = command.PdfPath,
+            PdfPath         = FileStorageService.FileNameOf(command.PdfPath),
             SourceFile      = command.SourceFile,
             ImportedAt      = DateTime.UtcNow,
             BaseAmount      = command.BaseAmount,

@@ -17,8 +17,6 @@ removes it. Settled decisions go to DECISIONS.md.
 
 ## Now
 
-- Store PDF paths relative to `Storage__Path`, so the database is not tied to one machine
-  (after the cleanup fix).
 - Git hooks for the protected branches, commit subjects and task branches.
 - CI formatting checks, a PR template and GitHub settings that match the branch model.
 

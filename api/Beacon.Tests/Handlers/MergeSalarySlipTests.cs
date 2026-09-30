@@ -276,8 +276,35 @@ public class MergeSalarySlipTests
             var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = incomingPdf };
             var (result, _) = await CreateHandler(db, storageRoot).HandleAsync(command);
 
-            Assert.Equal(incomingPdf, result!.PdfPath);
+            Assert.Equal("incoming.pdf", result!.PdfPath);
             Assert.True(File.Exists(incomingPdf));
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
+        }
+    }
+
+    [Fact]
+    public async Task Merge_SamePdfUnderAnOldFullPath_IsKept()
+    {
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_merge_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            await using var db = CreateDb(nameof(Merge_SamePdfUnderAnOldFullPath_IsKept));
+            var seed = await SeedFirstHalfAsync(db);
+
+            var pdf = Path.Combine(storageRoot, "slip.pdf");
+            await File.WriteAllTextAsync(pdf, "slip");
+            var slip = await db.SalarySlips.FirstAsync();
+            slip.PdfPath = "/workspaces/beacon/local/uploads/slip.pdf";
+            await db.SaveChangesAsync();
+
+            var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = "slip.pdf" };
+            await CreateHandler(db, storageRoot).HandleAsync(command);
+
+            Assert.True(File.Exists(pdf));
         }
         finally
         {

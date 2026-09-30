@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Backup.Commands.CreateBackup;
+using Beacon.Api.Features.Backup.Commands.RestoreBackup;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +40,27 @@ public class BackupHandlerTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Backup:Path"] = _tempBackupDir })
             .Build();
         return new CreateBackupCommandHandler(db, config, NullLogger<CreateBackupCommandHandler>.Instance);
+    }
+
+    [Fact]
+    public void Restore_StorePdfPathsAsFileNames_KeepsOnlyTheFileName()
+    {
+        var payload = new BackupPayload
+        {
+            MonthlyStatements =
+            [
+                new MonthlyStatement { PdfPath = @"C:\beacon\local\uploads\statement.pdf" },
+                new MonthlyStatement { PdfPath = null },
+            ],
+            SalarySlips = [new SalarySlip { PdfPath = "/workspaces/beacon/local/uploads/slip.pdf" }],
+            GroceryReceipts = [new GroceryReceipt { PdfPath = "receipt.pdf" }],
+        };
+
+        RestoreBackupCommandHandler.StorePdfPathsAsFileNames(payload);
+
+        Assert.Equal(["statement.pdf", null], payload.MonthlyStatements.Select(s => s.PdfPath));
+        Assert.Equal("slip.pdf", Assert.Single(payload.SalarySlips).PdfPath);
+        Assert.Equal("receipt.pdf", Assert.Single(payload.GroceryReceipts).PdfPath);
     }
 
     [Fact]

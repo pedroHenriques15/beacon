@@ -54,6 +54,28 @@ public class FileStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_ReturnsTheFileNameWithoutADirectory()
+    {
+        var name = await _service.SaveAsync(new FormFileStub("data"u8.ToArray(), "any.pdf"));
+
+        Assert.Equal(Path.GetFileName(name), name);
+        Assert.True(File.Exists(Path.Combine(_tempRoot, name)));
+    }
+
+    [Fact]
+    public async Task GetFullPath_OfASavedFileName_PointsAtTheFile()
+    {
+        // What parse-pdf does with the pdfPath the client sends back from upload-pdf.
+        var content = "slip bytes"u8.ToArray();
+        var name = await _service.SaveAsync(new FormFileStub(content, "slip.pdf"));
+
+        var fullPath = _service.GetFullPath(name);
+
+        Assert.True(Path.IsPathRooted(fullPath));
+        Assert.Equal(content, await File.ReadAllBytesAsync(fullPath));
+    }
+
+    [Fact]
     public async Task SaveAsync_EachCallProducesUniqueFileName()
     {
         var formFile = new FormFileStub("data"u8.ToArray(), "any.pdf");

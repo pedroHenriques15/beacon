@@ -114,11 +114,12 @@ public class MergeSalarySlipCommandHandler(
 
         if (slip.PdfPath is null)
         {
-            slip.PdfPath = incomingPdfPath;
+            slip.PdfPath = FileStorageService.FileNameOf(incomingPdfPath);
             return;
         }
 
-        if (slip.PdfPath == incomingPdfPath) return;
+        // By name: one side may still be a full path written before PDF paths became file names.
+        if (FileStorageService.FileNameOf(slip.PdfPath) == FileStorageService.FileNameOf(incomingPdfPath)) return;
 
         try { fileStorage.Delete(incomingPdfPath); }
         catch (Exception ex)

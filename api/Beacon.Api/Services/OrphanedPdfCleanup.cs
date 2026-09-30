@@ -19,13 +19,16 @@ public class OrphanedPdfCleanup(AppDbContext db, IConfiguration config, ILogger<
         var storagePath = config["Storage:Path"];
         if (string.IsNullOrEmpty(storagePath) || !Directory.Exists(storagePath)) return 0;
 
-        var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        referenced.UnionWith((await db.MonthlyStatements
-            .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct)).Select(FileStorageService.FileNameOf));
-        referenced.UnionWith((await db.SalarySlips
-            .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct)).Select(FileStorageService.FileNameOf));
-        referenced.UnionWith((await db.GroceryReceipts
-            .Where(r => r.PdfPath != null).Select(r => r.PdfPath!).ToListAsync(ct)).Select(FileStorageService.FileNameOf));
+        var storedPaths = new List<string>();
+        storedPaths.AddRange(await db.MonthlyStatements
+            .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct));
+        storedPaths.AddRange(await db.SalarySlips
+            .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct));
+        storedPaths.AddRange(await db.GroceryReceipts
+            .Where(r => r.PdfPath != null).Select(r => r.PdfPath!).ToListAsync(ct));
+        var referenced = storedPaths
+            .Select(p => FileStorageService.FileNameOf(p))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var cutoff = DateTime.UtcNow - MinimumAge;
         var deleted = 0;

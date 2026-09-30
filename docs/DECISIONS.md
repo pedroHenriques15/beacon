@@ -187,3 +187,13 @@ every change, it was installed only in the dev container, and its hooks ran on e
 and file read. The folder convention (`Features/<Area>/Commands|Queries/<UseCase>/`) already
 locates code in one step, and the reasoning a graph cannot capture lives in this file and in
 ARCHITECTURE.md.
+
+## ADR-023 · Stored PDF paths are file names under `Storage__Path`
+
+`PdfPath` holds only the stored file's name (`<guid>.pdf`), and `FileStorageService` resolves
+it against `Storage__Path` whenever a file is opened. Decided on 2026-09-30. Absolute paths had
+tied the database to one machine's storage root: moving from the dev container to the host,
+or restoring a backup on another machine, broke every PDF link, and a path written elsewhere
+made the startup cleanup delete the file it named. The folder stays flat, so a name alone
+identifies a file. Existing rows were rewritten by a migration, and backup restore keeps only
+the file name of every restored path.

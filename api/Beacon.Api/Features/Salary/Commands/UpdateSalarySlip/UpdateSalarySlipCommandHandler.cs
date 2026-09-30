@@ -2,6 +2,7 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
 using Beacon.Api.Models;
+using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
@@ -52,7 +53,7 @@ public class UpdateSalarySlipCommandHandler(AppDbContext db)
         slip.GrossAmount  = command.GrossAmount;
         slip.NetAmount    = command.NetAmount;
         slip.Notes        = command.Notes?.Trim();
-        slip.PdfPath      = command.PdfPath;
+        slip.PdfPath      = FileStorageService.FileNameOf(command.PdfPath);
         slip.SourceFile   = command.SourceFile;
         slip.BaseAmount   = command.BaseAmount;
         slip.HoursWorked  = command.HoursWorked;

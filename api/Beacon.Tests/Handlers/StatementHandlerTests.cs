@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
+using Beacon.Api.Features.Statements.Queries.DownloadStatementFile;
 using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +78,51 @@ public class StatementHandlerTests : IDisposable
 
         Assert.True(result);
         Assert.False(await db.MonthlyStatements.AnyAsync(s => s.Id == stmt.Id));
+    }
+
+    private async Task<(MonthlyStatement Statement, string FullPath)> SeedStatementWithStoredPdfAsync(AppDbContext db)
+    {
+        var fileName = $"{Guid.NewGuid()}.pdf";
+        var fullPath = Path.Combine(_tempStorageRoot, fileName);
+        await File.WriteAllBytesAsync(fullPath, "statement pdf"u8.ToArray());
+        var stmt = new MonthlyStatement
+        {
+            Bank = "ACTIVOBANK", Account = "PT50", SourceFile = "january.pdf", PdfPath = fileName,
+            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31)
+        };
+        db.MonthlyStatements.Add(stmt);
+        await db.SaveChangesAsync();
+        return (stmt, fullPath);
+    }
+
+    [Fact]
+    public async Task DeleteStatement_DeletesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DeleteStatement_DeletesPdfStoredAsFileName));
+        var (stmt, fullPath) = await SeedStatementWithStoredPdfAsync(db);
+
+        var result = await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmt.Id));
+
+        Assert.True(result);
+        Assert.False(File.Exists(fullPath));
+    }
+
+    [Fact]
+    public async Task DownloadStatementFile_ServesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DownloadStatementFile_ServesPdfStoredAsFileName));
+        var (stmt, _) = await SeedStatementWithStoredPdfAsync(db);
+        var handler = new DownloadStatementFileQueryHandler(db, _fileStorage, NullLogger<DownloadStatementFileQueryHandler>.Instance);
+
+        var file = await handler.HandleAsync(new DownloadStatementFileQuery(stmt.Id));
+
+        Assert.NotNull(file);
+        await using (file.Stream)
+        {
+            using var reader = new StreamReader(file.Stream);
+            Assert.Equal("statement pdf", await reader.ReadToEndAsync());
+        }
+        Assert.Equal("january.pdf", file.FileName);
     }
 
     [Fact]

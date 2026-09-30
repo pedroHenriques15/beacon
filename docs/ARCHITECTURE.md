@@ -278,8 +278,9 @@ the profile modal.
 
 Salary parse flow:
 
-1. `POST /api/salary/upload-pdf`: stores the PDF, returns `pdfPath`.
-2. `POST /api/salary/parse-pdf`: accepts `{ pdfPath }`, returns pre-filled financial data for review.
+1. `POST /api/salary/upload-pdf`: stores the PDF, returns `pdfPath` (the stored file name).
+2. `POST /api/salary/parse-pdf`: accepts `{ pdfPath }`, resolves it under the storage root and
+   returns pre-filled financial data for review.
 3. `POST /api/salary/slips`: the user submits the reviewed data to persist.
 
 #### Merging a second pay run into a month
@@ -342,12 +343,17 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 `FileStorageService` (singleton) keeps uploaded PDFs in one flat folder, `Storage__Path`
 (default `statements/` next to the binaries), as `<guid>.pdf`.
 
-- `SaveAsync` writes the file and returns its **absolute** path, which the upload flows store
-  in `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) and `upload-pdf` returns
-  to the client. Stored paths are therefore tied to one machine's storage root (a fix is
-  planned: ROADMAP.md, "Now").
-- `GetFullPath`, `GetFile` and `Delete` accept an absolute path or a path relative to the
-  storage root, and refuse anything that resolves outside it.
+- `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) holds only the file name
+  (ADR-023). `SaveAsync` writes the file and returns its name, which the upload flows store and
+  `upload-pdf` returns to the client; no absolute server path leaves the API. Create, update
+  and merge of a salary slip store `FileNameOf` whatever `pdfPath` the client sends.
+- `GetFullPath`, `GetFile` and `Delete` resolve a file name (or a legacy absolute path) under
+  the storage root and refuse anything that resolves outside it. Anything that opens a stored
+  file goes through them: `parse-pdf` hands the extractor `GetFullPath(pdfPath)`.
+- Older data: the `StorePdfPathsAsFileNames` migration cut existing rows down to their file
+  names, and a backup restore does the same to every restored `PdfPath`
+  (`RestoreBackupCommandHandler.StorePdfPathsAsFileNames`), so an old backup cannot bring
+  absolute paths back.
 - At startup `Program.cs` runs `OrphanedPdfCleanup` (scoped, in `Services/`) when
   `Storage__Path` is set: every `*.pdf` in the storage root that no `PdfPath` references and
   that is older than 24 hours is deleted; a file that cannot be deleted is logged and

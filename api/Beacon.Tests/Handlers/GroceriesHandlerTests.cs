@@ -17,6 +17,7 @@ using Beacon.Api.Features.GroceryCategories.Commands.UpdateGroceryCategory;
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -93,6 +94,36 @@ public class GroceriesHandlerTests
         Assert.True(result);
         Assert.Null(await db.GroceryReceipts.FindAsync(receipt.Id));
         Assert.Empty(await db.GroceryItems.Where(i => i.ReceiptId == receipt.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeleteGroceryReceipt_DeletesPdfStoredAsFileName()
+    {
+        await using var db = CreateDb(nameof(DeleteGroceryReceipt_DeletesPdfStoredAsFileName));
+        var receipt = await SeedReceiptAsync(db, "Continente");
+
+        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_receipt_del_{Guid.NewGuid()}");
+        Directory.CreateDirectory(storageRoot);
+        try
+        {
+            var fileName = $"{Guid.NewGuid()}.pdf";
+            await File.WriteAllBytesAsync(Path.Combine(storageRoot, fileName), "pdf"u8.ToArray());
+            receipt.PdfPath = fileName;
+            await db.SaveChangesAsync();
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Path"] = storageRoot })
+                .Build();
+            var handler = new DeleteGroceryReceiptCommandHandler(db, new FileStorageService(config, NullLogger<FileStorageService>.Instance), NullLogger<DeleteGroceryReceiptCommandHandler>.Instance);
+            var result = await handler.HandleAsync(new DeleteGroceryReceiptCommand(receipt.Id));
+
+            Assert.True(result);
+            Assert.False(File.Exists(Path.Combine(storageRoot, fileName)));
+        }
+        finally
+        {
+            Directory.Delete(storageRoot, recursive: true);
+        }
     }
 
     [Fact]

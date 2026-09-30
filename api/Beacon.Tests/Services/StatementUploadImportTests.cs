@@ -90,7 +90,8 @@ public class StatementUploadImportTests : IDisposable
         Assert.Equal(2, stmt.Transactions.Count);
         Assert.Equal(1300.00m, stmt.ClosingBalance);
         Assert.NotNull(stmt.PdfPath);
-        Assert.True(File.Exists(stmt.PdfPath));
+        Assert.Equal(Path.GetFileName(stmt.PdfPath), stmt.PdfPath);
+        Assert.True(File.Exists(_fileStorage.GetFullPath(stmt.PdfPath)));
     }
 
     [Fact]
