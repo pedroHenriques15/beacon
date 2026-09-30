@@ -31,29 +31,29 @@ public class CentralGestParserTests
         string employer = "EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.",
         string nif = "999000002",
         string period = "março - 2026",
-        string vencimento = "1 000,00",
-        string ppr = "550,00",
-        string tickets = "224,40",
-        string segSocial = "110,00",
-        string irs = "45,00",
-        string gross = "1,774.40",
-        string deductions = "155.00",
-        string net = "1,619.40") => $"""
+        string vencimento = "1 200,00",
+        string ppr = "300,00",
+        string tickets = "180,00",
+        string segSocial = "132,00",
+        string irs = "60,00",
+        string gross = "1,680.00",
+        string deductions = "192.00",
+        string net = "1,488.00") => $"""
         {employer} {employer}
-        4050-465 - Porto
+        4000-000 - Porto
         N.º Contribuinte: {nif}
         Original
         Recibo de Remuneração
         Mês: {period}
          127
-        Programador Informático 11111111111 22222222222 1,000.00
+        Programador Informático 11111111111 22222222222 1,200.00
         Vencimento {vencimento} 0.00 Vencimento {vencimento} 0.00
-        PPR 1.00 550.00 {ppr} 0.00 PPR 1.00 550.00 {ppr} 0.00
-        Tickets Refeição 22.00 10.20 {tickets} 11.00 0.00 Tickets Refeição 22.00 10.20 {tickets} 11.00 0.00
-        Segurança Social {segSocial} 11.00 1,000.00 Segurança Social {segSocial} 11.00 1,000.00
-        IRS {irs} 24.10 387.50 IRS {irs} 24.10 387.50
+        PPR 1.00 300.00 {ppr} 0.00 PPR 1.00 300.00 {ppr} 0.00
+        Tickets Refeição 20.00 9.00 {tickets} 11.00 0.00 Tickets Refeição 20.00 9.00 {tickets} 11.00 0.00
+        Segurança Social {segSocial} 11.00 1,200.00 Segurança Social {segSocial} 11.00 1,200.00
+        IRS {irs} 12.50 480.00 IRS {irs} 12.50 480.00
          {gross} {deductions} {net}
-         224,40 1 395,00
+         180,00 1 308,00
         CentralGest Software - RECIBA5_DetIRS_090.RPT CentralGest Software - RECIBA5_DetIRS_090.RPT
         """;
 
@@ -64,7 +64,7 @@ public class CentralGestParserTests
             [BuildSamplePage(gross: "950.00", net: "820.00", deductions: "130.00")]);
 
         Assert.Equal(950.00m, result.GrossAmount);
-        Assert.Equal(1395.00m, result.NetAmount);
+        Assert.Equal(1308.00m, result.NetAmount);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class CentralGestParserTests
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
 
-        Assert.Equal(1774.40m, result.GrossAmount);
+        Assert.Equal(1680.00m, result.GrossAmount);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class CentralGestParserTests
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
 
-        Assert.Equal(1395.00m, result.NetAmount);
+        Assert.Equal(1308.00m, result.NetAmount);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class CentralGestParserTests
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
         var item = result.LineItems.First(i => i.Description == "Vencimento");
 
-        Assert.Equal(1000.00m, item.Amount);
+        Assert.Equal(1200.00m, item.Amount);
         Assert.Equal("income", item.ItemType);
     }
 
@@ -137,7 +137,7 @@ public class CentralGestParserTests
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
         var item = result.LineItems.First(i => i.Description == "PPR – Poupança Reforma");
 
-        Assert.Equal(550.00m, item.Amount);
+        Assert.Equal(300.00m, item.Amount);
         Assert.Equal("income", item.ItemType);
     }
 
@@ -147,7 +147,7 @@ public class CentralGestParserTests
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
         var item = result.LineItems.First(i => i.Description == "Tickets Refeição");
 
-        Assert.Equal(224.40m, item.Amount);
+        Assert.Equal(180.00m, item.Amount);
         Assert.Equal("income", item.ItemType);
     }
 
@@ -157,7 +157,7 @@ public class CentralGestParserTests
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
         var item = result.LineItems.First(i => i.Description == "Segurança Social");
 
-        Assert.Equal(110.00m, item.Amount);
+        Assert.Equal(132.00m, item.Amount);
         Assert.Equal("deduction", item.ItemType);
     }
 
@@ -167,7 +167,7 @@ public class CentralGestParserTests
         var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
         var item = result.LineItems.First(i => i.Description == "IRS");
 
-        Assert.Equal(45.00m, item.Amount);
+        Assert.Equal(60.00m, item.Amount);
         Assert.Equal("tax", item.ItemType);
     }
 
@@ -191,10 +191,10 @@ public class CentralGestParserTests
     [Fact]
     public void Parse_GrossWithUsThousandsSeparator_ParsesCorrectly()
     {
-        var result = _parser.Parse("slip.pdf", [BuildSamplePage(gross: "1,774.40", net: "1,619.40")]);
+        var result = _parser.Parse("slip.pdf", [BuildSamplePage(gross: "2,345.60", net: "2,153.60")]);
 
-        Assert.Equal(1774.40m, result.GrossAmount);
-        Assert.Equal(1395.00m, result.NetAmount);
+        Assert.Equal(2345.60m, result.GrossAmount);
+        Assert.Equal(1308.00m, result.NetAmount);
     }
 
     [Fact]
@@ -220,18 +220,18 @@ public class CentralGestParserTests
 
     [Theory]
     [InlineData("1 000,00", 1000.00)]
-    [InlineData("224,40", 224.40)]
-    [InlineData("110,00", 110.00)]
-    [InlineData("45,00", 45.00)]
+    [InlineData("1 234,56", 1234.56)]
+    [InlineData("132,00", 132.00)]
+    [InlineData("60,00", 60.00)]
     public void ParsePt_ConvertsPortugueseDecimals(string input, double expected)
     {
         Assert.Equal((decimal)expected, CentralGestParser.ParsePt(input));
     }
 
     [Theory]
-    [InlineData("1,774.40", 1774.40)]
-    [InlineData("1,619.40", 1619.40)]
-    [InlineData("155.00", 155.00)]
+    [InlineData("1,234.56", 1234.56)]
+    [InlineData("12,345.67", 12345.67)]
+    [InlineData("192.00", 192.00)]
     public void ParseUs_ConvertsUsFormatDecimals(string input, double expected)
     {
         Assert.Equal((decimal)expected, CentralGestParser.ParseUs(input));

@@ -10,11 +10,11 @@ public class Micro1InvoiceParserTests
     private static string BuildSamplePage(
         string billTo = "Micro1 Inc.",
         string period = "July 1, 2026 to July 15, 2026",
-        string hours = "28.73",
+        string hours = "30.50",
         string payRate = "50",
-        string basePay = "1436.50",
-        string other = "105.00",
-        string total = "1,541.50") => $"""
+        string basePay = "1525.00",
+        string other = "75.00",
+        string total = "1,600.00") => $"""
         INVOICE
         Document INV-EXAMPLE-1
         Issue Date July 17, 2026
@@ -37,9 +37,9 @@ public class Micro1InvoiceParserTests
     /// all, and the header uses the older "Invoice #" / "Sub total" wording.
     /// </summary>
     private static string BuildBasePayOnlyPage(
-        string hours = "6.84",
-        string basePay = "342.00",
-        string total = "342.00") => $"""
+        string hours = "7.20",
+        string basePay = "360.00",
+        string total = "360.00") => $"""
         INVOICE
         Invoice # INV-EXAMPLE-2
         Issue date June 17, 2026
@@ -74,7 +74,7 @@ public class Micro1InvoiceParserTests
     public void CanParse_ReturnsFalseWhenMicro1NamedButNoInvoiceTotal()
     {
         // A bank statement whose transaction line merely mentions the employer must not be taken for an invoice.
-        Assert.False(_parser.CanParse("01.07 TRANSFERENCIA RECEBIDA Micro1 Inc. 1 328,49"));
+        Assert.False(_parser.CanParse("01.07 TRANSFERENCIA RECEBIDA Micro1 Inc. 1 391,95"));
     }
 
     [Fact]
@@ -101,16 +101,16 @@ public class Micro1InvoiceParserTests
     public void Parse_GrossAndNetAreTotalUsd()
     {
         var result = _parser.Parse("inv.pdf", [BuildSamplePage()]);
-        Assert.Equal(1541.50m, result.GrossAmount);
-        Assert.Equal(1541.50m, result.NetAmount);
+        Assert.Equal(1600.00m, result.GrossAmount);
+        Assert.Equal(1600.00m, result.NetAmount);
     }
 
     [Fact]
     public void Parse_ExtractsBaseHoursAndRate()
     {
         var result = _parser.Parse("inv.pdf", [BuildSamplePage()]);
-        Assert.Equal(1436.50m, result.BaseAmount);
-        Assert.Equal(28.73m, result.HoursWorked);
+        Assert.Equal(1525.00m, result.BaseAmount);
+        Assert.Equal(30.50m, result.HoursWorked);
         Assert.Equal(50m, result.HourlyRate);
     }
 
@@ -122,18 +122,18 @@ public class Micro1InvoiceParserTests
         Assert.Equal(2, result.LineItems.Count);
         var basePay = result.LineItems.First(i => i.Description == "Base Pay");
         var other = result.LineItems.First(i => i.Description == "Other");
-        Assert.Equal(1436.50m, basePay.Amount);
+        Assert.Equal(1525.00m, basePay.Amount);
         Assert.Equal("income", basePay.ItemType);
-        Assert.Equal(105.00m, other.Amount);
+        Assert.Equal(75.00m, other.Amount);
         Assert.Equal("income", other.ItemType);
     }
 
     [Fact]
     public void Parse_HandlesUsThousandsSeparatorInBasePay()
     {
-        var result = _parser.Parse("inv.pdf", [BuildSamplePage(basePay: "2,436.50", total: "2,541.50")]);
-        Assert.Equal(2436.50m, result.BaseAmount);
-        Assert.Equal(2541.50m, result.GrossAmount);
+        var result = _parser.Parse("inv.pdf", [BuildSamplePage(basePay: "2,525.00", total: "2,600.00")]);
+        Assert.Equal(2525.00m, result.BaseAmount);
+        Assert.Equal(2600.00m, result.GrossAmount);
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public class Micro1InvoiceParserTests
     {
         var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage()]);
 
-        Assert.Equal(342.00m, result.GrossAmount);
-        Assert.Equal(342.00m, result.BaseAmount);
-        Assert.Equal(6.84m, result.HoursWorked);
+        Assert.Equal(360.00m, result.GrossAmount);
+        Assert.Equal(360.00m, result.BaseAmount);
+        Assert.Equal(7.20m, result.HoursWorked);
         Assert.Equal(50m, result.HourlyRate);
         Assert.Equal(new DateOnly(2026, 6, 1), result.Period);
     }
@@ -155,17 +155,17 @@ public class Micro1InvoiceParserTests
 
         var item = Assert.Single(result.LineItems);
         Assert.Equal("Base Pay", item.Description);
-        Assert.Equal(342.00m, item.Amount);
+        Assert.Equal(360.00m, item.Amount);
     }
 
     [Fact]
     public void Parse_FoldsUnbrokenDownRemainderIntoOtherWhenSegmentIsMissing()
     {
         // Base pay below the total with no "Other →" segment: the difference must not be dropped.
-        var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage(basePay: "300.00", total: "342.00")]);
+        var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage(basePay: "300.00", total: "360.00")]);
 
         var other = result.LineItems.First(i => i.Description == "Other");
-        Assert.Equal(42.00m, other.Amount);
+        Assert.Equal(60.00m, other.Amount);
         Assert.Equal("income", other.ItemType);
     }
 
@@ -179,8 +179,8 @@ public class Micro1InvoiceParserTests
     }
 
     [Theory]
-    [InlineData("1,541.50", 1541.50)]
-    [InlineData("105.00", 105.00)]
+    [InlineData("1,234.56", 1234.56)]
+    [InlineData("75.00", 75.00)]
     public void ParseUs_ConvertsUsFormatDecimals(string input, double expected)
     {
         Assert.Equal((decimal)expected, Micro1InvoiceParser.ParseUs(input));

@@ -35,7 +35,7 @@ public class MergeSalarySlipTests : IDisposable
 
     private sealed record Seed(SalaryProfile Profile, SalaryItemCategory BasePay, SalaryItemCategory Fee, SalarySlip Slip);
 
-    /// <summary>First half of July: gross 1337.85 / net 1328.49, base pay + Deel exchange fee.</summary>
+    /// <summary>First half of July: gross 1402.47 / net 1391.95, base pay + Deel exchange fee.</summary>
     private static async Task<Seed> SeedFirstHalfAsync(AppDbContext db)
     {
         var profile = new SalaryProfile { Name = "Micro1 Inc." };
@@ -53,16 +53,16 @@ public class MergeSalarySlipTests : IDisposable
         {
             SalaryProfileId = profile.Id,
             Period = new DateOnly(2026, 7, 1),
-            GrossAmount = 1337.85m,
-            NetAmount = 1328.49m,
-            BaseAmount = 1246.72m,
-            HoursWorked = 28.73m,
-            HourlyRate = 43.39m,
+            GrossAmount = 1402.47m,
+            NetAmount = 1391.95m,
+            BaseAmount = 1336.73m,
+            HoursWorked = 30.50m,
+            HourlyRate = 43.83m,
             SourceFile = "invoice-jul1-15.pdf",
             LineItems =
             [
-                new SalaryLineItem { SalaryItemCategoryId = basePay.Id, Amount = 1246.72m, SortOrder = 0 },
-                new SalaryLineItem { SalaryItemCategoryId = fee.Id, Amount = 9.36m, SortOrder = 1 },
+                new SalaryLineItem { SalaryItemCategoryId = basePay.Id, Amount = 1336.73m, SortOrder = 0 },
+                new SalaryLineItem { SalaryItemCategoryId = fee.Id, Amount = 10.52m, SortOrder = 1 },
             ],
         };
         db.SalarySlips.Add(slip);
@@ -70,22 +70,22 @@ public class MergeSalarySlipTests : IDisposable
         return new Seed(profile, basePay, fee, slip);
     }
 
-    /// <summary>Second half of July: gross 361.47 / net 359.40.</summary>
+    /// <summary>Second half of July: gross 350.62 / net 348.34.</summary>
     private static MergeSalarySlipCommand SecondHalf(Seed seed, int slipId) => new(
         slipId,
-        GrossAmount: 361.47m,
-        NetAmount: 359.40m,
+        GrossAmount: 350.62m,
+        NetAmount: 348.34m,
         Notes: null,
         PdfPath: null,
         SourceFile: "invoice-jul16-31.pdf",
         LineItems:
         [
-            new CreateLineItemRequest(seed.BasePay.Id, 361.47m, 0),
-            new CreateLineItemRequest(seed.Fee.Id, 2.07m, 1),
+            new CreateLineItemRequest(seed.BasePay.Id, 350.62m, 0),
+            new CreateLineItemRequest(seed.Fee.Id, 2.28m, 1),
         ],
-        BaseAmount: 361.47m,
-        HoursWorked: 8.33m,
-        HourlyRate: 43.39m);
+        BaseAmount: 350.62m,
+        HoursWorked: 8.00m,
+        HourlyRate: 43.83m);
 
     [Fact]
     public async Task Merge_SumsGrossAndNet()
@@ -97,8 +97,8 @@ public class MergeSalarySlipTests : IDisposable
 
         Assert.Null(error);
         Assert.NotNull(result);
-        Assert.Equal(1699.32m, result.GrossAmount);
-        Assert.Equal(1687.89m, result.NetAmount);
+        Assert.Equal(1753.09m, result.GrossAmount);
+        Assert.Equal(1740.29m, result.NetAmount);
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class MergeSalarySlipTests : IDisposable
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
 
         Assert.Equal(2, result!.LineItems.Count);
-        Assert.Equal(1608.19m, result.LineItems.Single(li => li.SalaryItemCategoryId == seed.BasePay.Id).Amount);
-        Assert.Equal(11.43m, result.LineItems.Single(li => li.SalaryItemCategoryId == seed.Fee.Id).Amount);
+        Assert.Equal(1687.35m, result.LineItems.Single(li => li.SalaryItemCategoryId == seed.BasePay.Id).Amount);
+        Assert.Equal(12.80m, result.LineItems.Single(li => li.SalaryItemCategoryId == seed.Fee.Id).Amount);
     }
 
     [Fact]
@@ -157,8 +157,8 @@ public class MergeSalarySlipTests : IDisposable
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
 
-        Assert.Equal(1608.19m, result!.BaseAmount);
-        Assert.Equal(37.06m, result.HoursWorked);
+        Assert.Equal(1687.35m, result!.BaseAmount);
+        Assert.Equal(38.50m, result.HoursWorked);
     }
 
     [Fact]
@@ -167,11 +167,11 @@ public class MergeSalarySlipTests : IDisposable
         await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
-        // 28.73 h at 43.39 + 8.33 h at 40.00 -> (1246.60 + 333.20) / 37.06 = 42.63
+        // 30.50 h at 43.83 + 8.00 h at 40.00 -> (1336.815 + 320.00) / 38.50 = 43.03
         var command = SecondHalf(seed, seed.Slip.Id) with { HourlyRate = 40.00m };
         var (result, _) = await CreateHandler(db).HandleAsync(command);
 
-        Assert.Equal(42.63m, result!.HourlyRate);
+        Assert.Equal(43.03m, result!.HourlyRate);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class MergeSalarySlipTests : IDisposable
         var command = SecondHalf(seed, seed.Slip.Id) with { HourlyRate = null };
         var (result, _) = await CreateHandler(db).HandleAsync(command);
 
-        Assert.Equal(43.39m, result!.HourlyRate);
+        Assert.Equal(43.83m, result!.HourlyRate);
     }
 
     [Fact]
@@ -199,8 +199,8 @@ public class MergeSalarySlipTests : IDisposable
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
 
-        Assert.Equal(8.33m, result!.HoursWorked);
-        Assert.Equal(43.39m, result.HourlyRate);
+        Assert.Equal(8.00m, result!.HoursWorked);
+        Assert.Equal(43.83m, result.HourlyRate);
     }
 
     [Fact]
@@ -361,7 +361,7 @@ public class MergeSalarySlipTests : IDisposable
 
         Assert.Null(result);
         Assert.NotNull(error);
-        Assert.Equal(1337.85m, (await db.SalarySlips.FirstAsync()).GrossAmount);
+        Assert.Equal(1402.47m, (await db.SalarySlips.FirstAsync()).GrossAmount);
     }
 
     [Fact]
