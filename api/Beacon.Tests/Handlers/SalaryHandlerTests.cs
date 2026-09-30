@@ -14,20 +14,18 @@ using Xunit;
 
 namespace Beacon.Tests.Handlers;
 
-public class SalaryHandlerTests
+public class SalaryHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     [Fact]
     public async Task CreateItemCategory_ReturnsError_WhenProfileDoesNotExist()
     {
-        await using var db = CreateDb(nameof(CreateItemCategory_ReturnsError_WhenProfileDoesNotExist));
+        await using var db = CreateDb();
         var handler = new CreateSalaryItemCategoryCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(
@@ -40,7 +38,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task CreateItemCategory_ReturnsCategory_WhenProfileExists()
     {
-        await using var db = CreateDb(nameof(CreateItemCategory_ReturnsCategory_WhenProfileExists));
+        await using var db = CreateDb();
         var profile = new SalaryProfile { Name = "Test Profile" };
         db.SalaryProfiles.Add(profile);
         await db.SaveChangesAsync();
@@ -88,7 +86,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task CreateSlip_PersistsSlipAndLineItems()
     {
-        await using var db = CreateDb(nameof(CreateSlip_PersistsSlipAndLineItems));
+        await using var db = CreateDb();
         var (profile, cat, _) = await SeedSlipAsync(db);
 
         var handler = new CreateSalarySlipCommandHandler(db);
@@ -114,7 +112,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task CreateSlip_DuplicateProfileAndPeriod_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateSlip_DuplicateProfileAndPeriod_ReturnsError));
+        await using var db = CreateDb();
         var (profile, _, slip) = await SeedSlipAsync(db);
 
         var handler = new CreateSalarySlipCommandHandler(db);
@@ -129,7 +127,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task CreateSlip_CategoryFromAnotherProfile_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateSlip_CategoryFromAnotherProfile_ReturnsError));
+        await using var db = CreateDb();
         var (profile, _, _) = await SeedSlipAsync(db);
         var other = new SalaryProfile { Name = "Other" };
         db.SalaryProfiles.Add(other);
@@ -157,7 +155,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task DeleteSlip_RemovesSlipLineItemsAndPdf()
     {
-        await using var db = CreateDb(nameof(DeleteSlip_RemovesSlipLineItemsAndPdf));
+        await using var db = CreateDb();
         var (_, cat, slip) = await SeedSlipAsync(db);
 
         var storageRoot = Path.Combine(Path.GetTempPath(), $"fh_salary_del_{Guid.NewGuid()}");
@@ -204,7 +202,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task DeleteSlip_DeletesPdfStoredAsFileName()
     {
-        await using var db = CreateDb(nameof(DeleteSlip_DeletesPdfStoredAsFileName));
+        await using var db = CreateDb();
         var (_, _, slip) = await SeedSlipAsync(db);
 
         var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_salary_del_{Guid.NewGuid()}");
@@ -231,7 +229,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task DeleteProfile_DeletesSlipPdfsStoredAsFileNames()
     {
-        await using var db = CreateDb(nameof(DeleteProfile_DeletesSlipPdfsStoredAsFileNames));
+        await using var db = CreateDb();
         var (profile, _, slip) = await SeedSlipAsync(db);
 
         var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_profile_del_{Guid.NewGuid()}");
@@ -258,7 +256,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task CreateSlip_StoresTheFileNameOfAFullPdfPath()
     {
-        await using var db = CreateDb(nameof(CreateSlip_StoresTheFileNameOfAFullPdfPath));
+        await using var db = CreateDb();
         var (profile, _, _) = await SeedSlipAsync(db);
 
         var handler = new CreateSalarySlipCommandHandler(db);
@@ -274,7 +272,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task UpdateSlip_StoresTheFileNameOfAFullPdfPath()
     {
-        await using var db = CreateDb(nameof(UpdateSlip_StoresTheFileNameOfAFullPdfPath));
+        await using var db = CreateDb();
         var (_, _, slip) = await SeedSlipAsync(db);
 
         var handler = new UpdateSalarySlipCommandHandler(db);
@@ -290,7 +288,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task DeleteItemCategory_InUse_ReturnsConflictSignal()
     {
-        await using var db = CreateDb(nameof(DeleteItemCategory_InUse_ReturnsConflictSignal));
+        await using var db = CreateDb();
         var (_, cat, slip) = await SeedSlipAsync(db);
         db.SalaryLineItems.Add(new SalaryLineItem
         {
@@ -313,7 +311,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task DeleteItemCategory_Unused_Deletes()
     {
-        await using var db = CreateDb(nameof(DeleteItemCategory_Unused_Deletes));
+        await using var db = CreateDb();
         var (_, cat, _) = await SeedSlipAsync(db);
 
         var handler = new DeleteSalaryItemCategoryCommandHandler(db);
@@ -328,7 +326,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task UpdateSlip_PersistsPdfAndCompensationFields()
     {
-        await using var db = CreateDb(nameof(UpdateSlip_PersistsPdfAndCompensationFields));
+        await using var db = CreateDb();
         var (_, cat, slip) = await SeedSlipAsync(db);
 
         var handler = new UpdateSalarySlipCommandHandler(db);
@@ -353,7 +351,7 @@ public class SalaryHandlerTests
     [Fact]
     public async Task UpdateSlip_RejectsCategoryFromAnotherProfile()
     {
-        await using var db = CreateDb(nameof(UpdateSlip_RejectsCategoryFromAnotherProfile));
+        await using var db = CreateDb();
         var (_, _, slip) = await SeedSlipAsync(db);
 
         var otherProfile = new SalaryProfile { Name = "Other Corp" };

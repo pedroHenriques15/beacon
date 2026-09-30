@@ -7,15 +7,13 @@ using Xunit;
 
 namespace Beacon.Tests.Services;
 
-public class ApplyRuleServiceTests
+public class ApplyRuleServiceTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static async Task SeedAsync(AppDbContext db)
     {
@@ -43,7 +41,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_MatchingTransactions_AreAssignedCategory()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_MatchingTransactions_AreAssignedCategory));
+        await using var db = CreateDb();
         await SeedAsync(db);
 
         var cat = await db.Categories.FirstAsync();
@@ -63,7 +61,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_NonMatchingTransactions_AreNotChanged()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_NonMatchingTransactions_AreNotChanged));
+        await using var db = CreateDb();
         await SeedAsync(db);
 
         var cat = await db.Categories.FirstAsync();
@@ -82,7 +80,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_AlreadyCategorizedTransactions_AreSkipped()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_AlreadyCategorizedTransactions_AreSkipped));
+        await using var db = CreateDb();
 
         var cat1 = new Category { Name = "Food", Color = "#ff0000" };
         var cat2 = new Category { Name = "Savings", Color = "#0000ff" };
@@ -128,7 +126,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_NoMatches_DoesNotThrow()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_NoMatches_DoesNotThrow));
+        await using var db = CreateDb();
         await SeedAsync(db);
 
         var cat = await db.Categories.FirstAsync();
@@ -145,7 +143,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_MultipleTxMatchPattern_AllAreAssigned()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_MultipleTxMatchPattern_AllAreAssigned));
+        await using var db = CreateDb();
         await SeedAsync(db);
 
         var cat = await db.Categories.FirstAsync();
@@ -173,7 +171,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_PatternMatchIsCaseSensitive()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_PatternMatchIsCaseSensitive));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
@@ -211,7 +209,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_ValueOnlyRule_MatchesTransactionsByAmount()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_ValueOnlyRule_MatchesTransactionsByAmount));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Salary", Color = "#00ff00" };
         db.Categories.Add(cat);
@@ -251,7 +249,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_PatternAndValueRule_RequiresBothConditions()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_PatternAndValueRule_RequiresBothConditions));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Groceries", Color = "#ff9900" };
         db.Categories.Add(cat);
@@ -294,7 +292,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_PatternAndValueRule_DoesNotMatchWhenOnlyPatternMatches()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_PatternAndValueRule_DoesNotMatchWhenOnlyPatternMatches));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
@@ -328,7 +326,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_PatternAndValueRule_DoesNotMatchWhenOnlyValueMatches()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_PatternAndValueRule_DoesNotMatchWhenOnlyValueMatches));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
@@ -362,7 +360,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_ExcludedCategoryRule_AlsoSetsIsExcludedFlag()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_ExcludedCategoryRule_AlsoSetsIsExcludedFlag));
+        await using var db = CreateDb();
         await SeedAsync(db);
         var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
         db.Categories.Add(excluded);
@@ -383,7 +381,7 @@ public class ApplyRuleServiceTests
     [Fact]
     public async Task ApplyAsync_NonExcludedCategoryRule_LeavesIsExcludedFalse()
     {
-        await using var db = CreateDb(nameof(ApplyAsync_NonExcludedCategoryRule_LeavesIsExcludedFalse));
+        await using var db = CreateDb();
         await SeedAsync(db);
         db.Categories.Add(new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true });
         await db.SaveChangesAsync();

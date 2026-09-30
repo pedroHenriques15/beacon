@@ -12,6 +12,8 @@ namespace Beacon.Tests.Handlers;
 
 public class BackupHandlerTests : IDisposable
 {
+    private readonly SqliteTestDatabase _database = new();
+
     private readonly string _tempBackupDir;
 
     public BackupHandlerTests()
@@ -22,17 +24,12 @@ public class BackupHandlerTests : IDisposable
 
     public void Dispose()
     {
+        _database.Dispose();
         if (Directory.Exists(_tempBackupDir))
             Directory.Delete(_tempBackupDir, recursive: true);
     }
 
-    private AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private CreateBackupCommandHandler MakeHandler(AppDbContext db)
     {
@@ -66,7 +63,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_ReturnsSuccessResponse()
     {
-        await using var db = CreateDb(nameof(CreateBackup_ReturnsSuccessResponse));
+        await using var db = CreateDb();
 
         var response = await MakeHandler(db).HandleAsync();
 
@@ -77,7 +74,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_WritesJsonFileToConfiguredDirectory()
     {
-        await using var db = CreateDb(nameof(CreateBackup_WritesJsonFileToConfiguredDirectory));
+        await using var db = CreateDb();
 
         var response = await MakeHandler(db).HandleAsync();
 
@@ -92,7 +89,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_JsonContainsAllExpectedTopLevelKeys()
     {
-        await using var db = CreateDb(nameof(CreateBackup_JsonContainsAllExpectedTopLevelKeys));
+        await using var db = CreateDb();
 
         var response = await MakeHandler(db).HandleAsync();
         var json = await File.ReadAllTextAsync(response.Path);
@@ -114,7 +111,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_IncludesSeedDataInJson()
     {
-        await using var db = CreateDb(nameof(CreateBackup_IncludesSeedDataInJson));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Groceries", Color = "#00ff00" };
         db.Categories.Add(cat);
@@ -160,7 +157,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_EmptyDb_WritesEmptyArrays()
     {
-        await using var db = CreateDb(nameof(CreateBackup_EmptyDb_WritesEmptyArrays));
+        await using var db = CreateDb();
 
         var response = await MakeHandler(db).HandleAsync();
         var json = await File.ReadAllTextAsync(response.Path);
@@ -173,7 +170,7 @@ public class BackupHandlerTests : IDisposable
     [Fact]
     public async Task CreateBackup_IncludesInvestmentData()
     {
-        await using var db = CreateDb(nameof(CreateBackup_IncludesInvestmentData));
+        await using var db = CreateDb();
         var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "VWCE", Name = "Vanguard FTSE All-World" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();

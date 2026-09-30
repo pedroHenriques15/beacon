@@ -8,15 +8,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace Beacon.Tests.Handlers;
 
-public class BackfillPriceHistoryHandlerTests
+public class BackfillPriceHistoryHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static BackfillPriceHistoryCommandHandler MakeHandler(AppDbContext db, HttpMessageHandler httpHandler)
     {
@@ -44,7 +42,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_AssetNotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_AssetNotFound_ReturnsNullNull));
+        await using var db = CreateDb();
 
         var (result, error) = await MakeHandler(db, new ThrowingHttpMessageHandler())
             .HandleAsync(new BackfillPriceHistoryCommand(9999));
@@ -56,7 +54,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_NoLots_ReturnsError()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_NoLots_ReturnsError));
+        await using var db = CreateDb();
         var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "VWCE", Name = "Vanguard" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
@@ -71,7 +69,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_Etf_InsertsCloses()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_Etf_InsertsCloses));
+        await using var db = CreateDb();
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 1, 5));
         var body = EtfSeries(("2026-01-05", "100.00"), ("2026-01-06", "101.50"), ("2026-01-07", "99.75"));
 
@@ -90,7 +88,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_Gold_UsesProxyTickerSeries()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_Gold_UsesProxyTickerSeries));
+        await using var db = CreateDb();
         var asset = new InvestmentAsset { AssetType = "Gold", Name = "Physical Gold" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
@@ -110,7 +108,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_SkipsExistingDates()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_SkipsExistingDates));
+        await using var db = CreateDb();
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 3, 1));
         db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
         {
@@ -134,7 +132,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_SkipsDatesBeforeFirstLot()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_SkipsDatesBeforeFirstLot));
+        await using var db = CreateDb();
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 2, 10));
         var body = EtfSeries(("2026-02-08", "95.00"), ("2026-02-09", "96.00"), ("2026-02-10", "97.00"), ("2026-02-11", "98.00"));
 
@@ -150,7 +148,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_SkipsTodayAndFutureDates()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_SkipsTodayAndFutureDates));
+        await using var db = CreateDb();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var asset = await SeedEtfWithLotAsync(db, today.AddDays(-3));
         var body = EtfSeries(
@@ -169,7 +167,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_RateLimitResponse_ReturnsError()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_RateLimitResponse_ReturnsError));
+        await using var db = CreateDb();
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 1, 5));
         var body = """{"Note": "API call frequency reached"}""";
 
@@ -183,7 +181,7 @@ public class BackfillPriceHistoryHandlerTests
     [Fact]
     public async Task BackfillHistory_AlreadyCovered_MakesNoApiCall()
     {
-        await using var db = CreateDb(nameof(BackfillHistory_AlreadyCovered_MakesNoApiCall));
+        await using var db = CreateDb();
         var asset = await SeedEtfWithLotAsync(db, new DateOnly(2026, 1, 5));
         db.InvestmentPriceSnapshots.AddRange(
             new InvestmentPriceSnapshot { AssetId = asset.Id, Date = new DateOnly(2026, 1, 6), PricePerUnit = 100m },

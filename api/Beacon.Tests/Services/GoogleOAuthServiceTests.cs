@@ -9,15 +9,13 @@ using Xunit;
 
 namespace Beacon.Tests.Services;
 
-public class GoogleOAuthServiceTests
+public class GoogleOAuthServiceTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static IMemoryCache CreateCache() =>
         new MemoryCache(Options.Create(new MemoryCacheOptions()));
@@ -45,7 +43,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public void GetAuthorizationUrl_ReturnsGoogleUrl_WithRequiredParams()
     {
-        using var db = CreateDb(nameof(GetAuthorizationUrl_ReturnsGoogleUrl_WithRequiredParams));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -62,7 +60,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public void GetAuthorizationUrl_StoresStateInCache()
     {
-        using var db = CreateDb(nameof(GetAuthorizationUrl_StoresStateInCache));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -75,7 +73,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_InvalidState_Throws()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_InvalidState_Throws));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -86,7 +84,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_ValidState_StoresToken()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_ValidState_StoresToken));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -104,7 +102,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_ConsumesState_SecondCallFails()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_ConsumesState_SecondCallFails));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -119,7 +117,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_NoRefreshToken_Throws()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_NoRefreshToken_Throws));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.OK,
@@ -136,7 +134,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetStatusAsync_NoToken_ReturnsDisconnected()
     {
-        using var db = CreateDb(nameof(GetStatusAsync_NoToken_ReturnsDisconnected));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 
@@ -150,7 +148,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetStatusAsync_WithToken_ReturnsConnected()
     {
-        using var db = CreateDb(nameof(GetStatusAsync_WithToken_ReturnsConnected));
+        using var db = CreateDb();
         var now = DateTime.UtcNow;
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
@@ -175,7 +173,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task DisconnectAsync_RemovesAllTokens()
     {
-        using var db = CreateDb(nameof(DisconnectAsync_RemovesAllTokens));
+        using var db = CreateDb();
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id = 1,
@@ -197,7 +195,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects()
     {
-        using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshInvalidGrant_ReturnsNull_AndDisconnects));
+        using var db = CreateDb();
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id = 1,
@@ -222,7 +220,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens()
     {
-        using var db = CreateDb(nameof(GetValidAccessTokenAsync_RefreshTransientError_ReturnsNull_KeepsTokens));
+        using var db = CreateDb();
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id = 1,
@@ -247,7 +245,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetValidAccessTokenAsync_StaleToken_RefreshSucceeds_ReturnsNewToken()
     {
-        using var db = CreateDb(nameof(GetValidAccessTokenAsync_StaleToken_RefreshSucceeds_ReturnsNewToken));
+        using var db = CreateDb();
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id = 1,
@@ -275,7 +273,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall()
     {
-        using var db = CreateDb(nameof(GetValidAccessTokenAsync_ValidToken_ReturnsToken_WithoutHttpCall));
+        using var db = CreateDb();
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
             Id = 1,
@@ -298,7 +296,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_ReconnectWithoutDisconnect_UpdatesTokenAndPreservesRefreshToken()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_ReconnectWithoutDisconnect_UpdatesTokenAndPreservesRefreshToken));
+        using var db = CreateDb();
         using var cache = CreateCache();
 
         var svc = CreateService(db, cache);
@@ -324,7 +322,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ExchangeCodeAsync_GoogleReturnsError_ThrowsHttpRequestException()
     {
-        using var db = CreateDb(nameof(ExchangeCodeAsync_GoogleReturnsError_ThrowsHttpRequestException));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var factory = new FakeHttpClientFactory(new FakeHttpMessageHandler(
             System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant"}"""));
@@ -342,7 +340,7 @@ public class GoogleOAuthServiceTests
     [Fact]
     public async Task ConnectDisconnectReconnect_StoresNewTokenWithIdOne()
     {
-        using var db = CreateDb(nameof(ConnectDisconnectReconnect_StoresNewTokenWithIdOne));
+        using var db = CreateDb();
         using var cache = CreateCache();
         var svc = CreateService(db, cache);
 

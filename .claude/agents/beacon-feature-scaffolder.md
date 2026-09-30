@@ -92,17 +92,18 @@ using Xunit;
 
 namespace Beacon.Tests.Handlers;
 
-public class {UseCaseName}HandlerTests
+public class {UseCaseName}HandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb() =>
-        new(new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options);
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     [Fact]
     public async Task HandleAsync_ValidInput_ReturnsSuccess()
     {
-        using var db = CreateDb();
+        await using var db = CreateDb();
         var handler = new {UseCaseName}CommandHandler(db, NullLogger<{UseCaseName}CommandHandler>.Instance);
         // seed any required related entities
         // ...
@@ -123,9 +124,13 @@ public class {UseCaseName}HandlerTests
 ```
 
 Rules:
-- Use `UseInMemoryDatabase(Guid.NewGuid().ToString())` — unique DB per test, no state leakage.
+- Hold a `SqliteTestDatabase` in a field, as above: xUnit creates the class for every test, so each
+  test gets its own in-memory SQLite database with the production schema (ADR-025). Call
+  `CreateDb()` again for a fresh context on the same database.
+- Link seeded rows through navigations (`Category = cat`), not ids read before `SaveChanges`:
+  ids are assigned on save.
 - Inject `NullLogger<THandler>.Instance` — never mock the logger.
-- Do not mock `AppDbContext` — use the real InMemory provider.
+- Do not mock `AppDbContext` — the tests run on real SQLite.
 - Cover: happy path, primary validation failure, and any meaningful edge case.
 
 ## Process

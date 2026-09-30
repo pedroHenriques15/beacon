@@ -7,8 +7,12 @@ using Xunit;
 
 namespace Beacon.Tests.Services;
 
-public class SavingsPlanImportServiceTests
+public class SavingsPlanImportServiceTests : IDisposable
 {
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
     private const string SavingsDesc =
         "Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- " +
         "World UCITS ETF (USD) Accumulating, quantity: 0.031295";
@@ -17,8 +21,7 @@ public class SavingsPlanImportServiceTests
         "Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- " +
         "World UCITS ETF (USD) Accumulating, quantity: 0.606281";
 
-    private static DbContextOptions<AppDbContext> DbOptions(string dbName) =>
-        new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+    private DbContextOptions<AppDbContext> DbOptions() => _database.Options;
 
     private static SavingsPlanImportService MakeService(AppDbContext db) =>
         new(db, NullLogger<SavingsPlanImportService>.Instance);
@@ -46,7 +49,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_CreatesEtfAssetAndLot_FromSavingsPlanRow()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_CreatesEtfAssetAndLot_FromSavingsPlanRow)));
+        await using var db = new AppDbContext(DbOptions());
         var statement = TrStatement((SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)));
 
         var count = await MakeService(db).ImportAsync(statement);
@@ -69,7 +72,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_IsIdempotent_WhenRunTwice()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_IsIdempotent_WhenRunTwice)));
+        await using var db = new AppDbContext(DbOptions());
         var statement = TrStatement((SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)));
         var service = MakeService(db);
 
@@ -85,7 +88,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_TwoBuysSameIsin_CreateOneAssetTwoLots()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_TwoBuysSameIsin_CreateOneAssetTwoLots)));
+        await using var db = new AppDbContext(DbOptions());
         var statement = TrStatement(
             (SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)),
             (SavingsDesc2, 100.00m, new DateOnly(2026, 8, 3)));
@@ -100,7 +103,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_ReusesExistingAssetMatchedByIsin()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_ReusesExistingAssetMatchedByIsin)));
+        await using var db = new AppDbContext(DbOptions());
         db.InvestmentAssets.Add(new InvestmentAsset
         {
             AssetType = "ETF",
@@ -123,7 +126,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_IgnoresNonTradeRepublicBank()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_IgnoresNonTradeRepublicBank)));
+        await using var db = new AppDbContext(DbOptions());
         var statement = TrStatement((SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)));
         statement.Bank = "REVOLUT";
 
@@ -136,7 +139,7 @@ public class SavingsPlanImportServiceTests
     [Fact]
     public async Task ImportAsync_IgnoresNonSavingsPlanRows()
     {
-        await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_IgnoresNonSavingsPlanRows)));
+        await using var db = new AppDbContext(DbOptions());
         var statement = TrStatement(("MINI MERCADO Card Transaction", 7.30m, new DateOnly(2026, 8, 2)));
 
         var count = await MakeService(db).ImportAsync(statement);

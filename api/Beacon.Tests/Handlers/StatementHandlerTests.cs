@@ -13,6 +13,8 @@ namespace Beacon.Tests.Handlers;
 
 public class StatementHandlerTests : IDisposable
 {
+    private readonly SqliteTestDatabase _database = new();
+
     private readonly string _tempStorageRoot;
     private readonly FileStorageService _fileStorage;
 
@@ -29,17 +31,12 @@ public class StatementHandlerTests : IDisposable
 
     public void Dispose()
     {
+        _database.Dispose();
         if (Directory.Exists(_tempStorageRoot))
             Directory.Delete(_tempStorageRoot, recursive: true);
     }
 
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private DeleteStatementCommandHandler MakeDeleteHandler(AppDbContext db) =>
         new(db, _fileStorage, NullLogger<DeleteStatementCommandHandler>.Instance);
@@ -55,7 +52,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_ReturnsFalse_WhenNotFound()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_ReturnsFalse_WhenNotFound));
+        await using var db = CreateDb();
 
         var result = await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(9999));
 
@@ -65,7 +62,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_ReturnsTrue_AndRemovesStatement()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_ReturnsTrue_AndRemovesStatement));
+        await using var db = CreateDb();
         var stmt = new MonthlyStatement
         {
             Bank = "ACTIVOBANK",
@@ -104,7 +101,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_DeletesPdfStoredAsFileName()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_DeletesPdfStoredAsFileName));
+        await using var db = CreateDb();
         var (stmt, fullPath) = await SeedStatementWithStoredPdfAsync(db);
 
         var result = await MakeDeleteHandler(db).HandleAsync(new DeleteStatementCommand(stmt.Id));
@@ -116,7 +113,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DownloadStatementFile_ServesPdfStoredAsFileName()
     {
-        await using var db = CreateDb(nameof(DownloadStatementFile_ServesPdfStoredAsFileName));
+        await using var db = CreateDb();
         var (stmt, _) = await SeedStatementWithStoredPdfAsync(db);
         var handler = new DownloadStatementFileQueryHandler(db, _fileStorage, NullLogger<DownloadStatementFileQueryHandler>.Instance);
 
@@ -134,7 +131,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_RemovesCascadedTransactions()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_RemovesCascadedTransactions));
+        await using var db = CreateDb();
         var stmt = new MonthlyStatement
         {
             Bank = "BPI",
@@ -174,7 +171,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_EmptyCounterpartStatement_IsAlsoDeleted()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_EmptyCounterpartStatement_IsAlsoDeleted));
+        await using var db = CreateDb();
 
         var date = new DateOnly(2026, 1, 10);
 
@@ -232,7 +229,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_CounterpartStatementWithOtherTxs_IsRetained()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_CounterpartStatementWithOtherTxs_IsRetained));
+        await using var db = CreateDb();
 
         var date = new DateOnly(2026, 1, 10);
 
@@ -299,7 +296,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_UnrelatedSameAmountPair_IsNotDeleted()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_UnrelatedSameAmountPair_IsNotDeleted));
+        await using var db = CreateDb();
 
         var date = new DateOnly(2026, 1, 15);
 
@@ -399,7 +396,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_ClaimsAtMostOneCounterpartPerTransaction()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_ClaimsAtMostOneCounterpartPerTransaction));
+        await using var db = CreateDb();
 
         var date = new DateOnly(2026, 1, 15);
 
@@ -469,7 +466,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_UnknownTypeCounterpart_IsStillMatched()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_UnknownTypeCounterpart_IsStillMatched));
+        await using var db = CreateDb();
 
         var date = new DateOnly(2026, 1, 15);
 
@@ -527,7 +524,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task DeleteStatement_MiddleBpiStatement_RecomputesSuccessorPprSynthetic()
     {
-        await using var db = CreateDb(nameof(DeleteStatement_MiddleBpiStatement_RecomputesSuccessorPprSynthetic));
+        await using var db = CreateDb();
 
         MonthlyStatement MakeBpi(int month, decimal ppr, decimal? syntheticAmount) => new()
         {
@@ -564,7 +561,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_InvalidText_ThrowsNotSupportedException()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_InvalidText_ThrowsNotSupportedException));
+        await using var db = CreateDb();
 
         await Assert.ThrowsAsync<NotSupportedException>(() =>
             MakeImportHandler(db).HandleAsync(
@@ -574,7 +571,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_ValidText_CreatesStatementAndTransactions()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_ValidText_CreatesStatementAndTransactions));
+        await using var db = CreateDb();
 
         var result = await MakeImportHandler(db).HandleAsync(
             new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
@@ -591,7 +588,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_ParsesDebitAndCreditTypes()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_ParsesDebitAndCreditTypes));
+        await using var db = CreateDb();
 
         await MakeImportHandler(db).HandleAsync(
             new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
@@ -604,7 +601,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_DuplicatePeriod_ReturnsNotImported()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_DuplicatePeriod_ReturnsNotImported));
+        await using var db = CreateDb();
 
         await MakeImportHandler(db).HandleAsync(
             new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
@@ -620,7 +617,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_AppliesCategoryRules()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_AppliesCategoryRules));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Groceries", Color = "#00ff00" };
         db.Categories.Add(cat);
@@ -642,7 +639,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_DetectsTransferCandidates()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_DetectsTransferCandidates));
+        await using var db = CreateDb();
 
         var existing = new MonthlyStatement
         {
@@ -679,7 +676,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_EmptyBalance_DerivesFromPreviousStatement()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_DerivesFromPreviousStatement));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
@@ -705,7 +702,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_ExplicitBalanceMismatch_Warns()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_ExplicitBalanceMismatch_Warns));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
@@ -728,7 +725,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_EmptyBalance_NoPrevious_Throws()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_NoPrevious_Throws));
+        await using var db = CreateDb();
 
         // Silently importing with balance 0 would misrepresent the card in Total Balance.
         var ex = await Assert.ThrowsAsync<NotSupportedException>(() =>
@@ -742,7 +739,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_EmptyBalance_GapBeforePrevious_Throws()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_EmptyBalance_GapBeforePrevious_Throws));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {
@@ -764,7 +761,7 @@ public class StatementHandlerTests : IDisposable
     [Fact]
     public async Task ImportMealCardText_Backfill_WarnsAboutStaleLaterStatement()
     {
-        await using var db = CreateDb(nameof(ImportMealCardText_Backfill_WarnsAboutStaleLaterStatement));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(new MonthlyStatement
         {

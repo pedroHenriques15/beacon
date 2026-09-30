@@ -13,6 +13,8 @@ namespace Beacon.Tests.Handlers;
 
 public class UnifiedUploadBatchTests : IDisposable
 {
+    private readonly SqliteTestDatabase _database = new();
+
     private readonly string _tempStorageRoot;
     private readonly FileStorageService _fileStorage;
 
@@ -29,6 +31,7 @@ public class UnifiedUploadBatchTests : IDisposable
 
     public void Dispose()
     {
+        _database.Dispose();
         if (Directory.Exists(_tempStorageRoot))
             Directory.Delete(_tempStorageRoot, recursive: true);
     }
@@ -87,8 +90,7 @@ public class UnifiedUploadBatchTests : IDisposable
         Total sent €{total}
         """;
 
-    private static AppDbContext CreateDb(string dbName) =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options);
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private const string ActivoBankPage = """
         DEPOSITO A ORDEM: 123456789
@@ -106,8 +108,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_BankStatement_DetectsImportsAndExtractsOnce()
     {
-        var dbName = nameof(Handle_BankStatement_DetectsImportsAndExtractsOnce);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var extractor = new StubExtractor([ActivoBankPage]);
         var handler = MakeHandler(db, extractor);
 
@@ -118,15 +119,14 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.True(item.Success);
         Assert.Equal(1, extractor.Calls);
 
-        await using var freshDb = CreateDb(dbName);
+        await using var freshDb = CreateDb();
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
     }
 
     [Fact]
     public async Task Handle_UnrecognisedFile_ReturnsUnknownWithoutPersisting()
     {
-        var dbName = nameof(Handle_UnrecognisedFile_ReturnsUnknownWithoutPersisting);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new StubExtractor(["no known signals here"]));
 
         var results = await handler.HandleAsync([MakeFile("junk.pdf", "junk-bytes")]);
@@ -136,7 +136,7 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.False(item.Success);
         Assert.Contains("not recognised", item.Error);
 
-        await using var freshDb = CreateDb(dbName);
+        await using var freshDb = CreateDb();
         Assert.Equal(0, await freshDb.MonthlyStatements.CountAsync());
         Assert.Empty(Directory.GetFiles(_tempStorageRoot));
     }
@@ -144,8 +144,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_MixedBatch_FailedFileDoesNotAbortOthers()
     {
-        var dbName = nameof(Handle_MixedBatch_FailedFileDoesNotAbortOthers);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
 
         var goodExtractor = new StubExtractor([ActivoBankPage]);
         var handler = MakeHandler(db, goodExtractor);
@@ -163,8 +162,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_Micro1InvoicePlusWithdrawal_PairsIntoOneEurSalarySlip()
     {
-        var dbName = nameof(Handle_Micro1InvoicePlusWithdrawal_PairsIntoOneEurSalarySlip);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var results = await handler.HandleAsync(
@@ -195,8 +193,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_LoneInvoice_IsBlockedNotImported()
     {
-        var dbName = nameof(Handle_LoneInvoice_IsBlockedNotImported);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var results = await handler.HandleAsync([MakeFile("invoice.pdf", InvoiceText())]);
@@ -212,8 +209,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_LoneWithdrawal_IsBlockedNotImported()
     {
-        var dbName = nameof(Handle_LoneWithdrawal_IsBlockedNotImported);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var results = await handler.HandleAsync([MakeFile("withdrawal.pdf", WithdrawalText())]);
@@ -228,8 +224,7 @@ public class UnifiedUploadBatchTests : IDisposable
     [Fact]
     public async Task Handle_TwoInvoicesSameAmount_AreBlockedAsAmbiguous()
     {
-        var dbName = nameof(Handle_TwoInvoicesSameAmount_AreBlockedAsAmbiguous);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var results = await handler.HandleAsync(
@@ -245,8 +240,7 @@ public class UnifiedUploadBatchTests : IDisposable
     public async Task Handle_BankStatementMentioningMicro1_FallsBackToBankImport()
     {
         // Trips micro1 CanParse ("Micro1 Inc." + "Total USD") but isn't an invoice — must still import as a bank statement.
-        var dbName = nameof(Handle_BankStatementMentioningMicro1_FallsBackToBankImport);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var text = ActivoBankPage + "\nNote: incoming payment from Micro1 Inc. Total USD $1,541.50";
@@ -256,15 +250,14 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.Equal("BankStatement", item.DocumentType);
         Assert.True(item.Success);
 
-        await using var freshDb = CreateDb(dbName);
+        await using var freshDb = CreateDb();
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
     }
 
     [Fact]
     public async Task Handle_MixedBatch_BankStatementPlusMicro1Pair_ImportsEachCorrectly()
     {
-        var dbName = nameof(Handle_MixedBatch_BankStatementPlusMicro1Pair_ImportsEachCorrectly);
-        await using var db = CreateDb(dbName);
+        await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
         var results = await handler.HandleAsync(
@@ -278,7 +271,7 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.Contains(results, r => r.DocumentType == "BankStatement" && r.Success);
         Assert.Contains(results, r => r.DocumentType == "SalarySlip" && r.Success);
 
-        await using var freshDb = CreateDb(dbName);
+        await using var freshDb = CreateDb();
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
     }
 }

@@ -17,15 +17,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace Beacon.Tests.Handlers;
 
-public class InvestmentHandlerTests
+public class InvestmentHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static async Task<InvestmentAsset> SeedEtfAsync(AppDbContext db, string ticker = "VWCE", string name = "Vanguard FTSE All-World")
     {
@@ -48,7 +46,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_ETF_PersistsWithTicker()
     {
-        await using var db = CreateDb(nameof(CreateAsset_ETF_PersistsWithTicker));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("ETF", "vwce", "Vanguard FTSE All-World", null));
@@ -63,7 +61,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_Gold_PersistsWithoutTicker()
     {
-        await using var db = CreateDb(nameof(CreateAsset_Gold_PersistsWithoutTicker));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Gold", null, "Physical Gold", "Stored at home"));
@@ -78,7 +76,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_ETF_DuplicateTicker_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateAsset_ETF_DuplicateTicker_ReturnsError));
+        await using var db = CreateDb();
         await SeedEtfAsync(db, "VWCE");
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
@@ -91,7 +89,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_ETF_MissingTicker_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateAsset_ETF_MissingTicker_ReturnsError));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("ETF", null, "Some ETF", null));
@@ -103,7 +101,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_InvalidAssetType_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateAsset_InvalidAssetType_ReturnsError));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Crypto", "BTC", "Bitcoin", null));
@@ -117,7 +115,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateAsset_ChangesNameAndNotes()
     {
-        await using var db = CreateDb(nameof(UpdateAsset_ChangesNameAndNotes));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new UpdateInvestmentAssetCommandHandler(db);
 
@@ -131,7 +129,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateAsset_NotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(UpdateAsset_NotFound_ReturnsNullNull));
+        await using var db = CreateDb();
         var handler = new UpdateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new UpdateInvestmentAssetCommand(9999, "X", "Name", null));
@@ -145,7 +143,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteAsset_RemovesAsset()
     {
-        await using var db = CreateDb(nameof(DeleteAsset_RemovesAsset));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new DeleteInvestmentAssetCommandHandler(db);
 
@@ -158,7 +156,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteAsset_CascadesLots()
     {
-        await using var db = CreateDb(nameof(DeleteAsset_CascadesLots));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 100 });
         await db.SaveChangesAsync();
@@ -171,7 +169,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteAsset_CascadesPriceSnapshots()
     {
-        await using var db = CreateDb(nameof(DeleteAsset_CascadesPriceSnapshots));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), PricePerUnit = 98 });
         await db.SaveChangesAsync();
@@ -184,7 +182,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteAsset_NotFound_ReturnsFalse()
     {
-        await using var db = CreateDb(nameof(DeleteAsset_NotFound_ReturnsFalse));
+        await using var db = CreateDb();
         var found = await new DeleteInvestmentAssetCommandHandler(db).HandleAsync(new DeleteInvestmentAssetCommand(9999));
         Assert.False(found);
     }
@@ -194,7 +192,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_Buy_PersistsPositiveQuantity()
     {
-        await using var db = CreateDb(nameof(CreateLot_Buy_PersistsPositiveQuantity));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new CreateInvestmentLotCommandHandler(db);
 
@@ -211,7 +209,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_Sell_PersistsNegativeQuantity()
     {
-        await using var db = CreateDb(nameof(CreateLot_Sell_PersistsNegativeQuantity));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 5, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
@@ -227,7 +225,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_ZeroQuantity_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateLot_ZeroQuantity_ReturnsError));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new CreateInvestmentLotCommandHandler(db);
 
@@ -241,7 +239,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_InvalidAssetId_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateLot_InvalidAssetId_ReturnsError));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentLotCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(
@@ -256,7 +254,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateLot_UpdatesFields()
     {
-        await using var db = CreateDb(nameof(UpdateLot_UpdatesFields));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var lot = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 3, PricePerUnit = 90 };
         db.InvestmentLots.Add(lot);
@@ -274,7 +272,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateLot_NotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(UpdateLot_NotFound_ReturnsNullNull));
+        await using var db = CreateDb();
         var (result, error) = await new UpdateInvestmentLotCommandHandler(db).HandleAsync(
             new UpdateInvestmentLotCommand(9999, new DateOnly(2025, 1, 1), 1, 100m, null, null));
 
@@ -287,7 +285,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteLot_RemovesLot()
     {
-        await using var db = CreateDb(nameof(DeleteLot_RemovesLot));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var lot = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 1, PricePerUnit = 100 };
         db.InvestmentLots.Add(lot);
@@ -302,7 +300,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeleteLot_NotFound_ReturnsFalse()
     {
-        await using var db = CreateDb(nameof(DeleteLot_NotFound_ReturnsFalse));
+        await using var db = CreateDb();
         var found = await new DeleteInvestmentLotCommandHandler(db).HandleAsync(new DeleteInvestmentLotCommand(9999));
         Assert.False(found);
     }
@@ -312,7 +310,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpsertPrice_CreatesNewSnapshot_WhenNoneExists()
     {
-        await using var db = CreateDb(nameof(UpsertPrice_CreatesNewSnapshot_WhenNoneExists));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new UpsertInvestmentPriceCommandHandler(db);
 
@@ -328,7 +326,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpsertPrice_UpdatesExistingSnapshot_WhenSameDateExists()
     {
-        await using var db = CreateDb(nameof(UpsertPrice_UpdatesExistingSnapshot_WhenSameDateExists));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var handler = new UpsertInvestmentPriceCommandHandler(db);
         var date = new DateOnly(2025, 6, 1);
@@ -344,7 +342,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpsertPrice_InvalidAssetId_ReturnsError()
     {
-        await using var db = CreateDb(nameof(UpsertPrice_InvalidAssetId_ReturnsError));
+        await using var db = CreateDb();
         var (result, error) = await new UpsertInvestmentPriceCommandHandler(db).HandleAsync(
             new UpsertInvestmentPriceCommand(9999, new DateOnly(2025, 1, 1), 100m));
 
@@ -357,7 +355,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeletePriceSnapshot_RemovesSnapshot()
     {
-        await using var db = CreateDb(nameof(DeletePriceSnapshot_RemovesSnapshot));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var snap = new InvestmentPriceSnapshot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), PricePerUnit = 100 };
         db.InvestmentPriceSnapshots.Add(snap);
@@ -373,20 +371,18 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task DeletePriceSnapshot_NotFound_ReturnsFalse()
     {
-        await using var db = CreateDb(nameof(DeletePriceSnapshot_NotFound_ReturnsFalse));
+        await using var db = CreateDb();
         var found = await new DeleteInvestmentPriceSnapshotCommandHandler(db).HandleAsync(
             new DeleteInvestmentPriceSnapshotCommand(9999));
         Assert.False(found);
     }
 
     // ---- Query ----
-    // On SQLite: the query sorts names with a collation that only SQLite provides.
 
     [Fact]
     public async Task GetInvestmentAssets_ReturnsAllAssetsWithLotsAndSnapshots()
     {
-        using var database = new SqliteTestDatabase();
-        await using var db = database.CreateContext();
+        await using var db = CreateDb();
         var etf = await SeedEtfAsync(db);
         var gold = await SeedGoldAsync(db);
 
@@ -408,8 +404,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task GetInvestmentAssets_LotsOrderedByDateDescending()
     {
-        using var database = new SqliteTestDatabase();
-        await using var db = database.CreateContext();
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
 
         db.InvestmentLots.AddRange(
@@ -429,8 +424,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task GetInvestmentAssets_SnapshotsOrderedByDateDescending()
     {
-        using var database = new SqliteTestDatabase();
-        await using var db = database.CreateContext();
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
 
         db.InvestmentPriceSnapshots.AddRange(
@@ -450,7 +444,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateAsset_Gold_IgnoresTickerInput()
     {
-        await using var db = CreateDb(nameof(CreateAsset_Gold_IgnoresTickerInput));
+        await using var db = CreateDb();
         var handler = new CreateInvestmentAssetCommandHandler(db);
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Gold", "XAU", "Gold Bar", null));
@@ -462,7 +456,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateAsset_Gold_ClearsStaleTicker()
     {
-        await using var db = CreateDb(nameof(UpdateAsset_Gold_ClearsStaleTicker));
+        await using var db = CreateDb();
         var asset = new InvestmentAsset { AssetType = "Gold", Ticker = "VWCE", Name = "Gold Bar" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
@@ -477,7 +471,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateAsset_Gold_DuplicateName_ReturnsError()
     {
-        await using var db = CreateDb(nameof(UpdateAsset_Gold_DuplicateName_ReturnsError));
+        await using var db = CreateDb();
         await SeedGoldAsync(db, "Gold Bar");
         var second = new InvestmentAsset { AssetType = "Gold", Name = "Gold Coin" };
         db.InvestmentAssets.Add(second);
@@ -495,7 +489,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_SellMoreThanHeld_ReturnsError()
     {
-        await using var db = CreateDb(nameof(CreateLot_SellMoreThanHeld_ReturnsError));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
@@ -510,7 +504,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task CreateLot_SellExactHolding_Succeeds()
     {
-        await using var db = CreateDb(nameof(CreateLot_SellExactHolding_Succeeds));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
@@ -525,7 +519,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateLot_SellIncreasedBeyondHolding_ReturnsError()
     {
-        await using var db = CreateDb(nameof(UpdateLot_SellIncreasedBeyondHolding_ReturnsError));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 100 });
         var sell = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 2, 1), Quantity = -5, PricePerUnit = 110 };
@@ -542,7 +536,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task UpdateLot_BuyReducedBelowSold_ReturnsError()
     {
-        await using var db = CreateDb(nameof(UpdateLot_BuyReducedBelowSold_ReturnsError));
+        await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
         var buy = new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 10, PricePerUnit = 100 };
         db.InvestmentLots.Add(buy);
@@ -561,7 +555,7 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task FetchPrice_NotFound_ReturnsNullNull()
     {
-        await using var db = CreateDb(nameof(FetchPrice_NotFound_ReturnsNullNull));
+        await using var db = CreateDb();
         var av = new AlphaVantageService(
             new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
             new ConfigurationBuilder().AddInMemoryCollection(

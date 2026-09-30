@@ -12,10 +12,9 @@ using Xunit;
 namespace Beacon.Tests.Data;
 
 /// <summary>
-/// What SQLite itself must get right: decimal sums and sorts translated to SQL, searches, sorts
-/// and unique names that treat case and accents as SQL Server did, decimals held to their
-/// column's scale, and enforced foreign keys. These run on a real SQLite database; EF Core
-/// InMemory would pass them regardless.
+/// What the database engine itself must get right: decimal sums and sorts translated to SQL,
+/// searches, sorts and unique names that treat case and accents as SQL Server did, decimals
+/// held to their column's scale, and enforced foreign keys.
 /// </summary>
 public class SqliteBehaviourTests
 {

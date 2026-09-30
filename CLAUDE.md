@@ -42,7 +42,7 @@ data. Never `git add -f` an ignored file.
 api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per use case),
                     Services/ (uploads, storage, Google, pricing), Services/Parsing/ (parsers),
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
-api/Beacon.Tests/   xUnit tests on EF Core InMemory
+api/Beacon.Tests/   xUnit tests, each on its own in-memory SQLite database
 web/src/app/        Angular 21 client: core/ (services, models, interceptors), pages/ (routes)
 scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
                     setup (enables the git hooks), MigrateToSqlite/ (SQL Server database to SQLite)
@@ -71,8 +71,8 @@ The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the l
    explicitly, never created alongside.
 8. **Salary item categories belong to one profile** (ADR-009). Validate line items against
    the target slip's profile.
-9. **Backend tests use EF Core InMemory with a unique database name per test.** Never mock
-   `AppDbContext` (ADR-015).
+9. **Backend tests use an in-memory SQLite database per test** (`SqliteTestDatabase`, held in a
+   field of the test class). Never mock `AppDbContext` (ADR-025).
 10. **Angular uses standalone components and signals only.** No NgModules (ADR-016).
 
 ## Conventions
