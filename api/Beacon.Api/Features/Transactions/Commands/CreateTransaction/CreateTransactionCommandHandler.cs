@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,9 +33,10 @@ public class CreateTransactionCommandHandler(AppDbContext db, ILogger<CreateTran
             Amount                 = cmd.Amount,
             Type                   = cmd.Type.ToLower(),
             Balance                = cmd.Balance,
-            CategoryId             = cmd.CategoryId,
             CategorySetManually    = cmd.CategoryId.HasValue,
         };
+
+        ExcludedCategory.ApplyCategory(tx, cmd.CategoryId, await ExcludedCategory.GetIdAsync(db, ct));
 
         db.Transactions.Add(tx);
         await db.SaveChangesAsync(ct);

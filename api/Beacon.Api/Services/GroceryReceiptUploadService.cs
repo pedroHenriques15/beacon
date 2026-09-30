@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services.Parsing;
 using Microsoft.EntityFrameworkCore;
@@ -59,8 +60,9 @@ public class GroceryReceiptUploadService(
             var parsed   = parser.Parse(file.FileName, pages);
             var warnings = ParseVerifier.VerifyGroceryReceipt(parsed);
 
-            var rules            = await db.GroceryCategoryRules.ToListAsync();
-            var categoryMappings = await db.GroceryReceiptCategoryMappings.ToListAsync();
+            var rules              = await db.GroceryCategoryRules.ToListAsync();
+            var categoryMappings   = await db.GroceryReceiptCategoryMappings.ToListAsync();
+            var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
 
             savedPath = await fileStorage.SaveAsync(file);
 
@@ -74,16 +76,20 @@ public class GroceryReceiptUploadService(
 
                 var mapping = categoryMappings.FirstOrDefault(m => m.ReceiptCategoryName == pi.ReceiptCategory);
 
-                return new GroceryItem
+                var item = new GroceryItem
                 {
                     Description          = pi.Description,
                     Amount               = pi.Amount,
                     Quantity             = pi.Quantity,
                     ReceiptCategory      = pi.ReceiptCategory,
-                    CategoryId           = matchedRule?.CategoryId ?? mapping?.GroceryCategoryId,
                     CategoryRuleId       = matchedRule?.Id,
                     CategorySetManually  = false
                 };
+
+                ExcludedCategory.ApplyCategory(
+                    item, matchedRule?.CategoryId ?? mapping?.GroceryCategoryId, excludedCategoryId);
+
+                return item;
             }).ToList();
 
             var newCategories = parsed.Items

@@ -31,10 +31,12 @@ public class CreateGroceryItemCommandHandler(AppDbContext db, ILogger<CreateGroc
             Description          = cmd.Description.Trim(),
             Amount               = cmd.Amount,
             Quantity             = cmd.Quantity,
-            CategoryId           = matchedRule?.CategoryId,
             CategoryRuleId       = matchedRule?.Id,
             CategorySetManually  = false
         };
+
+        ExcludedCategory.ApplyCategory(
+            item, matchedRule?.CategoryId, await ExcludedCategory.GetGroceryIdAsync(db, ct));
 
         db.GroceryItems.Add(item);
         await db.SaveChangesAsync(ct);

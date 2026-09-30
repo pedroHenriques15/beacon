@@ -32,6 +32,32 @@ public class Micro1InvoiceParserTests
         Page 1/1
         """;
 
+    /// <summary>
+    /// Invoice with no earnings beyond base pay: the summary line carries no "| Other → $x" segment at
+    /// all, and the header uses the older "Invoice #" / "Sub total" wording.
+    /// </summary>
+    private static string BuildBasePayOnlyPage(
+        string hours   = "6.84",
+        string basePay = "342.00",
+        string total   = "342.00") => $"""
+        INVOICE
+        Invoice # INV-EXAMPLE-2
+        Issue date June 17, 2026
+        Due date June 20, 2026
+        BILL FROM BILL TO TOTAL DUE
+        Example Contractor Micro1 Inc. USD ${total}
+        Group: Example Group
+        Description Amount
+        Pay As You Go Contract
+        Invoice for work between June 1, 2026 to June 15, 2026
+        for 1 submission
+        Other: Project → Example Group | Hours → {hours} | Pay Rate → $50 | Base Pay → ${basePay} USD ${total}
+        Sub total USD ${total}
+        VAT 0% USD $0
+        Total USD ${total}
+        Page 1/1
+        """;
+
     [Fact]
     public void CanParse_ReturnsTrueForMicro1Signal()
     {
@@ -108,6 +134,39 @@ public class Micro1InvoiceParserTests
         var result = _parser.Parse("inv.pdf", [BuildSamplePage(basePay: "2,436.50", total: "2,541.50")]);
         Assert.Equal(2436.50m, result.BaseAmount);
         Assert.Equal(2541.50m, result.GrossAmount);
+    }
+
+    [Fact]
+    public void Parse_HandlesInvoiceWithoutOtherSegment()
+    {
+        var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage()]);
+
+        Assert.Equal(342.00m, result.GrossAmount);
+        Assert.Equal(342.00m, result.BaseAmount);
+        Assert.Equal(6.84m, result.HoursWorked);
+        Assert.Equal(50m, result.HourlyRate);
+        Assert.Equal(new DateOnly(2026, 6, 1), result.Period);
+    }
+
+    [Fact]
+    public void Parse_OmitsOtherLineItemWhenInvoiceIsBasePayOnly()
+    {
+        var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage()]);
+
+        var item = Assert.Single(result.LineItems);
+        Assert.Equal("Base Pay", item.Description);
+        Assert.Equal(342.00m, item.Amount);
+    }
+
+    [Fact]
+    public void Parse_FoldsUnbrokenDownRemainderIntoOtherWhenSegmentIsMissing()
+    {
+        // Base pay below the total with no "Other →" segment: the difference must not be dropped.
+        var result = _parser.Parse("inv.pdf", [BuildBasePayOnlyPage(basePay: "300.00", total: "342.00")]);
+
+        var other = result.LineItems.First(i => i.Description == "Other");
+        Assert.Equal(42.00m, other.Amount);
+        Assert.Equal("income", other.ItemType);
     }
 
     [Theory]

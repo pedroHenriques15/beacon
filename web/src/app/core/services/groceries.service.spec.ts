@@ -180,4 +180,64 @@ describe('GroceriesService', () => {
     const months = service.monthlySummaries().map((s) => s.month);
     expect(months).toEqual(['2024-01', '2024-02']);
   });
+
+  it('countedItems() drops excluded items and keeps allItems intact', () => {
+    service.loadAllItems();
+    controller
+      .expectOne((r) => r.url === '/api/groceries/items')
+      .flush(
+        makePagedResult([
+          makeItem({ id: 1, description: 'Leite', amount: 10 }),
+          makeItem({ id: 2, description: 'Saco', amount: 0.12, isExcluded: true }),
+        ]),
+      );
+
+    expect(service.allItems()).toHaveLength(2);
+    expect(service.countedItems().map((i) => i.id)).toEqual([1]);
+  });
+
+  it('countedItems() drops items labelled Excluded without the isExcluded flag', () => {
+    service.loadAllItems();
+    controller
+      .expectOne((r) => r.url === '/api/groceries/items')
+      .flush(
+        makePagedResult([
+          makeItem({ id: 1, description: 'Leite', amount: 10 }),
+          makeItem({
+            id: 2,
+            description: 'Saco',
+            amount: 0.12,
+            isExcluded: false,
+            categoryId: 7,
+            categoryName: 'Excluded',
+            categoryColor: '#64748b',
+          }),
+        ]),
+      );
+
+    expect(service.countedItems().map((i) => i.id)).toEqual([1]);
+  });
+
+  it('monthlySummaries() ignores excluded items', () => {
+    service.loadAllItems();
+    controller
+      .expectOne((r) => r.url === '/api/groceries/items')
+      .flush(
+        makePagedResult([
+          makeItem({ id: 1, storeName: 'Continente', receiptDate: '2024-01-15', amount: 10 }),
+          makeItem({
+            id: 2,
+            storeName: 'Continente',
+            receiptDate: '2024-01-20',
+            amount: 5,
+            isExcluded: true,
+          }),
+        ]),
+      );
+
+    const continente = service
+      .monthlySummaries()
+      .find((s) => s.store === 'Continente' && s.month === '2024-01');
+    expect(continente?.total).toBe(10);
+  });
 });

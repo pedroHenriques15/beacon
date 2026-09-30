@@ -81,4 +81,33 @@ public class Micro1ReconcilerTests
         var warnings = ParseVerifier.VerifySalarySlip(slip);
         Assert.Empty(warnings);
     }
+
+    // A base-pay-only invoice (no "Other" earnings) — the whole gross is base pay.
+    private static ParsedSalarySlip BasePayOnlyInvoiceUsd() => new(
+        "Micro1 Inc.", null, new DateOnly(2026, 6, 1),
+        GrossAmount: 342.00m, NetAmount: 342.00m,
+        LineItems: [new ParsedSalaryLineItem("Base Pay", 342.00m, "income")],
+        BaseAmount: 342.00m, HoursWorked: 6.84m, HourlyRate: 50m);
+
+    private static DeelWithdrawal BasePayOnlyWithdrawal() => new(
+        SourceAmountUsd: 342.00m, ExchangeFeeUsd: 2.39m,
+        ExchangeRate: 0.86788828m, TotalEur: 294.75m);
+
+    [Fact]
+    public void Reconcile_BasePayOnlyInvoice_EmitsNoOtherLineItem()
+    {
+        var slip = Micro1Reconciler.Reconcile(BasePayOnlyInvoiceUsd(), BasePayOnlyWithdrawal());
+
+        Assert.DoesNotContain(slip.LineItems, i => i.Description == "Other");
+        var basePay = slip.LineItems.First(i => i.Description == "Base Pay");
+        Assert.Equal(slip.GrossAmount, basePay.Amount);
+        Assert.Equal(slip.GrossAmount, slip.BaseAmount);
+    }
+
+    [Fact]
+    public void Reconcile_BasePayOnlyInvoice_PassesParseVerifierWithNoWarnings()
+    {
+        var slip = Micro1Reconciler.Reconcile(BasePayOnlyInvoiceUsd(), BasePayOnlyWithdrawal());
+        Assert.Empty(ParseVerifier.VerifySalarySlip(slip));
+    }
 }

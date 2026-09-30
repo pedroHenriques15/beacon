@@ -8,6 +8,7 @@ using Beacon.Api.Features.Groceries.Commands.SetGroceryItemCategory;
 using Beacon.Api.Features.Groceries.Commands.UpdateGroceryItem;
 using Beacon.Api.Features.Groceries.Queries.GetGroceryReceipts;
 using Beacon.Api.Features.Groceries.Shared;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryCategory;
 using Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryReceiptCategoryMapping;
 using Beacon.Api.Features.GroceryCategories.Commands.DeleteGroceryCategory;
@@ -584,5 +585,105 @@ public class GroceriesHandlerTests
         var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
         var ex = await Record.ExceptionAsync(() => handler.HandleAsync(new MarkGroceryItemsExcludedCommand([9999, 8888])));
         Assert.Null(ex);
+    }
+
+    private static async Task<(GroceryCategory excluded, GroceryCategory other, GroceryReceipt receipt)>
+        SeedForExclusionAsync(AppDbContext db)
+    {
+        var excluded = new GroceryCategory { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        var other    = new GroceryCategory { Name = "Soft Drinks", Color = "#00f" };
+        db.GroceryCategories.AddRange(excluded, other);
+        await db.SaveChangesAsync();
+
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "SACO REUTILIZAVEL", Amount = 0.12m, Quantity = 1 }
+        ]);
+        return (excluded, other, receipt);
+    }
+
+    [Fact]
+    public async Task SetGroceryItemCategory_ToExcludedCategory_SetsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(SetGroceryItemCategory_ToExcludedCategory_SetsIsExcluded));
+        var (excluded, _, receipt) = await SeedForExclusionAsync(db);
+        var item = receipt.Items.First();
+
+        var handler = new SetGroceryItemCategoryCommandHandler(db, NullLogger<SetGroceryItemCategoryCommandHandler>.Instance);
+        await handler.HandleAsync(new SetGroceryItemCategoryCommand(item.Id, excluded.Id, null));
+
+        var reloaded = await db.GroceryItems.FindAsync(item.Id);
+        Assert.True(reloaded!.IsExcluded);
+    }
+
+    [Fact]
+    public async Task SetGroceryItemCategory_AwayFromExcludedCategory_ClearsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(SetGroceryItemCategory_AwayFromExcludedCategory_ClearsIsExcluded));
+        var (excluded, other, receipt) = await SeedForExclusionAsync(db);
+        var item = receipt.Items.First();
+        item.CategoryId = excluded.Id;
+        item.IsExcluded = true;
+        await db.SaveChangesAsync();
+
+        var handler = new SetGroceryItemCategoryCommandHandler(db, NullLogger<SetGroceryItemCategoryCommandHandler>.Instance);
+        await handler.HandleAsync(new SetGroceryItemCategoryCommand(item.Id, other.Id, null));
+
+        var reloaded = await db.GroceryItems.FindAsync(item.Id);
+        Assert.False(reloaded!.IsExcluded);
+    }
+
+    [Fact]
+    public async Task GroceryApplyRuleService_ExcludedCategoryRule_AlsoSetsIsExcludedFlag()
+    {
+        await using var db = CreateDb(nameof(GroceryApplyRuleService_ExcludedCategoryRule_AlsoSetsIsExcludedFlag));
+        var (excluded, _, receipt) = await SeedForExclusionAsync(db);
+
+        var rule = new GroceryCategoryRule { CategoryId = excluded.Id, Pattern = "SACO" };
+        db.GroceryCategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        var service = new GroceryApplyRuleService(db);
+        await service.ApplyAsync(rule);
+
+        var item = await db.GroceryItems.FirstAsync(i => i.ReceiptId == receipt.Id);
+        Assert.Equal(excluded.Id, item.CategoryId);
+        Assert.True(item.IsExcluded);
+    }
+
+    [Fact]
+    public async Task GroceryApplyRuleService_NonExcludedCategoryRule_LeavesIsExcludedFalse()
+    {
+        await using var db = CreateDb(nameof(GroceryApplyRuleService_NonExcludedCategoryRule_LeavesIsExcludedFalse));
+        var (_, other, receipt) = await SeedForExclusionAsync(db);
+
+        var rule = new GroceryCategoryRule { CategoryId = other.Id, Pattern = "SACO" };
+        db.GroceryCategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        var service = new GroceryApplyRuleService(db);
+        await service.ApplyAsync(rule);
+
+        var item = await db.GroceryItems.FirstAsync(i => i.ReceiptId == receipt.Id);
+        Assert.False(item.IsExcluded);
+    }
+
+    [Fact]
+    public async Task CreateGroceryItem_MatchingExcludedCategoryRule_SetsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(CreateGroceryItem_MatchingExcludedCategoryRule_SetsIsExcluded));
+        var (excluded, _, receipt) = await SeedForExclusionAsync(db);
+
+        db.GroceryCategoryRules.Add(new GroceryCategoryRule { CategoryId = excluded.Id, Pattern = "TALAO" });
+        await db.SaveChangesAsync();
+
+        var handler = new CreateGroceryItemCommandHandler(db, NullLogger<CreateGroceryItemCommandHandler>.Instance);
+        var (result, error) = await handler.HandleAsync(
+            new CreateGroceryItemCommand(receipt.Id, "TALAO DESCONTO", 1.50m, 1));
+
+        Assert.Null(error);
+        Assert.NotNull(result);
+        var created = await db.GroceryItems.FindAsync(result.Id);
+        Assert.True(created!.IsExcluded);
     }
 }

@@ -94,12 +94,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   openDropdownId = signal<number | null>(null);
   dropdownPos = signal<{ top: number; left: number } | null>(null);
   catSearch = signal('');
+  // Excluding is its own action (it also sets isExcluded), so the Excluded category is never
+  // offered as a plain category pick.
+  assignableCats = computed(() =>
+    this.catSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
+  );
   filteredCats = computed(() => {
     const q = this.catSearch().toLowerCase();
-    return this.catSvc
-      .categories()
-      .filter((c) => c.name !== CATEGORY_EXCLUDED)
-      .filter((c) => !q || c.name.toLowerCase().includes(q));
+    return this.assignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
   });
   pendingChange = signal<PendingChange | null>(null);
 
@@ -144,7 +146,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const pat = this.gExcludeRulePattern().trim();
     const val = this.gExcludeRuleValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((i) => matchesRule(i, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((i) => matchesRule(i, pat, val)).length;
   });
 
   createMatchCount = computed(() => {
@@ -252,9 +254,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   gOpenDropdownId = signal<number | null>(null);
   gDropdownPos = signal<{ top: number; left: number } | null>(null);
   gCatSearch = signal('');
+  // Same as assignableCats: excluding an item is its own action, not a category pick.
+  gAssignableCats = computed(() =>
+    this.groceryCatSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
+  );
   gFilteredCats = computed(() => {
     const q = this.gCatSearch().toLowerCase();
-    return this.groceryCatSvc.categories().filter((c) => !q || c.name.toLowerCase().includes(q));
+    return this.gAssignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
   });
 
   gPendingChange = signal<GPendingChange | null>(null);
@@ -276,14 +282,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const pat = this.gRuleCreatePattern().trim();
     const val = this.gRuleCreateValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gCreateMatchCount = computed(() => {
     const pat = this.gCreatePattern().trim();
     const val = this.gCreateValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gConfirmDeleteItem = signal<GroceryItem | null>(null);
@@ -325,7 +331,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   });
 
   gUnknownCount = computed(
-    () => this.groceriesSvc.allItems().filter((item) => item.categoryId === null).length,
+    () => this.groceriesSvc.countedItems().filter((item) => item.categoryId === null).length,
   );
 
   gFiltered = computed<GroceryItem[]>(() => {

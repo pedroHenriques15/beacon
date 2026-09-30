@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,8 @@ public class SetTransactionCategoryCommandHandler(AppDbContext db, ILogger<SetTr
 
         if (tx is null) return null;
 
-        tx.CategoryId          = cmd.CategoryId;
+        var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
+        ExcludedCategory.ApplyCategory(tx, cmd.CategoryId, excludedCategoryId);
         tx.CategorySetManually = true;
         tx.CategoryRuleId      = null;
 

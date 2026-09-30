@@ -243,6 +243,20 @@ describe('SalaryService', () => {
     req.flush(SLIP);
   });
 
+  it('mergeSlip() POSTs to /api/salary/slips/:id/merge without a period', () => {
+    const body = {
+      grossAmount: 361.47,
+      netAmount: 359.4,
+      lineItems: [{ salaryItemCategoryId: 10, amount: 361.47, sortOrder: 0 }],
+    };
+    service.mergeSlip(100, body).subscribe();
+    const req = ctrl.expectOne('/api/salary/slips/100/merge');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.grossAmount).toBe(361.47);
+    expect(req.request.body.period).toBeUndefined();
+    req.flush(SLIP);
+  });
+
   it('deleteSlip() sends DELETE to /api/salary/slips/:id', () => {
     service.deleteSlip(100).subscribe();
     const req = ctrl.expectOne('/api/salary/slips/100');

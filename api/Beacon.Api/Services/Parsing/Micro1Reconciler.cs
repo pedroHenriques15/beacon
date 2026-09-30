@@ -16,17 +16,26 @@ public static class Micro1Reconciler
         var feeEur = AmountUtils.Round2(withdrawal.ExchangeFeeUsd * rate);
         var grossEur = netEur + feeEur;
 
-        var basePayEur = AmountUtils.Round2((invoiceUsd.BaseAmount ?? 0m) * rate);
-        var otherEur   = grossEur - basePayEur;
+        var basePayUsd = invoiceUsd.BaseAmount ?? 0m;
+        var basePayEur = AmountUtils.Round2(basePayUsd * rate);
 
         var hourlyRateEur = invoiceUsd.HourlyRate is { } r ? AmountUtils.Round2(r * rate) : (decimal?)null;
 
-        var lineItems = new List<ParsedSalaryLineItem>
+        var lineItems = new List<ParsedSalaryLineItem>();
+        if (basePayUsd == invoiceUsd.GrossAmount)
         {
-            new("Base Pay", basePayEur, "income"),
-            new("Other", otherEur, "income"),
-            new("Deel exchange fee", feeEur, "deduction"),
-        };
+            // Base-pay-only invoice: the whole gross is base pay, and converting it once (rather than
+            // base and gross separately) keeps FX rounding from leaking out as a stray one-cent "Other".
+            basePayEur = grossEur;
+            lineItems.Add(new ParsedSalaryLineItem("Base Pay", basePayEur, "income"));
+        }
+        else
+        {
+            lineItems.Add(new ParsedSalaryLineItem("Base Pay", basePayEur, "income"));
+            // "Other" absorbs the rounding so the income items sum exactly to gross.
+            lineItems.Add(new ParsedSalaryLineItem("Other", grossEur - basePayEur, "income"));
+        }
+        lineItems.Add(new ParsedSalaryLineItem("Deel exchange fee", feeEur, "deduction"));
 
         return new ParsedSalarySlip(
             invoiceUsd.Employer,

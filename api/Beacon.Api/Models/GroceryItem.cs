@@ -1,6 +1,8 @@
+using Beacon.Api.Features.Shared;
+
 namespace Beacon.Api.Models;
 
-public class GroceryItem
+public class GroceryItem : ICategorisedEntity
 {
     public int Id { get; set; }
     public int ReceiptId { get; set; }

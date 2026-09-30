@@ -474,7 +474,47 @@
           </svg>
           Pre-filled from <strong>{{ slipSourceFile() }}</strong>
           @if (hasUnmatchedLineItems()) {
-            &nbsp;·&nbsp;<span class="warn-text">Some line items need a category</span>
+            &nbsp;·&nbsp;<span class="warn-text">Highlighted lines will create new categories</span>
+          }
+        </div>
+      }
+
+      @if (slipMergeTarget(); as existing) {
+        <div class="merge-notice">
+          <p class="merge-notice-title">
+            A slip for <strong>{{ formatPeriod(existing.period) }}</strong> already exists ({{
+              existing.grossAmount | currency: 'EUR'
+            }}
+            gross).
+          </p>
+          <label class="merge-notice-toggle">
+            <input
+              type="checkbox"
+              [ngModel]="slipMergeConfirmed()"
+              (ngModelChange)="slipMergeConfirmed.set($event)"
+            />
+            Add to existing slip
+          </label>
+          @if (slipMergeConfirmed()) {
+            <dl class="merge-notice-totals">
+              <div>
+                <dt>Gross</dt>
+                <dd>
+                  {{ existing.grossAmount | currency: 'EUR' }} +
+                  {{ slipGross() ?? 0 | currency: 'EUR' }} =
+                  <strong>{{ mergedGross() | currency: 'EUR' }}</strong>
+                </dd>
+              </div>
+              <div>
+                <dt>Net</dt>
+                <dd>
+                  {{ existing.netAmount | currency: 'EUR' }} +
+                  {{ slipNet() ?? 0 | currency: 'EUR' }} =
+                  <strong>{{ mergedNet() | currency: 'EUR' }}</strong>
+                </dd>
+              </div>
+            </dl>
+            <p class="merge-notice-hint">Line items with the same category are added together.</p>
           }
         </div>
       }
@@ -597,7 +637,9 @@
                 updateLineItem(i, 'salaryItemCategoryId', $event === null ? null : +$event)
               "
             >
-              <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
+              <option [ngValue]="null">
+                {{ li.hint ? '➕ Create “' + li.hint + '”' : 'Category…' }}
+              </option>
               @for (type of itemTypes; track type.value) {
                 @if (catsByType(type.value).length > 0) {
                   <optgroup [label]="type.label">
@@ -635,7 +677,13 @@
           [disabled]="!slipFormValid() || slipLoading()"
           (click)="submitSlip()"
         >
-          {{ slipLoading() ? 'Saving…' : 'Save slip' }}
+          {{
+            slipLoading()
+              ? 'Saving…'
+              : slipMergeTarget() && slipMergeConfirmed()
+                ? 'Merge into existing slip'
+                : 'Save slip'
+          }}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Categories.Shared;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -341,5 +342,46 @@ public class ApplyRuleServiceTests
 
         var tx = await db.Transactions.FirstAsync();
         Assert.Null(tx.CategoryId);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_ExcludedCategoryRule_AlsoSetsIsExcludedFlag()
+    {
+        await using var db = CreateDb(nameof(ApplyAsync_ExcludedCategoryRule_AlsoSetsIsExcludedFlag));
+        await SeedAsync(db);
+        var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        db.Categories.Add(excluded);
+        await db.SaveChangesAsync();
+
+        var rule = new CategoryRule { CategoryId = excluded.Id, Pattern = "LIDL" };
+        db.CategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        var service = new ApplyRuleService(db);
+        await service.ApplyAsync(rule);
+
+        var tx = await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa");
+        Assert.Equal(excluded.Id, tx.CategoryId);
+        Assert.True(tx.IsExcluded);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_NonExcludedCategoryRule_LeavesIsExcludedFalse()
+    {
+        await using var db = CreateDb(nameof(ApplyAsync_NonExcludedCategoryRule_LeavesIsExcludedFalse));
+        await SeedAsync(db);
+        db.Categories.Add(new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true });
+        await db.SaveChangesAsync();
+
+        var groceries = await db.Categories.FirstAsync(c => c.Name == "Groceries");
+        var rule = new CategoryRule { CategoryId = groceries.Id, Pattern = "LIDL" };
+        db.CategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        var service = new ApplyRuleService(db);
+        await service.ApplyAsync(rule);
+
+        var tx = await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa");
+        Assert.False(tx.IsExcluded);
     }
 }

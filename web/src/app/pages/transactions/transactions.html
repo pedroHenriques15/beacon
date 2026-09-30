@@ -883,10 +883,8 @@
         (ngModelChange)="txCategoryId.set($event)"
       >
         <option [ngValue]="null">None</option>
-        @for (cat of catSvc.categories(); track cat.id) {
-          @if (cat.name !== 'Internal Transfer') {
-            <option [ngValue]="cat.id">{{ cat.name }}</option>
-          }
+        @for (cat of assignableCats(); track cat.id) {
+          <option [ngValue]="cat.id">{{ cat.name }}</option>
         }
       </select>
 

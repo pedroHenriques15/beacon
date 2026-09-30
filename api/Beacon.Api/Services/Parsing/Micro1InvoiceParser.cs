@@ -25,15 +25,20 @@ public partial class Micro1InvoiceParser : ISalarySlipParser
         var period    = ExtractPeriod(fullText);
         var totalUsd  = ExtractTotal(fullText);
         var basePay   = ExtractSummaryValue(BasePayRegex(), fullText, "Base Pay");
-        var other     = ExtractSummaryValue(OtherRegex(), fullText, "Other");
         var hours     = ExtractSummaryValue(HoursRegex(), fullText, "Hours");
         var payRate   = ExtractSummaryValue(PayRateRegex(), fullText, "Pay Rate");
+
+        // An invoice with nothing beyond base pay omits the "| Other → $x" segment entirely, so it is
+        // optional. Falling back to total − base pay also folds in any segment this parser does not
+        // know about, keeping the income items summing exactly to the invoice total.
+        var other = ExtractOptionalValue(OtherRegex(), fullText) ?? totalUsd - basePay;
 
         var lineItems = new List<ParsedSalaryLineItem>
         {
             new("Base Pay", basePay, "income"),
-            new("Other", other, "income"),
         };
+        if (other != 0m)
+            lineItems.Add(new ParsedSalaryLineItem("Other", other, "income"));
 
         return new ParsedSalarySlip(
             "Micro1 Inc.", null, period, totalUsd, totalUsd, lineItems,
@@ -67,6 +72,12 @@ public partial class Micro1InvoiceParser : ISalarySlipParser
         if (!m.Success)
             throw new InvalidOperationException($"Could not find '{label}' in micro1 invoice summary line.");
         return ParseUs(m.Groups[1].Value);
+    }
+
+    private static decimal? ExtractOptionalValue(Regex regex, string fullText)
+    {
+        var m = regex.Match(fullText);
+        return m.Success ? ParseUs(m.Groups[1].Value) : null;
     }
 
     public static decimal ParseUs(string s) => AmountUtils.ParseUsd(s);

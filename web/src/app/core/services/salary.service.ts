@@ -124,6 +124,14 @@ export class SalaryService {
     return this.http.put<SalarySlip>(`/api/salary/slips/${id}`, body);
   }
 
+  /**
+   * Adds a second pay run to an existing slip instead of creating a new one - for pay cycles that
+   * bill more than once a calendar month (micro1/Deel), which one slip per period cannot represent.
+   */
+  mergeSlip(id: number, body: Omit<SlipBody, 'period'>): Observable<SalarySlip> {
+    return this.http.post<SalarySlip>(`/api/salary/slips/${id}/merge`, body);
+  }
+
   deleteSlip(id: number): Observable<void> {
     return this.http.delete<void>(`/api/salary/slips/${id}`);
   }
