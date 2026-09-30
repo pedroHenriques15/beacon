@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Check formatting (fix with `dotnet format beacon.sln`)
+        run: dotnet format beacon.sln --verify-no-changes
       - name: Test
         working-directory: api
         run: dotnet test Beacon.Tests/ --nologo
@@ -35,6 +37,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install
         run: npm ci
+      - name: Check formatting (fix with `npx prettier --write .`)
+        run: npx prettier --check .
       - name: Test
         run: npx ng test --watch=false
       - name: Build (production budgets enforced)

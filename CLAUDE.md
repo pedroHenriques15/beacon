@@ -87,6 +87,8 @@ Backend:
 - A new entity gets a `DbSet<T>` in `Data/AppDbContext.cs` and a migration.
 - The `beacon-feature-scaffolder` and `beacon-parser-scaffolder` agents generate new use cases
   and parsers in this shape.
+- Run `dotnet format beacon.sln` (repository root) before committing. It uses the default .NET
+  style, so don't align columns with extra spaces; the formatter removes them.
 
 Frontend:
 
@@ -138,7 +140,8 @@ Before a task's PR:
 
 - New logic has tests. `dotnet test Beacon.Tests/` (in `api/`) and `ng test --watch=false`
   (in `web/`) pass, and `npm run build` stays within its budgets.
-- Prettier has run on frontend changes.
+- The formatters have run: `npx prettier --write .` in `web/` and `dotnet format beacon.sln`.
+  CI fails otherwise (`prettier --check`, `dotnet format --verify-no-changes`).
 - If the work was a ROADMAP.md item, the PR removes its line.
 - The docs follow the code: ARCHITECTURE.md for how things work, a new ADR in DECISIONS.md
   for a settled decision, README.md (public) for setup, commands or environment variables,
@@ -171,6 +174,10 @@ Before a task's PR:
   a push to `development` with anything but planning commits, and a task branch whose task
   file is missing or `dropped` (skipped in a clone without `docs/tasks/`). Never bypass them
   with `--no-verify`.
+- **Pull requests** open with `.github/pull_request_template.md` (What, Why, How tested,
+  screenshots or `No visual change.`). CI checks formatting, runs the tests and builds the
+  client. On GitHub the default branch is `development`, squash and merge commits are
+  allowed (rebase merging is off), and head branches are deleted after the merge.
 - Commit, push or open PRs only when asked to.
 
 ## Commands
@@ -188,6 +195,7 @@ VS Code "Beacon: Start All"    backend and frontend together (also "Start All (D
 scripts/reset-db.ps1           drop and recreate the local database (reads appsettings.json)
 
 cd api && dotnet test Beacon.Tests/                     backend tests
+dotnet format beacon.sln                                format the backend (repository root)
 cd api/Beacon.Api && dotnet ef migrations add <Name>    new migration
 cd api/Beacon.Api && dotnet ef database update          apply migrations (run-backend does it on start)
 cd web && ng test --watch=false                         frontend tests

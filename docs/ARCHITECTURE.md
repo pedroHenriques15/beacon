@@ -111,7 +111,9 @@ beacon/
 ├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
 ├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
-├── .github/workflows/ci.yml      # Backend tests; frontend tests and production build
+├── .github/
+│   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
+│   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
 └── beacon.sln
 ```
 
