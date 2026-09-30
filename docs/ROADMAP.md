@@ -17,8 +17,6 @@ removes it. Settled decisions go to DECISIONS.md.
 
 ## Now
 
-- Stop the startup cleanup from deleting PDFs that are stored with relative paths (critical:
-  it deletes files).
 - Store PDF paths relative to `Storage__Path`, so the database is not tied to one machine
   (after the cleanup fix).
 - Git hooks for the protected branches, commit subjects and task branches.

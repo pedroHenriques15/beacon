@@ -153,6 +153,16 @@ public class FileStorageServiceTests : IDisposable
         Assert.Null(ex);
     }
 
+    [Theory]
+    [InlineData("3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData("/data/beacon/uploads/3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData(@"C:\beacon\local\uploads\3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    [InlineData(@"uploads/nested\3f2b6c1e-0000-4000-8000-000000000001.pdf")]
+    public void FileNameOf_ReturnsTheNameAfterTheLastSeparator(string storedPath)
+    {
+        Assert.Equal("3f2b6c1e-0000-4000-8000-000000000001.pdf", FileStorageService.FileNameOf(storedPath));
+    }
+
     private sealed class FormFileStub(byte[] content, string fileName) : IFormFile
     {
         public string ContentType        => "application/pdf";

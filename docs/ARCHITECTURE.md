@@ -348,11 +348,13 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
   planned: ROADMAP.md, "Now").
 - `GetFullPath`, `GetFile` and `Delete` accept an absolute path or a path relative to the
   storage root, and refuse anything that resolves outside it.
-- At startup `Program.cs` runs `CleanupOrphanedPdfsAsync`: every `*.pdf` in the storage root
-  that no `PdfPath` references and that is older than 24 hours is deleted. It compares with
-  `Path.GetFullPath(PdfPath)`, which resolves a relative path against the working directory
-  instead of the storage root, so a file referenced by a relative path is deleted too (a fix
-  is planned: ROADMAP.md, "Now").
+- At startup `Program.cs` runs `OrphanedPdfCleanup` (scoped, in `Services/`) when
+  `Storage__Path` is set: every `*.pdf` in the storage root that no `PdfPath` references and
+  that is older than 24 hours is deleted; a file that cannot be deleted is logged and
+  skipped. A row references a file by the name its `PdfPath` ends in
+  (`FileStorageService.FileNameOf`, which splits on both `/` and `\`), so a relative path, an
+  absolute path under the root and an absolute path written on another machine (a restored
+  backup) all protect their file.
 
 ### Investments
 
@@ -442,7 +444,7 @@ Google Cloud Console at the same time.
 | Service type | Lifetime |
 |---|---|
 | Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
 | `InvestmentPriceRefreshService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
@@ -545,9 +547,10 @@ Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,
 `ExceptionHandlingMiddleware`, `ApplyRuleService` (incl. Excluded-category rules setting
-`IsExcluded`), `FileStorageService`, `SavingsPlanImportService`, `StatementUploadService`
-(PPR recompute helper, Trade Republic savings-plan exclusion), `AlphaVantageService` (incl.
-request-URI pinning), CQRS handlers for Backup (incl. investment tables), Categories,
+`IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
+stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
+Trade Republic savings-plan exclusion), `AlphaVantageService` (incl. request-URI pinning),
+CQRS handlers for Backup (incl. investment tables), Categories,
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
 Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell

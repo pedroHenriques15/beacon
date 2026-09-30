@@ -120,6 +120,7 @@ builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<IPdfExtractor, PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
+builder.Services.AddScoped<OrphanedPdfCleanup>();
 
 builder.Services.AddScoped<DownloadBackupQueryHandler>();
 builder.Services.AddScoped<GetStatementsQueryHandler>();
@@ -275,40 +276,8 @@ app.Run();
 
 static async Task CleanupOrphanedPdfsAsync(WebApplication app)
 {
-    var storagePath = app.Configuration["Storage:Path"];
-    if (string.IsNullOrEmpty(storagePath) || !Directory.Exists(storagePath)) return;
-
     await using var scope = app.Services.CreateAsyncScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-    var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    referenced.UnionWith((await db.MonthlyStatements
-        .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
-    referenced.UnionWith((await db.SalarySlips
-        .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
-    referenced.UnionWith((await db.GroceryReceipts
-        .Where(r => r.PdfPath != null).Select(r => r.PdfPath!).ToListAsync()).Select(Path.GetFullPath));
-
-    var cutoff = DateTime.UtcNow.AddHours(-24);
-    var deleted = 0;
-    foreach (var file in Directory.EnumerateFiles(storagePath, "*.pdf"))
-    {
-        if (referenced.Contains(Path.GetFullPath(file))) continue;
-        if (File.GetLastWriteTimeUtc(file) > cutoff) continue;
-        try
-        {
-            File.Delete(file);
-            deleted++;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not delete orphaned PDF {Path}", file);
-        }
-    }
-
-    if (deleted > 0)
-        logger.LogInformation("Deleted {Count} orphaned PDFs from storage", deleted);
+    await scope.ServiceProvider.GetRequiredService<OrphanedPdfCleanup>().RunAsync();
 }
 
 static async Task SeedDefaultDataAsync(WebApplication app)
