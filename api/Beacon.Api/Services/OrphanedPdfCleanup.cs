@@ -8,7 +8,9 @@ namespace Beacon.Api.Services;
 /// receipt references and that is older than <see cref="MinimumAge"/> (a younger one may belong to
 /// an upload whose row is not saved yet). A row protects the file its <c>PdfPath</c> ends in, so a
 /// relative path, an absolute path under the root and an absolute path written on another machine
-/// (a restored backup) all keep their file.
+/// (a restored backup) all keep their file. When the database references none of the PDFs in the
+/// folder, the two do not belong together (the demo database pointed at real uploads, say), so
+/// nothing is deleted.
 /// </summary>
 public class OrphanedPdfCleanup(AppDbContext db, IConfiguration config, ILogger<OrphanedPdfCleanup> logger)
 {
@@ -30,9 +32,18 @@ public class OrphanedPdfCleanup(AppDbContext db, IConfiguration config, ILogger<
             .Select(p => FileStorageService.FileNameOf(p))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        var files = Directory.EnumerateFiles(storagePath, "*.pdf").ToList();
+        if (files.Count > 0 && !files.Any(f => referenced.Contains(Path.GetFileName(f))))
+        {
+            logger.LogWarning(
+                "Skipped the orphaned PDF cleanup: the database references none of the {Count} PDFs in {Path}, so they do not belong together",
+                files.Count, storagePath);
+            return 0;
+        }
+
         var cutoff = DateTime.UtcNow - MinimumAge;
         var deleted = 0;
-        foreach (var file in Directory.EnumerateFiles(storagePath, "*.pdf"))
+        foreach (var file in files)
         {
             if (referenced.Contains(Path.GetFileName(file))) continue;
             if (File.GetLastWriteTimeUtc(file) > cutoff) continue;

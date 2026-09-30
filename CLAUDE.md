@@ -48,7 +48,8 @@ scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-b
 .githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
 docs/               ARCHITECTURE, DECISIONS, ROADMAP, screenshots/; tasks/ (git-ignored)
 .claude/            agents/ (scaffolders), skills/task/ (task workflow), settings.json (shared)
-local/              git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
+local/              git-ignored: environment.dev/.demo, uploads/, backups/ (the demo's own:
+                    uploads-demo/, backups-demo/), sample PDFs
 ```
 
 The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the layout changes.
@@ -190,7 +191,7 @@ Development runs on the host (ADR-019): .NET 8 SDK, Node 22 or newer, Python 3 w
 scripts/setup.ps1              once per clone: enable the git hooks (scripts/setup.sh on Linux)
 scripts/run-backend.ps1        load local/environment.dev, apply migrations, API on :5098 (/swagger)
 scripts/run-frontend.ps1       wait for the API, then ng serve on :4200
-scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo)
+scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo), local/uploads-demo and backups-demo
 VS Code "Beacon: Start All"    backend and frontend together (also "Start All (Demo)")
 scripts/reset-db.ps1           drop and recreate the local database (reads appsettings.json)
 

@@ -94,7 +94,7 @@ beacon/
 │   ├── reset-db.sh / .ps1        # Drop and recreate the local database (reads appsettings.json)
 │   ├── run-backend.ps1           # Load local/environment.dev, apply migrations, start the API on :5098
 │   ├── run-frontend.ps1          # Wait for the API, then ng serve on :4200
-│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (BeaconDemo, local/environment.demo)
+│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (BeaconDemo), with its own uploads-demo/ and backups-demo/
 │   ├── seed-demo.sql             # (WIP) Synthetic demo data
 │   ├── seed-demo.ps1 / .sh       # (WIP) Seed the demo database (Windows, through SeedRunner / Linux server)
 │   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a connection string
@@ -110,7 +110,7 @@ beacon/
 ├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
 ├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
-├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/, sample PDFs
+├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/ (demo: uploads-demo/, backups-demo/), sample PDFs
 ├── .github/
 │   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
 │   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
@@ -366,6 +366,13 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
   (`FileStorageService.FileNameOf`, which splits on both `/` and `\`), so a relative path, an
   absolute path under the root and an absolute path written on another machine (a restored
   backup) all protect their file.
+- The cleanup deletes nothing, and logs a warning, when the database references none of the
+  PDFs in the folder: the two do not belong together. That covers the demo database (no
+  `PdfPath` at all) or a restored database pointed at another machine's uploads. The cost:
+  PDFs left behind after every row is gone stay until a new upload is referenced.
+- The demo backend never shares the folder: `scripts/run-backend-demo.ps1` sets
+  `Storage__Path` and `Backup__Path` to `local/uploads-demo` and `local/backups-demo`,
+  whatever `local/environment.demo` says.
 
 ### Investments
 
@@ -546,8 +553,10 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `GoogleServices__FrontendUrl` | Angular app origin the OAuth callback redirects to (e.g. `http://localhost:4200`) |
 
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
-`scripts/run-backend.ps1`) and `local/environment.demo`; in production in
-`/etc/beacon/environment` (loaded by systemd `EnvironmentFile`).
+`scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
+`scripts/run-backend-demo.ps1`, which always sets `Storage__Path` to `local/uploads-demo` and
+`Backup__Path` to `local/backups-demo`); in production in `/etc/beacon/environment` (loaded
+by systemd `EnvironmentFile`).
 
 ## Tests
 

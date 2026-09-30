@@ -110,10 +110,18 @@ public class OrphanedPdfCleanupTests : IDisposable
         Assert.True(File.Exists(file));
     }
 
+    // A referenced file shows the cleanup that the folder belongs to this database.
+    private async Task AddReferencedPdfAsync(AppDbContext db)
+    {
+        AddStatement(db, Path.GetFileName(StoredPdf(Old)));
+        await db.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task UnreferencedFileOlderThanMinimumAge_IsDeleted()
     {
         await using var db = CreateDb(nameof(UnreferencedFileOlderThanMinimumAge_IsDeleted));
+        await AddReferencedPdfAsync(db);
         var file = StoredPdf(OrphanedPdfCleanup.MinimumAge + TimeSpan.FromMinutes(5));
 
         var deleted = await CreateCleanup(db).RunAsync();
@@ -126,7 +134,38 @@ public class OrphanedPdfCleanupTests : IDisposable
     public async Task UnreferencedFileNewerThanMinimumAge_Survives()
     {
         await using var db = CreateDb(nameof(UnreferencedFileNewerThanMinimumAge_Survives));
+        await AddReferencedPdfAsync(db);
         var file = StoredPdf(TimeSpan.FromHours(1));
+
+        var deleted = await CreateCleanup(db).RunAsync();
+
+        Assert.Equal(0, deleted);
+        Assert.True(File.Exists(file));
+    }
+
+    [Fact]
+    public async Task DatabaseReferencingNoFiles_DeletesNothing()
+    {
+        // The demo database, whose rows have no PdfPath, started against real uploads.
+        await using var db = CreateDb(nameof(DatabaseReferencingNoFiles_DeletesNothing));
+        var first = StoredPdf(Old);
+        var second = StoredPdf(Old);
+
+        var deleted = await CreateCleanup(db).RunAsync();
+
+        Assert.Equal(0, deleted);
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+
+    [Fact]
+    public async Task DatabaseReferencingNoneOfTheFolder_DeletesNothing()
+    {
+        // A database restored without its files, pointed at another folder of uploads.
+        await using var db = CreateDb(nameof(DatabaseReferencingNoneOfTheFolder_DeletesNothing));
+        AddStatement(db, "3f2b6c1e-0000-4000-8000-000000000001.pdf");
+        await db.SaveChangesAsync();
+        var file = StoredPdf(Old);
 
         var deleted = await CreateCleanup(db).RunAsync();
 
