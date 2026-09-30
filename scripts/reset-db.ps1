@@ -50,11 +50,11 @@ if ([string]::IsNullOrWhiteSpace($connStr)) {
     Write-Fail "ConnectionStrings.DefaultConnection is empty in appsettings.json"
 }
 
-if ($connStr -match '(?i)(?:Database|Initial\s+Catalog)=([^;]+)') {
+if ($connStr -match '(?i)Data\s+Source=([^;]+)') {
     $dbName = $Matches[1].Trim()
 }
 else {
-    Write-Fail "Could not parse database name from connection string"
+    Write-Fail "Could not parse Data Source (the database file) from connection string"
 }
 
 Write-Ok "Target database: $dbName"

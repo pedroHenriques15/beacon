@@ -24,29 +24,22 @@
 --     5 excluded transactions (mix of categorised and uncategorised)
 --     3 excluded grocery items
 --
--- Usage:
---   sqlcmd -S <server> -d BeaconDemo -i scripts/seed-demo.sql
---   or paste into SSMS and execute against the target database.
---
--- NOTE: Table references use [dbo].[Table] (no database prefix) so
---   this script works against any database name.
+-- SQLite. Usage: scripts/seed-demo.ps1 (Windows) or scripts/seed-demo.sh (Linux), which
+-- run it through scripts/SeedRunner. SeedRunner rewrites the decimals afterwards in the
+-- text form EF Core uses, so amounts may be written here as plain numbers.
 --
 -- WARNING: Will fail on duplicate key if data already exists.
 -- Run against an empty or freshly migrated database only.
 -- ============================================================
-
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;
 
 -- ============================================================
 -- 1. CATEGORIES
 -- ============================================================
-PRINT 'Seeding categories...';
-SET IDENTITY_INSERT [dbo].[Categories] ON;
+-- Seeding categories...
 
-INSERT INTO [dbo].[Categories] ([Id],[Name],[Color],[IsProtected]) VALUES
+INSERT INTO [Categories] ([Id],[Name],[Color],[IsProtected]) VALUES
 ( 1,'Housing',       '#ef4444',0),
 ( 2,'Food & Dining', '#f97316',0),
 ( 3,'Transport',     '#eab308',0),
@@ -58,15 +51,13 @@ INSERT INTO [dbo].[Categories] ([Id],[Name],[Color],[IsProtected]) VALUES
 ( 9,'Transfers',     '#64748b',1),
 (10,'Other',         '#94a3b8',0);
 
-SET IDENTITY_INSERT [dbo].[Categories] OFF;
 
 -- ============================================================
 -- 2. CATEGORY RULES
 -- ============================================================
-PRINT 'Seeding category rules...';
-SET IDENTITY_INSERT [dbo].[CategoryRules] ON;
+-- Seeding category rules...
 
-INSERT INTO [dbo].[CategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
+INSERT INTO [CategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
 -- Housing
 ( 1,1,'RENDA',NULL),
 ( 2,1,'IMOBILIARIA',NULL),
@@ -110,15 +101,13 @@ INSERT INTO [dbo].[CategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
 (32,9,'TRANSFERENCIA',NULL),
 (33,9,'TRF ',NULL);
 
-SET IDENTITY_INSERT [dbo].[CategoryRules] OFF;
 
 -- ============================================================
 -- 3. MONTHLY STATEMENTS  (3 banks × 12 months = 36)
 -- ============================================================
-PRINT 'Seeding monthly statements...';
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] ON;
+-- Seeding monthly statements...
 
-INSERT INTO [dbo].[MonthlyStatements]
+INSERT INTO [MonthlyStatements]
   ([Id],[Bank],[Account],[PeriodFrom],[PeriodTo],[Currency],[OpeningBalance],[ClosingBalance],[SourceFile],[PdfPath],[FileHash],[ImportedAt])
 VALUES
 -- ActivoBank (1–12)
@@ -161,7 +150,6 @@ VALUES
 (35,'Revolut','LT12 3250 0100 0123 4567','2026-02-01','2026-02-28','EUR',1448.80,1571.84,'revolut_2026_02.pdf',NULL,NULL,'2026-03-01 10:00:00'),
 (36,'Revolut','LT12 3250 0100 0123 4567','2026-03-01','2026-03-31','EUR',1571.84,1678.37,'revolut_2026_03.pdf',NULL,NULL,'2026-04-01 10:00:00');
 
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] OFF;
 
 -- ============================================================
 -- 4. TRANSACTIONS — ActivoBank (12 per month, IDs 1–144)
@@ -171,10 +159,9 @@ SET IDENTITY_INSERT [dbo].[MonthlyStatements] OFF;
 --      11 Farmacia (odd months) or Bolt (even months)
 --      12 Transfer to BPI [internal]
 -- ============================================================
-PRINT 'Seeding ActivoBank transactions...';
-SET IDENTITY_INSERT [dbo].[Transactions] ON;
+-- Seeding ActivoBank transactions...
 
-INSERT INTO [dbo].[Transactions]
+INSERT INTO [Transactions]
   ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- === April 2025 (Stmt 1) ===
@@ -340,9 +327,9 @@ VALUES
 --    3 Clothing store | 4 Holmes gym [uncategorised]
 --    5 Amazon | 6 Restaurant | 7 Lidl | 8 Misc
 -- ============================================================
-PRINT 'Seeding BPI transactions...';
+-- Seeding BPI transactions...
 
-INSERT INTO [dbo].[Transactions]
+INSERT INTO [Transactions]
   ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- === April 2025 (Stmt 13) ===
@@ -459,9 +446,9 @@ VALUES
 --    1 Top-up [internal] | 2 Netflix | 3 Spotify
 --    4 Amazon | 5 Steam/Subscription (varies) | 6 Misc online
 -- ============================================================
-PRINT 'Seeding Revolut transactions...';
+-- Seeding Revolut transactions...
 
-INSERT INTO [dbo].[Transactions]
+INSERT INTO [Transactions]
   ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- === April 2025 (Stmt 25) ===
@@ -549,27 +536,23 @@ VALUES
 (311,36,'2026-03-15','2026-03-15','STEAM GAMES',                            14.99,'debit', 1698.37,  6,25,0,0),
 (312,36,'2026-03-20','2026-03-20','ALIEXPRESS',                             20.00,'debit', 1678.37,  7,NULL,1,0);
 
-SET IDENTITY_INSERT [dbo].[Transactions] OFF;
 
 -- ============================================================
 -- 7. SALARY PROFILES
 -- ============================================================
-PRINT 'Seeding salary profiles...';
-SET IDENTITY_INSERT [dbo].[SalaryProfiles] ON;
+-- Seeding salary profiles...
 
-INSERT INTO [dbo].[SalaryProfiles] ([Id],[Name],[Description]) VALUES
-(1,'Main Job',       'Primary employment'),
-(2,'Side Consulting','Freelance consulting and project work');
+INSERT INTO [SalaryProfiles] ([Id],[Name],[Description],[HourlyRateFormula]) VALUES
+(1,'Main Job',       'Primary employment','days'),
+(2,'Side Consulting','Freelance consulting and project work','days');
 
-SET IDENTITY_INSERT [dbo].[SalaryProfiles] OFF;
 
 -- ============================================================
 -- 8. SALARY ITEM CATEGORIES
 -- ============================================================
-PRINT 'Seeding salary item categories...';
-SET IDENTITY_INSERT [dbo].[SalaryItemCategories] ON;
+-- Seeding salary item categories...
 
-INSERT INTO [dbo].[SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],[ItemType],[IsProtected]) VALUES
+INSERT INTO [SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],[ItemType],[IsProtected]) VALUES
 -- Profile 1
 (1,1,'Vencimento Base',    '#10b981','income',   0),
 (2,1,'Subsidio Refeicao',  '#34d399','income',   0),
@@ -581,7 +564,6 @@ INSERT INTO [dbo].[SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],
 (7,2,'Honorarios',         '#60a5fa','income',   0),
 (8,2,'IRS Retencao Fonte', '#93c5fd','tax',      0);
 
-SET IDENTITY_INSERT [dbo].[SalaryItemCategories] OFF;
 
 -- ============================================================
 -- 9. SALARY SLIPS  (12 per profile = 24 total)
@@ -589,10 +571,9 @@ SET IDENTITY_INSERT [dbo].[SalaryItemCategories] OFF;
 --               July/Dec gross=2800.00 net=2000.00 (subsidy)
 --    Profile 2: freelance, variable gross, 25% IRS
 -- ============================================================
-PRINT 'Seeding salary slips...';
-SET IDENTITY_INSERT [dbo].[SalarySlips] ON;
+-- Seeding salary slips...
 
-INSERT INTO [dbo].[SalarySlips]
+INSERT INTO [SalarySlips]
   ([Id],[SalaryProfileId],[Period],[GrossAmount],[NetAmount],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt],[BaseAmount],[HoursWorked],[HourlyRate],[TotalEspecie])
 VALUES
 -- Profile 1 — regular months
@@ -626,17 +607,15 @@ VALUES
 (23,2,'2026-02-01', 550.00, 412.50,NULL,'sample_consulting_2026_02.pdf',NULL,NULL,'2026-03-05 10:00:00',NULL,NULL,NULL,NULL),
 (24,2,'2026-03-01', 480.00, 360.00,NULL,'sample_consulting_2026_03.pdf',NULL,NULL,'2026-04-04 10:00:00',NULL,NULL,NULL,NULL);
 
-SET IDENTITY_INSERT [dbo].[SalarySlips] OFF;
 
 -- ============================================================
 -- 10. SALARY LINE ITEMS
 --     Profile 1 regular (5 items × 10 months) + special (6 items × 2)
 --     Profile 2 (2 items × 12 months)
 -- ============================================================
-PRINT 'Seeding salary line items...';
-SET IDENTITY_INSERT [dbo].[SalaryLineItems] ON;
+-- Seeding salary line items...
 
-INSERT INTO [dbo].[SalaryLineItems]
+INSERT INTO [SalaryLineItems]
   ([Id],[SalarySlipId],[SalaryItemCategoryId],[Amount],[SortOrder],[Quantity],[UnitValue],[Percentage],[IncidenciaBase])
 VALUES
 -- ---- Slip 1 (Apr 2025, regular) ----
@@ -739,15 +718,13 @@ VALUES
 (85,24,7, 480.00,1,NULL,NULL,NULL,NULL),
 (86,24,8, 120.00,2,NULL,NULL,25.00,480.00);
 
-SET IDENTITY_INSERT [dbo].[SalaryLineItems] OFF;
 
 -- ============================================================
 -- 11. GROCERY CATEGORIES
 -- ============================================================
-PRINT 'Seeding grocery categories...';
-SET IDENTITY_INSERT [dbo].[GroceryCategories] ON;
+-- Seeding grocery categories...
 
-INSERT INTO [dbo].[GroceryCategories] ([Id],[Name],[Color],[IsProtected]) VALUES
+INSERT INTO [GroceryCategories] ([Id],[Name],[Color],[IsProtected]) VALUES
 (1,'Produce',       '#4ade80',0),
 (2,'Dairy',         '#60a5fa',0),
 (3,'Meat & Fish',   '#f87171',0),
@@ -757,15 +734,13 @@ INSERT INTO [dbo].[GroceryCategories] ([Id],[Name],[Color],[IsProtected]) VALUES
 (7,'Personal Care', '#f472b6',0),
 (8,'Other',         '#64748b',0);
 
-SET IDENTITY_INSERT [dbo].[GroceryCategories] OFF;
 
 -- ============================================================
 -- 12. GROCERY CATEGORY RULES
 -- ============================================================
-PRINT 'Seeding grocery category rules...';
-SET IDENTITY_INSERT [dbo].[GroceryCategoryRules] ON;
+-- Seeding grocery category rules...
 
-INSERT INTO [dbo].[GroceryCategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
+INSERT INTO [GroceryCategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
 -- Produce
 ( 1,1,'FRUTA',  NULL),
 ( 2,1,'LEGUME', NULL),
@@ -789,17 +764,15 @@ INSERT INTO [dbo].[GroceryCategoryRules] ([Id],[CategoryId],[Pattern],[Value]) V
 -- Personal Care
 (15,7,'SHAMPOO',NULL);
 
-SET IDENTITY_INSERT [dbo].[GroceryCategoryRules] OFF;
 
 -- ============================================================
 -- 13. GROCERY RECEIPTS  (2 stores × 12 months = 24)
 --     Continente IDs 1–12  (mid-month, larger shop ~€50–90)
 --     Pingo Doce IDs 13–24 (early-month, smaller shop ~€28–42)
 -- ============================================================
-PRINT 'Seeding grocery receipts...';
-SET IDENTITY_INSERT [dbo].[GroceryReceipts] ON;
+-- Seeding grocery receipts...
 
-INSERT INTO [dbo].[GroceryReceipts] ([Id],[StoreName],[ReceiptDate],[Total],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt]) VALUES
+INSERT INTO [GroceryReceipts] ([Id],[StoreName],[ReceiptDate],[Total],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt]) VALUES
 -- Continente
 ( 1,'Continente','2025-04-12', 58.34,NULL,NULL,NULL,NULL,'2025-04-12T00:00:00'),
 ( 2,'Continente','2025-05-10', 62.15,NULL,NULL,NULL,NULL,'2025-05-10T00:00:00'),
@@ -827,153 +800,150 @@ INSERT INTO [dbo].[GroceryReceipts] ([Id],[StoreName],[ReceiptDate],[Total],[Not
 (23,'Pingo Doce','2026-02-14', 33.90,NULL,NULL,NULL,NULL,'2026-02-14T00:00:00'),
 (24,'Pingo Doce','2026-03-07', 36.80,NULL,NULL,NULL,NULL,'2026-03-07T00:00:00');
 
-SET IDENTITY_INSERT [dbo].[GroceryReceipts] OFF;
 
 -- ============================================================
 -- 14. GROCERY ITEMS  (5 per Continente receipt = 60, IDs 1–60)
 --                    (4 per Pingo Doce receipt  = 48, IDs 61–108)
 --     All items rule-matched (CategorySetManually=0, Quantity=1)
 -- ============================================================
-PRINT 'Seeding grocery items...';
-SET IDENTITY_INSERT [dbo].[GroceryItems] ON;
+-- Seeding grocery items...
 
-INSERT INTO [dbo].[GroceryItems] ([Id],[ReceiptId],[Description],[Amount],[Quantity],[CategoryId],[CategoryRuleId],[CategorySetManually]) VALUES
+INSERT INTO [GroceryItems] ([Id],[ReceiptId],[Description],[Amount],[Quantity],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded]) VALUES
 -- === Continente receipts (5 items each) ===
 -- Receipt 1 — Apr 2025
-( 1, 1,'FRANGO INTEIRO',    3.99,1,3, 7,0),
-( 2, 1,'LEITE MIMOSA',      1.89,1,2, 4,0),
-( 3, 1,'BANANA',            1.29,1,1, 3,0),
-( 4, 1,'PAO DE FORMA',      1.49,1,4,10,0),
-( 5, 1,'DETERGENTE ROUPA',  8.99,1,6,14,0),
+( 1, 1,'FRANGO INTEIRO',    3.99,1,3, 7,0,0),
+( 2, 1,'LEITE MIMOSA',      1.89,1,2, 4,0,0),
+( 3, 1,'BANANA',            1.29,1,1, 3,0,0),
+( 4, 1,'PAO DE FORMA',      1.49,1,4,10,0,0),
+( 5, 1,'DETERGENTE ROUPA',  8.99,1,6,14,0,0),
 -- Receipt 2 — May 2025
-( 6, 2,'FRANGO INTEIRO',    4.29,1,3, 7,0),
-( 7, 2,'LEITE MIMOSA',      1.89,1,2, 4,0),
-( 8, 2,'BANANA',            1.39,1,1, 3,0),
-( 9, 2,'PAO DE FORMA',      1.49,1,4,10,0),
-(10, 2,'DETERGENTE ROUPA',  9.49,1,6,14,0),
+( 6, 2,'FRANGO INTEIRO',    4.29,1,3, 7,0,0),
+( 7, 2,'LEITE MIMOSA',      1.89,1,2, 4,0,0),
+( 8, 2,'BANANA',            1.39,1,1, 3,0,0),
+( 9, 2,'PAO DE FORMA',      1.49,1,4,10,0,0),
+(10, 2,'DETERGENTE ROUPA',  9.49,1,6,14,0,0),
 -- Receipt 3 — Jun 2025
-(11, 3,'FRANGO INTEIRO',    3.99,1,3, 7,0),
-(12, 3,'LEITE MIMOSA',      1.99,1,2, 4,0),
-(13, 3,'BANANA',            1.29,1,1, 3,0),
-(14, 3,'PAO DE FORMA',      1.59,1,4,10,0),
-(15, 3,'DETERGENTE ROUPA',  8.79,1,6,14,0),
+(11, 3,'FRANGO INTEIRO',    3.99,1,3, 7,0,0),
+(12, 3,'LEITE MIMOSA',      1.99,1,2, 4,0,0),
+(13, 3,'BANANA',            1.29,1,1, 3,0,0),
+(14, 3,'PAO DE FORMA',      1.59,1,4,10,0,0),
+(15, 3,'DETERGENTE ROUPA',  8.79,1,6,14,0,0),
 -- Receipt 4 — Jul 2025
-(16, 4,'FRANGO INTEIRO',    4.49,1,3, 7,0),
-(17, 4,'LEITE MIMOSA',      1.99,1,2, 4,0),
-(18, 4,'BANANA',            1.49,1,1, 3,0),
-(19, 4,'PAO DE FORMA',      1.49,1,4,10,0),
-(20, 4,'DETERGENTE ROUPA',  9.99,1,6,14,0),
+(16, 4,'FRANGO INTEIRO',    4.49,1,3, 7,0,0),
+(17, 4,'LEITE MIMOSA',      1.99,1,2, 4,0,0),
+(18, 4,'BANANA',            1.49,1,1, 3,0,0),
+(19, 4,'PAO DE FORMA',      1.49,1,4,10,0,0),
+(20, 4,'DETERGENTE ROUPA',  9.99,1,6,14,0,0),
 -- Receipt 5 — Aug 2025
-(21, 5,'FRANGO INTEIRO',    4.29,1,3, 7,0),
-(22, 5,'LEITE MIMOSA',      2.09,1,2, 4,0),
-(23, 5,'BANANA',            1.39,1,1, 3,0),
-(24, 5,'PAO DE FORMA',      1.59,1,4,10,0),
-(25, 5,'DETERGENTE ROUPA',  9.49,1,6,14,0),
+(21, 5,'FRANGO INTEIRO',    4.29,1,3, 7,0,0),
+(22, 5,'LEITE MIMOSA',      2.09,1,2, 4,0,0),
+(23, 5,'BANANA',            1.39,1,1, 3,0,0),
+(24, 5,'PAO DE FORMA',      1.59,1,4,10,0,0),
+(25, 5,'DETERGENTE ROUPA',  9.49,1,6,14,0,0),
 -- Receipt 6 — Sep 2025
-(26, 6,'FRANGO INTEIRO',    3.89,1,3, 7,0),
-(27, 6,'LEITE MIMOSA',      1.89,1,2, 4,0),
-(28, 6,'BANANA',            1.29,1,1, 3,0),
-(29, 6,'PAO DE FORMA',      1.49,1,4,10,0),
-(30, 6,'DETERGENTE ROUPA',  8.99,1,6,14,0),
+(26, 6,'FRANGO INTEIRO',    3.89,1,3, 7,0,0),
+(27, 6,'LEITE MIMOSA',      1.89,1,2, 4,0,0),
+(28, 6,'BANANA',            1.29,1,1, 3,0,0),
+(29, 6,'PAO DE FORMA',      1.49,1,4,10,0,0),
+(30, 6,'DETERGENTE ROUPA',  8.99,1,6,14,0,0),
 -- Receipt 7 — Oct 2025
-(31, 7,'FRANGO INTEIRO',    4.19,1,3, 7,0),
-(32, 7,'LEITE MIMOSA',      1.99,1,2, 4,0),
-(33, 7,'BANANA',            1.39,1,1, 3,0),
-(34, 7,'PAO DE FORMA',      1.59,1,4,10,0),
-(35, 7,'DETERGENTE ROUPA',  9.49,1,6,14,0),
+(31, 7,'FRANGO INTEIRO',    4.19,1,3, 7,0,0),
+(32, 7,'LEITE MIMOSA',      1.99,1,2, 4,0,0),
+(33, 7,'BANANA',            1.39,1,1, 3,0,0),
+(34, 7,'PAO DE FORMA',      1.59,1,4,10,0,0),
+(35, 7,'DETERGENTE ROUPA',  9.49,1,6,14,0,0),
 -- Receipt 8 — Nov 2025
-(36, 8,'FRANGO INTEIRO',    4.49,1,3, 7,0),
-(37, 8,'LEITE MIMOSA',      2.09,1,2, 4,0),
-(38, 8,'BANANA',            1.49,1,1, 3,0),
-(39, 8,'PAO DE FORMA',      1.69,1,4,10,0),
-(40, 8,'DETERGENTE ROUPA',  9.99,1,6,14,0),
+(36, 8,'FRANGO INTEIRO',    4.49,1,3, 7,0,0),
+(37, 8,'LEITE MIMOSA',      2.09,1,2, 4,0,0),
+(38, 8,'BANANA',            1.49,1,1, 3,0,0),
+(39, 8,'PAO DE FORMA',      1.69,1,4,10,0,0),
+(40, 8,'DETERGENTE ROUPA',  9.99,1,6,14,0,0),
 -- Receipt 9 — Dec 2025
-(41, 9,'FRANGO INTEIRO',    5.99,1,3, 7,0),
-(42, 9,'LEITE MIMOSA',      2.19,1,2, 4,0),
-(43, 9,'BANANA',            1.59,1,1, 3,0),
-(44, 9,'PAO DE FORMA',      1.79,1,4,10,0),
-(45, 9,'DETERGENTE ROUPA', 10.49,1,6,14,0),
+(41, 9,'FRANGO INTEIRO',    5.99,1,3, 7,0,0),
+(42, 9,'LEITE MIMOSA',      2.19,1,2, 4,0,0),
+(43, 9,'BANANA',            1.59,1,1, 3,0,0),
+(44, 9,'PAO DE FORMA',      1.79,1,4,10,0,0),
+(45, 9,'DETERGENTE ROUPA', 10.49,1,6,14,0,0),
 -- Receipt 10 — Jan 2026
-(46,10,'FRANGO INTEIRO',    3.79,1,3, 7,0),
-(47,10,'LEITE MIMOSA',      1.89,1,2, 4,0),
-(48,10,'BANANA',            1.19,1,1, 3,0),
-(49,10,'PAO DE FORMA',      1.49,1,4,10,0),
-(50,10,'DETERGENTE ROUPA',  8.49,1,6,14,0),
+(46,10,'FRANGO INTEIRO',    3.79,1,3, 7,0,0),
+(47,10,'LEITE MIMOSA',      1.89,1,2, 4,0,0),
+(48,10,'BANANA',            1.19,1,1, 3,0,0),
+(49,10,'PAO DE FORMA',      1.49,1,4,10,0,0),
+(50,10,'DETERGENTE ROUPA',  8.49,1,6,14,0,0),
 -- Receipt 11 — Feb 2026
-(51,11,'FRANGO INTEIRO',    4.09,1,3, 7,0),
-(52,11,'LEITE MIMOSA',      1.99,1,2, 4,0),
-(53,11,'BANANA',            1.29,1,1, 3,0),
-(54,11,'PAO DE FORMA',      1.59,1,4,10,0),
-(55,11,'DETERGENTE ROUPA',  9.29,1,6,14,0),
+(51,11,'FRANGO INTEIRO',    4.09,1,3, 7,0,0),
+(52,11,'LEITE MIMOSA',      1.99,1,2, 4,0,0),
+(53,11,'BANANA',            1.29,1,1, 3,0,0),
+(54,11,'PAO DE FORMA',      1.59,1,4,10,0,0),
+(55,11,'DETERGENTE ROUPA',  9.29,1,6,14,0,0),
 -- Receipt 12 — Mar 2026
-(56,12,'FRANGO INTEIRO',    4.19,1,3, 7,0),
-(57,12,'LEITE MIMOSA',      1.99,1,2, 4,0),
-(58,12,'BANANA',            1.39,1,1, 3,0),
-(59,12,'PAO DE FORMA',      1.59,1,4,10,0),
-(60,12,'DETERGENTE ROUPA',  9.49,1,6,14,0),
+(56,12,'FRANGO INTEIRO',    4.19,1,3, 7,0,0),
+(57,12,'LEITE MIMOSA',      1.99,1,2, 4,0,0),
+(58,12,'BANANA',            1.39,1,1, 3,0,0),
+(59,12,'PAO DE FORMA',      1.59,1,4,10,0,0),
+(60,12,'DETERGENTE ROUPA',  9.49,1,6,14,0,0),
 -- === Pingo Doce receipts (4 items each) ===
 -- Receipt 13 — Apr 2025
-(61,13,'IOGURTE NATURAL',   1.79,1,2, 6,0),
-(62,13,'LEGUMES SALTEADOS', 2.49,1,1, 2,0),
-(63,13,'AGUA 1.5L',         0.89,1,5,12,0),
-(64,13,'QUEIJO FLAMENGO',   2.99,1,2, 5,0),
+(61,13,'IOGURTE NATURAL',   1.79,1,2, 6,0,0),
+(62,13,'LEGUMES SALTEADOS', 2.49,1,1, 2,0,0),
+(63,13,'AGUA 1.5L',         0.89,1,5,12,0,0),
+(64,13,'QUEIJO FLAMENGO',   2.99,1,2, 5,0,0),
 -- Receipt 14 — May 2025
-(65,14,'IOGURTE NATURAL',   1.79,1,2, 6,0),
-(66,14,'LEGUMES SALTEADOS', 2.29,1,1, 2,0),
-(67,14,'AGUA 1.5L',         0.89,1,5,12,0),
-(68,14,'QUEIJO FLAMENGO',   2.89,1,2, 5,0),
+(65,14,'IOGURTE NATURAL',   1.79,1,2, 6,0,0),
+(66,14,'LEGUMES SALTEADOS', 2.29,1,1, 2,0,0),
+(67,14,'AGUA 1.5L',         0.89,1,5,12,0,0),
+(68,14,'QUEIJO FLAMENGO',   2.89,1,2, 5,0,0),
 -- Receipt 15 — Jun 2025
-(69,15,'IOGURTE NATURAL',   1.89,1,2, 6,0),
-(70,15,'LEGUMES SALTEADOS', 2.59,1,1, 2,0),
-(71,15,'AGUA 1.5L',         0.99,1,5,12,0),
-(72,15,'QUEIJO FLAMENGO',   3.09,1,2, 5,0),
+(69,15,'IOGURTE NATURAL',   1.89,1,2, 6,0,0),
+(70,15,'LEGUMES SALTEADOS', 2.59,1,1, 2,0,0),
+(71,15,'AGUA 1.5L',         0.99,1,5,12,0,0),
+(72,15,'QUEIJO FLAMENGO',   3.09,1,2, 5,0,0),
 -- Receipt 16 — Jul 2025
-(73,16,'IOGURTE NATURAL',   1.89,1,2, 6,0),
-(74,16,'LEGUMES SALTEADOS', 2.49,1,1, 2,0),
-(75,16,'AGUA 1.5L',         0.99,1,5,12,0),
-(76,16,'QUEIJO FLAMENGO',   3.19,1,2, 5,0),
+(73,16,'IOGURTE NATURAL',   1.89,1,2, 6,0,0),
+(74,16,'LEGUMES SALTEADOS', 2.49,1,1, 2,0,0),
+(75,16,'AGUA 1.5L',         0.99,1,5,12,0,0),
+(76,16,'QUEIJO FLAMENGO',   3.19,1,2, 5,0,0),
 -- Receipt 17 — Aug 2025
-(77,17,'IOGURTE NATURAL',   1.99,1,2, 6,0),
-(78,17,'LEGUMES SALTEADOS', 2.59,1,1, 2,0),
-(79,17,'AGUA 1.5L',         0.99,1,5,12,0),
-(80,17,'QUEIJO FLAMENGO',   3.09,1,2, 5,0),
+(77,17,'IOGURTE NATURAL',   1.99,1,2, 6,0,0),
+(78,17,'LEGUMES SALTEADOS', 2.59,1,1, 2,0,0),
+(79,17,'AGUA 1.5L',         0.99,1,5,12,0,0),
+(80,17,'QUEIJO FLAMENGO',   3.09,1,2, 5,0,0),
 -- Receipt 18 — Sep 2025
-(81,18,'IOGURTE NATURAL',   1.79,1,2, 6,0),
-(82,18,'LEGUMES SALTEADOS', 2.39,1,1, 2,0),
-(83,18,'AGUA 1.5L',         0.89,1,5,12,0),
-(84,18,'QUEIJO FLAMENGO',   2.99,1,2, 5,0),
+(81,18,'IOGURTE NATURAL',   1.79,1,2, 6,0,0),
+(82,18,'LEGUMES SALTEADOS', 2.39,1,1, 2,0,0),
+(83,18,'AGUA 1.5L',         0.89,1,5,12,0,0),
+(84,18,'QUEIJO FLAMENGO',   2.99,1,2, 5,0,0),
 -- Receipt 19 — Oct 2025
-(85,19,'IOGURTE NATURAL',   1.79,1,2, 6,0),
-(86,19,'LEGUMES SALTEADOS', 2.29,1,1, 2,0),
-(87,19,'AGUA 1.5L',         0.89,1,5,12,0),
-(88,19,'QUEIJO FLAMENGO',   2.89,1,2, 5,0),
+(85,19,'IOGURTE NATURAL',   1.79,1,2, 6,0,0),
+(86,19,'LEGUMES SALTEADOS', 2.29,1,1, 2,0,0),
+(87,19,'AGUA 1.5L',         0.89,1,5,12,0,0),
+(88,19,'QUEIJO FLAMENGO',   2.89,1,2, 5,0,0),
 -- Receipt 20 — Nov 2025
-(89,20,'IOGURTE NATURAL',   1.89,1,2, 6,0),
-(90,20,'LEGUMES SALTEADOS', 2.59,1,1, 2,0),
-(91,20,'AGUA 1.5L',         0.99,1,5,12,0),
-(92,20,'QUEIJO FLAMENGO',   3.09,1,2, 5,0),
+(89,20,'IOGURTE NATURAL',   1.89,1,2, 6,0,0),
+(90,20,'LEGUMES SALTEADOS', 2.59,1,1, 2,0,0),
+(91,20,'AGUA 1.5L',         0.99,1,5,12,0,0),
+(92,20,'QUEIJO FLAMENGO',   3.09,1,2, 5,0,0),
 -- Receipt 21 — Dec 2025
-(93,21,'IOGURTE NATURAL',   2.09,1,2, 6,0),
-(94,21,'LEGUMES SALTEADOS', 2.79,1,1, 2,0),
-(95,21,'AGUA 1.5L',         1.09,1,5,12,0),
-(96,21,'QUEIJO FLAMENGO',   3.29,1,2, 5,0),
+(93,21,'IOGURTE NATURAL',   2.09,1,2, 6,0,0),
+(94,21,'LEGUMES SALTEADOS', 2.79,1,1, 2,0,0),
+(95,21,'AGUA 1.5L',         1.09,1,5,12,0,0),
+(96,21,'QUEIJO FLAMENGO',   3.29,1,2, 5,0,0),
 -- Receipt 22 — Jan 2026
-( 97,22,'IOGURTE NATURAL',  1.69,1,2, 6,0),
-( 98,22,'LEGUMES SALTEADOS',2.19,1,1, 2,0),
-( 99,22,'AGUA 1.5L',        0.79,1,5,12,0),
-(100,22,'QUEIJO FLAMENGO',  2.79,1,2, 5,0),
+( 97,22,'IOGURTE NATURAL',  1.69,1,2, 6,0,0),
+( 98,22,'LEGUMES SALTEADOS',2.19,1,1, 2,0,0),
+( 99,22,'AGUA 1.5L',        0.79,1,5,12,0,0),
+(100,22,'QUEIJO FLAMENGO',  2.79,1,2, 5,0,0),
 -- Receipt 23 — Feb 2026
-(101,23,'IOGURTE NATURAL',  1.89,1,2, 6,0),
-(102,23,'LEGUMES SALTEADOS',2.49,1,1, 2,0),
-(103,23,'AGUA 1.5L',        0.89,1,5,12,0),
-(104,23,'QUEIJO FLAMENGO',  3.09,1,2, 5,0),
+(101,23,'IOGURTE NATURAL',  1.89,1,2, 6,0,0),
+(102,23,'LEGUMES SALTEADOS',2.49,1,1, 2,0,0),
+(103,23,'AGUA 1.5L',        0.89,1,5,12,0,0),
+(104,23,'QUEIJO FLAMENGO',  3.09,1,2, 5,0,0),
 -- Receipt 24 — Mar 2026
-(105,24,'IOGURTE NATURAL',  1.99,1,2, 6,0),
-(106,24,'LEGUMES SALTEADOS',2.59,1,1, 2,0),
-(107,24,'AGUA 1.5L',        0.99,1,5,12,0),
-(108,24,'QUEIJO FLAMENGO',  3.19,1,2, 5,0);
+(105,24,'IOGURTE NATURAL',  1.99,1,2, 6,0,0),
+(106,24,'LEGUMES SALTEADOS',2.59,1,1, 2,0,0),
+(107,24,'AGUA 1.5L',        0.99,1,5,12,0,0),
+(108,24,'QUEIJO FLAMENGO',  3.19,1,2, 5,0,0);
 
-SET IDENTITY_INSERT [dbo].[GroceryItems] OFF;
 
 -- ============================================================
 -- 15. MONTHLY STATEMENTS — Millennium BCP (3 statements, IDs 37–39)
@@ -981,10 +951,9 @@ SET IDENTITY_INSERT [dbo].[GroceryItems] OFF;
 --     wrong ClosingBalance (real = 7843.51, stored = 7900.00) to trigger
 --     the parse-warning banner in the UI.
 -- ============================================================
-PRINT 'Seeding Millennium BCP statements...';
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] ON;
+-- Seeding Millennium BCP statements...
 
-INSERT INTO [dbo].[MonthlyStatements]
+INSERT INTO [MonthlyStatements]
   ([Id],[Bank],[Account],[PeriodFrom],[PeriodTo],[Currency],[OpeningBalance],[ClosingBalance],[SourceFile],[PdfPath],[FileHash],[ImportedAt])
 VALUES
 (37,'MBcp','PT50 0035 0000 1111 2222 3','2025-04-01','2025-04-30','EUR',18000.00,20535.00,'mbcp_2025_04.pdf',NULL,NULL,'2025-05-03 10:00:00'),
@@ -992,7 +961,6 @@ VALUES
 -- Statement 39: ClosingBalance stored as 7900.00 but transactions sum to 7843.51 → parse warning
 (39,'MBcp','PT50 0035 0000 1111 2222 3','2025-06-01','2025-06-30','EUR', 7440.00, 7900.00,'mbcp_2025_06.pdf',NULL,NULL,'2025-07-02 10:00:00');
 
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] OFF;
 
 -- ============================================================
 -- 16. TRANSACTIONS — Millennium BCP (6 per statement, IDs 313–330)
@@ -1000,10 +968,9 @@ SET IDENTITY_INSERT [dbo].[MonthlyStatements] OFF;
 --     Stmt 38: debit €15 000 car purchase
 --     Stmt 39: transaction balances are correct; statement ClosingBalance is wrong
 -- ============================================================
-PRINT 'Seeding Millennium BCP transactions...';
-SET IDENTITY_INSERT [dbo].[Transactions] ON;
+-- Seeding Millennium BCP transactions...
 
-INSERT INTO [dbo].[Transactions]
+INSERT INTO [Transactions]
   ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- === April 2025 (Stmt 37) — opening 18 000.00 ===
@@ -1028,33 +995,28 @@ VALUES
 (329,39,'2025-06-24','2025-06-24','SUPERMERCADO COMPRA ONLINE',           67.50,'debit', 7857.50, 2,NULL,1,0),
 (330,39,'2025-06-28','2025-06-28','NETFLIX PAGAMENTO',                    13.99,'debit', 7843.51, 6,  22,0,0);
 
-SET IDENTITY_INSERT [dbo].[Transactions] OFF;
 
 -- ============================================================
 -- 17. SALARY PROFILE — Tech Lead Role (ID 3)
 -- ============================================================
-PRINT 'Seeding Tech Lead salary profile...';
-SET IDENTITY_INSERT [dbo].[SalaryProfiles] ON;
+-- Seeding Tech Lead salary profile...
 
-INSERT INTO [dbo].[SalaryProfiles] ([Id],[Name],[Description]) VALUES
-(3,'Tech Lead Role','Senior engineering role with performance bonuses');
+INSERT INTO [SalaryProfiles] ([Id],[Name],[Description],[HourlyRateFormula]) VALUES
+(3,'Tech Lead Role','Senior engineering role with performance bonuses','days');
 
-SET IDENTITY_INSERT [dbo].[SalaryProfiles] OFF;
 
 -- ============================================================
 -- 18. SALARY ITEM CATEGORIES — Profile 3 (IDs 9–13)
 -- ============================================================
-PRINT 'Seeding Tech Lead salary item categories...';
-SET IDENTITY_INSERT [dbo].[SalaryItemCategories] ON;
+-- Seeding Tech Lead salary item categories...
 
-INSERT INTO [dbo].[SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],[ItemType],[IsProtected]) VALUES
+INSERT INTO [SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],[ItemType],[IsProtected]) VALUES
 ( 9,3,'Vencimento Base',  '#10b981','income',   0),
 (10,3,'Subsidio Refeicao','#34d399','income',   0),
 (11,3,'Bonus / Subsidio', '#6ee7b7','income',   0),
 (12,3,'Seguranca Social', '#f87171','deduction',0),
 (13,3,'IRS Retencao',     '#fca5a5','tax',      0);
 
-SET IDENTITY_INSERT [dbo].[SalaryItemCategories] OFF;
 
 -- ============================================================
 -- 19. SALARY SLIPS — Profile 3 (6 slips, IDs 25–30)
@@ -1063,10 +1025,9 @@ SET IDENTITY_INSERT [dbo].[SalaryItemCategories] OFF;
 --     Slip 30 (Sep): gross stored as 5 000 but income items sum to 4 600
 --                    → triggers salary parse warning in UI
 -- ============================================================
-PRINT 'Seeding Tech Lead salary slips...';
-SET IDENTITY_INSERT [dbo].[SalarySlips] ON;
+-- Seeding Tech Lead salary slips...
 
-INSERT INTO [dbo].[SalarySlips]
+INSERT INTO [SalarySlips]
   ([Id],[SalaryProfileId],[Period],[GrossAmount],[NetAmount],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt],[BaseAmount],[HoursWorked],[HourlyRate],[TotalEspecie])
 VALUES
 (25,3,'2025-04-01',5000.00,3800.00,NULL,
@@ -1082,7 +1043,6 @@ VALUES
 (30,3,'2025-09-01',5000.00,3800.00,'Demo note: parse warning — income items sum (4600) does not match gross (5000)',
  'techlead_2025_09.pdf',NULL,NULL,'2025-10-02 10:00:00',4780.00,176.00,27.16,220.00);
 
-SET IDENTITY_INSERT [dbo].[SalarySlips] OFF;
 
 -- ============================================================
 -- 20. SALARY LINE ITEMS — Profile 3 (IDs 87–111)
@@ -1092,10 +1052,9 @@ SET IDENTITY_INSERT [dbo].[SalarySlips] OFF;
 --     Slip 30 (4 items): Vencimento Base intentionally low (€4 380 not €4 780)
 --                        so income sum = 4 600 ≠ gross 5 000 → parse warning
 -- ============================================================
-PRINT 'Seeding Tech Lead salary line items...';
-SET IDENTITY_INSERT [dbo].[SalaryLineItems] ON;
+-- Seeding Tech Lead salary line items...
 
-INSERT INTO [dbo].[SalaryLineItems]
+INSERT INTO [SalaryLineItems]
   ([Id],[SalarySlipId],[SalaryItemCategoryId],[Amount],[SortOrder],[Quantity],[UnitValue],[Percentage],[IncidenciaBase])
 VALUES
 -- ---- Slip 25 (Apr 2025) ----
@@ -1130,7 +1089,6 @@ VALUES
 (110,30,12, 550.00,3,NULL,  NULL,  11.00,5000.00),
 (111,30,13, 650.00,4,NULL,  NULL,  13.00,5000.00);
 
-SET IDENTITY_INSERT [dbo].[SalaryLineItems] OFF;
 
 -- ============================================================
 -- 21. GROCERY RECEIPTS — Mercadona (3 receipts, IDs 25–27)
@@ -1138,17 +1096,15 @@ SET IDENTITY_INSERT [dbo].[SalaryLineItems] OFF;
 --     Pingo Doce, exercising UI category-deduplication when totalling
 --     spend across stores.
 -- ============================================================
-PRINT 'Seeding Mercadona grocery receipts...';
-SET IDENTITY_INSERT [dbo].[GroceryReceipts] ON;
+-- Seeding Mercadona grocery receipts...
 
-INSERT INTO [dbo].[GroceryReceipts]
+INSERT INTO [GroceryReceipts]
   ([Id],[StoreName],[ReceiptDate],[Total],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt])
 VALUES
 (25,'Mercadona','2025-04-18',167.16,NULL,NULL,NULL,NULL,'2025-04-18T00:00:00'),
 (26,'Mercadona','2025-06-21', 18.54,NULL,NULL,NULL,NULL,'2025-06-21T00:00:00'),
 (27,'Mercadona','2025-09-20', 15.25,NULL,NULL,NULL,NULL,'2025-09-20T00:00:00');
 
-SET IDENTITY_INSERT [dbo].[GroceryReceipts] OFF;
 
 -- ============================================================
 -- 22. GROCERY ITEMS — Mercadona (5 per receipt, IDs 109–123)
@@ -1157,32 +1113,30 @@ SET IDENTITY_INSERT [dbo].[GroceryReceipts] OFF;
 --     All three receipts assign items to categories 1–7 (same IDs used
 --     by Continente and Pingo Doce) to exercise deduplication.
 -- ============================================================
-PRINT 'Seeding Mercadona grocery items...';
-SET IDENTITY_INSERT [dbo].[GroceryItems] ON;
+-- Seeding Mercadona grocery items...
 
-INSERT INTO [dbo].[GroceryItems]
-  ([Id],[ReceiptId],[Description],[Amount],[Quantity],[CategoryId],[CategoryRuleId],[CategorySetManually])
+INSERT INTO [GroceryItems]
+  ([Id],[ReceiptId],[Description],[Amount],[Quantity],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- Receipt 25 — Apr 2025 (large unit price)
-(109,25,'VINHO PREMIUM COLHEITA',150.00,1,8,NULL,1),
-(110,25,'FRANGO ASSADO',           6.99,1,3,   7,0),
-(111,25,'LEITE INTEIRO',           1.89,1,2,   4,0),
-(112,25,'LEGUMES MISTURADOS',      3.29,1,1,   2,0),
-(113,25,'QUEIJO CURADO',           4.99,1,2,   5,0),
+(109,25,'VINHO PREMIUM COLHEITA',150.00,1,8,NULL,1,0),
+(110,25,'FRANGO ASSADO',           6.99,1,3,   7,0,0),
+(111,25,'LEITE INTEIRO',           1.89,1,2,   4,0,0),
+(112,25,'LEGUMES MISTURADOS',      3.29,1,1,   2,0,0),
+(113,25,'QUEIJO CURADO',           4.99,1,2,   5,0,0),
 -- Receipt 26 — Jun 2025 (high quantity × 12)
-(114,26,'AGUA MINERAL 0.5L',       0.49,12,5,  12,0),
-(115,26,'FRANGO PERNA KG',         5.49, 1,3,   7,0),
-(116,26,'IOGURTE NATURAL',         1.99, 1,2,   6,0),
-(117,26,'BANANA CAVENDISH',        1.39, 1,1,   3,0),
-(118,26,'DETERGENTE LOICA',        3.79, 1,6,  14,0),
+(114,26,'AGUA MINERAL 0.5L',       0.49,12,5,  12,0,0),
+(115,26,'FRANGO PERNA KG',         5.49, 1,3,   7,0,0),
+(116,26,'IOGURTE NATURAL',         1.99, 1,2,   6,0,0),
+(117,26,'BANANA CAVENDISH',        1.39, 1,1,   3,0,0),
+(118,26,'DETERGENTE LOICA',        3.79, 1,6,  14,0,0),
 -- Receipt 27 — Sep 2025
-(119,27,'CARNE PICADA BOI',        4.49,1,3,   8,0),
-(120,27,'LEITE DESNATADO',         1.79,1,2,   4,0),
-(121,27,'BANANA PACK',             2.19,1,1,   3,0),
-(122,27,'PAO INTEGRAL',            2.49,1,4,  10,0),
-(123,27,'SHAMPOO ELVIVE',          4.29,1,7,  15,0);
+(119,27,'CARNE PICADA BOI',        4.49,1,3,   8,0,0),
+(120,27,'LEITE DESNATADO',         1.79,1,2,   4,0,0),
+(121,27,'BANANA PACK',             2.19,1,1,   3,0,0),
+(122,27,'PAO INTEGRAL',            2.49,1,4,  10,0,0),
+(123,27,'SHAMPOO ELVIVE',          4.29,1,7,  15,0,0);
 
-SET IDENTITY_INSERT [dbo].[GroceryItems] OFF;
 
 -- ============================================================
 -- 23. EXCLUDED RECORDS
@@ -1192,13 +1146,13 @@ SET IDENTITY_INSERT [dbo].[GroceryItems] OFF;
 --     Grocery items (3): rule-matched items excluded to test the
 --       "categorised but excluded" combination
 -- ============================================================
-PRINT 'Marking excluded transactions and grocery items...';
+-- Marking excluded transactions and grocery items...
 
-UPDATE [dbo].[Transactions]
+UPDATE [Transactions]
 SET IsExcluded = 1
 WHERE Id IN (148, 174, 181, 245, 282);
 
-UPDATE [dbo].[GroceryItems]
+UPDATE [GroceryItems]
 SET IsExcluded = 1
 WHERE Id IN (5, 25, 40);
 
@@ -1210,10 +1164,9 @@ WHERE Id IN (5, 25, 40);
 --       · Tech Lead Role  (profile 3): VENCIMENTO TECH LEAD EMPRESA Apr–Sep
 --     Opening balance €2 000 grows purely from credits (receiving account).
 -- ============================================================
-PRINT 'Seeding CGD (business account) statements...';
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] ON;
+-- Seeding CGD (business account) statements...
 
-INSERT INTO [dbo].[MonthlyStatements]
+INSERT INTO [MonthlyStatements]
   ([Id],[Bank],[Account],[PeriodFrom],[PeriodTo],[Currency],[OpeningBalance],[ClosingBalance],[SourceFile],[PdfPath],[FileHash],[ImportedAt])
 VALUES
 -- Apr–Sep 2025: consulting + tech lead salary (2 credits each)
@@ -1231,12 +1184,10 @@ VALUES
 (50,'CGD','PT50 0130 0000 4444 5555 6','2026-02-01','2026-02-28','EUR',30312.50,30725.00,'cgd_2026_02.pdf',NULL,NULL,'2026-03-03 10:00:00'),
 (51,'CGD','PT50 0130 0000 4444 5555 6','2026-03-01','2026-03-31','EUR',30725.00,31085.00,'cgd_2026_03.pdf',NULL,NULL,'2026-04-02 10:00:00');
 
-SET IDENTITY_INSERT [dbo].[MonthlyStatements] OFF;
 
-PRINT 'Seeding CGD transactions...';
-SET IDENTITY_INSERT [dbo].[Transactions] ON;
+-- Seeding CGD transactions...
 
-INSERT INTO [dbo].[Transactions]
+INSERT INTO [Transactions]
   ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
 VALUES
 -- === April 2025 (Stmt 40) — opening 2 000.00 ===
@@ -1270,7 +1221,6 @@ VALUES
 -- === March 2026 (Stmt 51) ===
 (348,51,'2026-03-28','2026-03-28','HONORARIOS CONSULTORIA XYZ LDA',  360.00,'credit',31085.00,8,NULL,1,0);
 
-SET IDENTITY_INSERT [dbo].[Transactions] OFF;
 
 -- ============================================================
 -- 25. DATA FIXES
@@ -1278,9 +1228,9 @@ SET IDENTITY_INSERT [dbo].[Transactions] OFF;
 --     matching salary slip. Recategorise as Other so it does not inflate
 --     the Salary income line in analytics.
 -- ============================================================
-PRINT 'Applying data fixes...';
+-- Applying data fixes...
 
-UPDATE [dbo].[Transactions]
+UPDATE [Transactions]
 SET Description      = 'DIVIDENDO COMPLEMENTAR MBCP',
     CategoryId       = 10,
     CategoryRuleId   = NULL,
@@ -1289,16 +1239,16 @@ WHERE Id = 325;
 
 -- ============================================================
 COMMIT TRANSACTION;
-PRINT '================================================';
-PRINT 'Demo seed complete.';
-PRINT '  10 categories, 33 rules';
-PRINT '  51 statements (ActivoBank/BPI/Revolut 12 each; MBcp 3; CGD 12)';
-PRINT '  348 transactions (5 excluded; 2 amounts >= 10 000)';
-PRINT '  3 salary profiles, 30 slips, 111 line items';
-PRINT '    All 3 profiles have matching bank income transactions (CGD account)';
-PRINT '    Profile 3 gross up to 8 500; slip 30 triggers salary parse warning';
-PRINT '  8 grocery categories, 15 rules';
-PRINT '  27 receipts (Continente 12 + Pingo Doce 12 + Mercadona 3)';
-PRINT '  123 items (3 excluded; 1 item @ 150.00; 1 item qty 12)';
-PRINT '  MBcp statement 39 triggers balance mismatch parse warning';
-PRINT '================================================';
+-- ================================================
+-- Demo seed complete.
+--   10 categories, 33 rules
+--   51 statements (ActivoBank/BPI/Revolut 12 each; MBcp 3; CGD 12)
+--   348 transactions (5 excluded; 2 amounts >= 10 000)
+--   3 salary profiles, 30 slips, 111 line items
+--     All 3 profiles have matching bank income transactions (CGD account)
+--     Profile 3 gross up to 8 500; slip 30 triggers salary parse warning
+--   8 grocery categories, 15 rules
+--   27 receipts (Continente 12 + Pingo Doce 12 + Mercadona 3)
+--   123 items (3 excluded; 1 item @ 150.00; 1 item qty 12)
+--   MBcp statement 39 triggers balance mismatch parse warning
+-- ================================================

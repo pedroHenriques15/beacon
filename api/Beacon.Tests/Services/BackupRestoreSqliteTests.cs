@@ -1,8 +1,6 @@
-using Beacon.Api.Data;
 using Beacon.Api.Features.Backup.Commands.CreateBackup;
 using Beacon.Api.Features.Backup.Commands.RestoreBackup;
 using Beacon.Api.Models;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,51 +8,24 @@ using Xunit;
 
 namespace Beacon.Tests.Services;
 
-public sealed class SqlServerFactAttribute : FactAttribute
+public class BackupRestoreSqliteTests
 {
-    public SqlServerFactAttribute()
-    {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BEACON_TEST_SQLSERVER")))
-            Skip = "Set BEACON_TEST_SQLSERVER to a SQL Server connection string to run SQL-backed tests.";
-    }
-}
-
-public class BackupRestoreSqlTests
-{
-    private static string TestConnectionString()
-    {
-        var builder = new SqlConnectionStringBuilder(
-            Environment.GetEnvironmentVariable("BEACON_TEST_SQLSERVER"))
-        {
-            InitialCatalog = "BeaconBackupRoundTripTest",
-        };
-        return builder.ConnectionString;
-    }
-
-    private static AppDbContext CreateSqlContext() =>
-        new(new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlServer(TestConnectionString(),
-                sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null))
-            .Options);
-
     private static IConfiguration BackupConfig(string backupDir) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Backup:Path"] = backupDir })
             .Build();
 
-    [SqlServerFact]
-    public async Task CreateBackup_ThenRestore_RoundTripsAllTablesUnderRetryStrategy()
+    [Fact]
+    public async Task CreateBackup_ThenRestore_RoundTripsAllTablesKeepingIds()
     {
         var backupDir = Path.Combine(Path.GetTempPath(), $"fh_backup_test_{Guid.NewGuid()}");
         Directory.CreateDirectory(backupDir);
         var config = BackupConfig(backupDir);
 
-        await using var db = CreateSqlContext();
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
         try
         {
-            await db.Database.EnsureDeletedAsync();
-            await db.Database.EnsureCreatedAsync();
-
             var category = new Category { Name = "Food", Color = "#ff0000" };
             db.Categories.Add(category);
             await db.SaveChangesAsync();
@@ -142,8 +113,8 @@ public class BackupRestoreSqlTests
             {
                 AssetId = asset.Id,
                 Date = new DateOnly(2026, 1, 5),
-                Quantity = 10m,
-                PricePerUnit = 100m
+                Quantity = 0.031295m,
+                PricePerUnit = 97.8123m
             });
             db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
             {
@@ -169,7 +140,7 @@ public class BackupRestoreSqlTests
             var restoredFrom = await restoreHandler.HandleAsync();
             Assert.NotNull(restoredFrom);
 
-            await using var verifyDb = CreateSqlContext();
+            await using var verifyDb = database.CreateContext();
             Assert.Equal(1, await verifyDb.Categories.CountAsync());
             Assert.False(await verifyDb.Categories.AnyAsync(c => c.Name == "Intruder"));
             Assert.Equal(1, await verifyDb.CategoryRules.CountAsync());
@@ -197,12 +168,18 @@ public class BackupRestoreSqlTests
 
             var restoredAsset = await verifyDb.InvestmentAssets.SingleAsync();
             Assert.Equal("VWCE", restoredAsset.Ticker);
-            Assert.Equal(1, await verifyDb.InvestmentLots.CountAsync());
+            var restoredLot = await verifyDb.InvestmentLots.SingleAsync();
+            Assert.Equal(0.031295m, restoredLot.Quantity);
+            Assert.Equal(97.8123m, restoredLot.PricePerUnit);
             Assert.Equal(1, await verifyDb.InvestmentPriceSnapshots.CountAsync());
+
+            // Restored rows keep their ids, and new rows still get ids of their own.
+            verifyDb.Categories.Add(new Category { Name = "After restore", Color = "#000000" });
+            await verifyDb.SaveChangesAsync();
+            Assert.Equal(2, await verifyDb.Categories.CountAsync());
         }
         finally
         {
-            await db.Database.EnsureDeletedAsync();
             Directory.Delete(backupDir, recursive: true);
         }
     }

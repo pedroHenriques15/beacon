@@ -380,11 +380,13 @@ public class InvestmentHandlerTests
     }
 
     // ---- Query ----
+    // On SQLite: the query sorts names with a collation that only SQLite provides.
 
     [Fact]
     public async Task GetInvestmentAssets_ReturnsAllAssetsWithLotsAndSnapshots()
     {
-        await using var db = CreateDb(nameof(GetInvestmentAssets_ReturnsAllAssetsWithLotsAndSnapshots));
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
         var etf = await SeedEtfAsync(db);
         var gold = await SeedGoldAsync(db);
 
@@ -406,7 +408,8 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task GetInvestmentAssets_LotsOrderedByDateDescending()
     {
-        await using var db = CreateDb(nameof(GetInvestmentAssets_LotsOrderedByDateDescending));
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
         var asset = await SeedEtfAsync(db);
 
         db.InvestmentLots.AddRange(
@@ -426,7 +429,8 @@ public class InvestmentHandlerTests
     [Fact]
     public async Task GetInvestmentAssets_SnapshotsOrderedByDateDescending()
     {
-        await using var db = CreateDb(nameof(GetInvestmentAssets_SnapshotsOrderedByDateDescending));
+        using var database = new SqliteTestDatabase();
+        await using var db = database.CreateContext();
         var asset = await SeedEtfAsync(db);
 
         db.InvestmentPriceSnapshots.AddRange(

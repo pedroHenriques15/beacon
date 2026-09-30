@@ -54,7 +54,7 @@ The Investments page tracks ETF and physical gold positions: buy/sell lots with 
 
 Beyond finance, the app integrates with Google Calendar and Google Tasks (optional): the Calendar page shows your events and tasks, supports creating/editing both, and works fully offline from Google with a graceful empty state. The Settings page manages the Google connection and database backup/restore, including downloading the backup file.
 
-Everything is stored in SQL Server and served over a REST API. The Angular frontend talks to the API through a proxy in development, and through Nginx in production.
+Everything is stored in one SQLite file and served over a REST API. The Angular frontend talks to the API through a proxy in development, and through Nginx in production.
 
 ---
 
@@ -78,14 +78,14 @@ Bank statements must be EUR - non-EUR statements are rejected at upload (salary 
 
 ## Tech stack
 
-| Layer          | Technology                                      |
-| -------------- | ----------------------------------------------- |
-| PDF extraction | Python 3 + pdfplumber                           |
-| API            | ASP.NET Core 10 (.NET 10)                       |
-| Database       | SQL Server + EF Core 10 (code-first migrations) |
-| Frontend       | Angular 21 (standalone components, signals)     |
-| Charts         | Chart.js 4                                      |
-| Tests          | xUnit (backend), Vitest (frontend)              |
+| Layer          | Technology                                  |
+| -------------- | ------------------------------------------- |
+| PDF extraction | Python 3 + pdfplumber                       |
+| API            | ASP.NET Core 10 (.NET 10)                   |
+| Database       | SQLite + EF Core 10 (code-first migrations) |
+| Frontend       | Angular 21 (standalone components, signals) |
+| Charts         | Chart.js 4                                  |
+| Tests          | xUnit (backend), Vitest (frontend)          |
 
 ---
 
@@ -151,8 +151,6 @@ After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: 
 
 - .NET 10 SDK. The EF tool (`dotnet-ef`) is pinned in `dotnet-tools.json`: `dotnet tool restore` installs it, and the scripts run that themselves.
 - Node.js 22 (via nvm recommended)
-- SQL Server (local, or via Docker:
-  `docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<yourStrong!Password>' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest`)
 - Python 3 + pdfplumber: `pip install -r scripts/requirements.txt`
   (on Debian/Ubuntu with PEP 668 protection, use a venv or `pip install --user --break-system-packages -r scripts/requirements.txt`)
 
@@ -161,7 +159,7 @@ After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: 
 Copy `api/Beacon.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
 
 - `ApiKey` - **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether - set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production, where `deploy.sh` injects it into the frontend build.
-- `ConnectionStrings.DefaultConnection` - SQL Server connection string
+- `ConnectionStrings.DefaultConnection` - `Data Source=<path to the database file>`, for example `Data Source=/home/you/beacon/local/beacon.db`. The file and its folder are created by the first `dotnet ef database update`.
 - `Storage.Path` - where uploaded PDFs will be stored
 - `Python.Executable` - `python3` on Linux/macOS, `python` on Windows (the stock `python3` alias on Windows opens the Microsoft Store instead of running Python)
 - `Python.ExtractorScript` - absolute path to `scripts/pdfExtractor.py`
@@ -219,7 +217,7 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `ApiKey`                               | Secret validated via `X-Api-Key` header                                                       |
 | `Storage__Path`                        | Directory for uploaded PDFs                                                                   |
 | `Backup__Path`                         | Directory for database backups                                                                |
-| `ConnectionStrings__DefaultConnection` | SQL Server connection string                                                                  |
+| `ConnectionStrings__DefaultConnection` | The SQLite database file: `Data Source=<path>`                                                |
 | `Python__Executable`                   | Python binary (`python` or `python3`)                                                         |
 | `Python__ExtractorScript`              | Absolute path to `scripts/pdfExtractor.py`                                                    |
 | `AlphaVantage__ApiKey`                 | Alpha Vantage API key (optional - only needed for investment price fetching)                  |
@@ -242,12 +240,24 @@ dotnet ef database update
 
 To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-db.ps1` (Windows).
 
+The whole database is one file. To back it up, copy it while the API is stopped (with WAL, recent writes may still sit in the `-wal` file beside it while the API runs), or use the backup on the Settings page.
+
+### Moving from SQL Server
+
+Beacon used SQL Server until 30 September 2026. To move a database to SQLite, first bring it up to date with the last SQL Server release (its last migration is `StorePdfPathsAsFileNames`), then:
+
+```bash
+dotnet run --project scripts/MigrateToSqlite -- "<SQL Server connection string>" "<path of the new .db file>"
+```
+
+The tool only reads the SQL Server database. It copies every table, ids included, into the new file, then compares the two row by row and prints the result per table. It never overwrites an existing file, and if the copy differs from the source it deletes the new one. Afterwards, point `ConnectionStrings__DefaultConnection` at the new file.
+
 ---
 
 ## Tests
 
 ```bash
-# Backend - xUnit (601 tests)
+# Backend - xUnit (617 tests)
 cd api
 dotnet test Beacon.Tests/
 
@@ -260,13 +270,13 @@ dotnet format beacon.sln
 cd web && npx prettier --write .
 ```
 
-Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale) and the SQL Server to SQLite copier, and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 
 ## Deployment
 
-`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), applies EF migrations, snapshots the current release to `/opt/beacon.prev`, deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx - verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
+`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), snapshots the current release to `/opt/beacon.prev`, stops the service, applies EF migrations to the SQLite file (nothing else holds it then), deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx - verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
 
 ```bash
 ./scripts/deploy.sh --production   # deploy
@@ -274,7 +284,7 @@ Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (beh
 journalctl -u beacon -f            # production logs (journald)
 ```
 
-Server prerequisites: a `beacon` systemd unit at `/etc/systemd/system/beacon.service`, Nginx, and a filled-in `local/environment` file (loaded via the unit's `EnvironmentFile`).
+Server prerequisites: a `beacon` systemd unit at `/etc/systemd/system/beacon.service`, Nginx, and a filled-in `local/environment` file (loaded via the unit's `EnvironmentFile`). Its `ConnectionStrings__DefaultConnection` names the database file, for example `Data Source=/home/you/beacon/local/Database/beacon.db`: `deploy.sh` makes that folder writable by the `beacon` group (the service writes the file and its `-wal`/`-shm` companions there) and refuses a path under `/opt/beacon`, which every deploy replaces.
 
 Development mode (`./scripts/deploy.sh`) opens API and Web dev servers in two tiled gnome-terminal windows - a desktop convenience, not used in production.
 

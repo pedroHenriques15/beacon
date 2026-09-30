@@ -10,7 +10,7 @@ public class GetCategoryRulesQueryHandler(AppDbContext db, ILogger<GetCategoryRu
         logger.LogInformation("GetCategoryRules");
         return await db.CategoryRules
             .Include(r => r.Category)
-            .OrderBy(r => r.Category.Name).ThenBy(r => r.Pattern)
+            .OrderBy(r => EF.Functions.Collate(r.Category.Name, SqliteSetup.DisplayOrder)).ThenBy(r => EF.Functions.Collate(r.Pattern, SqliteSetup.DisplayOrder))
             .Select(r => new GetCategoryRulesResponse(
                 r.Id, r.CategoryId, r.Pattern, r.Category.Name, r.Category.Color, r.Value))
             .ToListAsync(ct);

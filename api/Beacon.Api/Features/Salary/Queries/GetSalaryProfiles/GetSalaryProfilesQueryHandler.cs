@@ -9,7 +9,7 @@ public class GetSalaryProfilesQueryHandler(AppDbContext db)
 {
     public async Task<List<SalaryProfileResponse>> HandleAsync(CancellationToken ct = default) =>
         await db.SalaryProfiles
-            .OrderBy(p => p.Name)
+            .OrderBy(p => EF.Functions.Collate(p.Name, SqliteSetup.DisplayOrder))
             .Select(p => new SalaryProfileResponse(
                 p.Id, p.Name, p.Description,
                 p.SalarySlips.Count, p.HourlyRateFormula))

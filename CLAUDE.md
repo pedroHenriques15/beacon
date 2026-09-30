@@ -25,11 +25,12 @@ Everything is public except secrets, personal data and the task files (ADR-018).
 keeps out:
 
 - `docs/tasks/`: the task files, private working notes that exist only locally.
-- `local/`: environment files with secrets, real statements and uploads, backups.
+- `local/`: environment files with secrets, the SQLite databases, real statements and uploads,
+  backups.
 - `appsettings.json` and `appsettings.*.json` (all but the template): connection strings, keys.
 - `.claude/settings.local.json`: machine-specific permissions (server paths, `sudo` rules).
 - `.vscode/`, except the shared `tasks.json` and `launch.json`.
-- Every PDF.
+- Every PDF, and every SQLite file (`*.db`, `*.db-wal`, `*.db-shm`) wherever it lands.
 
 Anything tracked is published, docs included. No real names, IBANs, NIFs, emails, figures
 from real statements, personal paths, hostnames, IPs or keys in code, docs, fixtures or seed
@@ -44,12 +45,12 @@ api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per
 api/Beacon.Tests/   xUnit tests on EF Core InMemory
 web/src/app/        Angular 21 client: core/ (services, models, interceptors), pages/ (routes)
 scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
-                    setup (enables the git hooks)
+                    setup (enables the git hooks), MigrateToSqlite/ (SQL Server database to SQLite)
 .githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
 docs/               ARCHITECTURE, DECISIONS, ROADMAP, screenshots/; tasks/ (git-ignored)
 .claude/            agents/ (scaffolders), skills/task/ (task workflow), settings.json (shared)
-local/              git-ignored: environment.dev/.demo, uploads/, backups/ (the demo's own:
-                    uploads-demo/, backups-demo/), sample PDFs
+local/              git-ignored: environment.dev/.demo, beacon.db, uploads/, backups/ (the
+                    demo's own: beacon-demo.db, uploads-demo/, backups-demo/), sample PDFs
 ```
 
 The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the layout changes.
@@ -86,6 +87,10 @@ Backend:
 - A new document format is one parser class plus one `AddSingleton` line (ADR-004); the steps
   are in ARCHITECTURE.md. DI lifetimes follow the table there.
 - A new entity gets a `DbSet<T>` in `Data/AppDbContext.cs` and a migration.
+- The database is SQLite (ADR-024; details in ARCHITECTURE.md, "Database"). Declare a decimal
+  column with `HasPrecision`, never `HasColumnType`. Sort text shown to people with
+  `EF.Functions.Collate(x, SqliteSetup.DisplayOrder)`, and search text with
+  `x.ToLower().Contains(term.ToLowerInvariant())`. Contexts come from `UseBeaconSqlite`.
 - The `beacon-feature-scaffolder` and `beacon-parser-scaffolder` agents generate new use cases
   and parsers in this shape.
 - Run `dotnet format beacon.sln` (repository root) before committing. It uses the default .NET
@@ -184,14 +189,14 @@ Before a task's PR:
 ## Commands
 
 Development runs on the host (ADR-019): .NET 10 SDK, Node 22 or newer, Python 3 with
-`pdfplumber`, SQL Server on `localhost`. Config: `local/environment.dev` (demo:
-`local/environment.demo`).
+`pdfplumber`. The database is a SQLite file, `local/beacon.db`. Config: `local/environment.dev`
+(demo: `local/environment.demo`).
 
 ```
 scripts/setup.ps1              once per clone: enable the git hooks (scripts/setup.sh on Linux)
 scripts/run-backend.ps1        load local/environment.dev, apply migrations, API on :5098 (/swagger)
 scripts/run-frontend.ps1       wait for the API, then ng serve on :4200
-scripts/run-backend-demo.ps1   API against the demo database (BeaconDemo), local/uploads-demo and backups-demo
+scripts/run-backend-demo.ps1   API against the demo database (local/beacon-demo.db), uploads-demo and backups-demo
 VS Code "Beacon: Start All"    backend and frontend together (also "Start All (Demo)")
 scripts/reset-db.ps1           drop and recreate the local database (reads appsettings.json)
 

@@ -29,49 +29,45 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
                       ?? throw new InvalidOperationException("Backup file is empty or corrupt.");
         StorePdfPathsAsFileNames(payload);
 
-        var strategy = db.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            db.ChangeTracker.Clear();
+        db.ChangeTracker.Clear();
 
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentPriceSnapshots]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentLots]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [InvestmentAssets]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryItems]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategoryRules]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceiptCategoryMappings]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryReceipts]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [GroceryCategories]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryLineItems]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalarySlips]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryItemCategories]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Transactions]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [CategoryRules]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [MonthlyStatements]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [SalaryProfiles]", ct);
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM [Categories]", ct);
+        await db.InvestmentPriceSnapshots.ExecuteDeleteAsync(ct);
+        await db.InvestmentLots.ExecuteDeleteAsync(ct);
+        await db.InvestmentAssets.ExecuteDeleteAsync(ct);
+        await db.GroceryItems.ExecuteDeleteAsync(ct);
+        await db.GroceryCategoryRules.ExecuteDeleteAsync(ct);
+        await db.GroceryReceiptCategoryMappings.ExecuteDeleteAsync(ct);
+        await db.GroceryReceipts.ExecuteDeleteAsync(ct);
+        await db.GroceryCategories.ExecuteDeleteAsync(ct);
+        await db.SalaryLineItems.ExecuteDeleteAsync(ct);
+        await db.SalarySlips.ExecuteDeleteAsync(ct);
+        await db.SalaryItemCategories.ExecuteDeleteAsync(ct);
+        await db.Transactions.ExecuteDeleteAsync(ct);
+        await db.CategoryRules.ExecuteDeleteAsync(ct);
+        await db.MonthlyStatements.ExecuteDeleteAsync(ct);
+        await db.SalaryProfiles.ExecuteDeleteAsync(ct);
+        await db.Categories.ExecuteDeleteAsync(ct);
 
-            await InsertWithIdentity(db, "Categories", payload.Categories, ct);
-            await InsertWithIdentity(db, "CategoryRules", payload.CategoryRules, ct);
-            await InsertWithIdentity(db, "MonthlyStatements", payload.MonthlyStatements, ct);
-            await InsertWithIdentity(db, "Transactions", payload.Transactions, ct);
-            await InsertWithIdentity(db, "SalaryProfiles", payload.SalaryProfiles, ct);
-            await InsertWithIdentity(db, "SalaryItemCategories", payload.SalaryItemCategories, ct);
-            await InsertWithIdentity(db, "SalarySlips", payload.SalarySlips, ct);
-            await InsertWithIdentity(db, "SalaryLineItems", payload.SalaryLineItems, ct);
-            await InsertWithIdentity(db, "GroceryCategories", payload.GroceryCategories, ct);
-            await InsertWithIdentity(db, "GroceryReceiptCategoryMappings", payload.GroceryReceiptCategoryMappings, ct);
-            await InsertWithIdentity(db, "GroceryReceipts", payload.GroceryReceipts, ct);
-            await InsertWithIdentity(db, "GroceryItems", payload.GroceryItems, ct);
-            await InsertWithIdentity(db, "GroceryCategoryRules", payload.GroceryCategoryRules, ct);
-            await InsertWithIdentity(db, "InvestmentAssets", payload.InvestmentAssets, ct);
-            await InsertWithIdentity(db, "InvestmentLots", payload.InvestmentLots, ct);
-            await InsertWithIdentity(db, "InvestmentPriceSnapshots", payload.InvestmentPriceSnapshots, ct);
+        await InsertKeepingIds(db, payload.Categories, ct);
+        await InsertKeepingIds(db, payload.CategoryRules, ct);
+        await InsertKeepingIds(db, payload.MonthlyStatements, ct);
+        await InsertKeepingIds(db, payload.Transactions, ct);
+        await InsertKeepingIds(db, payload.SalaryProfiles, ct);
+        await InsertKeepingIds(db, payload.SalaryItemCategories, ct);
+        await InsertKeepingIds(db, payload.SalarySlips, ct);
+        await InsertKeepingIds(db, payload.SalaryLineItems, ct);
+        await InsertKeepingIds(db, payload.GroceryCategories, ct);
+        await InsertKeepingIds(db, payload.GroceryReceiptCategoryMappings, ct);
+        await InsertKeepingIds(db, payload.GroceryReceipts, ct);
+        await InsertKeepingIds(db, payload.GroceryItems, ct);
+        await InsertKeepingIds(db, payload.GroceryCategoryRules, ct);
+        await InsertKeepingIds(db, payload.InvestmentAssets, ct);
+        await InsertKeepingIds(db, payload.InvestmentLots, ct);
+        await InsertKeepingIds(db, payload.InvestmentPriceSnapshots, ct);
 
-            await tx.CommitAsync(ct);
-        });
+        await tx.CommitAsync(ct);
 
         logger.LogInformation("Database restored from {Path}", backupFile);
         return backupFile;
@@ -92,18 +88,15 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
             receipt.PdfPath = FileStorageService.FileNameOf(receipt.PdfPath);
     }
 
-    private static async Task InsertWithIdentity<T>(AppDbContext db, string tableName, IEnumerable<T> entities, CancellationToken ct)
+    /// <summary>Rows keep their backed-up ids: SQLite inserts an explicit key as given.</summary>
+    private static async Task InsertKeepingIds<T>(AppDbContext db, IEnumerable<T> entities, CancellationToken ct)
         where T : class
     {
         var list = entities.ToList();
         if (list.Count == 0) return;
 
-#pragma warning disable EF1002
-        await db.Database.ExecuteSqlRawAsync($"SET IDENTITY_INSERT [dbo].[{tableName}] ON", ct);
         db.Set<T>().AddRange(list);
         await db.SaveChangesAsync(ct);
-        await db.Database.ExecuteSqlRawAsync($"SET IDENTITY_INSERT [dbo].[{tableName}] OFF", ct);
-#pragma warning restore EF1002
         db.ChangeTracker.Clear();
     }
 }

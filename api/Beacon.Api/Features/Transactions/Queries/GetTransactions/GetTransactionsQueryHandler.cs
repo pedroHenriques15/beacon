@@ -27,7 +27,11 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
             q = q.Where(tx => tx.CategoryId == catId);
 
         if (!string.IsNullOrEmpty(query.Search))
-            q = q.Where(tx => tx.Description.Contains(query.Search));
+        {
+            // Case-insensitive, accented letters included: lower() is .NET's (SqliteSetup).
+            var search = query.Search.ToLowerInvariant();
+            q = q.Where(tx => tx.Description.ToLower().Contains(search));
+        }
 
         var totalsQ = q.Where(tx => !tx.IsExcluded);
 
@@ -39,14 +43,15 @@ public class GetTransactionsQueryHandler(AppDbContext db, ILogger<GetTransaction
         var totalCredit = await totalsQ.Where(tx => tx.Type == "credit").SumAsync(tx => tx.Amount, ct);
         var totalDebit = await totalsQ.Where(tx => tx.Type == "debit").SumAsync(tx => tx.Amount, ct);
 
+        // Text sorts use the display collation, so accented letters sit beside their base letter.
         var ordered = (query.SortBy?.ToLower(), query.SortDir?.ToLower()) switch
         {
-            ("bank", "asc") => q.OrderBy(tx => tx.Statement.Bank).ThenByDescending(tx => tx.Id),
-            ("bank", _) => q.OrderByDescending(tx => tx.Statement.Bank).ThenByDescending(tx => tx.Id),
-            ("description", "asc") => q.OrderBy(tx => tx.Description).ThenByDescending(tx => tx.Id),
-            ("description", _) => q.OrderByDescending(tx => tx.Description).ThenByDescending(tx => tx.Id),
-            ("category", "asc") => q.OrderBy(tx => tx.Category == null ? "zzz" : tx.Category.Name).ThenByDescending(tx => tx.Id),
-            ("category", _) => q.OrderByDescending(tx => tx.Category == null ? "" : tx.Category.Name).ThenByDescending(tx => tx.Id),
+            ("bank", "asc") => q.OrderBy(tx => EF.Functions.Collate(tx.Statement.Bank, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
+            ("bank", _) => q.OrderByDescending(tx => EF.Functions.Collate(tx.Statement.Bank, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
+            ("description", "asc") => q.OrderBy(tx => EF.Functions.Collate(tx.Description, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
+            ("description", _) => q.OrderByDescending(tx => EF.Functions.Collate(tx.Description, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
+            ("category", "asc") => q.OrderBy(tx => EF.Functions.Collate(tx.Category == null ? "zzz" : tx.Category.Name, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
+            ("category", _) => q.OrderByDescending(tx => EF.Functions.Collate(tx.Category == null ? "" : tx.Category.Name, SqliteSetup.DisplayOrder)).ThenByDescending(tx => tx.Id),
             ("amount", "asc") => q.OrderBy(tx => tx.Amount).ThenByDescending(tx => tx.Id),
             ("amount", _) => q.OrderByDescending(tx => tx.Amount).ThenByDescending(tx => tx.Id),
             ("balance", "asc") => q.OrderBy(tx => tx.Balance).ThenByDescending(tx => tx.Id),

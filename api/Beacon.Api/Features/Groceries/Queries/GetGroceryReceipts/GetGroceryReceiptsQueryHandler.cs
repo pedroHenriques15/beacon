@@ -11,10 +11,15 @@ public class GetGroceryReceiptsQueryHandler(AppDbContext db, ILogger<GetGroceryR
         var q = db.GroceryReceipts.AsQueryable();
 
         if (!string.IsNullOrEmpty(store))
-            q = q.Where(r => r.StoreName.Contains(store));
+        {
+            // Case-insensitive, accented letters included: lower() is .NET's (SqliteSetup).
+            var storeLower = store.ToLowerInvariant();
+            q = q.Where(r => r.StoreName.ToLower().Contains(storeLower));
+        }
 
         return await q
             .OrderByDescending(r => r.ReceiptDate)
+            .ThenByDescending(r => r.Id)
             .Select(r => new GroceryReceiptSummary(
                 r.Id,
                 r.StoreName,

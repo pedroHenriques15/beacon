@@ -53,8 +53,8 @@ print(cfg['ConnectionStrings']['DefaultConnection'])
 
 [[ -n "$CONN_STR" ]] || err "ConnectionStrings.DefaultConnection is empty in appsettings.json"
 
-DB_NAME="$(echo "$CONN_STR" | grep -oP '(?i)(?<=Database=)[^;]+')" \
-    || err "Could not parse database name from connection string"
+DB_NAME="$(echo "$CONN_STR" | grep -oP '(?i)(?<=Data Source=)[^;]+')" \
+    || err "Could not parse Data Source (the database file) from connection string"
 
 ok "Target database: $DB_NAME"
 

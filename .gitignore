@@ -46,6 +46,10 @@ appsettings.*.json
 
 # ─── Local runtime data (secrets + backups) — never commit ───────────────────
 local/
+# SQLite databases live in local/; these catch one created anywhere else.
+*.db
+*.db-shm
+*.db-wal
 
 # ─── Angular / Node ─────────────────────────────────────────────────────────
 web/node_modules/

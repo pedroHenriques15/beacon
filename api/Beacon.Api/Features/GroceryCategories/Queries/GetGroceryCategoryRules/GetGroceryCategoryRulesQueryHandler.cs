@@ -10,7 +10,7 @@ public class GetGroceryCategoryRulesQueryHandler(AppDbContext db, ILogger<GetGro
         logger.LogInformation("GetGroceryCategoryRules");
         return await db.GroceryCategoryRules
             .Include(r => r.Category)
-            .OrderBy(r => r.Category.Name).ThenBy(r => r.Pattern)
+            .OrderBy(r => EF.Functions.Collate(r.Category.Name, SqliteSetup.DisplayOrder)).ThenBy(r => EF.Functions.Collate(r.Pattern, SqliteSetup.DisplayOrder))
             .Select(r => new GetGroceryCategoryRulesResponse(
                 r.Id, r.CategoryId, r.Pattern, r.Category.Name, r.Category.Color, r.Value))
             .ToListAsync(ct);
