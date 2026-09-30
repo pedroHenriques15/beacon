@@ -6,15 +6,13 @@ using Xunit;
 
 namespace Beacon.Tests.Services;
 
-public class StatementUploadServiceTests
+public class StatementUploadServiceTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static MonthlyStatement MakeBpiStatement(
         DateOnly periodFrom, DateOnly periodTo, decimal pprBalance, Transaction? synthetic = null)
@@ -43,7 +41,7 @@ public class StatementUploadServiceTests
     [Fact]
     public async Task RecomputeNextPprSynthetic_Backfill_UpdatesNextStatementsSynthetic()
     {
-        await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_Backfill_UpdatesNextStatementsSynthetic));
+        await using var db = CreateDb();
 
         // Audit scenario: Jan (1000) then Mar (1300, synthetic 300 vs Jan). Backfilling
         // Feb (1100) must shrink Mar's synthetic gain to 200 - not leave 300 forever.
@@ -66,7 +64,7 @@ public class StatementUploadServiceTests
     [Fact]
     public async Task RecomputeNextPprSynthetic_ZeroDelta_RemovesSynthetic()
     {
-        await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_ZeroDelta_RemovesSynthetic));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(MakeBpiStatement(
             new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), 1100m,
@@ -83,7 +81,7 @@ public class StatementUploadServiceTests
     [Fact]
     public async Task RecomputeNextPprSynthetic_MissingSynthetic_CreatesIt()
     {
-        await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_MissingSynthetic_CreatesIt));
+        await using var db = CreateDb();
 
         // Next statement never got a synthetic (it was the first upload) - a lower
         // backfilled baseline reveals a loss that must now be recorded.
@@ -103,7 +101,7 @@ public class StatementUploadServiceTests
     [Fact]
     public async Task RecomputeNextPprSynthetic_ZeroDelta_UserTouchedSynthetic_IsPreserved()
     {
-        await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_ZeroDelta_UserTouchedSynthetic_IsPreserved));
+        await using var db = CreateDb();
 
         var touched = MakeSynthetic(100m, "credit", 1100m);
         touched.CategorySetManually = true;
@@ -122,7 +120,7 @@ public class StatementUploadServiceTests
     [Fact]
     public async Task RecomputeNextPprSynthetic_NoLaterStatement_DoesNothing()
     {
-        await using var db = CreateDb(nameof(RecomputeNextPprSynthetic_NoLaterStatement_DoesNothing));
+        await using var db = CreateDb();
 
         db.MonthlyStatements.Add(MakeBpiStatement(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), 1000m));

@@ -14,15 +14,13 @@ namespace Beacon.Tests.Handlers;
 /// Merging a second pay run into an existing month — the micro1/Deel case, where a paycheck arrives
 /// twice a calendar month but the schema allows one slip per (profile, period).
 /// </summary>
-public class MergeSalarySlipTests
+public class MergeSalarySlipTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static MergeSalarySlipCommandHandler CreateHandler(AppDbContext db, string? storageRoot = null)
     {
@@ -92,7 +90,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_SumsGrossAndNet()
     {
-        await using var db = CreateDb(nameof(Merge_SumsGrossAndNet));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, error) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -106,7 +104,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_DoesNotCreateASecondSlip()
     {
-        await using var db = CreateDb(nameof(Merge_DoesNotCreateASecondSlip));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -117,7 +115,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_CombinesLineItemsSharingACategory()
     {
-        await using var db = CreateDb(nameof(Merge_CombinesLineItemsSharingACategory));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -130,7 +128,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_AppendsLineItemForCategoryNotOnTheExistingSlip()
     {
-        await using var db = CreateDb(nameof(Merge_AppendsLineItemForCategoryNotOnTheExistingSlip));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var bonus = new SalaryItemCategory
@@ -154,7 +152,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_SumsBaseAmountAndHours()
     {
-        await using var db = CreateDb(nameof(Merge_SumsBaseAmountAndHours));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -166,7 +164,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_WeightsHourlyRateByHours()
     {
-        await using var db = CreateDb(nameof(Merge_WeightsHourlyRateByHours));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         // 28.73 h at 43.39 + 8.33 h at 40.00 -> (1246.60 + 333.20) / 37.06 = 42.63
@@ -179,7 +177,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_KeepsExistingRate_WhenIncomingHasNone()
     {
-        await using var db = CreateDb(nameof(Merge_KeepsExistingRate_WhenIncomingHasNone));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var command = SecondHalf(seed, seed.Slip.Id) with { HourlyRate = null };
@@ -191,7 +189,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_TakesIncomingValue_WhenExistingFieldIsNull()
     {
-        await using var db = CreateDb(nameof(Merge_TakesIncomingValue_WhenExistingFieldIsNull));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var slip = await db.SalarySlips.FirstAsync();
@@ -208,7 +206,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_RecordsBothSourceFileNames()
     {
-        await using var db = CreateDb(nameof(Merge_RecordsBothSourceFileNames));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));
@@ -219,7 +217,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_DoesNotRepeatAnAlreadyRecordedSourceFile()
     {
-        await using var db = CreateDb(nameof(Merge_DoesNotRepeatAnAlreadyRecordedSourceFile));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var command = SecondHalf(seed, seed.Slip.Id) with { SourceFile = "invoice-jul1-15.pdf" };
@@ -235,7 +233,7 @@ public class MergeSalarySlipTests
         Directory.CreateDirectory(storageRoot);
         try
         {
-            await using var db = CreateDb(nameof(Merge_KeepsFirstPdfAndDeletesTheSupersededOne));
+            await using var db = CreateDb();
             var seed = await SeedFirstHalfAsync(db);
 
             var firstPdf = Path.Combine(storageRoot, "first.pdf");
@@ -267,7 +265,7 @@ public class MergeSalarySlipTests
         Directory.CreateDirectory(storageRoot);
         try
         {
-            await using var db = CreateDb(nameof(Merge_AdoptsIncomingPdf_WhenExistingSlipHasNone));
+            await using var db = CreateDb();
             var seed = await SeedFirstHalfAsync(db);
 
             var incomingPdf = Path.Combine(storageRoot, "incoming.pdf");
@@ -292,7 +290,7 @@ public class MergeSalarySlipTests
         Directory.CreateDirectory(storageRoot);
         try
         {
-            await using var db = CreateDb(nameof(Merge_SamePdfUnderAnOldFullPath_IsKept));
+            await using var db = CreateDb();
             var seed = await SeedFirstHalfAsync(db);
 
             var pdf = Path.Combine(storageRoot, "slip.pdf");
@@ -315,7 +313,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_AppendsNotes()
     {
-        await using var db = CreateDb(nameof(Merge_AppendsNotes));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var slip = await db.SalarySlips.FirstAsync();
@@ -331,7 +329,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_ReturnsNotFoundResult_WhenSlipDoesNotExist()
     {
-        await using var db = CreateDb(nameof(Merge_ReturnsNotFoundResult_WhenSlipDoesNotExist));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, error) = await CreateHandler(db).HandleAsync(SecondHalf(seed, 9999));
@@ -343,7 +341,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_RejectsCategoryFromAnotherProfile()
     {
-        await using var db = CreateDb(nameof(Merge_RejectsCategoryFromAnotherProfile));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var otherProfile = new SalaryProfile { Name = "Other Employer" };
@@ -369,7 +367,7 @@ public class MergeSalarySlipTests
     [Fact]
     public async Task Merge_LeavesPeriodAndProfileUntouched()
     {
-        await using var db = CreateDb(nameof(Merge_LeavesPeriodAndProfileUntouched));
+        await using var db = CreateDb();
         var seed = await SeedFirstHalfAsync(db);
 
         var (result, _) = await CreateHandler(db).HandleAsync(SecondHalf(seed, seed.Slip.Id));

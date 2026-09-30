@@ -121,7 +121,7 @@ never fail the upload.
 Handler and service tests run against the InMemory provider with a unique database name per
 test, so state never leaks between tests. A mocked `AppDbContext` tests the mock; InMemory
 runs the real queries, within its limits. The one test that needs SQL Server (backup and
-restore round trip) runs only when `BEACON_TEST_SQLSERVER` is set.
+restore round trip) runs only when `BEACON_TEST_SQLSERVER` is set. Superseded by ADR-025.
 
 ## ADR-016 · Angular standalone components and signals
 
@@ -214,3 +214,14 @@ The migrations start over from one SQLite `InitialCreate`; an existing database 
 result row by row. The backup round trip that needed SQL Server (ADR-015) now runs on every
 test run. Costs accepted: one writer at a time, and `NOCASE` folds only ASCII letters in
 equality and unique names.
+
+## ADR-025 · Backend tests run on an in-memory SQLite database
+
+Supersedes ADR-015. With SQLite in production (ADR-024), every handler and service test runs
+on its own in-memory SQLite database with the production schema and connection setup
+(`SqliteTestDatabase`, held in a field: xUnit creates the test class, and so the database, for
+every test). EF Core InMemory ran queries as LINQ to Objects, so it could not catch a query
+SQLite cannot translate, a foreign key pointing nowhere or a violated unique index (ADR-008's
+one-slip-per-month index was never exercised); the move surfaced seven tests that seeded
+foreign keys from ids InMemory had handed out before saving. A mocked `AppDbContext` still
+tests the mock, so it stays out. The suite still runs in a few seconds.

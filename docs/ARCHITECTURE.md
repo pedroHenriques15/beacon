@@ -25,7 +25,7 @@ objects, and `ParseVerifier` checks the result before it is saved.
 | Database | SQLite + EF Core 10 (code-first) |
 | Frontend | Angular 21 (standalone components, signals) |
 | Charts | chart.js 4.5 |
-| Testing (backend) | xUnit + EF Core InMemory; SQLite in-memory where the engine matters |
+| Testing (backend) | xUnit + in-memory SQLite |
 | Testing (frontend) | Vitest 4 |
 | Formatting | Prettier 3.8 |
 
@@ -59,7 +59,7 @@ beacon/
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
-│   └── Beacon.Tests/             # xUnit test project (EF InMemory; SqliteTestDatabase where the engine matters)
+│   └── Beacon.Tests/             # xUnit test project; SqliteTestDatabase gives each test an in-memory SQLite database
 │       ├── Data/                 # SQLite behaviour, DatabaseCopier
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
@@ -593,11 +593,13 @@ by systemd `EnvironmentFile`).
 
 ## Tests
 
-Backend: `api/Beacon.Tests/` (xUnit, EF Core InMemory, ADR-015). Tests that depend on the
-database engine run on an in-memory SQLite database through `SqliteTestDatabase`: `Data/`
-(decimal sums and sorts in SQL, searches and sorts with accents, `NOCASE` unique names,
-decimal scale, foreign keys, `DatabaseCopier`), the backup round trip and the investment
-asset queries. Coverage: all bank/salary/grocery parsers (incl.
+Backend: `api/Beacon.Tests/` (xUnit, ADR-025). A test class holds a `SqliteTestDatabase` in a
+field, so every test gets its own in-memory SQLite database with the production schema and
+connection setup; `CreateDb()` again gives a fresh context on the same database. Seed related
+rows through navigations (`Category = cat`), not through ids read before `SaveChanges`: ids are
+assigned on save. `Data/` pins the engine behaviour the app relies on (decimal sums and sorts
+in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, foreign keys)
+and `DatabaseCopier`. Coverage: all bank/salary/grocery parsers (incl.
 Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,

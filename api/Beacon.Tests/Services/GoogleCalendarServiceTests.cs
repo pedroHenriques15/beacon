@@ -8,15 +8,13 @@ using Microsoft.Extensions.Options;
 
 namespace Beacon.Tests.Services;
 
-public class GoogleCalendarServiceTests
+public class GoogleCalendarServiceTests : IDisposable
 {
-    private static AppDbContext CreateDb(string name)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(name)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static IConfiguration CreateOAuthConfig() =>
         new ConfigurationBuilder()
@@ -70,7 +68,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task GetEventsAsync_SinglePage_ReturnsMappedEvents()
     {
-        using var db = CreateDb(nameof(GetEventsAsync_SinglePage_ReturnsMappedEvents));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var eventsBody = """
             {
@@ -116,7 +114,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task GetEventsAsync_Pagination_FollowsNextPageToken()
     {
-        using var db = CreateDb(nameof(GetEventsAsync_Pagination_FollowsNextPageToken));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
 
         var page1 = """
@@ -146,7 +144,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task GetEventsAsync_GoogleApiError_ThrowsWithBody()
     {
-        using var db = CreateDb(nameof(GetEventsAsync_GoogleApiError_ThrowsWithBody));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var svc = CreateCalendarSvc(oauthSvc,
             new FakeHttpMessageHandler(System.Net.HttpStatusCode.Unauthorized,
@@ -162,7 +160,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task GetEventsAsync_NoOAuthToken_Throws()
     {
-        using var db = CreateDb(nameof(GetEventsAsync_NoOAuthToken_Throws));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateCalendarSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
@@ -173,7 +171,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task CreateEventAsync_ReturnsCreatedEvent()
     {
-        using var db = CreateDb(nameof(CreateEventAsync_ReturnsCreatedEvent));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """
             {"id":"new1","summary":"New Event","start":{"dateTime":"2026-05-26T14:00:00Z"},"end":{"dateTime":"2026-05-26T15:00:00Z"}}
@@ -191,7 +189,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task CreateEventAsync_GoogleApiError_ThrowsWithBody()
     {
-        using var db = CreateDb(nameof(CreateEventAsync_GoogleApiError_ThrowsWithBody));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var svc = CreateCalendarSvc(oauthSvc,
             new FakeHttpMessageHandler(System.Net.HttpStatusCode.BadRequest,
@@ -208,7 +206,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task UpdateEventAsync_ReturnsUpdatedEvent()
     {
-        using var db = CreateDb(nameof(UpdateEventAsync_ReturnsUpdatedEvent));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """
             {"id":"evt1","summary":"Updated","start":{"dateTime":"2026-05-26T14:00:00Z"},"end":{"dateTime":"2026-05-26T15:00:00Z"}}
@@ -225,7 +223,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task DeleteEventAsync_Succeeds_OnNoContent()
     {
-        using var db = CreateDb(nameof(DeleteEventAsync_Succeeds_OnNoContent));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var svc = CreateCalendarSvc(oauthSvc,
             new FakeHttpMessageHandler(System.Net.HttpStatusCode.NoContent, ""));
@@ -236,7 +234,7 @@ public class GoogleCalendarServiceTests
     [Fact]
     public async Task DeleteEventAsync_GoogleApiError_ThrowsWithBody()
     {
-        using var db = CreateDb(nameof(DeleteEventAsync_GoogleApiError_ThrowsWithBody));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var svc = CreateCalendarSvc(oauthSvc,
             new FakeHttpMessageHandler(System.Net.HttpStatusCode.NotFound,

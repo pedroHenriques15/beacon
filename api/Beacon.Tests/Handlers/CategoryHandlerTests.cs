@@ -10,15 +10,13 @@ using Xunit;
 
 namespace Beacon.Tests.Handlers;
 
-public class CategoryHandlerTests
+public class CategoryHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static CreateCategoryRuleCommandHandler CreateHandler(AppDbContext db)
     {
@@ -66,7 +64,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategoryRule_WithPatternOnly_PersistsAndApplies()
     {
-        await using var db = CreateDb(nameof(CreateCategoryRule_WithPatternOnly_PersistsAndApplies));
+        await using var db = CreateDb();
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Groceries",
         [
@@ -92,7 +90,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategoryRule_WithValueOnly_PersistsAndApplies()
     {
-        await using var db = CreateDb(nameof(CreateCategoryRule_WithValueOnly_PersistsAndApplies));
+        await using var db = CreateDb();
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Salary",
         [
@@ -123,7 +121,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategoryRule_WithBothPatternAndValue_RequiresBothConditions()
     {
-        await using var db = CreateDb(nameof(CreateCategoryRule_WithBothPatternAndValue_RequiresBothConditions));
+        await using var db = CreateDb();
 
         var (cat, _) = await SeedCategoryAndStatementAsync(db, "Groceries",
         [
@@ -153,7 +151,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategoryRule_WithNeitherPatternNorValue_ThrowsArgumentException()
     {
-        await using var db = CreateDb(nameof(CreateCategoryRule_WithNeitherPatternNorValue_ThrowsArgumentException));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
@@ -167,7 +165,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategoryRule_WithUnknownCategoryId_ReturnsNull()
     {
-        await using var db = CreateDb(nameof(CreateCategoryRule_WithUnknownCategoryId_ReturnsNull));
+        await using var db = CreateDb();
 
         var handler = CreateHandler(db);
         var result = await handler.HandleAsync(new CreateCategoryRuleCommand(9999, "LIDL", null));
@@ -178,11 +176,11 @@ public class CategoryHandlerTests
     [Fact]
     public async Task UpdateCategoryRule_WithPatternOnly_UpdatesRuleSuccessfully()
     {
-        await using var db = CreateDb(nameof(UpdateCategoryRule_WithPatternOnly_UpdatesRuleSuccessfully));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
-        var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "OLD", Value = null };
+        var rule = new CategoryRule { Category = cat, Pattern = "OLD", Value = null };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
 
@@ -199,11 +197,11 @@ public class CategoryHandlerTests
     [Fact]
     public async Task UpdateCategoryRule_WithValueOnly_UpdatesRuleSuccessfully()
     {
-        await using var db = CreateDb(nameof(UpdateCategoryRule_WithValueOnly_UpdatesRuleSuccessfully));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
-        var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "OLD", Value = null };
+        var rule = new CategoryRule { Category = cat, Pattern = "OLD", Value = null };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
 
@@ -220,11 +218,11 @@ public class CategoryHandlerTests
     [Fact]
     public async Task UpdateCategoryRule_WithBothPatternAndValue_UpdatesRuleSuccessfully()
     {
-        await using var db = CreateDb(nameof(UpdateCategoryRule_WithBothPatternAndValue_UpdatesRuleSuccessfully));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
-        var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "OLD", Value = 100m };
+        var rule = new CategoryRule { Category = cat, Pattern = "OLD", Value = 100m };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
 
@@ -241,7 +239,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task UpdateCategoryRule_WithUnknownId_ReturnsFalse()
     {
-        await using var db = CreateDb(nameof(UpdateCategoryRule_WithUnknownId_ReturnsFalse));
+        await using var db = CreateDb();
 
         var handler = CreateUpdateHandler(db);
         var result = await handler.HandleAsync(new UpdateCategoryRuleCommand(9999, "X", null));
@@ -252,11 +250,11 @@ public class CategoryHandlerTests
     [Fact]
     public async Task UpdateCategoryRule_WithNeitherPatternNorValue_ThrowsArgumentException()
     {
-        await using var db = CreateDb(nameof(UpdateCategoryRule_WithNeitherPatternNorValue_ThrowsArgumentException));
+        await using var db = CreateDb();
 
         var cat = new Category { Name = "Test", Color = "#aaaaaa" };
         db.Categories.Add(cat);
-        var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "OLD" };
+        var rule = new CategoryRule { Category = cat, Pattern = "OLD" };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
 
@@ -268,7 +266,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategory_WithPatternAndValue_CreatesRuleWithValue()
     {
-        await using var db = CreateDb(nameof(CreateCategory_WithPatternAndValue_CreatesRuleWithValue));
+        await using var db = CreateDb();
 
         var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", "MB WAY", 50m));
@@ -282,7 +280,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategory_WithPatternOnly_CreatesRuleWithNullValue()
     {
-        await using var db = CreateDb(nameof(CreateCategory_WithPatternOnly_CreatesRuleWithNullValue));
+        await using var db = CreateDb();
 
         var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", "MB WAY", null));
@@ -296,7 +294,7 @@ public class CategoryHandlerTests
     [Fact]
     public async Task CreateCategory_WithoutPattern_NoRuleCreated()
     {
-        await using var db = CreateDb(nameof(CreateCategory_WithoutPattern_NoRuleCreated));
+        await using var db = CreateDb();
 
         var handler = CreateCategoryHandler(db);
         var response = await handler.HandleAsync(new CreateCategoryCommand("Test", "#aaa", null, null));

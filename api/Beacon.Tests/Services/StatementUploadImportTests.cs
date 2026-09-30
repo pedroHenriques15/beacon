@@ -13,6 +13,8 @@ namespace Beacon.Tests.Services;
 
 public class StatementUploadImportTests : IDisposable
 {
+    private readonly SqliteTestDatabase _database = new();
+
     private readonly string _tempStorageRoot;
     private readonly FileStorageService _fileStorage;
     private readonly BankStatementParserFactory _parserFactory;
@@ -32,6 +34,7 @@ public class StatementUploadImportTests : IDisposable
 
     public void Dispose()
     {
+        _database.Dispose();
         if (Directory.Exists(_tempStorageRoot))
             Directory.Delete(_tempStorageRoot, recursive: true);
     }
@@ -42,8 +45,7 @@ public class StatementUploadImportTests : IDisposable
             => Task.FromResult(pages);
     }
 
-    private static DbContextOptions<AppDbContext> DbOptions(string dbName) =>
-        new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+    private DbContextOptions<AppDbContext> DbOptions() => _database.Options;
 
     private StatementUploadService MakeService(AppDbContext db, IReadOnlyList<string> pages) =>
         new(db, new StubExtractor(pages), _parserFactory, _fileStorage,
@@ -75,8 +77,7 @@ public class StatementUploadImportTests : IDisposable
     [Fact]
     public async Task Import_ActivoBank_PersistsStatementTransactionsAndFile()
     {
-        var dbName = nameof(Import_ActivoBank_PersistsStatementTransactionsAndFile);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, [ActivoBankPage()]);
 
         var result = await service.ImportAsync(MakeFormFile("activo-file-1"));
@@ -85,7 +86,7 @@ public class StatementUploadImportTests : IDisposable
         Assert.Equal("ACTIVOBANK", result.Bank);
         Assert.Equal(2, result.TransactionCount);
 
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         var stmt = await freshDb.MonthlyStatements.Include(s => s.Transactions).SingleAsync();
         Assert.Equal(2, stmt.Transactions.Count);
         Assert.Equal(1300.00m, stmt.ClosingBalance);
@@ -97,8 +98,7 @@ public class StatementUploadImportTests : IDisposable
     [Fact]
     public async Task Import_SameBytesTwice_RejectsByHash()
     {
-        var dbName = nameof(Import_SameBytesTwice_RejectsByHash);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, [ActivoBankPage()]);
 
         await service.ImportAsync(MakeFormFile("identical-bytes"));
@@ -107,15 +107,14 @@ public class StatementUploadImportTests : IDisposable
         Assert.False(second.Imported);
         Assert.Contains("already been imported", second.Message);
 
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
     }
 
     [Fact]
     public async Task Import_SamePeriodDifferentBytes_RejectsAsDuplicate()
     {
-        var dbName = nameof(Import_SamePeriodDifferentBytes_RejectsAsDuplicate);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, [ActivoBankPage()]);
 
         await service.ImportAsync(MakeFormFile("first-bytes"));
@@ -124,7 +123,7 @@ public class StatementUploadImportTests : IDisposable
         Assert.False(second.Imported);
         Assert.Contains("already exists", second.Message);
 
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
         Assert.Single(Directory.GetFiles(_tempStorageRoot));
     }
@@ -132,13 +131,12 @@ public class StatementUploadImportTests : IDisposable
     [Fact]
     public async Task Import_UnrecognisedContent_Throws_AndPersistsNothing()
     {
-        var dbName = nameof(Import_UnrecognisedContent_Throws_AndPersistsNothing);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, ["completely unrelated text with no bank signals"]);
 
         await Assert.ThrowsAsync<NotSupportedException>(() => service.ImportAsync(MakeFormFile("junk")));
 
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         Assert.Equal(0, await freshDb.MonthlyStatements.CountAsync());
         Assert.Empty(Directory.GetFiles(_tempStorageRoot));
     }
@@ -161,8 +159,7 @@ public class StatementUploadImportTests : IDisposable
     [Fact]
     public async Task Import_TradeRepublic_ExcludesSavingsPlanRowsButNotSpending()
     {
-        var dbName = nameof(Import_TradeRepublic_ExcludesSavingsPlanRowsButNotSpending);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, [TradeRepublicPage()]);
 
         var result = await service.ImportAsync(MakeFormFile("trade-republic-file"));
@@ -170,7 +167,7 @@ public class StatementUploadImportTests : IDisposable
         Assert.True(result.Imported);
         Assert.Equal("TRADE REPUBLIC", result.Bank);
 
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         var stmt = await freshDb.MonthlyStatements.Include(s => s.Transactions).SingleAsync();
 
         var card = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
@@ -191,14 +188,13 @@ public class StatementUploadImportTests : IDisposable
     [Fact]
     public async Task Import_NonEurStatement_Throws_AndPersistsNothing()
     {
-        var dbName = nameof(Import_NonEurStatement_Throws_AndPersistsNothing);
-        await using var db = new AppDbContext(DbOptions(dbName));
+        await using var db = new AppDbContext(DbOptions());
         var service = MakeService(db, [ActivoBankPage(currency: "USD")]);
 
         var ex = await Assert.ThrowsAsync<NotSupportedException>(() => service.ImportAsync(MakeFormFile("usd-file")));
 
         Assert.Contains("EUR", ex.Message);
-        await using var freshDb = new AppDbContext(DbOptions(dbName));
+        await using var freshDb = new AppDbContext(DbOptions());
         Assert.Equal(0, await freshDb.MonthlyStatements.CountAsync());
         Assert.Empty(Directory.GetFiles(_tempStorageRoot));
     }

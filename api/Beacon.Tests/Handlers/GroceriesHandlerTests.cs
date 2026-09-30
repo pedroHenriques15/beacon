@@ -23,15 +23,13 @@ using Xunit;
 
 namespace Beacon.Tests.Handlers;
 
-public class GroceriesHandlerTests
+public class GroceriesHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static async Task<GroceryReceipt> SeedReceiptAsync(
         AppDbContext db,
@@ -55,7 +53,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GetGroceryReceipts_ReturnsAll()
     {
-        await using var db = CreateDb(nameof(GetGroceryReceipts_ReturnsAll));
+        await using var db = CreateDb();
         await SeedReceiptAsync(db, "Continente");
         await SeedReceiptAsync(db, "Pingo Doce");
 
@@ -68,7 +66,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GetGroceryReceipts_FiltersByStore()
     {
-        await using var db = CreateDb(nameof(GetGroceryReceipts_FiltersByStore));
+        await using var db = CreateDb();
         await SeedReceiptAsync(db, "Continente");
         await SeedReceiptAsync(db, "Pingo Doce");
 
@@ -82,7 +80,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryReceipt_RemovesReceiptAndItems()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryReceipt_RemovesReceiptAndItems));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "Bread", Amount = 1.50m, Quantity = 1 }
@@ -99,7 +97,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryReceipt_DeletesPdfStoredAsFileName()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryReceipt_DeletesPdfStoredAsFileName));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente");
 
         var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_receipt_del_{Guid.NewGuid()}");
@@ -129,7 +127,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryReceipt_ReturnsFalseForMissing()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryReceipt_ReturnsFalseForMissing));
+        await using var db = CreateDb();
 
         var handler = new DeleteGroceryReceiptCommandHandler(db, new FileStorageService(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), NullLogger<FileStorageService>.Instance), NullLogger<DeleteGroceryReceiptCommandHandler>.Instance);
         var result = await handler.HandleAsync(new DeleteGroceryReceiptCommand(9999));
@@ -140,7 +138,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryItem_PersistsCorrectly()
     {
-        await using var db = CreateDb(nameof(CreateGroceryItem_PersistsCorrectly));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente");
 
         var handler = new CreateGroceryItemCommandHandler(db, NullLogger<CreateGroceryItemCommandHandler>.Instance);
@@ -161,7 +159,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryItem_ReturnsErrorForUnknownReceipt()
     {
-        await using var db = CreateDb(nameof(CreateGroceryItem_ReturnsErrorForUnknownReceipt));
+        await using var db = CreateDb();
 
         var handler = new CreateGroceryItemCommandHandler(db, NullLogger<CreateGroceryItemCommandHandler>.Instance);
         var (result, error) = await handler.HandleAsync(
@@ -174,7 +172,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task UpdateGroceryItem_UpdatesFields()
     {
-        await using var db = CreateDb(nameof(UpdateGroceryItem_UpdatesFields));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "OldName", Amount = 2m, Quantity = 1 }
@@ -193,7 +191,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task UpdateGroceryItem_ReturnsNullForMissing()
     {
-        await using var db = CreateDb(nameof(UpdateGroceryItem_ReturnsNullForMissing));
+        await using var db = CreateDb();
 
         var handler = new UpdateGroceryItemCommandHandler(db, NullLogger<UpdateGroceryItemCommandHandler>.Instance);
         var result = await handler.HandleAsync(new UpdateGroceryItemCommand(9999, "X", 1m, 1));
@@ -204,7 +202,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryItem_RemovesItem()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryItem_RemovesItem));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "Bread", Amount = 1m, Quantity = 1 }
@@ -221,7 +219,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryItem_ReturnsFalseForMissing()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryItem_ReturnsFalseForMissing));
+        await using var db = CreateDb();
 
         var handler = new DeleteGroceryItemCommandHandler(db, NullLogger<DeleteGroceryItemCommandHandler>.Instance);
         var result = await handler.HandleAsync(new DeleteGroceryItemCommand(9999));
@@ -232,7 +230,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task SetGroceryItemCategory_AssignsCategoryAndSetsManualFlag()
     {
-        await using var db = CreateDb(nameof(SetGroceryItemCategory_AssignsCategoryAndSetsManualFlag));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Dairy", Color = "#fff" };
         db.GroceryCategories.Add(cat);
         var receipt = await SeedReceiptAsync(db, "Continente", items:
@@ -255,12 +253,12 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task SetGroceryItemCategory_ClearsWithNull()
     {
-        await using var db = CreateDb(nameof(SetGroceryItemCategory_ClearsWithNull));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Dairy", Color = "#fff" };
         db.GroceryCategories.Add(cat);
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
-            new GroceryItem { Description = "Milk", Amount = 1m, Quantity = 1, CategoryId = cat.Id, CategorySetManually = true }
+            new GroceryItem { Description = "Milk", Amount = 1m, Quantity = 1, Category = cat, CategorySetManually = true }
         ]);
         var item = receipt.Items.First();
 
@@ -277,7 +275,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task SetGroceryItemCategory_ReturnsNullForMissing()
     {
-        await using var db = CreateDb(nameof(SetGroceryItemCategory_ReturnsNullForMissing));
+        await using var db = CreateDb();
 
         var handler = new SetGroceryItemCategoryCommandHandler(db, NullLogger<SetGroceryItemCategoryCommandHandler>.Instance);
         var result = await handler.HandleAsync(new SetGroceryItemCategoryCommand(9999, null, null));
@@ -288,7 +286,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryCategory_CreatesWithoutRule()
     {
-        await using var db = CreateDb(nameof(CreateGroceryCategory_CreatesWithoutRule));
+        await using var db = CreateDb();
 
         var applyRule = new GroceryApplyRuleService(db);
         var handler = new CreateGroceryCategoryCommandHandler(db, applyRule, NullLogger<CreateGroceryCategoryCommandHandler>.Instance);
@@ -305,7 +303,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task UpdateGroceryCategory_UpdatesNameAndColor()
     {
-        await using var db = CreateDb(nameof(UpdateGroceryCategory_UpdatesNameAndColor));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "OldName", Color = "#000" };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -321,7 +319,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task UpdateGroceryCategory_ReturnsFalseForMissing()
     {
-        await using var db = CreateDb(nameof(UpdateGroceryCategory_ReturnsFalseForMissing));
+        await using var db = CreateDb();
 
         var handler = new UpdateGroceryCategoryCommandHandler(db, NullLogger<UpdateGroceryCategoryCommandHandler>.Instance);
         var result = await handler.HandleAsync(new UpdateGroceryCategoryCommand(9999, "X", "#fff"));
@@ -332,7 +330,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryCategory_Removes()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryCategory_Removes));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Bakery", Color = "#000" };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -348,7 +346,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryCategory_Returns409ForProtected()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryCategory_Returns409ForProtected));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "System", Color = "#000", IsProtected = true };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -364,7 +362,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryReceiptCategoryMapping_CreatesMappingAndAppliesRetroactively()
     {
-        await using var db = CreateDb(nameof(CreateGroceryReceiptCategoryMapping_CreatesMappingAndAppliesRetroactively));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Sweets", Color = "#f00" };
         db.GroceryCategories.Add(cat);
         var receipt = await SeedReceiptAsync(db, "Continente", items:
@@ -394,7 +392,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryReceiptCategoryMapping_ReturnsNullForUnknownCategory()
     {
-        await using var db = CreateDb(nameof(CreateGroceryReceiptCategoryMapping_ReturnsNullForUnknownCategory));
+        await using var db = CreateDb();
 
         var handler = new CreateGroceryReceiptCategoryMappingCommandHandler(db, NullLogger<CreateGroceryReceiptCategoryMappingCommandHandler>.Instance);
         var (result, isConflict) = await handler.HandleAsync(
@@ -407,7 +405,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryReceiptCategoryMapping_ReturnsConflictForDuplicateName()
     {
-        await using var db = CreateDb(nameof(CreateGroceryReceiptCategoryMapping_ReturnsConflictForDuplicateName));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Sweets", Color = "#f00" };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -425,7 +423,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GetGroceryReceiptCategoryMappings_ReturnsAll()
     {
-        await using var db = CreateDb(nameof(GetGroceryReceiptCategoryMappings_ReturnsAll));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Drinks", Color = "#00f" };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -446,10 +444,10 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryReceiptCategoryMapping_Removes()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryReceiptCategoryMapping_Removes));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Drinks", Color = "#00f" };
         db.GroceryCategories.Add(cat);
-        var mapping = new GroceryReceiptCategoryMapping { ReceiptCategoryName = "Soft Drinks", GroceryCategoryId = cat.Id };
+        var mapping = new GroceryReceiptCategoryMapping { ReceiptCategoryName = "Soft Drinks", Category = cat };
         db.GroceryReceiptCategoryMappings.Add(mapping);
         await db.SaveChangesAsync();
 
@@ -463,7 +461,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task DeleteGroceryReceiptCategoryMapping_ReturnsFalseForMissing()
     {
-        await using var db = CreateDb(nameof(DeleteGroceryReceiptCategoryMapping_ReturnsFalseForMissing));
+        await using var db = CreateDb();
 
         var handler = new DeleteGroceryReceiptCategoryMappingCommandHandler(db);
         var result = await handler.HandleAsync(new DeleteGroceryReceiptCategoryMappingCommand(9999));
@@ -474,7 +472,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GroceryApplyRuleService_AppliesMatchingRulesOnUpload()
     {
-        await using var db = CreateDb(nameof(GroceryApplyRuleService_AppliesMatchingRulesOnUpload));
+        await using var db = CreateDb();
         var cat = new GroceryCategory { Name = "Soft Drinks", Color = "#00f" };
         db.GroceryCategories.Add(cat);
         await db.SaveChangesAsync();
@@ -503,7 +501,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GroceryApplyRuleService_SkipsManuallySetItems()
     {
-        await using var db = CreateDb(nameof(GroceryApplyRuleService_SkipsManuallySetItems));
+        await using var db = CreateDb();
         var cat1 = new GroceryCategory { Name = "Soft Drinks", Color = "#00f" };
         var cat2 = new GroceryCategory { Name = "Manual", Color = "#0f0" };
         db.GroceryCategories.AddRange(cat1, cat2);
@@ -535,7 +533,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task MarkGroceryItemsExcluded_SetsIsExcludedTrue()
     {
-        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_SetsIsExcludedTrue));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "Leite", Amount = 1.20m },
@@ -553,7 +551,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task MarkGroceryItemsExcluded_WithUnmarkTrue_SetsIsExcludedFalse()
     {
-        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_WithUnmarkTrue_SetsIsExcludedFalse));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "Leite", Amount = 1.20m },
@@ -572,7 +570,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task MarkGroceryItemsExcluded_AssignsExcludedCategoryWhenExists()
     {
-        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_AssignsExcludedCategoryWhenExists));
+        await using var db = CreateDb();
         var excludedCat = new GroceryCategory { Name = "Excluded", Color = "#aaa" };
         db.GroceryCategories.Add(excludedCat);
         await db.SaveChangesAsync();
@@ -594,7 +592,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task MarkGroceryItemsExcluded_WithoutExcludedCategory_StillSetsFlag()
     {
-        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_WithoutExcludedCategory_StillSetsFlag));
+        await using var db = CreateDb();
         var receipt = await SeedReceiptAsync(db, "Continente", items:
         [
             new GroceryItem { Description = "Agua", Amount = 0.60m },
@@ -612,7 +610,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task MarkGroceryItemsExcluded_NonExistentIds_DoesNotThrow()
     {
-        await using var db = CreateDb(nameof(MarkGroceryItemsExcluded_NonExistentIds_DoesNotThrow));
+        await using var db = CreateDb();
         var handler = new MarkGroceryItemsExcludedCommandHandler(db, NullLogger<MarkGroceryItemsExcludedCommandHandler>.Instance);
         var ex = await Record.ExceptionAsync(() => handler.HandleAsync(new MarkGroceryItemsExcludedCommand([9999, 8888])));
         Assert.Null(ex);
@@ -636,7 +634,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task SetGroceryItemCategory_ToExcludedCategory_SetsIsExcluded()
     {
-        await using var db = CreateDb(nameof(SetGroceryItemCategory_ToExcludedCategory_SetsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, receipt) = await SeedForExclusionAsync(db);
         var item = receipt.Items.First();
 
@@ -650,7 +648,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task SetGroceryItemCategory_AwayFromExcludedCategory_ClearsIsExcluded()
     {
-        await using var db = CreateDb(nameof(SetGroceryItemCategory_AwayFromExcludedCategory_ClearsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, other, receipt) = await SeedForExclusionAsync(db);
         var item = receipt.Items.First();
         item.CategoryId = excluded.Id;
@@ -667,7 +665,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GroceryApplyRuleService_ExcludedCategoryRule_AlsoSetsIsExcludedFlag()
     {
-        await using var db = CreateDb(nameof(GroceryApplyRuleService_ExcludedCategoryRule_AlsoSetsIsExcludedFlag));
+        await using var db = CreateDb();
         var (excluded, _, receipt) = await SeedForExclusionAsync(db);
 
         var rule = new GroceryCategoryRule { CategoryId = excluded.Id, Pattern = "SACO" };
@@ -685,7 +683,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task GroceryApplyRuleService_NonExcludedCategoryRule_LeavesIsExcludedFalse()
     {
-        await using var db = CreateDb(nameof(GroceryApplyRuleService_NonExcludedCategoryRule_LeavesIsExcludedFalse));
+        await using var db = CreateDb();
         var (_, other, receipt) = await SeedForExclusionAsync(db);
 
         var rule = new GroceryCategoryRule { CategoryId = other.Id, Pattern = "SACO" };
@@ -702,7 +700,7 @@ public class GroceriesHandlerTests
     [Fact]
     public async Task CreateGroceryItem_MatchingExcludedCategoryRule_SetsIsExcluded()
     {
-        await using var db = CreateDb(nameof(CreateGroceryItem_MatchingExcludedCategoryRule_SetsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, receipt) = await SeedForExclusionAsync(db);
 
         db.GroceryCategoryRules.Add(new GroceryCategoryRule { CategoryId = excluded.Id, Pattern = "TALAO" });

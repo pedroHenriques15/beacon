@@ -13,15 +13,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Beacon.Tests.Handlers;
 
-public class TransactionHandlerTests
+public class TransactionHandlerTests : IDisposable
 {
-    private static AppDbContext CreateDb(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static async Task<(MonthlyStatement stmt, Transaction tx1, Transaction tx2)> SeedTwoTransactionsAsync(
         AppDbContext db, string bank = "ACTIVOBANK")
@@ -64,7 +62,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_RemovesTransactionFromDb()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_RemovesTransactionFromDb));
+        await using var db = CreateDb();
         var (_, tx1, _) = await SeedTwoTransactionsAsync(db);
 
         var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
@@ -77,7 +75,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_ReturnsFalseForMissingTransaction()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_ReturnsFalseForMissingTransaction));
+        await using var db = CreateDb();
 
         var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
         var result = await handler.HandleAsync(new DeleteTransactionCommand(9999));
@@ -88,7 +86,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_DoesNotAffectOtherTransactions()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_DoesNotAffectOtherTransactions));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
@@ -102,7 +100,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_TransferPairRemainsMarked()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_TransferPairRemainsMarked));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var markHandler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -119,7 +117,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_DeletesStatementWhenLastTransactionRemoved()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_DeletesStatementWhenLastTransactionRemoved));
+        await using var db = CreateDb();
         var (stmt, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
@@ -132,7 +130,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task DeleteTransaction_DoesNotDeleteStatementWhenTransactionsRemain()
     {
-        await using var db = CreateDb(nameof(DeleteTransaction_DoesNotDeleteStatementWhenTransactionsRemain));
+        await using var db = CreateDb();
         var (stmt, tx1, _) = await SeedTwoTransactionsAsync(db);
 
         var handler = new DeleteTransactionCommandHandler(db, NullLogger<DeleteTransactionCommandHandler>.Instance);
@@ -144,7 +142,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task MarkTransfers_SetsIsExcludedTrue()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_SetsIsExcludedTrue));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -157,7 +155,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task MarkTransfers_WithUnmarkTrue_SetsIsExcludedFalse()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_WithUnmarkTrue_SetsIsExcludedFalse));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -171,7 +169,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task MarkTransfers_OnlyAffectsSpecifiedIds()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_OnlyAffectsSpecifiedIds));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -186,7 +184,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task MarkTransfers_EmptyIds_DoesNotThrow()
     {
-        await using var db = CreateDb(nameof(MarkTransfers_EmptyIds_DoesNotThrow));
+        await using var db = CreateDb();
         await SeedTwoTransactionsAsync(db);
 
         var handler = new MarkTransfersCommandHandler(db, NullLogger<MarkTransfersCommandHandler>.Instance);
@@ -197,7 +195,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_AssignsCategoryAndSetsManualFlag()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_AssignsCategoryAndSetsManualFlag));
+        await using var db = CreateDb();
         var cat = new Category { Name = "Food", Color = "#ff0000" };
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
@@ -232,7 +230,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_ClearsExistingRuleLink()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_ClearsExistingRuleLink));
+        await using var db = CreateDb();
         var cat1 = new Category { Name = "Food", Color = "#ff0000" };
         var cat2 = new Category { Name = "Shopping", Color = "#00ff00" };
         db.Categories.AddRange(cat1, cat2);
@@ -274,7 +272,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_WithDeleteRuleId_RemovesRule()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_WithDeleteRuleId_RemovesRule));
+        await using var db = CreateDb();
         var cat = new Category { Name = "Food", Color = "#ff0000" };
         db.Categories.Add(cat);
         await db.SaveChangesAsync();
@@ -310,7 +308,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_ReturnsNullForMissingTransaction()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_ReturnsNullForMissingTransaction));
+        await using var db = CreateDb();
         var handler = new SetTransactionCategoryCommandHandler(db, NullLogger<SetTransactionCategoryCommandHandler>.Instance);
         var result = await handler.HandleAsync(new SetTransactionCategoryCommand(9999, null, null));
         Assert.Null(result);
@@ -319,7 +317,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_WithNullCategoryId_Uncategorizes()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_WithNullCategoryId_Uncategorizes));
+        await using var db = CreateDb();
         var cat = new Category { Name = "Food", Color = "#ff0000" };
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
@@ -336,7 +334,7 @@ public class TransactionHandlerTests
                 DatePosting = new DateOnly(2026, 1, 10),
                 DateValue = new DateOnly(2026, 1, 10),
                 Balance = 975,
-                CategoryId = cat.Id
+                Category = cat
             }]
         };
         db.MonthlyStatements.Add(stmt);
@@ -372,7 +370,7 @@ public class TransactionHandlerTests
                     DatePosting = new DateOnly(2026, 1, 5),
                     DateValue = new DateOnly(2026, 1, 5),
                     Balance = 970,
-                    CategoryId = cat.Id
+                    Category = cat
                 },
                 new Transaction
                 {
@@ -411,7 +409,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_NoFilters_ReturnsAll()
     {
-        await using var db = CreateDb(nameof(GetTransactions_NoFilters_ReturnsAll));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -424,7 +422,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterByBank_ReturnsOnlyMatchingBank()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterByBank_ReturnsOnlyMatchingBank));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -437,7 +435,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterByMonth_ReturnsOnlyThatMonth()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterByMonth_ReturnsOnlyThatMonth));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -449,7 +447,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_MonthFilter_UsesTransactionDate_NotStatementPeriod()
     {
-        await using var db = CreateDb(nameof(GetTransactions_MonthFilter_UsesTransactionDate_NotStatementPeriod));
+        await using var db = CreateDb();
 
         var stmt = new MonthlyStatement
         {
@@ -486,7 +484,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterByType_ReturnsOnlyMatchingType()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterByType_ReturnsOnlyMatchingType));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -499,7 +497,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterCategoryUnknown_ReturnsUncategorizedOnly()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterCategoryUnknown_ReturnsUncategorizedOnly));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -512,7 +510,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterBySearch_ReturnsDescriptionMatches()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterBySearch_ReturnsDescriptionMatches));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -525,7 +523,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_Pagination_RespectsSkipAndTake()
     {
-        await using var db = CreateDb(nameof(GetTransactions_Pagination_RespectsSkipAndTake));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -541,7 +539,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_FilterByType_TotalsStillReflectBothTypes()
     {
-        await using var db = CreateDb(nameof(GetTransactions_FilterByType_TotalsStillReflectBothTypes));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -556,7 +554,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task BulkDeleteTransactions_DeletesAllSpecifiedTransactions()
     {
-        await using var db = CreateDb(nameof(BulkDeleteTransactions_DeletesAllSpecifiedTransactions));
+        await using var db = CreateDb();
         var (_, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
@@ -568,7 +566,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task BulkDeleteTransactions_DeletesEmptyStatementsAfterBulkDelete()
     {
-        await using var db = CreateDb(nameof(BulkDeleteTransactions_DeletesEmptyStatementsAfterBulkDelete));
+        await using var db = CreateDb();
         var (stmt, tx1, tx2) = await SeedTwoTransactionsAsync(db);
 
         var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
@@ -580,7 +578,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task BulkDeleteTransactions_KeepsStatementWithRemainingTransactions()
     {
-        await using var db = CreateDb(nameof(BulkDeleteTransactions_KeepsStatementWithRemainingTransactions));
+        await using var db = CreateDb();
         var (stmt, tx1, _) = await SeedTwoTransactionsAsync(db);
 
         var handler = new BulkDeleteTransactionsCommandHandler(db, NullLogger<BulkDeleteTransactionsCommandHandler>.Instance);
@@ -592,7 +590,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task GetTransactions_TakeClampedTo500()
     {
-        await using var db = CreateDb(nameof(GetTransactions_TakeClampedTo500));
+        await using var db = CreateDb();
         await SeedTransactionsForQueryAsync(db);
 
         var handler = new GetTransactionsQueryHandler(db, NullLogger<GetTransactionsQueryHandler>.Instance);
@@ -634,7 +632,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_ToExcludedCategory_SetsIsExcluded()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_ToExcludedCategory_SetsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, tx) = await SeedForExclusionAsync(db);
 
         var handler = new SetTransactionCategoryCommandHandler(db, NullLogger<SetTransactionCategoryCommandHandler>.Instance);
@@ -647,7 +645,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task SetTransactionCategory_AwayFromExcludedCategory_ClearsIsExcluded()
     {
-        await using var db = CreateDb(nameof(SetTransactionCategory_AwayFromExcludedCategory_ClearsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, other, tx) = await SeedForExclusionAsync(db);
         tx.CategoryId = excluded.Id;
         tx.IsExcluded = true;
@@ -665,7 +663,7 @@ public class TransactionHandlerTests
     {
         // Trade Republic savings-plan buys are excluded with no category at all; giving them a
         // category must not silently pull them back into spending.
-        await using var db = CreateDb(nameof(SetTransactionCategory_KeepsExclusionNotOwnedByTheExcludedCategory));
+        await using var db = CreateDb();
         var (_, other, tx) = await SeedForExclusionAsync(db);
         tx.IsExcluded = true;
         await db.SaveChangesAsync();
@@ -680,7 +678,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task UpdateTransaction_ToExcludedCategory_SetsIsExcluded()
     {
-        await using var db = CreateDb(nameof(UpdateTransaction_ToExcludedCategory_SetsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, tx) = await SeedForExclusionAsync(db);
 
         var handler = new UpdateTransactionCommandHandler(db, NullLogger<UpdateTransactionCommandHandler>.Instance);
@@ -693,7 +691,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task UpdateTransaction_UnlinkCategory_ClearsIsExcluded()
     {
-        await using var db = CreateDb(nameof(UpdateTransaction_UnlinkCategory_ClearsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, tx) = await SeedForExclusionAsync(db);
         tx.CategoryId = excluded.Id;
         tx.IsExcluded = true;
@@ -710,7 +708,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task UpdateTransaction_UnlinkTransfer_DropsExcludedCategory()
     {
-        await using var db = CreateDb(nameof(UpdateTransaction_UnlinkTransfer_DropsExcludedCategory));
+        await using var db = CreateDb();
         var (excluded, _, tx) = await SeedForExclusionAsync(db);
         tx.CategoryId = excluded.Id;
         tx.IsExcluded = true;
@@ -727,7 +725,7 @@ public class TransactionHandlerTests
     [Fact]
     public async Task CreateTransaction_WithExcludedCategory_SetsIsExcluded()
     {
-        await using var db = CreateDb(nameof(CreateTransaction_WithExcludedCategory_SetsIsExcluded));
+        await using var db = CreateDb();
         var (excluded, _, tx) = await SeedForExclusionAsync(db);
 
         var handler = new CreateTransactionCommandHandler(db, NullLogger<CreateTransactionCommandHandler>.Instance);

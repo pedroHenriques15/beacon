@@ -8,15 +8,13 @@ using Microsoft.Extensions.Options;
 
 namespace Beacon.Tests.Services;
 
-public class GoogleTasksServiceTests
+public class GoogleTasksServiceTests : IDisposable
 {
-    private static AppDbContext CreateDb(string name)
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(name)
-            .Options;
-        return new AppDbContext(options);
-    }
+    private readonly SqliteTestDatabase _database = new();
+
+    public void Dispose() => _database.Dispose();
+
+    private AppDbContext CreateDb() => _database.CreateContext();
 
     private static IConfiguration CreateOAuthConfig() =>
         new ConfigurationBuilder()
@@ -62,7 +60,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTaskListsAsync_ReturnsMappedLists()
     {
-        using var db = CreateDb(nameof(GetTaskListsAsync_ReturnsMappedLists));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """
             {
@@ -86,7 +84,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTasksAsync_SetsTaskListIdFromParam()
     {
-        using var db = CreateDb(nameof(GetTasksAsync_SetsTaskListIdFromParam));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """
             {
@@ -106,7 +104,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTasksAsync_StripsRFC3339ToDueDate()
     {
-        using var db = CreateDb(nameof(GetTasksAsync_StripsRFC3339ToDueDate));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """
             {
@@ -130,7 +128,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTasksAsync_MapsCompletedStatus()
     {
-        using var db = CreateDb(nameof(GetTasksAsync_MapsCompletedStatus));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """
             {
@@ -151,7 +149,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTasksAsync_EmptyItemsResponse_ReturnsEmptyList()
     {
-        using var db = CreateDb(nameof(GetTasksAsync_EmptyItemsResponse_ReturnsEmptyList));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """{}""";
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, body));
@@ -164,7 +162,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task GetTasksAsync_NoOAuthToken_Throws()
     {
-        using var db = CreateDb(nameof(GetTasksAsync_NoOAuthToken_Throws));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateTasksSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
@@ -175,7 +173,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task CreateTaskAsync_ReturnsCreatedTaskWithCorrectListId()
     {
-        using var db = CreateDb(nameof(CreateTaskAsync_ReturnsCreatedTaskWithCorrectListId));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """
             { "id": "new-task-1", "title": "Buy milk", "status": "needsAction" }
@@ -194,7 +192,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task UpdateTaskAsync_MarkingComplete_ReturnsMappedTask()
     {
-        using var db = CreateDb(nameof(UpdateTaskAsync_MarkingComplete_ReturnsMappedTask));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """
             {
@@ -216,7 +214,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task UpdateTaskAsync_MarkingIncomplete_ReturnsMappedTask()
     {
-        using var db = CreateDb(nameof(UpdateTaskAsync_MarkingIncomplete_ReturnsMappedTask));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """
             {
@@ -237,7 +235,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task DeleteTaskAsync_SuccessfulDelete_ReturnsWithoutException()
     {
-        using var db = CreateDb(nameof(DeleteTaskAsync_SuccessfulDelete_ReturnsWithoutException));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.NoContent, ""));
 
@@ -247,7 +245,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task DeleteTaskAsync_ApiError_Throws()
     {
-        using var db = CreateDb(nameof(DeleteTaskAsync_ApiError_Throws));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """{"error": {"message": "Task not found"}}""";
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.NotFound, body));
@@ -260,7 +258,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task MoveTaskAsync_SameList_WithPrevious_ReturnsMappedTask()
     {
-        using var db = CreateDb(nameof(MoveTaskAsync_SameList_WithPrevious_ReturnsMappedTask));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }""";
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, responseBody));
@@ -276,7 +274,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task MoveTaskAsync_SameList_ToTop_ReturnsMappedTask()
     {
-        using var db = CreateDb(nameof(MoveTaskAsync_SameList_ToTop_ReturnsMappedTask));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var responseBody = """{ "id": "task2", "title": "Dentist", "status": "needsAction" }""";
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.OK, responseBody));
@@ -291,7 +289,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task MoveTaskAsync_CrossList_NoPosition_ReturnsTaskWithTargetListId()
     {
-        using var db = CreateDb(nameof(MoveTaskAsync_CrossList_NoPosition_ReturnsTaskWithTargetListId));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var handler = new SequentialHttpMessageHandler(
             (System.Net.HttpStatusCode.OK, """{ "id": "task1", "title": "Buy milk", "status": "needsAction" }"""),
@@ -310,7 +308,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task MoveTaskAsync_CrossList_WithPosition_ReturnsTaskWithTargetListId()
     {
-        using var db = CreateDb(nameof(MoveTaskAsync_CrossList_WithPosition_ReturnsTaskWithTargetListId));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var handler = new SequentialHttpMessageHandler(
             (System.Net.HttpStatusCode.OK, """{ "id": "task1", "title": "Call doctor", "status": "needsAction", "due": "2026-06-10T00:00:00.000Z" }"""),
@@ -329,7 +327,7 @@ public class GoogleTasksServiceTests
     [Fact]
     public async Task MoveTaskAsync_SameList_ApiError_Throws()
     {
-        using var db = CreateDb(nameof(MoveTaskAsync_SameList_ApiError_Throws));
+        using var db = CreateDb();
         var oauthSvc = CreateOAuthSvcWithToken(db);
         var body = """{"error": {"message": "Task not found"}}""";
         var svc = CreateTasksSvc(oauthSvc, new FakeHttpMessageHandler(System.Net.HttpStatusCode.NotFound, body));

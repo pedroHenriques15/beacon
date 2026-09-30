@@ -7,7 +7,8 @@ namespace Beacon.Tests;
 /// <summary>
 /// A private in-memory SQLite database with Beacon's schema, set up the way the API sets up its
 /// own, that lives until the instance is disposed. Contexts from <see cref="CreateContext"/>
-/// share it, so a test can read back through a fresh context what another one saved.
+/// share it, so a test can read back through a fresh context what another one saved. A test
+/// class holds one in a field: xUnit creates the class, and so the database, for every test.
 /// </summary>
 public sealed class SqliteTestDatabase : IDisposable
 {
@@ -16,12 +17,14 @@ public sealed class SqliteTestDatabase : IDisposable
     public SqliteTestDatabase()
     {
         _connection.Open();
+        Options = new DbContextOptionsBuilder<AppDbContext>().UseBeaconSqlite(_connection).Options;
         using var db = CreateContext();
         db.Database.Migrate();
     }
 
-    public AppDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseBeaconSqlite(_connection).Options);
+    public DbContextOptions<AppDbContext> Options { get; }
+
+    public AppDbContext CreateContext() => new(Options);
 
     public void Dispose() => _connection.Dispose();
 }
