@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Groceries.Commands.MarkGroceryItemsExcluded;
@@ -13,12 +14,7 @@ public class MarkGroceryItemsExcludedCommandHandler(AppDbContext db, ILogger<Mar
             .Where(i => cmd.ItemIds.Contains(i.Id))
             .ToListAsync(ct);
 
-        int? excludedCategoryId = null;
-        if (!cmd.Unmark)
-        {
-            var cat = await db.GroceryCategories.FirstOrDefaultAsync(c => c.Name == "Excluded", ct);
-            excludedCategoryId = cat?.Id;
-        }
+        var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
 
         foreach (var item in items)
         {

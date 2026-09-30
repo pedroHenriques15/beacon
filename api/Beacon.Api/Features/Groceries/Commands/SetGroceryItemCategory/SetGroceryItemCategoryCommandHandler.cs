@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Groceries.Commands.SetGroceryItemCategory;
@@ -11,7 +12,8 @@ public class SetGroceryItemCategoryCommandHandler(AppDbContext db, ILogger<SetGr
         var item = await db.GroceryItems.FirstOrDefaultAsync(i => i.Id == cmd.ItemId, ct);
         if (item is null) return null;
 
-        item.CategoryId          = cmd.CategoryId;
+        var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
+        ExcludedCategory.ApplyCategory(item, cmd.CategoryId, excludedCategoryId);
         item.CategorySetManually = true;
         item.CategoryRuleId      = null;
 

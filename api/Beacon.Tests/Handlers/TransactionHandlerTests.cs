@@ -2,7 +2,10 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Transactions.Commands.BulkDeleteTransactions;
 using Beacon.Api.Features.Transactions.Commands.DeleteTransaction;
 using Beacon.Api.Features.Transactions.Commands.MarkTransfers;
+using Beacon.Api.Features.Shared;
+using Beacon.Api.Features.Transactions.Commands.CreateTransaction;
 using Beacon.Api.Features.Transactions.Commands.SetTransactionCategory;
+using Beacon.Api.Features.Transactions.Commands.UpdateTransaction;
 using Beacon.Api.Features.Transactions.Queries.GetTransactions;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -507,5 +510,134 @@ public class TransactionHandlerTests
         var result = await handler.HandleAsync(new GetTransactionsQuery(null, null, null, null, null, Take: 9999));
 
         Assert.Equal(3, result.TotalCount);
+    }
+
+    private static UpdateTransactionCommand UpdateCmd(
+        int id, int? categoryId = null, bool unlinkTransfer = false, bool unlinkCategory = false) =>
+        new(id, null, null, null, null, null, null, categoryId, null, unlinkTransfer, unlinkCategory);
+
+    private static async Task<(Category excluded, Category other, Transaction tx)> SeedForExclusionAsync(AppDbContext db)
+    {
+        var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        var other    = new Category { Name = "Food", Color = "#ff0000" };
+        db.Categories.AddRange(excluded, other);
+        var stmt = new MonthlyStatement
+        {
+            Bank = "BPI", Account = "A", PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Transactions = [new Transaction { Description = "TRF MB WAY", Amount = 25, Type = "debit",
+                DatePosting = new DateOnly(2026, 1, 10), DateValue = new DateOnly(2026, 1, 10), Balance = 975 }]
+        };
+        db.MonthlyStatements.Add(stmt);
+        await db.SaveChangesAsync();
+        return (excluded, other, stmt.Transactions.First());
+    }
+
+    [Fact]
+    public async Task SetTransactionCategory_ToExcludedCategory_SetsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(SetTransactionCategory_ToExcludedCategory_SetsIsExcluded));
+        var (excluded, _, tx) = await SeedForExclusionAsync(db);
+
+        var handler = new SetTransactionCategoryCommandHandler(db, NullLogger<SetTransactionCategoryCommandHandler>.Instance);
+        var result = await handler.HandleAsync(new SetTransactionCategoryCommand(tx.Id, excluded.Id, null));
+
+        Assert.NotNull(result);
+        Assert.True(result.IsExcluded);
+    }
+
+    [Fact]
+    public async Task SetTransactionCategory_AwayFromExcludedCategory_ClearsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(SetTransactionCategory_AwayFromExcludedCategory_ClearsIsExcluded));
+        var (excluded, other, tx) = await SeedForExclusionAsync(db);
+        tx.CategoryId = excluded.Id;
+        tx.IsExcluded = true;
+        await db.SaveChangesAsync();
+
+        var handler = new SetTransactionCategoryCommandHandler(db, NullLogger<SetTransactionCategoryCommandHandler>.Instance);
+        var result = await handler.HandleAsync(new SetTransactionCategoryCommand(tx.Id, other.Id, null));
+
+        Assert.NotNull(result);
+        Assert.False(result.IsExcluded);
+    }
+
+    [Fact]
+    public async Task SetTransactionCategory_KeepsExclusionNotOwnedByTheExcludedCategory()
+    {
+        // Trade Republic savings-plan buys are excluded with no category at all; giving them a
+        // category must not silently pull them back into spending.
+        await using var db = CreateDb(nameof(SetTransactionCategory_KeepsExclusionNotOwnedByTheExcludedCategory));
+        var (_, other, tx) = await SeedForExclusionAsync(db);
+        tx.IsExcluded = true;
+        await db.SaveChangesAsync();
+
+        var handler = new SetTransactionCategoryCommandHandler(db, NullLogger<SetTransactionCategoryCommandHandler>.Instance);
+        var result = await handler.HandleAsync(new SetTransactionCategoryCommand(tx.Id, other.Id, null));
+
+        Assert.NotNull(result);
+        Assert.True(result.IsExcluded);
+    }
+
+    [Fact]
+    public async Task UpdateTransaction_ToExcludedCategory_SetsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(UpdateTransaction_ToExcludedCategory_SetsIsExcluded));
+        var (excluded, _, tx) = await SeedForExclusionAsync(db);
+
+        var handler = new UpdateTransactionCommandHandler(db, NullLogger<UpdateTransactionCommandHandler>.Instance);
+        var result = await handler.HandleAsync(UpdateCmd(tx.Id, categoryId: excluded.Id));
+
+        Assert.NotNull(result);
+        Assert.True(result.IsExcluded);
+    }
+
+    [Fact]
+    public async Task UpdateTransaction_UnlinkCategory_ClearsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(UpdateTransaction_UnlinkCategory_ClearsIsExcluded));
+        var (excluded, _, tx) = await SeedForExclusionAsync(db);
+        tx.CategoryId = excluded.Id;
+        tx.IsExcluded = true;
+        await db.SaveChangesAsync();
+
+        var handler = new UpdateTransactionCommandHandler(db, NullLogger<UpdateTransactionCommandHandler>.Instance);
+        var result = await handler.HandleAsync(UpdateCmd(tx.Id, unlinkCategory: true));
+
+        Assert.NotNull(result);
+        Assert.False(result.IsExcluded);
+        Assert.Null(result.CategoryId);
+    }
+
+    [Fact]
+    public async Task UpdateTransaction_UnlinkTransfer_DropsExcludedCategory()
+    {
+        await using var db = CreateDb(nameof(UpdateTransaction_UnlinkTransfer_DropsExcludedCategory));
+        var (excluded, _, tx) = await SeedForExclusionAsync(db);
+        tx.CategoryId = excluded.Id;
+        tx.IsExcluded = true;
+        await db.SaveChangesAsync();
+
+        var handler = new UpdateTransactionCommandHandler(db, NullLogger<UpdateTransactionCommandHandler>.Instance);
+        var result = await handler.HandleAsync(UpdateCmd(tx.Id, unlinkTransfer: true));
+
+        Assert.NotNull(result);
+        Assert.False(result.IsExcluded);
+        Assert.Null(result.CategoryId);
+    }
+
+    [Fact]
+    public async Task CreateTransaction_WithExcludedCategory_SetsIsExcluded()
+    {
+        await using var db = CreateDb(nameof(CreateTransaction_WithExcludedCategory_SetsIsExcluded));
+        var (excluded, _, tx) = await SeedForExclusionAsync(db);
+
+        var handler = new CreateTransactionCommandHandler(db, NullLogger<CreateTransactionCommandHandler>.Instance);
+        var (result, error) = await handler.HandleAsync(new CreateTransactionCommand(
+            tx.StatementId, new DateOnly(2026, 1, 12), new DateOnly(2026, 1, 12),
+            "TRF TO SAVINGS", 100, "debit", 875, excluded.Id));
+
+        Assert.Null(error);
+        Assert.NotNull(result);
+        Assert.True(result.IsExcluded);
     }
 }

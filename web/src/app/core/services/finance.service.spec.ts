@@ -153,7 +153,7 @@ describe('FinanceService', () => {
     expect(service.totalBalance()).toBe(1200);
   });
 
-  it('allTransactions() excludes internal transfers', () => {
+  it('allTransactions() excludes flagged transactions', () => {
     service.reload();
     flushLoadAll(controller, [
       makeStatement({
@@ -279,7 +279,7 @@ describe('FinanceService', () => {
     expect(txs[1].description).toBe('Old');
   });
 
-  it('allTransactionsRaw() includes internal transfers', () => {
+  it('allTransactionsRaw() includes excluded transactions', () => {
     service.reload();
     flushLoadAll(controller, [
       makeStatement({
@@ -475,7 +475,7 @@ describe('FinanceService', () => {
     expect(s.net).toBe(800);
   });
 
-  it('monthlySummaries() excludes internal transfers from income/expenses', () => {
+  it('monthlySummaries() excludes flagged transactions from income/expenses', () => {
     service.reload();
     flushLoadAll(controller, [
       makeStatement({
@@ -669,5 +669,99 @@ describe('FinanceService', () => {
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ description: 'Updated' });
     req.flush({});
+  });
+
+  it('allTransactions() drops transactions labelled Excluded even without the isExcluded flag', () => {
+    service.reload();
+    flushLoadAll(controller, [
+      makeStatement({
+        id: 1,
+        bank: 'BPI',
+        periodFrom: '2024-01-01',
+        transactions: [
+          {
+            id: 1,
+            statementId: 1,
+            datePosting: '2024-01-05',
+            dateValue: '2024-01-05',
+            description: 'Normal TX',
+            amount: 100,
+            type: 'debit',
+            balance: 900,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 2,
+            statementId: 1,
+            datePosting: '2024-01-06',
+            dateValue: '2024-01-06',
+            description: 'Stale exclusion',
+            amount: 250,
+            type: 'debit',
+            balance: 650,
+            categoryId: 7,
+            categoryRuleId: 3,
+            categorySetManually: false,
+            isExcluded: false,
+            category: { id: 7, name: 'Excluded', color: '#64748b', isProtected: true },
+          },
+        ],
+      }),
+    ]);
+
+    expect(service.allTransactions().map((t) => t.id)).toEqual([1]);
+  });
+
+  it('monthlySummaries() ignores transactions labelled Excluded without the isExcluded flag', () => {
+    service.reload();
+    flushLoadAll(controller, [
+      makeStatement({
+        id: 1,
+        bank: 'BPI',
+        periodFrom: '2024-01-01',
+        periodTo: '2024-01-31',
+        closingBalance: 650,
+        transactions: [
+          {
+            id: 1,
+            statementId: 1,
+            datePosting: '2024-01-05',
+            dateValue: '2024-01-05',
+            description: 'Normal TX',
+            amount: 100,
+            type: 'debit',
+            balance: 900,
+            categoryId: null,
+            categoryRuleId: null,
+            categorySetManually: false,
+            isExcluded: false,
+            category: null,
+          },
+          {
+            id: 2,
+            statementId: 1,
+            datePosting: '2024-01-06',
+            dateValue: '2024-01-06',
+            description: 'Stale exclusion credit',
+            amount: 500,
+            type: 'credit',
+            balance: 1400,
+            categoryId: 7,
+            categoryRuleId: 3,
+            categorySetManually: false,
+            isExcluded: false,
+            category: { id: 7, name: 'Excluded', color: '#64748b', isProtected: true },
+          },
+        ],
+      }),
+    ]);
+
+    const jan = service.monthlySummaries().find((s) => s.month === '2024-01');
+    expect(jan?.income).toBe(0);
+    expect(jan?.expenses).toBe(100);
   });
 });

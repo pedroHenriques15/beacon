@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
+using Beacon.Api.Features.Shared;
 
 namespace Beacon.Api.Models;
 
-public class Transaction
+public class Transaction : ICategorisedEntity
 {
     public int Id { get; set; }
     public int StatementId { get; set; }

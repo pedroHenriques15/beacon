@@ -16,6 +16,7 @@ import {
   ParsedSlipResponse,
   SalaryItemCategory,
   SalaryProfile,
+  SalarySlip,
   TransferCandidate,
   UnifiedUploadItemResult,
   UploadResult,
@@ -98,6 +99,8 @@ export class UploadComponent implements OnInit {
   salaryQueue = signal<SalaryQueueItem[]>([]);
   profiles = signal<SalaryProfile[]>([]);
 
+  micro1Unpaired = signal<{ fileName: string; error: string }[]>([]);
+
   groceryResults = signal<GroceryReceiptUploadResult[]>([]);
   pendingDialogs = signal<PendingDialog[]>([]);
 
@@ -143,6 +146,25 @@ export class UploadComponent implements OnInit {
   slipTotalEspecie = signal<number | null>(null);
 
   slipPendingProfileName = signal<string | null>(null);
+
+  /** Slips already saved for the profile being reviewed - drives the merge notice below. */
+  private profileSlips = signal<SalarySlip[]>([]);
+  slipMergeConfirmed = signal(true);
+
+  /**
+   * The saved slip this review would collide with, if any. A profile+period pair is unique, so a
+   * micro1 paycheck for the second half of a month lands on the slip its first half created.
+   */
+  slipMergeTarget = computed(() => {
+    const period = this.slipPeriod();
+    if (!period) return null;
+    return this.profileSlips().find((s) => s.period.slice(0, 7) === period) ?? null;
+  });
+
+  mergedGross = computed(
+    () => (this.slipMergeTarget()?.grossAmount ?? 0) + (this.slipGross() ?? 0),
+  );
+  mergedNet = computed(() => (this.slipMergeTarget()?.netAmount ?? 0) + (this.slipNet() ?? 0));
 
   slipFormValid = computed(
     () =>
@@ -205,6 +227,7 @@ export class UploadComponent implements OnInit {
     this.transferSaving.set(false);
     this.transferError.set('');
     this.salaryQueue.set([]);
+    this.micro1Unpaired.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
     this.showMappingModal.set(false);
@@ -327,6 +350,7 @@ export class UploadComponent implements OnInit {
     this.singleResult.set(null);
     this.batchSummary.set(null);
     this.salaryQueue.set([]);
+    this.micro1Unpaired.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
 
@@ -336,6 +360,7 @@ export class UploadComponent implements OnInit {
         const groceryItems = results.filter((r) => r.documentType === 'GroceryReceipt');
         const salaryItems = results.filter((r) => r.documentType === 'SalarySlip');
         const unknownItems = results.filter((r) => r.documentType === 'Unknown');
+        const micro1Items = results.filter((r) => r.documentType === 'Micro1Unpaired');
 
         const dialogs: PendingDialog[] = [];
 
@@ -397,6 +422,15 @@ export class UploadComponent implements OnInit {
               dialogs.push({ type: 'salary-review', queueIdx: startIdx + i });
             }
           });
+        }
+
+        if (micro1Items.length > 0) {
+          this.micro1Unpaired.set(
+            micro1Items.map((r) => ({
+              fileName: r.fileName,
+              error: r.error ?? 'This micro1 file is missing its counterpart and was not imported.',
+            })),
+          );
         }
 
         const failedItems = [...failedGroceryItems, ...unknownItems];
@@ -475,6 +509,8 @@ export class UploadComponent implements OnInit {
     this.slipHourlyRate.set(parsed.hourlyRate ?? null);
     this.slipTotalEspecie.set(parsed.totalEspecie ?? null);
     this.slipPendingProfileName.set(null);
+    this.profileSlips.set([]);
+    this.slipMergeConfirmed.set(true);
 
     const name = parsed.employer?.trim() || 'My Profile';
     const match = this.profiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
@@ -489,9 +525,15 @@ export class UploadComponent implements OnInit {
     }
 
     this.slipProfileId.set(match.id);
-    this.salaryService.getItemCategories(match.id).subscribe({
-      next: (cats) => {
+    // Fetched per modal open, not cached: an earlier review in this same batch may have just
+    // created the slip this one has to merge into.
+    forkJoin({
+      cats: this.salaryService.getItemCategories(match.id),
+      slips: this.salaryService.getSlips(match.id),
+    }).subscribe({
+      next: ({ cats, slips }) => {
         this.itemCategories.set(cats);
+        this.profileSlips.set(slips);
         this.slipLineItems.set(parsed.lineItems.map((li, i) => this.toDraft(li, i, cats)));
         this.showSlipModal.set(true);
       },
@@ -529,10 +571,13 @@ export class UploadComponent implements OnInit {
     const id = profileId ? +profileId : null;
     this.slipProfileId.set(id);
     if (id !== null) this.slipPendingProfileName.set(null);
+    // Slips are per profile, so the merge target must be re-resolved against the new one.
+    this.profileSlips.set([]);
     if (!id) {
       this.itemCategories.set([]);
       return;
     }
+    this.salaryService.getSlips(id).subscribe({ next: (slips) => this.profileSlips.set(slips) });
     this.salaryService.getItemCategories(id).subscribe({
       next: (cats) => {
         this.itemCategories.set(cats);
@@ -637,6 +682,16 @@ export class UploadComponent implements OnInit {
 
   submitSlip(): void {
     if (!this.slipFormValid()) return;
+
+    const mergeTarget = this.slipMergeTarget();
+    if (mergeTarget && !this.slipMergeConfirmed()) {
+      this.slipError.set(
+        `A slip for ${this.formatPeriod(mergeTarget.period)} already exists. ` +
+          `Tick "Add to existing slip" to combine them, or pick a different period.`,
+      );
+      return;
+    }
+
     this.slipLoading.set(true);
     this.slipError.set('');
     const period = this.slipPeriod() + '-01';
@@ -684,9 +739,7 @@ export class UploadComponent implements OnInit {
               percentage: li.percentage ?? undefined,
               incidenciaBase: li.incidenciaBase ?? undefined,
             }));
-          return this.salaryService.createSlip({
-            salaryProfileId: profileId,
-            period,
+          const body = {
             grossAmount: this.slipGross()!,
             netAmount: this.slipNet()!,
             notes: this.slipNotes() || undefined,
@@ -697,7 +750,11 @@ export class UploadComponent implements OnInit {
             hourlyRate: this.slipHourlyRate() ?? undefined,
             totalEspecie: this.slipTotalEspecie() ?? undefined,
             lineItems,
-          });
+          };
+
+          return mergeTarget
+            ? this.salaryService.mergeSlip(mergeTarget.id, body)
+            : this.salaryService.createSlip({ ...body, salaryProfileId: profileId, period });
         }),
       )
       .subscribe({

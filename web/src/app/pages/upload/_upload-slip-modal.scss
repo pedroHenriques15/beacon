@@ -24,10 +24,24 @@
   align-items: flex-end;
   gap: 0.5rem;
   margin-bottom: 0.4rem;
+
+  // Nested so these win over the global `.field-input { width: 100% }`
+  // (equal specificity would otherwise let source order override them).
+  .li-cat {
+    width: 100%;
+  }
+  .li-amount {
+    width: 110px;
+    flex-shrink: 0;
+  }
+  .li-remove {
+    flex-shrink: 0;
+  }
 }
 
 .li-cat-wrap {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -40,14 +54,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.li-cat {
-  width: 100%;
-}
-.li-amount {
-  width: 110px;
-  flex-shrink: 0;
 }
 
 select.unmatched {
@@ -73,10 +79,6 @@ select.unmatched {
     color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 50%, transparent);
   }
-}
-
-.li-remove {
-  flex-shrink: 0;
 }
 
 .form-error {

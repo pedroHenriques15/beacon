@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,9 +26,11 @@ public class ApplyRuleService(AppDbContext db)
             return patternOk && valueOk;
         }).ToList();
 
+        var excludedCategoryId = await ExcludedCategory.GetIdAsync(db);
+
         foreach (var tx in matches)
         {
-            tx.CategoryId          = rule.CategoryId;
+            ExcludedCategory.ApplyCategory(tx, rule.CategoryId, excludedCategoryId);
             tx.CategoryRuleId      = rule.Id;
             tx.CategorySetManually = false;
         }

@@ -237,13 +237,13 @@ export class AnalyticsComponent implements OnDestroy {
   gSpendingChart?: Chart;
   gCategoryTrendChart?: Chart;
   gAvailableMonths = computed(() => {
-    const months = this.groceriesSvc.allItems().map((i) => i.receiptDate.slice(0, 7));
+    const months = this.groceriesSvc.countedItems().map((i) => i.receiptDate.slice(0, 7));
     return [...new Set(months)].sort().reverse();
   });
 
   private gItemsFiltered = computed(() => {
     const m = this.gFilterMonth();
-    const items = this.groceriesSvc.allItems();
+    const items = this.groceriesSvc.countedItems();
     if (!m) return items;
     return items.filter((i) => i.receiptDate.slice(0, 7) === m);
   });
@@ -263,7 +263,7 @@ export class AnalyticsComponent implements OnDestroy {
 
   gAllCategories = computed(() => {
     const map = new Map<string, string>();
-    for (const item of this.groceriesSvc.allItems()) {
+    for (const item of this.groceriesSvc.countedItems()) {
       const label = item.categoryName ?? CATEGORY_UNKNOWN;
       const color = item.categoryColor ?? '#475569';
       if (!map.has(label)) map.set(label, color);
@@ -277,7 +277,7 @@ export class AnalyticsComponent implements OnDestroy {
     const sel = this.gSelectedCategory();
     if (!sel) return [];
     const map = new Map<string, number>();
-    for (const item of this.groceriesSvc.allItems()) {
+    for (const item of this.groceriesSvc.countedItems()) {
       const label = item.categoryName ?? CATEGORY_UNKNOWN;
       if (label !== sel.label) continue;
       const month = item.receiptDate.slice(0, 7);
@@ -316,7 +316,7 @@ export class AnalyticsComponent implements OnDestroy {
     const sel = this.gSelectedCategory();
     if (!sel) return null;
     const allItems = this.groceriesSvc
-      .allItems()
+      .countedItems()
       .filter((item) => (item.categoryName ?? CATEGORY_UNKNOWN) === sel.label);
     const byMonth = new Map<string, number>();
     for (const item of allItems) {

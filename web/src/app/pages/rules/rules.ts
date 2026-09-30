@@ -89,14 +89,14 @@ export class RulesComponent {
     const pat = this.gNewPattern().trim();
     const val = this.gNewValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gEditRuleMatchCount = computed(() => {
     const pat = this.gEditRulePattern().trim();
     const val = this.gEditRuleValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gShowCreateCatModal = signal(false);

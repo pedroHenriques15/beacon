@@ -12,6 +12,7 @@ using Beacon.Api.Features.Categories.Commands.UpdateCategoryRule;
 using Beacon.Api.Features.Categories.Queries.GetCategories;
 using Beacon.Api.Features.Categories.Queries.GetCategoryRules;
 using Beacon.Api.Features.Categories.Shared;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
@@ -19,6 +20,7 @@ using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.DeleteSalarySlip;
+using Beacon.Api.Features.Salary.Commands.MergeSalarySlip;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
@@ -100,6 +102,9 @@ builder.Services.AddSingleton<ISalarySlipParser, CentralGestParser>();
 builder.Services.AddSingleton<ISalarySlipParser, DomirestParser>();
 builder.Services.AddSingleton<SalarySlipParserFactory>();
 
+builder.Services.AddSingleton<Micro1InvoiceParser>();
+builder.Services.AddSingleton<DeelWithdrawalParser>();
+
 builder.Services.AddSingleton<FileStorageService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("google-oauth")
@@ -180,6 +185,7 @@ builder.Services.AddScoped<GetSalarySlipsQueryHandler>();
 builder.Services.AddScoped<CreateSalarySlipCommandHandler>();
 builder.Services.AddScoped<ParseSalarySlipCommandHandler>();
 builder.Services.AddScoped<UpdateSalarySlipCommandHandler>();
+builder.Services.AddScoped<MergeSalarySlipCommandHandler>();
 builder.Services.AddScoped<DeleteSalarySlipCommandHandler>();
 builder.Services.AddScoped<GetSalaryItemCategoriesQueryHandler>();
 builder.Services.AddScoped<CreateSalaryItemCategoryCommandHandler>();
@@ -310,14 +316,11 @@ static async Task SeedDefaultDataAsync(WebApplication app)
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    if (!db.Categories.Any(c => c.Name == "Internal Transfer"))
-        db.Categories.Add(new Category { Name = "Internal Transfer", Color = "#64748b", IsProtected = true });
+    if (!db.Categories.Any(c => c.Name == ExcludedCategory.Name))
+        db.Categories.Add(new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true });
 
-    if (!db.Categories.Any(c => c.Name == "Excluded"))
-        db.Categories.Add(new Category { Name = "Excluded", Color = "#64748b", IsProtected = true });
-
-    if (!db.GroceryCategories.Any(c => c.Name == "Excluded"))
-        db.GroceryCategories.Add(new GroceryCategory { Name = "Excluded", Color = "#64748b", IsProtected = true });
+    if (!db.GroceryCategories.Any(c => c.Name == ExcludedCategory.Name))
+        db.GroceryCategories.Add(new GroceryCategory { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true });
 
     await db.SaveChangesAsync();
 }

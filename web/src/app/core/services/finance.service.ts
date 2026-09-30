@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { buildParams } from '../utils/http-params';
 import { Observable, forkJoin, of, switchMap } from 'rxjs';
+import { CATEGORY_EXCLUDED } from '../constants/categories';
 import {
   MonthlySummary,
   PagedTransactionsResult,
@@ -15,6 +16,15 @@ import {
 export interface EnrichedTransaction extends Transaction {
   bank: string;
   month: string;
+}
+
+/**
+ * A transaction is out of income/spending aggregates when it carries the isExcluded flag or sits in
+ * the Excluded category. The backend keeps the two in sync; the category check is a safety net so a
+ * transaction labelled Excluded can never be counted, whatever wrote it.
+ */
+function isExcluded(tx: Transaction): boolean {
+  return tx.isExcluded || tx.category?.name === CATEGORY_EXCLUDED;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -199,7 +209,7 @@ export class FinanceService {
     this.statements()
       .flatMap((s) =>
         s.transactions
-          .filter((tx) => !tx.isExcluded)
+          .filter((tx) => !isExcluded(tx))
           .map((tx) => ({ ...tx, bank: s.bank, month: tx.datePosting.slice(0, 7) })),
       )
       .sort((a, b) => b.datePosting.localeCompare(a.datePosting)),
@@ -219,7 +229,7 @@ export class FinanceService {
 
     for (const s of this.statements()) {
       for (const tx of s.transactions) {
-        if (tx.isExcluded) continue;
+        if (isExcluded(tx)) continue;
         if (tx.type !== 'credit' && tx.type !== 'debit') continue;
 
         const month = tx.datePosting.slice(0, 7);

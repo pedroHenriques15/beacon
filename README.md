@@ -42,9 +42,9 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ## What it does
 
-Bank statement PDFs are uploaded through the web interface. A Python script (pdfplumber) extracts the raw text per page, and a bank-specific parser turns that into structured transaction records. From there you can set categories on transactions manually or create rules that apply categories automatically based on description patterns. The analytics page aggregates spending by category and month.
+Bank statement PDFs are uploaded through the web interface. A Python script (pdfplumber) extracts the raw text per page, and a bank-specific parser turns that into structured transaction records. From there you can set categories on transactions manually or create rules that apply categories automatically based on description patterns. Transactions and grocery items in the protected Excluded category (transfers between your own accounts, for example) are left out of every total and chart. The analytics page aggregates spending by category and month.
 
-Salary slip PDFs go through a similar flow - upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately.
+Salary slip PDFs go through a similar flow - upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately. A micro1 paycheck arrives as two PDFs, a USD invoice and a Deel withdrawal confirmation: the bulk upload pairs them by amount and saves one EUR slip at Deel's real exchange rate, with the exchange fee as a deduction. A job that pays twice a month can add its second pay run to that month's slip instead of creating a second one.
 
 Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, mapped to spending categories, and displayed in a filterable item list with monthly totals.
 
@@ -68,10 +68,11 @@ Everything is stored in SQL Server and served over a REST API. The Angular front
 | Bank statement (PDF) | Trade Republic | BIC `TRBKPTP2` or "TRADE REPUBLIC BANK GMBH" |
 | Salary slip (PDF) | CentralGest payroll | "CentralGest Software" footer |
 | Salary slip (PDF) | Domirest payroll | "DOMIREST" header |
+| Salary slip (2 PDFs) | micro1 invoice (USD) + Deel withdrawal confirmation | "Micro1 Inc." and "Deel transaction ID"; paired by USD amount |
 | Grocery receipt (PDF) | Continente | "Modelo Continente" |
 | Meal card | Pasted text (one transaction per line) | - |
 
-Bank statements must be EUR - non-EUR statements are rejected at upload (salary slips and grocery receipts are not currency-checked). Scanned (image-only) PDFs are rejected with a clear message. Files that match none of the formats are reported per file without failing the batch.
+Bank statements must be EUR - non-EUR statements are rejected at upload (salary slips and grocery receipts are not currency-checked; a micro1 invoice is converted to EUR through its Deel withdrawal). Scanned (image-only) PDFs are rejected with a clear message. Files that match none of the formats are reported per file without failing the batch. A micro1 invoice or Deel confirmation without its pair is flagged and never imported.
 
 ---
 
@@ -236,7 +237,7 @@ To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-d
 ## Tests
 
 ```bash
-# Backend - xUnit (481 tests)
+# Backend - xUnit (577 tests)
 cd api
 dotnet test Beacon.Tests/
 
@@ -245,7 +246,7 @@ cd web
 npx ng test --watch=false
 ```
 
-Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary, groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services.
+Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), the API-key and exception middleware, categorisation rules, backup/restore (including an optional SQL Server-backed round-trip test, enabled by setting `BEACON_TEST_SQLSERVER` to a connection string), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 

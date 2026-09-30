@@ -54,7 +54,8 @@
 
       <p class="supported">
         Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Grocery receipts: Continente
-        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest
+        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest &nbsp;·&nbsp; micro1: invoice + Deel
+        withdrawal (upload both)
       </p>
     }
   </div>
@@ -252,7 +253,37 @@
     </div>
   }
 
-  @if (!batchSummary() && salaryQueue().length === 0 && groceryResults().length === 0) {
+  @if (micro1Unpaired().length > 0) {
+    <div class="result-card warning">
+      <div class="result-icon">≈</div>
+      <h2>micro1 files waiting for a match</h2>
+      <p class="backup-hint">
+        A micro1 paycheck needs both PDFs - the invoice and its Deel withdrawal - uploaded together.
+        These were recognised but not imported:
+      </p>
+
+      <div class="file-list">
+        @for (item of micro1Unpaired(); track item.fileName) {
+          <div class="file-row file-err">
+            <span class="file-icon">✕</span>
+            <span class="file-name">{{ item.fileName }}</span>
+            <span class="file-detail">{{ item.error }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
+      </div>
+    </div>
+  }
+
+  @if (
+    !batchSummary() &&
+    salaryQueue().length === 0 &&
+    groceryResults().length === 0 &&
+    micro1Unpaired().length === 0
+  ) {
     <div class="result-card success">
       <div class="result-icon">✓</div>
       <h2>Done</h2>
@@ -443,7 +474,47 @@
           </svg>
           Pre-filled from <strong>{{ slipSourceFile() }}</strong>
           @if (hasUnmatchedLineItems()) {
-            &nbsp;·&nbsp;<span class="warn-text">Some line items need a category</span>
+            &nbsp;·&nbsp;<span class="warn-text">Highlighted lines will create new categories</span>
+          }
+        </div>
+      }
+
+      @if (slipMergeTarget(); as existing) {
+        <div class="merge-notice">
+          <p class="merge-notice-title">
+            A slip for <strong>{{ formatPeriod(existing.period) }}</strong> already exists ({{
+              existing.grossAmount | currency: 'EUR'
+            }}
+            gross).
+          </p>
+          <label class="merge-notice-toggle">
+            <input
+              type="checkbox"
+              [ngModel]="slipMergeConfirmed()"
+              (ngModelChange)="slipMergeConfirmed.set($event)"
+            />
+            Add to existing slip
+          </label>
+          @if (slipMergeConfirmed()) {
+            <dl class="merge-notice-totals">
+              <div>
+                <dt>Gross</dt>
+                <dd>
+                  {{ existing.grossAmount | currency: 'EUR' }} +
+                  {{ slipGross() ?? 0 | currency: 'EUR' }} =
+                  <strong>{{ mergedGross() | currency: 'EUR' }}</strong>
+                </dd>
+              </div>
+              <div>
+                <dt>Net</dt>
+                <dd>
+                  {{ existing.netAmount | currency: 'EUR' }} +
+                  {{ slipNet() ?? 0 | currency: 'EUR' }} =
+                  <strong>{{ mergedNet() | currency: 'EUR' }}</strong>
+                </dd>
+              </div>
+            </dl>
+            <p class="merge-notice-hint">Line items with the same category are added together.</p>
           }
         </div>
       }
@@ -566,7 +637,9 @@
                 updateLineItem(i, 'salaryItemCategoryId', $event === null ? null : +$event)
               "
             >
-              <option [ngValue]="null">{{ li.hint ? 'Assign category…' : 'Category…' }}</option>
+              <option [ngValue]="null">
+                {{ li.hint ? '➕ Create “' + li.hint + '”' : 'Category…' }}
+              </option>
               @for (type of itemTypes; track type.value) {
                 @if (catsByType(type.value).length > 0) {
                   <optgroup [label]="type.label">
@@ -604,7 +677,13 @@
           [disabled]="!slipFormValid() || slipLoading()"
           (click)="submitSlip()"
         >
-          {{ slipLoading() ? 'Saving…' : 'Save slip' }}
+          {{
+            slipLoading()
+              ? 'Saving…'
+              : slipMergeTarget() && slipMergeConfirmed()
+                ? 'Merge into existing slip'
+                : 'Save slip'
+          }}
         </button>
       </div>
     </div>

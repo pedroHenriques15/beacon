@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Transactions.Commands.UpdateTransaction;
@@ -19,18 +20,30 @@ public class UpdateTransactionCommandHandler(AppDbContext db, ILogger<UpdateTran
         if (cmd.Type is not null)                      tx.Type    = cmd.Type.ToLower();
         if (cmd.Balance.HasValue)                      tx.Balance = cmd.Balance.Value;
 
+        var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
+
+        // Un-excluding also drops the Excluded label, so the flag and the category cannot drift.
         if (cmd.UnlinkTransfer)
+        {
             tx.IsExcluded = false;
+            if (tx.CategoryId == excludedCategoryId)
+            {
+                tx.CategoryId          = null;
+                tx.CategoryRuleId      = null;
+                tx.CategorySetManually = false;
+            }
+        }
 
         if (cmd.UnlinkCategory)
         {
-            tx.CategoryId          = null;
+            ExcludedCategory.ApplyCategory(tx, null, excludedCategoryId);
             tx.CategoryRuleId      = null;
             tx.CategorySetManually = false;
         }
         else if (cmd.CategoryId.HasValue)
         {
-            tx.CategoryId          = cmd.CategoryId.Value == 0 ? null : cmd.CategoryId.Value;
+            ExcludedCategory.ApplyCategory(
+                tx, cmd.CategoryId.Value == 0 ? null : cmd.CategoryId.Value, excludedCategoryId);
             tx.CategorySetManually = true;
             tx.CategoryRuleId      = null;
         }

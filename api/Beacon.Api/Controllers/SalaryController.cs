@@ -4,6 +4,7 @@ using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.DeleteSalarySlip;
+using Beacon.Api.Features.Salary.Commands.MergeSalarySlip;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryProfile;
@@ -26,6 +27,7 @@ public class SalaryController(
     GetSalarySlipsQueryHandler getSlips,
     CreateSalarySlipCommandHandler createSlip,
     UpdateSalarySlipCommandHandler updateSlip,
+    MergeSalarySlipCommandHandler mergeSlip,
     DeleteSalarySlipCommandHandler deleteSlip,
     GetSalaryItemCategoriesQueryHandler getItemCategories,
     CreateSalaryItemCategoryCommandHandler createItemCategory,
@@ -124,6 +126,24 @@ public class SalaryController(
         return Ok(result);
     }
 
+    /// <summary>Adds a second pay run's figures to an existing slip (see <see cref="MergeSalarySlipCommand"/>).</summary>
+    [HttpPost("slips/{id:int}/merge")]
+    public async Task<IActionResult> MergeSlip(int id, [FromBody] MergeSalarySlipRequest body, CancellationToken ct)
+    {
+        var (result, error) = await mergeSlip.HandleAsync(
+            new MergeSalarySlipCommand(
+                id, body.GrossAmount, body.NetAmount,
+                body.Notes, body.PdfPath, body.SourceFile,
+                body.LineItems.Select(li => new CreateLineItemRequest(
+                    li.SalaryItemCategoryId, li.Amount, li.SortOrder,
+                    li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase)).ToList(),
+                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie), ct);
+
+        if (result is null && error is null) return NotFound();
+        if (error is not null) return BadRequest(error);
+        return Ok(result);
+    }
+
     [HttpDelete("slips/{id:int}")]
     public async Task<IActionResult> DeleteSlip(int id, CancellationToken ct)
     {
@@ -192,6 +212,18 @@ public record CreateSalarySlipRequest(
 
 public record UpdateSalarySlipRequest(
     DateOnly Period,
+    decimal GrossAmount,
+    decimal NetAmount,
+    string? Notes,
+    List<LineItemRequest> LineItems,
+    string? PdfPath = null,
+    string? SourceFile = null,
+    decimal? BaseAmount = null,
+    decimal? HoursWorked = null,
+    decimal? HourlyRate = null,
+    decimal? TotalEspecie = null);
+
+public record MergeSalarySlipRequest(
     decimal GrossAmount,
     decimal NetAmount,
     string? Notes,

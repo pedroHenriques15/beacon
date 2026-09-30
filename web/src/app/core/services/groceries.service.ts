@@ -9,6 +9,16 @@ import {
   GroceryReceiptUploadResult,
   PagedGroceryItemsResult,
 } from '../models/grocery.model';
+import { CATEGORY_EXCLUDED } from '../constants/categories';
+
+/**
+ * An item is out of spending aggregates when it carries the isExcluded flag or sits in the Excluded
+ * category. The backend keeps the two in sync; the category check is a safety net so an item
+ * labelled Excluded can never be counted, whatever wrote it.
+ */
+function isExcluded(item: GroceryItem): boolean {
+  return item.isExcluded || item.categoryName === CATEGORY_EXCLUDED;
+}
 
 @Injectable({ providedIn: 'root' })
 export class GroceriesService {
@@ -56,9 +66,12 @@ export class GroceriesService {
 
   stores = computed(() => [...new Set(this.receipts().map((r) => r.storeName))].sort());
 
+  /** allItems minus excluded ones - use this for anything that totals or charts spending. */
+  countedItems = computed(() => this.allItems().filter((i) => !isExcluded(i)));
+
   monthlySummaries = computed<GroceryMonthlySummary[]>(() => {
     const map = new Map<string, number>();
-    for (const item of this.allItems()) {
+    for (const item of this.countedItems()) {
       const month = item.receiptDate.slice(0, 7);
       const key = `${month}__${item.storeName}`;
       map.set(key, (map.get(key) ?? 0) + item.amount);

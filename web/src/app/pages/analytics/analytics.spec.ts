@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { AnalyticsComponent } from './analytics';
 import { GroceriesService } from '../../core/services/groceries.service';
@@ -8,7 +8,7 @@ import { GroceryCategoriesService } from '../../core/services/grocery-categories
 import { FinanceService } from '../../core/services/finance.service';
 import { CategoriesService } from '../../core/services/categories.service';
 import { GroceryItem, GroceryCategory } from '../../core/models/grocery.model';
-import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { CATEGORY_EXCLUDED, CATEGORY_UNKNOWN } from '../../core/constants/categories';
 
 function makeItem(overrides: Partial<GroceryItem> = {}): GroceryItem {
   return {
@@ -34,6 +34,10 @@ describe('AnalyticsComponent', () => {
   let router: Router;
 
   const allItemsSignal = signal<GroceryItem[]>([]);
+  // Mirrors the real service: analytics reads countedItems, never allItems.
+  const countedItemsSignal = computed(() =>
+    allItemsSignal().filter((i) => !i.isExcluded && i.categoryName !== CATEGORY_EXCLUDED),
+  );
   const groceryCatsSignal = signal<GroceryCategory[]>([]);
 
   beforeEach(() => {
@@ -46,7 +50,11 @@ describe('AnalyticsComponent', () => {
         provideRouter([]),
         {
           provide: GroceriesService,
-          useValue: { allItems: allItemsSignal, loading: signal(false) },
+          useValue: {
+            allItems: allItemsSignal,
+            countedItems: countedItemsSignal,
+            loading: signal(false),
+          },
         },
         { provide: GroceryCategoriesService, useValue: { categories: groceryCatsSignal } },
         {
@@ -248,5 +256,40 @@ describe('AnalyticsComponent', () => {
     const call = spy.mock.calls[0];
     expect((call[1] as any).queryParams).not.toHaveProperty('month');
     expect((call[1] as any).queryParams).toHaveProperty('tab', 'groceries');
+  });
+
+  it('gSpendingData ignores excluded items', () => {
+    allItemsSignal.set([
+      makeItem({ id: 1, categoryName: 'Dairy', categoryColor: '#fff', amount: 10, quantity: 1 }),
+      makeItem({
+        id: 2,
+        categoryName: 'Dairy',
+        categoryColor: '#fff',
+        amount: 5,
+        quantity: 1,
+        isExcluded: true,
+      }),
+    ]);
+    fixture.detectChanges();
+
+    expect(component.gSpendingData().find((d) => d.label === 'Dairy')?.total).toBe(10);
+  });
+
+  it('gSpendingData never shows an Excluded slice', () => {
+    allItemsSignal.set([
+      makeItem({ id: 1, categoryName: 'Dairy', categoryColor: '#fff', amount: 10, quantity: 1 }),
+      makeItem({
+        id: 2,
+        categoryId: 7,
+        categoryName: CATEGORY_EXCLUDED,
+        categoryColor: '#64748b',
+        amount: 5,
+        quantity: 1,
+        isExcluded: false,
+      }),
+    ]);
+    fixture.detectChanges();
+
+    expect(component.gSpendingData().map((d) => d.label)).toEqual(['Dairy']);
   });
 });
