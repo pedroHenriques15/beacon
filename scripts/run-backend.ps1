@@ -1,25 +1,23 @@
 #Requires -Version 5.1
-# Beacon — Start the .NET API against the demo database (BeaconDemo)
+# Beacon — Start the .NET API in development mode
 
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $BackendDir  = Join-Path $ProjectRoot 'api/Beacon.Api'
-$EnvFile     = Join-Path $ProjectRoot 'local/environment.demo'
+$EnvFile     = Join-Path $ProjectRoot 'local/environment.dev'
 
 function Write-Step { param($msg) Write-Host ''; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok   { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
 
 Write-Host ''
-Write-Host 'Beacon — Backend (demo database)' -ForegroundColor Yellow
+Write-Host 'Beacon — Backend (development)'
 
 # ── Load environment ──────────────────────────────────────────────────────────
 Write-Step 'Loading environment'
 
 if (-not (Test-Path $EnvFile)) {
     Write-Host "    [ERROR] Missing $EnvFile" -ForegroundColor Red
-    Write-Host "    Create local/environment.demo by copying local/environment.dev" -ForegroundColor Gray
-    Write-Host "    and changing Database=Beacon to Database=BeaconDemo" -ForegroundColor Gray
     exit 1
 }
 
@@ -37,8 +35,8 @@ Get-Content $EnvFile | ForEach-Object {
     }
 }
 if (-not $env:ApiKey) { $env:ApiKey = 'dev-only-key' }
-$env:ASPNETCORE_ENVIRONMENT = 'Demo'
-Write-Ok "Environment loaded (ApiKey=$env:ApiKey, DB=BeaconDemo)"
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+Write-Ok "Environment loaded (ApiKey=$env:ApiKey)"
 
 # ── Migrations ────────────────────────────────────────────────────────────────
 Write-Step 'Running migrations'
@@ -63,7 +61,7 @@ try {
 }
 
 # ── Start API ─────────────────────────────────────────────────────────────────
-Write-Step 'Starting .NET API (demo database)'
+Write-Step 'Starting .NET API'
 Write-Host '    API:     http://localhost:5098'
 Write-Host '    Swagger: http://localhost:5098/swagger'
 Write-Host ''

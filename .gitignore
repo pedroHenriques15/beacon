@@ -4,9 +4,11 @@
 **/TestResults/
 coverage/
 
-# Visual Studio
+# Visual Studio / VS Code (the shared tasks and launch config are committed)
 .vs/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
 *.suo
 *.user
 *.userosscache
@@ -15,6 +17,12 @@ coverage/
 # Rider / JetBrains
 .idea/
 *.iml
+
+# ─── Claude Code: machine-specific permissions (server paths, sudo rules) ────
+.claude/settings.local.json
+
+# ─── Task files: private working notes, local only (ADR-018, ADR-020) ────────
+docs/tasks/
 
 # ─── Environment & secrets ──────────────────────────────────────────────────
 .env
@@ -48,9 +56,6 @@ yarn-error.log*
 
 # ─── Deploy build staging ───────────────────────────────────────────────────
 .build/
-
-# ─── .NET runtime/tools (devcontainer local) ────────────────────────────────
-dotnet/
 
 # ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
