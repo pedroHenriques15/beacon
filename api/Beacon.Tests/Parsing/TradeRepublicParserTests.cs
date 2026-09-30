@@ -142,7 +142,7 @@ public class TradeRepublicParserTests
     [Fact]
     public void Parse_ReconciledStatement_ProducesNoVerifierWarnings()
     {
-        var result   = _parser.Parse("statement.pdf", SamplePages);
+        var result = _parser.Parse("statement.pdf", SamplePages);
         var warnings = ParseVerifier.VerifyStatement(result);
         Assert.Empty(warnings);
     }

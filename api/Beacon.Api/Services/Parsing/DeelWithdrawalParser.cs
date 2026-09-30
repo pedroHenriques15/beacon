@@ -21,9 +21,9 @@ public partial class DeelWithdrawalParser
         var sourceAmount = AmountUtils.ParseUsd(Require(SourceAmountRegex(), fullText, "Source amount"));
         var exchangeRate = decimal.Parse(
             Require(ExchangeRateRegex(), fullText, "Exchange rate"), CultureInfo.InvariantCulture);
-        var totalEur     = AmountUtils.ParseUsd(Require(TotalSentRegex(), fullText, "Total sent"));
+        var totalEur = AmountUtils.ParseUsd(Require(TotalSentRegex(), fullText, "Total sent"));
 
-        var feeMatch    = ExchangeFeeRegex().Match(fullText);
+        var feeMatch = ExchangeFeeRegex().Match(fullText);
         var exchangeFee = feeMatch.Success ? AmountUtils.ParseUsd(feeMatch.Groups[1].Value) : 0m;
 
         return new DeelWithdrawal(sourceAmount, exchangeFee, exchangeRate, totalEur);

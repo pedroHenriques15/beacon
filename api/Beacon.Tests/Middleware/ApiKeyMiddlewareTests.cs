@@ -48,8 +48,8 @@ public class ApiKeyMiddlewareTests
     public async Task NoConfiguredKey_AlwaysCallsNext()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, null);
-        var ctx         = BuildContext("/api/statements");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, null);
+        var ctx = BuildContext("/api/statements");
 
         await middleware.InvokeAsync(ctx);
 
@@ -61,7 +61,7 @@ public class ApiKeyMiddlewareTests
     public async Task NoConfiguredKey_InProduction_Throws()
     {
         var middleware = CreateMiddleware(_ => Task.CompletedTask, null, isDevelopment: false);
-        var ctx        = BuildContext("/api/statements");
+        var ctx = BuildContext("/api/statements");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.InvokeAsync(ctx));
     }
@@ -73,8 +73,8 @@ public class ApiKeyMiddlewareTests
     public async Task SwaggerPath_AlwaysCallsNext(string path)
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
-        var ctx         = BuildContext(path);
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx = BuildContext(path);
         await middleware.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -85,8 +85,8 @@ public class ApiKeyMiddlewareTests
     public async Task ValidKey_CallsNext()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
-        var ctx         = BuildContext("/api/statements", "my-secret");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
+        var ctx = BuildContext("/api/statements", "my-secret");
 
         await middleware.InvokeAsync(ctx);
 
@@ -97,8 +97,8 @@ public class ApiKeyMiddlewareTests
     public async Task MissingKey_Returns401()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
-        var ctx         = BuildContext("/api/statements");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
+        var ctx = BuildContext("/api/statements");
 
         await middleware.InvokeAsync(ctx);
 
@@ -110,8 +110,8 @@ public class ApiKeyMiddlewareTests
     public async Task WrongKey_Returns401()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
-        var ctx         = BuildContext("/api/statements", "wrong-key");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "my-secret");
+        var ctx = BuildContext("/api/statements", "wrong-key");
 
         await middleware.InvokeAsync(ctx);
 
@@ -123,7 +123,7 @@ public class ApiKeyMiddlewareTests
     public async Task Unauthorized_WritesErrorMessageToBody()
     {
         var middleware = CreateMiddleware(_ => Task.CompletedTask, "secret");
-        var ctx        = BuildContext("/api/statements");
+        var ctx = BuildContext("/api/statements");
 
         await middleware.InvokeAsync(ctx);
 
@@ -136,8 +136,8 @@ public class ApiKeyMiddlewareTests
     public async Task EmptyConfiguredKey_AlwaysCallsNext()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "");
-        var ctx         = BuildContext("/api/statements");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "");
+        var ctx = BuildContext("/api/statements");
 
         await middleware.InvokeAsync(ctx);
 
@@ -148,8 +148,8 @@ public class ApiKeyMiddlewareTests
     public async Task GoogleCallbackPath_BypassesApiKey()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
-        var ctx         = BuildContext("/api/auth/google/callback");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx = BuildContext("/api/auth/google/callback");
 
         await middleware.InvokeAsync(ctx);
 
@@ -161,8 +161,8 @@ public class ApiKeyMiddlewareTests
     public async Task GoogleCallbackSubPath_RequiresApiKey()
     {
         bool nextCalled = false;
-        var middleware  = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
-        var ctx         = BuildContext("/api/auth/google/callback/extra");
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx = BuildContext("/api/auth/google/callback/extra");
 
         await middleware.InvokeAsync(ctx);
 

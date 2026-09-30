@@ -119,14 +119,14 @@ public class ContinenteParserTests
     {
         var result = Parser.Parse("receipt.pdf", [SamplePage]);
 
-        Assert.Equal("Mercearia Doce",          result.Items.Single(i => i.Description.Contains("CREPES")).ReceiptCategory);
-        Assert.Equal("Soft Drinks",             result.Items.Single(i => i.Description.Contains("C.COLA")).ReceiptCategory);
-        Assert.Equal("Soft Drinks",             result.Items.Single(i => i.Description.Contains("ICE TEA")).ReceiptCategory);
+        Assert.Equal("Mercearia Doce", result.Items.Single(i => i.Description.Contains("CREPES")).ReceiptCategory);
+        Assert.Equal("Soft Drinks", result.Items.Single(i => i.Description.Contains("C.COLA")).ReceiptCategory);
+        Assert.Equal("Soft Drinks", result.Items.Single(i => i.Description.Contains("ICE TEA")).ReceiptCategory);
         Assert.Equal("Taras e Valor de Deposito", result.Items.Single(i => i.Description.Contains("VALOR DE DEPOSITO")).ReceiptCategory);
-        Assert.Equal("Congelados",              result.Items.Single(i => i.Description.Contains("PAO DE ALHO")).ReceiptCategory);
-        Assert.Equal("Take Away",               result.Items.Single(i => i.Description.Contains("LASANHA")).ReceiptCategory);
-        Assert.Equal("Take Away",               result.Items.Single(i => i.Description.Contains("FLAUTAS")).ReceiptCategory);
-        Assert.Equal("Casa-Cozinha/Lavand",     result.Items.Single(i => i.Description.Contains("SACO PLAS")).ReceiptCategory);
+        Assert.Equal("Congelados", result.Items.Single(i => i.Description.Contains("PAO DE ALHO")).ReceiptCategory);
+        Assert.Equal("Take Away", result.Items.Single(i => i.Description.Contains("LASANHA")).ReceiptCategory);
+        Assert.Equal("Take Away", result.Items.Single(i => i.Description.Contains("FLAUTAS")).ReceiptCategory);
+        Assert.Equal("Casa-Cozinha/Lavand", result.Items.Single(i => i.Description.Contains("SACO PLAS")).ReceiptCategory);
     }
 
     [Fact]

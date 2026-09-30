@@ -5,23 +5,23 @@ namespace Beacon.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<MonthlyStatement>  MonthlyStatements  => Set<MonthlyStatement>();
-    public DbSet<Transaction>       Transactions       => Set<Transaction>();
-    public DbSet<Category>          Categories         => Set<Category>();
-    public DbSet<CategoryRule>      CategoryRules      => Set<CategoryRule>();
-    public DbSet<SalaryProfile>     SalaryProfiles     => Set<SalaryProfile>();
-    public DbSet<SalarySlip>        SalarySlips        => Set<SalarySlip>();
-    public DbSet<SalaryLineItem>    SalaryLineItems    => Set<SalaryLineItem>();
+    public DbSet<MonthlyStatement> MonthlyStatements => Set<MonthlyStatement>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<CategoryRule> CategoryRules => Set<CategoryRule>();
+    public DbSet<SalaryProfile> SalaryProfiles => Set<SalaryProfile>();
+    public DbSet<SalarySlip> SalarySlips => Set<SalarySlip>();
+    public DbSet<SalaryLineItem> SalaryLineItems => Set<SalaryLineItem>();
     public DbSet<SalaryItemCategory> SalaryItemCategories => Set<SalaryItemCategory>();
-    public DbSet<GroceryReceipt>                GroceryReceipts                => Set<GroceryReceipt>();
-    public DbSet<GroceryItem>                   GroceryItems                   => Set<GroceryItem>();
-    public DbSet<GroceryCategory>               GroceryCategories              => Set<GroceryCategory>();
-    public DbSet<GroceryCategoryRule>           GroceryCategoryRules           => Set<GroceryCategoryRule>();
+    public DbSet<GroceryReceipt> GroceryReceipts => Set<GroceryReceipt>();
+    public DbSet<GroceryItem> GroceryItems => Set<GroceryItem>();
+    public DbSet<GroceryCategory> GroceryCategories => Set<GroceryCategory>();
+    public DbSet<GroceryCategoryRule> GroceryCategoryRules => Set<GroceryCategoryRule>();
     public DbSet<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings => Set<GroceryReceiptCategoryMapping>();
-    public DbSet<GoogleOAuthToken>              GoogleOAuthTokens              => Set<GoogleOAuthToken>();
-    public DbSet<InvestmentAsset>               InvestmentAssets               => Set<InvestmentAsset>();
-    public DbSet<InvestmentLot>                 InvestmentLots                 => Set<InvestmentLot>();
-    public DbSet<InvestmentPriceSnapshot>       InvestmentPriceSnapshots       => Set<InvestmentPriceSnapshot>();
+    public DbSet<GoogleOAuthToken> GoogleOAuthTokens => Set<GoogleOAuthToken>();
+    public DbSet<InvestmentAsset> InvestmentAssets => Set<InvestmentAsset>();
+    public DbSet<InvestmentLot> InvestmentLots => Set<InvestmentLot>();
+    public DbSet<InvestmentPriceSnapshot> InvestmentPriceSnapshots => Set<InvestmentPriceSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

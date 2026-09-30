@@ -8,13 +8,13 @@ public class Micro1InvoiceParserTests
     private readonly Micro1InvoiceParser _parser = new();
 
     private static string BuildSamplePage(
-        string billTo   = "Micro1 Inc.",
-        string period   = "July 1, 2026 to July 15, 2026",
-        string hours    = "28.73",
-        string payRate  = "50",
-        string basePay  = "1436.50",
-        string other    = "105.00",
-        string total    = "1,541.50") => $"""
+        string billTo = "Micro1 Inc.",
+        string period = "July 1, 2026 to July 15, 2026",
+        string hours = "28.73",
+        string payRate = "50",
+        string basePay = "1436.50",
+        string other = "105.00",
+        string total = "1,541.50") => $"""
         INVOICE
         Document INV-EXAMPLE-1
         Issue Date July 17, 2026
@@ -37,9 +37,9 @@ public class Micro1InvoiceParserTests
     /// all, and the header uses the older "Invoice #" / "Sub total" wording.
     /// </summary>
     private static string BuildBasePayOnlyPage(
-        string hours   = "6.84",
+        string hours = "6.84",
         string basePay = "342.00",
-        string total   = "342.00") => $"""
+        string total = "342.00") => $"""
         INVOICE
         Invoice # INV-EXAMPLE-2
         Issue date June 17, 2026
@@ -121,7 +121,7 @@ public class Micro1InvoiceParserTests
 
         Assert.Equal(2, result.LineItems.Count);
         var basePay = result.LineItems.First(i => i.Description == "Base Pay");
-        var other   = result.LineItems.First(i => i.Description == "Other");
+        var other = result.LineItems.First(i => i.Description == "Other");
         Assert.Equal(1436.50m, basePay.Amount);
         Assert.Equal("income", basePay.ItemType);
         Assert.Equal(105.00m, other.Amount);

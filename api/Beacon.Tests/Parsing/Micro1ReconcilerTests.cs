@@ -39,7 +39,7 @@ public class Micro1ReconcilerTests
         var slip = Micro1Reconciler.Reconcile(InvoiceUsd(), Withdrawal());
 
         var basePay = slip.LineItems.First(i => i.Description == "Base Pay");
-        var other   = slip.LineItems.First(i => i.Description == "Other");
+        var other = slip.LineItems.First(i => i.Description == "Other");
         Assert.Equal(1246.72m, basePay.Amount);
         Assert.Equal("income", basePay.ItemType);
         // "Other" absorbs rounding so income items sum exactly to gross.

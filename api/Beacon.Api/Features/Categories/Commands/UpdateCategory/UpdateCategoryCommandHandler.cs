@@ -10,7 +10,7 @@ public class UpdateCategoryCommandHandler(AppDbContext db, ILogger<UpdateCategor
         var category = await db.Categories.FindAsync([cmd.Id], ct);
         if (category is null) return null;
 
-        if (!string.IsNullOrWhiteSpace(cmd.Name))  category.Name  = cmd.Name.Trim();
+        if (!string.IsNullOrWhiteSpace(cmd.Name)) category.Name = cmd.Name.Trim();
         if (!string.IsNullOrWhiteSpace(cmd.Color)) category.Color = cmd.Color;
 
         await db.SaveChangesAsync(ct);

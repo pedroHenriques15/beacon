@@ -66,7 +66,10 @@ public class SalaryHandlerTests
 
         var cat = new SalaryItemCategory
         {
-            SalaryProfileId = profile.Id, Name = "Base", Color = "#22c55e", ItemType = "income"
+            SalaryProfileId = profile.Id,
+            Name = "Base",
+            Color = "#22c55e",
+            ItemType = "income"
         };
         db.SalaryItemCategories.Add(cat);
 
@@ -133,7 +136,10 @@ public class SalaryHandlerTests
         await db.SaveChangesAsync();
         var foreignCat = new SalaryItemCategory
         {
-            SalaryProfileId = other.Id, Name = "Foreign", Color = "#fff", ItemType = "income"
+            SalaryProfileId = other.Id,
+            Name = "Foreign",
+            Color = "#fff",
+            ItemType = "income"
         };
         db.SalaryItemCategories.Add(foreignCat);
         await db.SaveChangesAsync();
@@ -163,7 +169,10 @@ public class SalaryHandlerTests
             slip.PdfPath = pdfPath;
             db.SalaryLineItems.Add(new SalaryLineItem
             {
-                SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+                SalarySlipId = slip.Id,
+                SalaryItemCategoryId = cat.Id,
+                Amount = 100m,
+                SortOrder = 0
             });
             await db.SaveChangesAsync();
 
@@ -285,7 +294,10 @@ public class SalaryHandlerTests
         var (_, cat, slip) = await SeedSlipAsync(db);
         db.SalaryLineItems.Add(new SalaryLineItem
         {
-            SalarySlipId = slip.Id, SalaryItemCategoryId = cat.Id, Amount = 100m, SortOrder = 0
+            SalarySlipId = slip.Id,
+            SalaryItemCategoryId = cat.Id,
+            Amount = 100m,
+            SortOrder = 0
         });
         await db.SaveChangesAsync();
 
@@ -349,7 +361,10 @@ public class SalaryHandlerTests
         await db.SaveChangesAsync();
         var foreignCat = new SalaryItemCategory
         {
-            SalaryProfileId = otherProfile.Id, Name = "Foreign", Color = "#ef4444", ItemType = "deduction"
+            SalaryProfileId = otherProfile.Id,
+            Name = "Foreign",
+            Color = "#ef4444",
+            ItemType = "deduction"
         };
         db.SalaryItemCategories.Add(foreignCat);
         await db.SaveChangesAsync();

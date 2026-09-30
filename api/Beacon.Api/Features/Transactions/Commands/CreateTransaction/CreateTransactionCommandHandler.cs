@@ -26,14 +26,14 @@ public class CreateTransactionCommandHandler(AppDbContext db, ILogger<CreateTran
 
         var tx = new Transaction
         {
-            StatementId            = cmd.StatementId,
-            DatePosting            = cmd.DatePosting,
-            DateValue              = cmd.DateValue,
-            Description            = cmd.Description.Trim(),
-            Amount                 = cmd.Amount,
-            Type                   = cmd.Type.ToLower(),
-            Balance                = cmd.Balance,
-            CategorySetManually    = cmd.CategoryId.HasValue,
+            StatementId = cmd.StatementId,
+            DatePosting = cmd.DatePosting,
+            DateValue = cmd.DateValue,
+            Description = cmd.Description.Trim(),
+            Amount = cmd.Amount,
+            Type = cmd.Type.ToLower(),
+            Balance = cmd.Balance,
+            CategorySetManually = cmd.CategoryId.HasValue,
         };
 
         ExcludedCategory.ApplyCategory(tx, cmd.CategoryId, await ExcludedCategory.GetIdAsync(db, ct));

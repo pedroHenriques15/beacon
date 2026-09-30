@@ -16,7 +16,7 @@ public class UpdateGroceryCategoryRuleCommandHandler(AppDbContext db, ILogger<Up
         if (rule is null) return false;
 
         rule.Pattern = string.IsNullOrWhiteSpace(cmd.Pattern) ? null : cmd.Pattern.Trim();
-        rule.Value   = cmd.Value;
+        rule.Value = cmd.Value;
         await db.SaveChangesAsync(ct);
         return true;
     }

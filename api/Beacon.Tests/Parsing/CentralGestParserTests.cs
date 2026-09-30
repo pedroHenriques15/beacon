@@ -28,17 +28,17 @@ public class CentralGestParserTests
     }
 
     private static string BuildSamplePage(
-        string employer  = "EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.",
-        string nif       = "999000002",
-        string period    = "março - 2026",
+        string employer = "EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.",
+        string nif = "999000002",
+        string period = "março - 2026",
         string vencimento = "1 000,00",
-        string ppr       = "550,00",
-        string tickets   = "224,40",
+        string ppr = "550,00",
+        string tickets = "224,40",
         string segSocial = "110,00",
-        string irs       = "45,00",
-        string gross     = "1,774.40",
+        string irs = "45,00",
+        string gross = "1,774.40",
         string deductions = "155.00",
-        string net       = "1,619.40") => $"""
+        string net = "1,619.40") => $"""
         {employer} {employer}
         4050-465 - Porto
         N.º Contribuinte: {nif}
@@ -92,16 +92,16 @@ public class CentralGestParserTests
     }
 
     [Theory]
-    [InlineData("janeiro - 2025",  1, 2025)]
+    [InlineData("janeiro - 2025", 1, 2025)]
     [InlineData("fevereiro - 2025", 2, 2025)]
-    [InlineData("abril - 2024",    4, 2024)]
+    [InlineData("abril - 2024", 4, 2024)]
     [InlineData("dezembro - 2023", 12, 2023)]
     public void Parse_ExtractsPeriod_AllMonths(string periodStr, int expectedMonth, int expectedYear)
     {
         var result = _parser.Parse("slip.pdf", [BuildSamplePage(period: periodStr)]);
 
         Assert.Equal(expectedMonth, result.Period.Month);
-        Assert.Equal(expectedYear,  result.Period.Year);
+        Assert.Equal(expectedYear, result.Period.Year);
         Assert.Equal(1, result.Period.Day);
     }
 
@@ -220,9 +220,9 @@ public class CentralGestParserTests
 
     [Theory]
     [InlineData("1 000,00", 1000.00)]
-    [InlineData("224,40",   224.40)]
-    [InlineData("110,00",   110.00)]
-    [InlineData("45,00",    45.00)]
+    [InlineData("224,40", 224.40)]
+    [InlineData("110,00", 110.00)]
+    [InlineData("45,00", 45.00)]
     public void ParsePt_ConvertsPortugueseDecimals(string input, double expected)
     {
         Assert.Equal((decimal)expected, CentralGestParser.ParsePt(input));
@@ -231,7 +231,7 @@ public class CentralGestParserTests
     [Theory]
     [InlineData("1,774.40", 1774.40)]
     [InlineData("1,619.40", 1619.40)]
-    [InlineData("155.00",   155.00)]
+    [InlineData("155.00", 155.00)]
     public void ParseUs_ConvertsUsFormatDecimals(string input, double expected)
     {
         Assert.Equal((decimal)expected, CentralGestParser.ParseUs(input));

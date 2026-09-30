@@ -25,15 +25,15 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank       = "TESTBANK",
-            Account    = "123",
+            Bank = "TESTBANK",
+            Account = "123",
             PeriodFrom = new DateOnly(2024, 1, 1),
-            PeriodTo   = new DateOnly(2024, 1, 31),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL Lisboa",    Amount = 30, Type = "debit",  DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 970 },
-                new Transaction { Description = "CONTINENTE ABC", Amount = 50, Type = "debit",  DatePosting = new DateOnly(2024,1,2), DateValue = new DateOnly(2024,1,2), Balance = 920 },
-                new Transaction { Description = "SALARY",         Amount = 1000, Type = "credit",DatePosting = new DateOnly(2024,1,5), DateValue = new DateOnly(2024,1,5), Balance = 1920 }
+                new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 },
+                new Transaction { Description = "CONTINENTE ABC", Amount = 50, Type = "debit", DatePosting = new DateOnly(2024, 1, 2), DateValue = new DateOnly(2024, 1, 2), Balance = 920 },
+                new Transaction { Description = "SALARY", Amount = 1000, Type = "credit", DatePosting = new DateOnly(2024, 1, 5), DateValue = new DateOnly(2024, 1, 5), Balance = 1920 }
             ]
         };
         db.MonthlyStatements.Add(statement);
@@ -46,7 +46,7 @@ public class ApplyRuleServiceTests
         await using var db = CreateDb(nameof(ApplyAsync_MatchingTransactions_AreAssignedCategory));
         await SeedAsync(db);
 
-        var cat  = await db.Categories.FirstAsync();
+        var cat = await db.Categories.FirstAsync();
         var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "LIDL" };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
@@ -55,7 +55,7 @@ public class ApplyRuleServiceTests
         await service.ApplyAsync(rule);
 
         var tx = await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa");
-        Assert.Equal(cat.Id,  tx.CategoryId);
+        Assert.Equal(cat.Id, tx.CategoryId);
         Assert.Equal(rule.Id, tx.CategoryRuleId);
         Assert.False(tx.CategorySetManually);
     }
@@ -66,7 +66,7 @@ public class ApplyRuleServiceTests
         await using var db = CreateDb(nameof(ApplyAsync_NonMatchingTransactions_AreNotChanged));
         await SeedAsync(db);
 
-        var cat  = await db.Categories.FirstAsync();
+        var cat = await db.Categories.FirstAsync();
         var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "LIDL" };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
@@ -84,22 +84,27 @@ public class ApplyRuleServiceTests
     {
         await using var db = CreateDb(nameof(ApplyAsync_AlreadyCategorizedTransactions_AreSkipped));
 
-        var cat1 = new Category { Name = "Food",    Color = "#ff0000" };
+        var cat1 = new Category { Name = "Food", Color = "#ff0000" };
         var cat2 = new Category { Name = "Savings", Color = "#0000ff" };
         db.Categories.AddRange(cat1, cat2);
         await db.SaveChangesAsync();
 
         var statement = new MonthlyStatement
         {
-            Bank = "TESTBANK", Account = "123",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "TESTBANK",
+            Account = "123",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
                 new Transaction
                 {
                     Description = "LIDL",
-                    Amount = 10, Type = "debit",
-                    DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 990,
+                    Amount = 10,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2024, 1, 1),
+                    DateValue = new DateOnly(2024, 1, 1),
+                    Balance = 990,
                     CategoryId = cat1.Id,
                     CategorySetManually = true
                 }
@@ -126,7 +131,7 @@ public class ApplyRuleServiceTests
         await using var db = CreateDb(nameof(ApplyAsync_NoMatches_DoesNotThrow));
         await SeedAsync(db);
 
-        var cat  = await db.Categories.FirstAsync();
+        var cat = await db.Categories.FirstAsync();
         var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "NONEXISTENT_PATTERN_XYZ" };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
@@ -143,7 +148,7 @@ public class ApplyRuleServiceTests
         await using var db = CreateDb(nameof(ApplyAsync_MultipleTxMatchPattern_AllAreAssigned));
         await SeedAsync(db);
 
-        var cat  = await db.Categories.FirstAsync();
+        var cat = await db.Categories.FirstAsync();
         var rule = new CategoryRule { CategoryId = cat.Id, Pattern = "IDENTI" };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync();
@@ -176,12 +181,14 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank = "B", Account = "A",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "B",
+            Account = "A",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "lowercase match", Amount = 1, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 0 },
-                new Transaction { Description = "UPPERCASE MATCH",  Amount = 1, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 0 }
+                new Transaction { Description = "lowercase match", Amount = 1, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 0 },
+                new Transaction { Description = "UPPERCASE MATCH", Amount = 1, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 0 }
             ]
         };
         db.MonthlyStatements.Add(statement);
@@ -212,12 +219,14 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank = "TESTBANK", Account = "123",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "TESTBANK",
+            Account = "123",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "EMPLOYER CREDIT", Amount = 1500, Type = "credit", DatePosting = new DateOnly(2024,1,5), DateValue = new DateOnly(2024,1,5), Balance = 1500 },
-                new Transaction { Description = "OTHER CREDIT",    Amount = 200,  Type = "credit", DatePosting = new DateOnly(2024,1,6), DateValue = new DateOnly(2024,1,6), Balance = 1700 }
+                new Transaction { Description = "EMPLOYER CREDIT", Amount = 1500, Type = "credit", DatePosting = new DateOnly(2024, 1, 5), DateValue = new DateOnly(2024, 1, 5), Balance = 1500 },
+                new Transaction { Description = "OTHER CREDIT", Amount = 200, Type = "credit", DatePosting = new DateOnly(2024, 1, 6), DateValue = new DateOnly(2024, 1, 6), Balance = 1700 }
             ]
         };
         db.MonthlyStatements.Add(statement);
@@ -230,10 +239,10 @@ public class ApplyRuleServiceTests
         var service = new ApplyRuleService(db);
         await service.ApplyAsync(rule);
 
-        var matched   = await db.Transactions.FirstAsync(t => t.Description == "EMPLOYER CREDIT");
+        var matched = await db.Transactions.FirstAsync(t => t.Description == "EMPLOYER CREDIT");
         var unmatched = await db.Transactions.FirstAsync(t => t.Description == "OTHER CREDIT");
 
-        Assert.Equal(cat.Id,  matched.CategoryId);
+        Assert.Equal(cat.Id, matched.CategoryId);
         Assert.Equal(rule.Id, matched.CategoryRuleId);
         Assert.False(matched.CategorySetManually);
         Assert.Null(unmatched.CategoryId);
@@ -250,13 +259,15 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank = "TESTBANK", Account = "123",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "TESTBANK",
+            Account = "123",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 970 },
-                new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024,1,2), DateValue = new DateOnly(2024,1,2), Balance = 871 },
-                new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,3), DateValue = new DateOnly(2024,1,3), Balance = 841 }
+                new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 },
+                new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024, 1, 2), DateValue = new DateOnly(2024, 1, 2), Balance = 871 },
+                new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 3), DateValue = new DateOnly(2024, 1, 3), Balance = 841 }
             ]
         };
         db.MonthlyStatements.Add(statement);
@@ -270,11 +281,11 @@ public class ApplyRuleServiceTests
         await service.ApplyAsync(rule);
 
         var txs = await db.Transactions.ToListAsync();
-        var lidl30    = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 30);
-        var lidl99    = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 99);
-        var other30   = txs.First(t => t.Description == "OTHER STORE");
+        var lidl30 = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 30);
+        var lidl99 = txs.First(t => t.Description == "LIDL Lisboa" && t.Amount == 99);
+        var other30 = txs.First(t => t.Description == "OTHER STORE");
 
-        Assert.Equal(cat.Id,  lidl30.CategoryId);
+        Assert.Equal(cat.Id, lidl30.CategoryId);
         Assert.Equal(rule.Id, lidl30.CategoryRuleId);
         Assert.Null(lidl99.CategoryId);
         Assert.Null(other30.CategoryId);
@@ -291,11 +302,13 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank = "TESTBANK", Account = "123",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "TESTBANK",
+            Account = "123",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 901 }
+                new Transaction { Description = "LIDL Lisboa", Amount = 99, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 901 }
             ]
         };
         db.MonthlyStatements.Add(statement);
@@ -323,11 +336,13 @@ public class ApplyRuleServiceTests
 
         var statement = new MonthlyStatement
         {
-            Bank = "TESTBANK", Account = "123",
-            PeriodFrom = new DateOnly(2024,1,1), PeriodTo = new DateOnly(2024,1,31),
+            Bank = "TESTBANK",
+            Account = "123",
+            PeriodFrom = new DateOnly(2024, 1, 1),
+            PeriodTo = new DateOnly(2024, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024,1,1), DateValue = new DateOnly(2024,1,1), Balance = 970 }
+                new Transaction { Description = "OTHER STORE", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 }
             ]
         };
         db.MonthlyStatements.Add(statement);

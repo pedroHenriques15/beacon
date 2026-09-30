@@ -30,11 +30,11 @@ public class BpiParserTests
     private static string BuildFullText(
         string iban = "PT50 0010 0000 0000 0000 0000 1",
         string periodFrom = "01/01/2024",
-        string periodTo   = "31/01/2024",
-        string opening    = "1 000,00",
-        string closing    = "1 500,00",
-        string? activos   = null,
-        string? txBlock   = null)
+        string periodTo = "31/01/2024",
+        string opening = "1 000,00",
+        string closing = "1 500,00",
+        string? activos = null,
+        string? txBlock = null)
     {
         var activosLine = activos is not null ? $"ACTIVOS {activos}" : string.Empty;
 
@@ -55,7 +55,7 @@ public class BpiParserTests
     {
         var result = _parser.Parse("bpi.pdf", [BuildFullText()]);
 
-        Assert.Equal(new DateOnly(2024, 1, 1),  result.PeriodFrom);
+        Assert.Equal(new DateOnly(2024, 1, 1), result.PeriodFrom);
         Assert.Equal(new DateOnly(2024, 1, 31), result.PeriodTo);
     }
 
@@ -92,7 +92,7 @@ public class BpiParserTests
             activos: "10 000,00")]);
 
         Assert.Equal(10000.00m, result.ClosingBalance);
-        Assert.Equal(9500.00m,  result.OpeningBalance);
+        Assert.Equal(9500.00m, result.OpeningBalance);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class BpiParserTests
     public void Parse_ParsesCreditTransaction()
     {
         var txBlock = "01/01 02/01 TRANSFERENCIA RECEBIDA 500,00 1 500,00";
-        var result  = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
 
         Assert.Single(result.Transactions);
         var tx = result.Transactions[0];
@@ -134,7 +134,7 @@ public class BpiParserTests
     public void Parse_ParsesDebitTransaction_NegativeAmount()
     {
         var txBlock = "15/01 15/01 PAGAMENTO FATURA -200,00 800,00";
-        var result  = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
 
         Assert.Single(result.Transactions);
         var tx = result.Transactions[0];
@@ -146,7 +146,7 @@ public class BpiParserTests
     public void Parse_MissingValueDate_FallsBackToPostingDate()
     {
         var txBlock = "01/01 PAGAMENTO SEM DATA VAL 100,00 900,00";
-        var result  = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
 
         if (result.Transactions.Count > 0)
         {
@@ -193,12 +193,12 @@ public class BpiParserTests
     public void Parse_IncludesBpiReformaTransactionLines()
     {
         var txBlock = "01/01 01/01 BPI REFORMA PLANO POUPANCA -300,00 1 700,00";
-        var result  = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(txBlock: txBlock)]);
 
         Assert.Single(result.Transactions);
         Assert.Contains("BPI REFORMA", result.Transactions[0].Description);
         Assert.Equal(300.00m, result.Transactions[0].Amount);
-        Assert.Equal("debit",  result.Transactions[0].Type);
+        Assert.Equal("debit", result.Transactions[0].Type);
     }
 
     [Fact]

@@ -30,22 +30,22 @@ public class GetGroceryItemsQueryHandler(AppDbContext db, ILogger<GetGroceryItem
         if (!string.IsNullOrEmpty(query.Search))
             q = q.Where(i => i.Description.Contains(query.Search));
 
-        var take       = Math.Clamp(query.Take, 1, 5000);
+        var take = Math.Clamp(query.Take, 1, 5000);
         var totalCount = await q.CountAsync(ct);
         var totalAmount = await q.SumAsync(i => i.Amount, ct);
 
         var ordered = (query.SortCol?.ToLower(), query.SortDir?.ToLower()) switch
         {
-            ("store", "asc")       => q.OrderBy(i => i.Receipt.StoreName).ThenByDescending(i => i.Id),
-            ("store", _)           => q.OrderByDescending(i => i.Receipt.StoreName).ThenByDescending(i => i.Id),
+            ("store", "asc") => q.OrderBy(i => i.Receipt.StoreName).ThenByDescending(i => i.Id),
+            ("store", _) => q.OrderByDescending(i => i.Receipt.StoreName).ThenByDescending(i => i.Id),
             ("description", "asc") => q.OrderBy(i => i.Description).ThenByDescending(i => i.Id),
-            ("description", _)     => q.OrderByDescending(i => i.Description).ThenByDescending(i => i.Id),
-            ("category", "asc")    => q.OrderBy(i => i.Category == null ? "zzz" : i.Category.Name).ThenByDescending(i => i.Id),
-            ("category", _)        => q.OrderByDescending(i => i.Category == null ? "" : i.Category.Name).ThenByDescending(i => i.Id),
-            ("amount", "asc")      => q.OrderBy(i => i.Amount).ThenByDescending(i => i.Id),
-            ("amount", _)          => q.OrderByDescending(i => i.Amount).ThenByDescending(i => i.Id),
-            ("date", "asc")        => q.OrderBy(i => i.Receipt.ReceiptDate).ThenBy(i => i.Id),
-            _                      => q.OrderByDescending(i => i.Receipt.ReceiptDate).ThenByDescending(i => i.Id),
+            ("description", _) => q.OrderByDescending(i => i.Description).ThenByDescending(i => i.Id),
+            ("category", "asc") => q.OrderBy(i => i.Category == null ? "zzz" : i.Category.Name).ThenByDescending(i => i.Id),
+            ("category", _) => q.OrderByDescending(i => i.Category == null ? "" : i.Category.Name).ThenByDescending(i => i.Id),
+            ("amount", "asc") => q.OrderBy(i => i.Amount).ThenByDescending(i => i.Id),
+            ("amount", _) => q.OrderByDescending(i => i.Amount).ThenByDescending(i => i.Id),
+            ("date", "asc") => q.OrderBy(i => i.Receipt.ReceiptDate).ThenBy(i => i.Id),
+            _ => q.OrderByDescending(i => i.Receipt.ReceiptDate).ThenByDescending(i => i.Id),
         };
 
         var items = await ordered

@@ -32,7 +32,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task SaveAsync_WritesFileToDisk()
     {
-        var content  = "fake pdf bytes"u8.ToArray();
+        var content = "fake pdf bytes"u8.ToArray();
         var formFile = new FormFileStub(content, "statement.pdf");
 
         var relativePath = await _service.SaveAsync(formFile);
@@ -46,7 +46,7 @@ public class FileStorageServiceTests : IDisposable
     public async Task SaveAsync_ReturnsGuidBasedRelativePath()
     {
         var formFile = new FormFileStub("data"u8.ToArray(), "any.pdf");
-        var path     = await _service.SaveAsync(formFile);
+        var path = await _service.SaveAsync(formFile);
 
         var name = Path.GetFileNameWithoutExtension(path);
         Assert.True(Guid.TryParse(name, out _));
@@ -88,7 +88,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task GetFile_ReturnsStreamAndMetadata()
     {
-        var content  = "pdf content"u8.ToArray();
+        var content = "pdf content"u8.ToArray();
         var formFile = new FormFileStub(content, "original.pdf");
         var relative = await _service.SaveAsync(formFile);
 
@@ -137,7 +137,7 @@ public class FileStorageServiceTests : IDisposable
     [Fact]
     public async Task GetFile_PathTraversal_ThrowsUnauthorized()
     {
-        var parentDir  = Path.GetDirectoryName(_tempRoot)!;
+        var parentDir = Path.GetDirectoryName(_tempRoot)!;
         var outsideFile = Path.Combine(parentDir, $"outside_{Guid.NewGuid()}.pdf");
         try
         {
@@ -187,16 +187,16 @@ public class FileStorageServiceTests : IDisposable
 
     private sealed class FormFileStub(byte[] content, string fileName) : IFormFile
     {
-        public string ContentType        => "application/pdf";
+        public string ContentType => "application/pdf";
         public string ContentDisposition => string.Empty;
         public IHeaderDictionary Headers => new HeaderDictionary();
-        public long Length               => content.Length;
-        public string Name               => "file";
-        public string FileName           => fileName;
+        public long Length => content.Length;
+        public string Name => "file";
+        public string FileName => fileName;
 
-        public void CopyTo(Stream target)                    => new MemoryStream(content).CopyTo(target);
+        public void CopyTo(Stream target) => new MemoryStream(content).CopyTo(target);
         public Task CopyToAsync(Stream target, CancellationToken ct = default)
             => new MemoryStream(content).CopyToAsync(target, ct);
-        public Stream OpenReadStream()                       => new MemoryStream(content);
+        public Stream OpenReadStream() => new MemoryStream(content);
     }
 }

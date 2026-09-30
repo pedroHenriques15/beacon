@@ -35,17 +35,17 @@ public class FetchInvestmentPriceCommandHandler(AppDbContext db, AlphaVantageSer
         if (existing is not null)
         {
             existing.PricePerUnit = price;
-            existing.ImportedAt   = DateTime.UtcNow;
+            existing.ImportedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return (new InvestmentPriceSnapshotResponse(existing.Id, existing.AssetId, existing.Date, existing.PricePerUnit), null);
         }
 
         var snapshot = new InvestmentPriceSnapshot
         {
-            AssetId      = command.AssetId,
-            Date         = today,
+            AssetId = command.AssetId,
+            Date = today,
             PricePerUnit = price,
-            ImportedAt   = DateTime.UtcNow,
+            ImportedAt = DateTime.UtcNow,
         };
 
         db.InvestmentPriceSnapshots.Add(snapshot);

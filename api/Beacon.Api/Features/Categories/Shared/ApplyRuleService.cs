@@ -10,7 +10,7 @@ public class ApplyRuleService(AppDbContext db)
     public async Task ApplyAsync(CategoryRule rule)
     {
         var hasPattern = !string.IsNullOrEmpty(rule.Pattern);
-        var hasValue   = rule.Value.HasValue;
+        var hasValue = rule.Value.HasValue;
 
         if (!hasPattern && !hasValue)
             return;
@@ -22,7 +22,7 @@ public class ApplyRuleService(AppDbContext db)
         var matches = uncategorized.Where(t =>
         {
             var patternOk = !hasPattern || t.Description.Contains(rule.Pattern!, StringComparison.Ordinal);
-            var valueOk   = !hasValue   || t.Amount == rule.Value!.Value;
+            var valueOk = !hasValue || t.Amount == rule.Value!.Value;
             return patternOk && valueOk;
         }).ToList();
 
@@ -31,7 +31,7 @@ public class ApplyRuleService(AppDbContext db)
         foreach (var tx in matches)
         {
             ExcludedCategory.ApplyCategory(tx, rule.CategoryId, excludedCategoryId);
-            tx.CategoryRuleId      = rule.Id;
+            tx.CategoryRuleId = rule.Id;
             tx.CategorySetManually = false;
         }
 

@@ -13,7 +13,7 @@ public partial class BpiParser : IBankStatementParser
     private static readonly CultureInfo PtCulture = CultureInfo.GetCultureInfo("pt-PT");
 
     private const string AmountPat = @"-?\d{1,3}(?:\s\d{3})*,\d{2}";
-    private const string DatePat   = @"\d{2}/\d{2}";
+    private const string DatePat = @"\d{2}/\d{2}";
 
     [GeneratedRegex(@"IBAN:\s*(PT[\d\s]+)")]
     private static partial Regex IbanRegex();
@@ -35,16 +35,26 @@ public partial class BpiParser : IBankStatementParser
         RegexOptions.Compiled);
 
     private static readonly string[] SkipContains =
-        ["DATA DATA", "MOV VAL", "CONTA A ORDEM", "NIB:", "IBAN:", "SALDO ANTERIOR",
-         "SALDO ACTUAL", "TOTAL DEP", "PLANOS DE POUPANÇA",
-         "DESCRIÇÃO DO MOVIMENTO", "Sede:", "BPI Direto", "Capital Social"];
+        ["DATA DATA",
+            "MOV VAL",
+            "CONTA A ORDEM",
+            "NIB:",
+            "IBAN:",
+            "SALDO ANTERIOR",
+            "SALDO ACTUAL",
+            "TOTAL DEP",
+            "PLANOS DE POUPANÇA",
+            "DESCRIÇÃO DO MOVIMENTO",
+            "Sede:",
+            "BPI Direto",
+            "Capital Social"];
 
     public ParsedStatement Parse(string fileName, IReadOnlyList<string> pages)
     {
         var fullText = string.Join("\n", pages);
 
         var ibanRaw = IbanRegex().Match(fullText).Groups[1].Value;
-        var iban    = Regex.Replace(ibanRaw, @"\s+", "");
+        var iban = Regex.Replace(ibanRaw, @"\s+", "");
 
         var pm = PeriodRegex().Match(fullText);
         if (!pm.Success)
@@ -97,7 +107,7 @@ public partial class BpiParser : IBankStatementParser
 
                 if (line.Contains("DEPÓSITOS À ORDEM")) { inCurrentAccount = true; continue; }
                 if (line.Contains("PLANOS DE POUPANÇA") || line.Contains("TOTAL DEPÓSITOS"))
-                    { inCurrentAccount = false; continue; }
+                { inCurrentAccount = false; continue; }
                 if (!inCurrentAccount) continue;
                 if (SkipContains.Any(s => line.Contains(s))) continue;
 
@@ -105,12 +115,12 @@ public partial class BpiParser : IBankStatementParser
                 if (!m.Success) continue;
 
                 var datePostRaw = m.Groups[1].Value;
-                var dateValRaw  = m.Groups[2].Success ? m.Groups[2].Value : datePostRaw;
-                var desc        = m.Groups[3].Value.Trim();
-                var signedAmt   = ParseAmount(m.Groups[4].Value);
-                var saldo       = ParseAmount(m.Groups[5].Value);
+                var dateValRaw = m.Groups[2].Success ? m.Groups[2].Value : datePostRaw;
+                var desc = m.Groups[3].Value.Trim();
+                var signedAmt = ParseAmount(m.Groups[4].Value);
+                var saldo = ParseAmount(m.Groups[5].Value);
 
-                var type   = signedAmt >= 0 ? "credit" : "debit";
+                var type = signedAmt >= 0 ? "credit" : "debit";
                 var amount = Math.Abs(signedAmt);
 
                 result.Add(new ParsedTransaction(

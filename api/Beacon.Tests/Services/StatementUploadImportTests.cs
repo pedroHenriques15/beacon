@@ -173,7 +173,7 @@ public class StatementUploadImportTests : IDisposable
         await using var freshDb = new AppDbContext(DbOptions(dbName));
         var stmt = await freshDb.MonthlyStatements.Include(s => s.Transactions).SingleAsync();
 
-        var card    = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
+        var card = stmt.Transactions.Single(t => t.Description.Contains("MINI MERCADO"));
         var savings = stmt.Transactions.Single(t => t.Description.Contains("Savings plan execution"));
 
         Assert.False(card.IsExcluded);

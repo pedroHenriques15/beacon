@@ -73,7 +73,7 @@ public class SavingsPlanImportServiceTests
         var statement = TrStatement((SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)));
         var service = MakeService(db);
 
-        var first  = await service.ImportAsync(statement);
+        var first = await service.ImportAsync(statement);
         var second = await service.ImportAsync(statement);
 
         Assert.Equal(1, first);
@@ -87,7 +87,7 @@ public class SavingsPlanImportServiceTests
     {
         await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_TwoBuysSameIsin_CreateOneAssetTwoLots)));
         var statement = TrStatement(
-            (SavingsDesc,  5.16m,   new DateOnly(2026, 8, 3)),
+            (SavingsDesc, 5.16m, new DateOnly(2026, 8, 3)),
             (SavingsDesc2, 100.00m, new DateOnly(2026, 8, 3)));
 
         var count = await MakeService(db).ImportAsync(statement);
@@ -103,7 +103,10 @@ public class SavingsPlanImportServiceTests
         await using var db = new AppDbContext(DbOptions(nameof(ImportAsync_ReusesExistingAssetMatchedByIsin)));
         db.InvestmentAssets.Add(new InvestmentAsset
         {
-            AssetType = "ETF", Isin = "IE00BK5BQT80", Ticker = "VWCE.DEX", Name = "My existing ETF",
+            AssetType = "ETF",
+            Isin = "IE00BK5BQT80",
+            Ticker = "VWCE.DEX",
+            Name = "My existing ETF",
         });
         await db.SaveChangesAsync();
 

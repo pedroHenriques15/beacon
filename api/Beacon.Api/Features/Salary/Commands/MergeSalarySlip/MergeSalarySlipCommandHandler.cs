@@ -38,13 +38,13 @@ public class MergeSalarySlipCommandHandler(
         // FX rate cannot skew the month. Falls back to whichever side actually has a rate.
         slip.HourlyRate = MergeHourlyRate(slip, command);
 
-        slip.GrossAmount  += command.GrossAmount;
-        slip.NetAmount    += command.NetAmount;
-        slip.BaseAmount    = AddNullable(slip.BaseAmount, command.BaseAmount);
-        slip.HoursWorked   = AddNullable(slip.HoursWorked, command.HoursWorked);
-        slip.TotalEspecie  = AddNullable(slip.TotalEspecie, command.TotalEspecie);
-        slip.Notes         = MergeNotes(slip.Notes, command.Notes);
-        slip.SourceFile    = MergeSourceFile(slip.SourceFile, command.SourceFile);
+        slip.GrossAmount += command.GrossAmount;
+        slip.NetAmount += command.NetAmount;
+        slip.BaseAmount = AddNullable(slip.BaseAmount, command.BaseAmount);
+        slip.HoursWorked = AddNullable(slip.HoursWorked, command.HoursWorked);
+        slip.TotalEspecie = AddNullable(slip.TotalEspecie, command.TotalEspecie);
+        slip.Notes = MergeNotes(slip.Notes, command.Notes);
+        slip.SourceFile = MergeSourceFile(slip.SourceFile, command.SourceFile);
 
         MergeLineItems(slip, command.LineItems);
         MergePdf(slip, command.PdfPath);
@@ -84,22 +84,22 @@ public class MergeSalarySlipCommandHandler(
                 slip.LineItems.Add(new SalaryLineItem
                 {
                     SalaryItemCategoryId = item.SalaryItemCategoryId,
-                    Amount               = item.Amount,
-                    SortOrder            = nextSortOrder++,
-                    Quantity             = item.Quantity,
-                    UnitValue            = item.UnitValue,
-                    Percentage           = item.Percentage,
-                    IncidenciaBase       = item.IncidenciaBase,
+                    Amount = item.Amount,
+                    SortOrder = nextSortOrder++,
+                    Quantity = item.Quantity,
+                    UnitValue = item.UnitValue,
+                    Percentage = item.Percentage,
+                    IncidenciaBase = item.IncidenciaBase,
                 });
                 continue;
             }
 
-            existing.Amount  += item.Amount;
+            existing.Amount += item.Amount;
             existing.Quantity = AddNullable(existing.Quantity, item.Quantity);
             // Per-unit detail only survives when both halves agree on it; otherwise it would describe
             // neither of them once the amounts are summed.
-            existing.UnitValue      = KeepIfEqual(existing.UnitValue, item.UnitValue);
-            existing.Percentage     = KeepIfEqual(existing.Percentage, item.Percentage);
+            existing.UnitValue = KeepIfEqual(existing.UnitValue, item.UnitValue);
+            existing.Percentage = KeepIfEqual(existing.Percentage, item.Percentage);
             existing.IncidenciaBase = AddNullable(existing.IncidenciaBase, item.IncidenciaBase);
         }
     }
@@ -136,7 +136,7 @@ public class MergeSalarySlipCommandHandler(
 
         var existingHours = slip.HoursWorked ?? 0m;
         var incomingHours = command.HoursWorked ?? 0m;
-        var totalHours    = existingHours + incomingHours;
+        var totalHours = existingHours + incomingHours;
         if (totalHours <= 0m) return Math.Round((existingRate + incomingRate) / 2m, 2, MidpointRounding.AwayFromZero);
 
         return Math.Round(

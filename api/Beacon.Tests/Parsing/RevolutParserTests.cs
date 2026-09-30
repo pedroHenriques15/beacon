@@ -28,7 +28,7 @@ public class RevolutParserTests
     }
 
     private static string BuildPage(
-        string iban    = "PTabc123",
+        string iban = "PTabc123",
         string summary = "Conta (Conta Corrente) 1.000,00€ 0,00€ 0,00€ 2.000,00€",
         string? txLine = null)
     {
@@ -46,7 +46,7 @@ public class RevolutParserTests
     {
         var result = _parser.Parse(ValidFileName, [BuildPage()]);
 
-        Assert.Equal(new DateOnly(2024, 1, 1),  result.PeriodFrom);
+        Assert.Equal(new DateOnly(2024, 1, 1), result.PeriodFrom);
         Assert.Equal(new DateOnly(2024, 1, 31), result.PeriodTo);
     }
 
@@ -60,7 +60,7 @@ public class RevolutParserTests
 
         var result = _parser.Parse("statement.pdf", [page]);
 
-        Assert.Equal(new DateOnly(2024, 1, 5),  result.PeriodFrom);
+        Assert.Equal(new DateOnly(2024, 1, 5), result.PeriodFrom);
         Assert.Equal(new DateOnly(2024, 1, 20), result.PeriodTo);
     }
 
@@ -102,7 +102,7 @@ public class RevolutParserTests
     public void Parse_ExtractsOpeningAndClosingFromSummary()
     {
         var summary = "Conta (Conta Corrente) 1.000,00€ 0,00€ 0,00€ 2.500,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary)]);
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary)]);
 
         Assert.Equal(1000.00m, result.OpeningBalance);
         Assert.Equal(2500.00m, result.ClosingBalance);
@@ -127,8 +127,8 @@ public class RevolutParserTests
     public void Parse_ParsesCreditTransaction()
     {
         var summary = "Conta (Conta Corrente) 1.000,00€ 0,00€ 0,00€ 1.500,00€";
-        var txLine  = "01/01/2024 01/01/2024 TRANSFER IN 500,00€ 1.500,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
+        var txLine = "01/01/2024 01/01/2024 TRANSFER IN 500,00€ 1.500,00€";
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
 
         Assert.Single(result.Transactions);
         var tx = result.Transactions[0];
@@ -143,8 +143,8 @@ public class RevolutParserTests
     public void Parse_ParsesDebitTransaction()
     {
         var summary = "Conta (Conta Corrente) 1.000,00€ 0,00€ 0,00€ 700,00€";
-        var txLine  = "10/01/2024 10/01/2024 PAYMENT OUT 300,00€ 700,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
+        var txLine = "10/01/2024 10/01/2024 PAYMENT OUT 300,00€ 700,00€";
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
 
         Assert.Single(result.Transactions);
         var tx = result.Transactions[0];
@@ -156,8 +156,8 @@ public class RevolutParserTests
     public void Parse_TypeUnknownWhenDeltaDoesNotMatchAmount()
     {
         var summary = "Conta (Conta Corrente) 1.000,00€ 0,00€ 0,00€ 1.050,00€";
-        var txLine  = "05/01/2024 05/01/2024 WEIRD TX 100,00€ 1.050,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
+        var txLine = "05/01/2024 05/01/2024 WEIRD TX 100,00€ 1.050,00€";
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
 
         Assert.Single(result.Transactions);
         Assert.Equal("unknown", result.Transactions[0].Type);
@@ -176,15 +176,15 @@ public class RevolutParserTests
 
         Assert.Equal(2, result.Transactions.Count);
         Assert.Equal("credit", result.Transactions[0].Type);
-        Assert.Equal("debit",  result.Transactions[1].Type);
+        Assert.Equal("debit", result.Transactions[1].Type);
     }
 
     [Fact]
     public void Parse_ParsesDateInDdMmYyyyFormat()
     {
         var summary = "Conta (Conta Corrente) 500,00€ 0,00€ 0,00€ 600,00€";
-        var txLine  = "15/03/2024 16/03/2024 SOME TX 100,00€ 600,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
+        var txLine = "15/03/2024 16/03/2024 SOME TX 100,00€ 600,00€";
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
 
         var tx = result.Transactions[0];
         Assert.Equal(new DateOnly(2024, 3, 15), tx.DatePosting);
@@ -195,11 +195,11 @@ public class RevolutParserTests
     public void Parse_AmountWithThousandDots_ParsesCorrectly()
     {
         var summary = "Conta (Conta Corrente) 10.000,00€ 0,00€ 0,00€ 11.000,00€";
-        var txLine  = "01/01/2024 01/01/2024 BIG TX 1.000,00€ 11.000,00€";
-        var result  = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
+        var txLine = "01/01/2024 01/01/2024 BIG TX 1.000,00€ 11.000,00€";
+        var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLine)]);
 
         Assert.Equal(10000.00m, result.OpeningBalance);
-        Assert.Equal(1000.00m,  result.Transactions[0].Amount);
+        Assert.Equal(1000.00m, result.Transactions[0].Amount);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class RevolutParserTests
             """;
         var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLines)]);
 
-        Assert.Equal(0.34m,    result.OpeningBalance);
+        Assert.Equal(0.34m, result.OpeningBalance);
         Assert.Equal(1328.83m, result.ClosingBalance);
 
         Assert.Equal(2, result.Transactions.Count);

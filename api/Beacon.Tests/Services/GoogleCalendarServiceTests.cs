@@ -22,10 +22,10 @@ public class GoogleCalendarServiceTests
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["GoogleServices:ClientId"]     = "test-id",
+                ["GoogleServices:ClientId"] = "test-id",
                 ["GoogleServices:ClientSecret"] = "test-secret",
-                ["GoogleServices:RedirectUri"]  = "http://localhost/callback",
-                ["GoogleServices:FrontendUrl"]  = "http://localhost:4200",
+                ["GoogleServices:RedirectUri"] = "http://localhost/callback",
+                ["GoogleServices:FrontendUrl"] = "http://localhost:4200",
             })
             .Build();
 
@@ -33,11 +33,11 @@ public class GoogleCalendarServiceTests
     {
         db.GoogleOAuthTokens.Add(new GoogleOAuthToken
         {
-            Id           = 1,
-            AccessToken  = "test-token",
+            Id = 1,
+            AccessToken = "test-token",
             RefreshToken = "test-refresh",
-            ExpiresAt    = DateTime.UtcNow.AddHours(1),
-            ConnectedAt  = DateTime.UtcNow.AddDays(-1),
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ConnectedAt = DateTime.UtcNow.AddDays(-1),
         });
         db.SaveChanges();
 

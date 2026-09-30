@@ -37,13 +37,13 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
         if (rows.Count == 0) return 0;
 
         var assetsByIsin = new Dictionary<string, InvestmentAsset>(StringComparer.Ordinal);
-        var seen         = new HashSet<(string Isin, DateOnly Date, decimal Quantity)>();
-        var imported     = 0;
+        var seen = new HashSet<(string Isin, DateOnly Date, decimal Quantity)>();
+        var imported = 0;
 
         foreach (var tx in rows)
         {
             var isinMatch = IsinRegex().Match(tx.Description);
-            var qtyMatch  = QuantityRegex().Match(tx.Description);
+            var qtyMatch = QuantityRegex().Match(tx.Description);
             if (!isinMatch.Success || !qtyMatch.Success)
             {
                 logger.LogWarning(
@@ -52,7 +52,7 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
                 continue;
             }
 
-            var isin     = isinMatch.Groups[1].Value;
+            var isin = isinMatch.Groups[1].Value;
             var quantity = decimal.Parse(qtyMatch.Groups[1].Value, CultureInfo.InvariantCulture);
             if (quantity <= 0) continue;
 
@@ -66,11 +66,11 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
                 {
                     asset = new InvestmentAsset
                     {
-                        AssetType  = "ETF",
-                        Isin       = isin,
-                        Ticker     = null, // user sets the Alpha Vantage ticker to enable pricing
-                        Name       = ExtractFundName(tx.Description, isin) ?? $"ETF {isin}",
-                        Notes      = $"Auto-created from a Trade Republic savings plan ({isin}). " +
+                        AssetType = "ETF",
+                        Isin = isin,
+                        Ticker = null, // user sets the Alpha Vantage ticker to enable pricing
+                        Name = ExtractFundName(tx.Description, isin) ?? $"ETF {isin}",
+                        Notes = $"Auto-created from a Trade Republic savings plan ({isin}). " +
                                      "Set the ETF ticker to enable price updates.",
                         ImportedAt = DateTime.UtcNow,
                     };
@@ -88,13 +88,13 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
 
             db.InvestmentLots.Add(new InvestmentLot
             {
-                Asset        = asset,
-                Date         = tx.DatePosting,
-                Quantity     = quantity,
+                Asset = asset,
+                Date = tx.DatePosting,
+                Quantity = quantity,
                 PricePerUnit = pricePerUnit,
-                Fees         = 0m, // Trade Republic savings plans are free
-                Notes        = "Trade Republic savings plan",
-                ImportedAt   = DateTime.UtcNow,
+                Fees = 0m, // Trade Republic savings plans are free
+                Notes = "Trade Republic savings plan",
+                ImportedAt = DateTime.UtcNow,
             });
             imported++;
         }
@@ -110,7 +110,7 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
         if (start < 0) return null;
         start += isin.Length;
 
-        var qi  = description.IndexOf("quantity:", start, StringComparison.Ordinal);
+        var qi = description.IndexOf("quantity:", start, StringComparison.Ordinal);
         var end = qi < 0 ? description.Length : qi;
 
         var name = description[start..end].Trim().TrimEnd(',').Trim();

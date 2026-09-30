@@ -20,10 +20,10 @@ public static partial class MealCardTextParser
             var m = LinePattern().Match(line);
             if (!m.Success) continue;
 
-            var dateStr   = m.Groups[1].Value;
-            var desc      = m.Groups[2].Value.Trim();
+            var dateStr = m.Groups[1].Value;
+            var desc = m.Groups[2].Value.Trim();
             var amountStr = m.Groups[3].Value.Replace(",", ".");
-            var isCredit  = m.Groups[4].Value == "-";
+            var isCredit = m.Groups[4].Value == "-";
 
             if (!DateOnly.TryParseExact(dateStr, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
                 continue;
@@ -33,28 +33,28 @@ public static partial class MealCardTextParser
 
             transactions.Add(new ParsedTransaction(
                 DatePosting: date,
-                DateValue:   date,
+                DateValue: date,
                 Description: desc,
-                Amount:      Math.Abs(amount),
-                Type:        isCredit ? "credit" : "debit",
-                Balance:     0m));
+                Amount: Math.Abs(amount),
+                Type: isCredit ? "credit" : "debit",
+                Balance: 0m));
         }
 
         if (transactions.Count == 0)
             throw new FormatException("No valid transactions found in the provided text.");
 
         var periodFrom = transactions.Min(t => t.DatePosting);
-        var periodTo   = transactions.Max(t => t.DatePosting);
+        var periodTo = transactions.Max(t => t.DatePosting);
 
         return new ParsedStatement(
-            Bank:           "MEAL CARD",
-            Account:        string.Empty,
-            PeriodFrom:     periodFrom,
-            PeriodTo:       periodTo,
-            Currency:       "EUR",
+            Bank: "MEAL CARD",
+            Account: string.Empty,
+            PeriodFrom: periodFrom,
+            PeriodTo: periodTo,
+            Currency: "EUR",
             OpeningBalance: 0m,
             ClosingBalance: 0m,
-            SourceFile:     "meal-card-text-import",
-            Transactions:   transactions);
+            SourceFile: "meal-card-text-import",
+            Transactions: transactions);
     }
 }

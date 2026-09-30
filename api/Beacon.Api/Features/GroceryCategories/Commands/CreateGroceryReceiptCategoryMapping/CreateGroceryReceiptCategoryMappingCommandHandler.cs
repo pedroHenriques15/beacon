@@ -25,7 +25,7 @@ public class CreateGroceryReceiptCategoryMappingCommandHandler(AppDbContext db, 
         var mapping = new GroceryReceiptCategoryMapping
         {
             ReceiptCategoryName = cmd.ReceiptCategoryName,
-            GroceryCategoryId   = cmd.GroceryCategoryId
+            GroceryCategoryId = cmd.GroceryCategoryId
         };
         db.GroceryReceiptCategoryMappings.Add(mapping);
         await db.SaveChangesAsync(ct);

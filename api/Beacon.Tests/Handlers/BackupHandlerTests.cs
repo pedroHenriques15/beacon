@@ -120,12 +120,21 @@ public class BackupHandlerTests : IDisposable
         db.Categories.Add(cat);
         var stmt = new MonthlyStatement
         {
-            Bank = "BPI", Account = "PT50",
-            PeriodFrom = new DateOnly(2026, 1, 1), PeriodTo = new DateOnly(2026, 1, 31),
+            Bank = "BPI",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
             Transactions =
             [
-                new Transaction { Description = "LIDL", Amount = 25, Type = "debit",
-                    DatePosting = new DateOnly(2026, 1, 5), DateValue = new DateOnly(2026, 1, 5), Balance = 975 }
+                new Transaction
+                {
+                    Description = "LIDL",
+                    Amount = 25,
+                    Type = "debit",
+                    DatePosting = new DateOnly(2026, 1, 5),
+                    DateValue = new DateOnly(2026, 1, 5),
+                    Balance = 975
+                }
             ]
         };
         db.MonthlyStatements.Add(stmt);
@@ -170,11 +179,16 @@ public class BackupHandlerTests : IDisposable
         await db.SaveChangesAsync();
         db.InvestmentLots.Add(new InvestmentLot
         {
-            AssetId = asset.Id, Date = new DateOnly(2026, 1, 5), Quantity = 10, PricePerUnit = 100
+            AssetId = asset.Id,
+            Date = new DateOnly(2026, 1, 5),
+            Quantity = 10,
+            PricePerUnit = 100
         });
         db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
         {
-            AssetId = asset.Id, Date = new DateOnly(2026, 1, 20), PricePerUnit = 105
+            AssetId = asset.Id,
+            Date = new DateOnly(2026, 1, 20),
+            PricePerUnit = 105
         });
         await db.SaveChangesAsync();
 

@@ -12,9 +12,9 @@ public partial class DomirestParser : ISalarySlipParser
 
     private static readonly Dictionary<string, string> NameMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Remuner. Normal"]      = "Remuneração Normal",
+        ["Remuner. Normal"] = "Remuneração Normal",
         ["Premio Produtividade"] = "Prémio de Produtividade",
-        ["Sub.Kms/Deslocaç"]     = "Subsídio de Deslocação (Km)",
+        ["Sub.Kms/Deslocaç"] = "Subsídio de Deslocação (Km)",
     };
 
     private static string Normalize(string raw) => NameMap.TryGetValue(raw, out var n) ? n : raw;
@@ -23,12 +23,12 @@ public partial class DomirestParser : ISalarySlipParser
     {
         var fullText = string.Join("\n", pages);
 
-        var employer    = ExtractEmployer(fullText);
+        var employer = ExtractEmployer(fullText);
         var employerNif = ExtractEmployerNif(fullText);
-        var period      = ExtractPeriod(fullText);
+        var period = ExtractPeriod(fullText);
         var (gross, net) = ExtractTotals(fullText);
-        var baseAmount  = ExtractBaseAmount(fullText);
-        var lineItems   = ExtractLineItems(fullText, out var hoursWorked, out var hourlyRate);
+        var baseAmount = ExtractBaseAmount(fullText);
+        var lineItems = ExtractLineItems(fullText, out var hoursWorked, out var hourlyRate);
 
         return new ParsedSalarySlip(
             employer, employerNif, period, gross, net, lineItems,
@@ -57,7 +57,7 @@ public partial class DomirestParser : ISalarySlipParser
             throw new InvalidOperationException("Could not find a date in Domirest payslip.");
 
         var month = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-        var year  = int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+        var year = int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
         return new DateOnly(year, month, 1);
     }
 
@@ -82,26 +82,26 @@ public partial class DomirestParser : ISalarySlipParser
         out decimal? hourlyRate)
     {
         hoursWorked = null;
-        hourlyRate  = null;
+        hourlyRate = null;
 
-        var items     = new List<ParsedSalaryLineItem>();
+        var items = new List<ParsedSalaryLineItem>();
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (Match m in IncomeLineRegex().Matches(fullText))
         {
-            var rawName  = m.Groups[1].Value.Trim();
+            var rawName = m.Groups[1].Value.Trim();
             var cleanName = Normalize(rawName);
 
             if (!seenNames.Add(cleanName)) continue;
 
-            var qty      = ParsePt(m.Groups[2].Value);
-            var unitVal  = ParsePt(m.Groups[3].Value);
-            var amount   = ParsePt(m.Groups[4].Value);
+            var qty = ParsePt(m.Groups[2].Value);
+            var unitVal = ParsePt(m.Groups[3].Value);
+            var amount = ParsePt(m.Groups[4].Value);
 
             if (cleanName == "Remuneração Normal")
             {
                 hoursWorked = qty;
-                hourlyRate  = unitVal;
+                hourlyRate = unitVal;
             }
 
             items.Add(new ParsedSalaryLineItem(
