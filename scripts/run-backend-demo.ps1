@@ -54,13 +54,9 @@ Write-Step 'Running migrations'
 
 Push-Location $BackendDir
 try {
-    $profileHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
-    $tools = Join-Path $profileHome '.dotnet/tools'
-    if ($env:PATH -notlike "*$tools*") { $env:PATH = "${tools}$([IO.Path]::PathSeparator)$env:PATH" }
-
-    if (-not (Get-Command dotnet-ef -ErrorAction SilentlyContinue)) {
-        dotnet tool install --global dotnet-ef -v quiet
-    }
+    # dotnet-ef is pinned in dotnet-tools.json at the repository root.
+    dotnet tool restore
+    if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed (exit $LASTEXITCODE)" }
 
     dotnet restore
     if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed (exit $LASTEXITCODE)" }

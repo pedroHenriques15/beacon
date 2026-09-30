@@ -43,13 +43,13 @@ Write-Ok "Target database: $dbName"
 Write-Step "Resetting $dbName"
 Write-Host "    This will DROP $dbName and reapply all migrations." -ForegroundColor Yellow
 
-$profileHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
-$tools = Join-Path $profileHome '.dotnet/tools'
-if ($env:PATH -notlike "*$tools*") { $env:PATH = "${tools}$([IO.Path]::PathSeparator)$env:PATH" }
-
 $BackendDir = Join-Path $ProjectRoot 'api/Beacon.Api'
 Push-Location $BackendDir
 try {
+    # dotnet-ef is pinned in dotnet-tools.json at the repository root.
+    dotnet tool restore 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
+    if ($LASTEXITCODE -ne 0) { Write-Fail "dotnet tool restore failed" }
+
     $prevConn = $env:ConnectionStrings__DefaultConnection
     $env:ConnectionStrings__DefaultConnection = $connStr
     $prevEnv  = $env:ASPNETCORE_ENVIRONMENT
