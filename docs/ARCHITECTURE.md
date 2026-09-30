@@ -12,7 +12,7 @@ over Tailscale (ADR-001).
 
 A request goes from the Angular client to `/api/*` with the `X-Api-Key` header, through
 `ApiKeyMiddleware` and `ExceptionHandlingMiddleware`, to a controller that calls one feature
-handler, which works on SQL Server through EF Core. For an upload, `PdfExtractorService` runs
+handler, which works on SQLite through EF Core. For an upload, `PdfExtractorService` runs
 `scripts/pdfExtractor.py` (pdfplumber) to get the page text, a parser turns it into domain
 objects, and `ParseVerifier` checks the result before it is saved.
 
@@ -22,10 +22,10 @@ objects, and `ParseVerifier` checks the result before it is saved.
 |---|---|
 | PDF extraction | Python 3 + `pdfplumber` |
 | Backend API | ASP.NET Core 10 (.NET 10) |
-| Database | SQL Server + EF Core 10 (code-first) |
+| Database | SQLite + EF Core 10 (code-first) |
 | Frontend | Angular 21 (standalone components, signals) |
 | Charts | chart.js 4.5 |
-| Testing (backend) | xUnit + EF Core InMemory |
+| Testing (backend) | xUnit + EF Core InMemory; SQLite in-memory where the engine matters |
 | Testing (frontend) | Vitest 4 |
 | Formatting | Prettier 3.8 |
 
@@ -36,7 +36,7 @@ beacon/
 ├── api/
 │   ├── Beacon.Api/
 │   │   ├── Controllers/          # REST endpoint handlers
-│   │   ├── Data/                 # AppDbContext (EF Core)
+│   │   ├── Data/                 # AppDbContext, SqliteSetup (connection setup), DatabaseCopier
 │   │   ├── Features/             # Feature-driven CQRS (see below)
 │   │   │   ├── Backup/
 │   │   │   ├── Categories/
@@ -59,7 +59,8 @@ beacon/
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
-│   └── Beacon.Tests/             # xUnit test project (EF InMemory)
+│   └── Beacon.Tests/             # xUnit test project (EF InMemory; SqliteTestDatabase where the engine matters)
+│       ├── Data/                 # SQLite behaviour, DatabaseCopier
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
 │       ├── Parsing/              # Parser tests (bank, salary slip, grocery)
@@ -94,10 +95,11 @@ beacon/
 │   ├── reset-db.sh / .ps1        # Drop and recreate the local database (reads appsettings.json)
 │   ├── run-backend.ps1           # Load local/environment.dev, apply migrations, start the API on :5098
 │   ├── run-frontend.ps1          # Wait for the API, then ng serve on :4200
-│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (BeaconDemo), with its own uploads-demo/ and backups-demo/
-│   ├── seed-demo.sql             # (WIP) Synthetic demo data
+│   ├── run-backend-demo.ps1      # (WIP) API against the demo database (local/beacon-demo.db), with its own uploads-demo/ and backups-demo/
+│   ├── seed-demo.sql             # (WIP) Synthetic demo data (SQLite)
 │   ├── seed-demo.ps1 / .sh       # (WIP) Seed the demo database (Windows, through SeedRunner / Linux server)
-│   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a connection string
+│   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a SQLite database, then rewrites decimals and dates as EF writes them
+│   ├── MigrateToSqlite/          # Console app: copies a SQL Server Beacon database into a new SQLite file and compares the two
 │   ├── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
 │   └── readPdf.py                # Print a PDF's extracted text page by page (parser debugging)
 ├── docs/
@@ -110,7 +112,7 @@ beacon/
 ├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
 ├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
-├── local/                        # git-ignored: environment.dev/.demo, uploads/, backups/ (demo: uploads-demo/, backups-demo/), sample PDFs
+├── local/                        # git-ignored: environment.dev/.demo, beacon.db, uploads/, backups/ (demo: beacon-demo.db, uploads-demo/, backups-demo/), sample PDFs
 ├── .github/
 │   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
 │   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
@@ -173,9 +175,10 @@ transactions page), since excluding is its own action, but it stays in *filter* 
 excluded rows remain findable. Rules *may* target it; both rule services set the flag when
 they match.
 
-There is no `Internal Transfer` category. It was the pre-rename name of this concept;
-migration `MergeInternalTransferIntoExcluded` folds any surviving rows, rules and
-transactions into `Excluded` (marking them excluded) and deletes it. Do not re-introduce it.
+There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
+data migration (`MergeInternalTransferIntoExcluded`, before the move to SQLite) folded any
+surviving rows, rules and transactions into `Excluded` (marking them excluded) and deleted
+it. Do not re-introduce it.
 
 ### Bank statement parsers
 
@@ -356,8 +359,9 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 - `GetFullPath`, `GetFile` and `Delete` resolve a file name (or a legacy absolute path) under
   the storage root and refuse anything that resolves outside it. Anything that opens a stored
   file goes through them: `parse-pdf` hands the extractor `GetFullPath(pdfPath)`.
-- Older data: the `StorePdfPathsAsFileNames` migration cut existing rows down to their file
-  names, and a backup restore does the same to every restored `PdfPath`
+- Older data: a data migration (`StorePdfPathsAsFileNames`, before the move to SQLite) cut
+  existing rows down to their file names, and a backup restore does the same to every restored
+  `PdfPath`
   (`RestoreBackupCommandHandler.StorePdfPathsAsFileNames`), so an old backup cannot bring
   absolute paths back.
 - At startup `Program.cs` runs `OrphanedPdfCleanup` (scoped, in `Services/`) when
@@ -489,6 +493,9 @@ whose URL starts with `/api`. The interceptor is registered in `app.config.ts`.
 
 ## Database
 
+SQLite (ADR-024): one file, named by `ConnectionStrings__DefaultConnection`
+(`Data Source=<path>`); its folder is created if missing.
+
 Schema (17 tables): `MonthlyStatements`, `Transactions`, `Categories`, `CategoryRules`,
 `SalaryProfiles`, `SalarySlips`, `SalaryItemCategories`, `SalaryLineItems`,
 `GroceryReceipts`, `GroceryItems`, `GroceryCategories`, `GroceryCategoryRules`,
@@ -504,8 +511,33 @@ dotnet ef migrations add <MigrationName>
 dotnet ef database update
 ```
 
+`Data/SqliteSetup.cs` sets up every connection the same way: the API, the tests and the
+tools in `scripts/` all go through `UseBeaconSqlite`.
+
+- Text columns use SQLite's `NOCASE` collation (a convention in `AppDbContext`), so equality,
+  sorting and unique names ignore case, as they did under SQL Server. `NOCASE` folds ASCII
+  letters only.
+- Lists shown to people sort with the `DISPLAY_ORDER` collation: case ignored, accented letters
+  beside their base letter ("Água" among the A's). Queries apply it in `ORDER BY` with
+  `EF.Functions.Collate(x, SqliteSetup.DisplayOrder)`. It is registered on each connection and
+  never used in the schema, so the file opens in any SQLite tool and a change in .NET's sort
+  rules cannot invalidate an index.
+- SQLite's `lower()` and `upper()` are replaced by .NET's, so a search written as
+  `x.ToLower().Contains(term.ToLowerInvariant())` also matches accented letters.
+- Decimals are stored as exact text in EF's form (`12.5`, `1000.0`); EF Core 10 translates sums,
+  comparisons and sorts on them. `AppDbContext.SaveChanges` rounds each decimal to its column's
+  scale (`HasPrecision`), half away from zero, as SQL Server stored them. Declare a decimal
+  column with `HasPrecision`, never `HasColumnType("decimal(...)")`: a type name gives the
+  column numeric affinity, and SQLite would store floating point.
+- EF creates the file in WAL mode and enforces foreign keys. One writer at a time is enough
+  for one user.
+
 At startup `Program.cs` seeds default data (including the protected Excluded categories)
 and then runs the PDF cleanup (see "PDF storage").
+
+`Data/DatabaseCopier.cs` copies every table from one Beacon database to another, keeping ids,
+and compares the two row by row. `scripts/MigrateToSqlite` uses it to move a SQL Server
+database (the last SQL Server release's schema) into a new SQLite file.
 
 ## API surface
 
@@ -540,7 +572,7 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `ApiKey` | Secret for `X-Api-Key` header validation |
 | `Storage__Path` | Directory where uploaded PDFs are stored |
 | `Backup__Path` | Directory where backups are stored |
-| `ConnectionStrings__DefaultConnection` | SQL Server connection string |
+| `ConnectionStrings__DefaultConnection` | The SQLite file: `Data Source=<path>` |
 | `Python__Executable` | Python binary (`python` on Windows, `python3` on Linux) |
 | `Python__ExtractorScript` | Absolute path to `scripts/pdfExtractor.py` |
 | `Python__TimeoutSeconds` | PDF extraction timeout (default 60); the Python process is killed on expiry |
@@ -555,15 +587,17 @@ statement parsers") and stored under bank name `MEAL CARD`.
 
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
 `scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
-`scripts/run-backend-demo.ps1`, which always sets `Storage__Path` to `local/uploads-demo` and
-`Backup__Path` to `local/backups-demo`); in production in `/etc/beacon/environment` (loaded
+`scripts/run-backend-demo.ps1`, which always points the database at `local/beacon-demo.db`,
+`Storage__Path` at `local/uploads-demo` and `Backup__Path` at `local/backups-demo`); in production in `/etc/beacon/environment` (loaded
 by systemd `EnvironmentFile`).
 
 ## Tests
 
-Backend: `api/Beacon.Tests/` (xUnit, EF Core InMemory, ADR-015). One SQL-backed
-backup/restore round-trip test runs only when `BEACON_TEST_SQLSERVER` is set to a SQL Server
-connection string; it is skipped otherwise. Coverage: all bank/salary/grocery parsers (incl.
+Backend: `api/Beacon.Tests/` (xUnit, EF Core InMemory, ADR-015). Tests that depend on the
+database engine run on an in-memory SQLite database through `SqliteTestDatabase`: `Data/`
+(decimal sums and sorts in SQL, searches and sorts with accents, `NOCASE` unique names,
+decimal scale, foreign keys, `DatabaseCopier`), the backup round trip and the investment
+asset queries. Coverage: all bank/salary/grocery parsers (incl.
 Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,

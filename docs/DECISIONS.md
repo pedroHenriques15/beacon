@@ -197,3 +197,20 @@ or restoring a backup on another machine, broke every PDF link, and a path writt
 made the startup cleanup delete the file it named. The folder stays flat, so a name alone
 identifies a file. Existing rows were rewritten by a migration, and backup restore keeps only
 the file name of every restored path.
+
+## ADR-024 · SQLite replaces SQL Server
+
+Beacon has one user, one process and little data, yet SQL Server made it need a database
+server: an x86-64 host with 2 GB of RAM for the server alone, a service to patch and secure,
+and credentials in the connection string. Since 2026-09-30 the database is one SQLite file
+inside the app's process, on EF Core 10, whose SQLite provider translates decimal sums,
+comparisons and sorts. What SQL Server's collation and column types gave implicitly is now
+explicit: text columns use `NOCASE`; lists shown in order sort with a `DISPLAY_ORDER`
+collation registered on every connection and used only in queries, so a change in .NET's sort
+rules can never invalidate an index; SQLite's `lower()`/`upper()` are replaced by .NET's so
+searches fold accented letters; and `SaveChanges` rounds each decimal to its declared scale.
+The migrations start over from one SQLite `InitialCreate`; an existing database moves with
+`scripts/MigrateToSqlite`, which copies every table through EF, keeping ids, and compares the
+result row by row. The backup round trip that needed SQL Server (ADR-015) now runs on every
+test run. Costs accepted: one writer at a time, and `NOCASE` folds only ASCII letters in
+equality and unique names.

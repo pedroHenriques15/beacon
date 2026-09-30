@@ -100,6 +100,9 @@ if [[ "$MODE" == "production" ]]; then
     [[ -n "$API_KEY"  && "$API_KEY"  != *REPLACE* ]] || err "ApiKey not set in $ENV_FILE"
 fi
 [[ -n "$CONN_STR" && "$CONN_STR" != *REPLACE* ]] || err "ConnectionStrings not set in $ENV_FILE"
+DB_FILE=$(printf '%s' "$CONN_STR" | grep -oiP '(?<=Data Source=)[^;]+' || true)
+[[ -n "$DB_FILE" ]] || err "ConnectionStrings__DefaultConnection in $ENV_FILE has no Data Source (the SQLite file)"
+[[ "$DB_FILE" != "$INSTALL_DIR"/* ]] || err "The database must not live under $INSTALL_DIR: every deploy replaces that folder"
 
 command -v dotnet &>/dev/null || err "dotnet not found"
 command -v node   &>/dev/null || err "node not found - install via nvm"
@@ -145,18 +148,17 @@ if [[ "$MODE" == "production" ]]; then
         && err "Placeholder still present after injection - aborting"
     ok "Key injected into ${#KEY_FILES[@]} file(s); tracked sources untouched"
 
-    step "Running migrations"
-    cd "$BACKEND_DIR"
-    dotnet tool restore
-    ConnectionStrings__DefaultConnection="$CONN_STR" dotnet ef database update
-    ok "Migrations applied"
-
     step "Setting local/ permissions"
+    DB_DIR="$(dirname "$DB_FILE")"
     sudo chown -R "$(whoami):beacon" "$LOCAL_DIR"
     sudo chmod 750 "$LOCAL_DIR"
     sudo chmod 640 "$ENV_FILE"
-    sudo mkdir -p "$LOCAL_DIR/Backups" "$LOCAL_DIR/Statements"
+    sudo mkdir -p "$LOCAL_DIR/Backups" "$LOCAL_DIR/Statements" "$DB_DIR"
     sudo chmod 770 "$LOCAL_DIR/Backups" "$LOCAL_DIR/Statements"
+    # The service (group beacon) writes the database and the -wal/-shm files beside it, so the
+    # folder is group-writable, and setgid keeps new files in group beacon.
+    sudo chown "$(whoami):beacon" "$DB_DIR"
+    sudo chmod 2770 "$DB_DIR"
     ok "Permissions set"
 
     step "Snapshotting current release"
@@ -175,6 +177,15 @@ if [[ "$MODE" == "production" ]]; then
     step "Stopping service"
     sudo systemctl stop beacon 2>/dev/null || true
     ok "Stopped"
+
+    # With the service stopped, nothing else holds the SQLite file. Each migration runs in a
+    # transaction, so a failed one leaves the schema the previous release expects.
+    step "Running migrations"
+    cd "$BACKEND_DIR"
+    dotnet tool restore
+    ConnectionStrings__DefaultConnection="$CONN_STR" dotnet ef database update
+    sudo chmod g+rw "$DB_FILE"
+    ok "Migrations applied"
 
     step "Deploying"
     sudo mkdir -p "$INSTALL_DIR/wwwroot"

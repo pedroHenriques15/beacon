@@ -1,11 +1,11 @@
 #Requires -Version 5.1
-# Beacon — Seed the BeaconDemo database
+# Beacon — Seed the demo database (local/beacon-demo.db, as run-backend-demo.ps1 uses)
 # Usage: ./scripts/seed-demo.ps1
 
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot  = Split-Path -Parent $PSScriptRoot
-$EnvFile      = Join-Path $ProjectRoot 'local/environment.demo'
+$DbFile       = Join-Path $ProjectRoot 'local/beacon-demo.db'
 $SqlFile      = Join-Path $PSScriptRoot 'seed-demo.sql'
 $RunnerDir    = Join-Path $PSScriptRoot 'SeedRunner'
 
@@ -16,28 +16,8 @@ function Write-Fail { param($msg) Write-Host ""; Write-Host "[ERROR] $msg" -Fore
 Write-Host ''
 Write-Host 'Beacon — Seed demo database' -ForegroundColor Yellow
 
-# ── Read connection string from env file ──────────────────────────────────────
-Write-Step 'Reading connection string'
-
-if (-not (Test-Path $EnvFile)) {
-    Write-Fail "Missing $EnvFile`n    Create it by copying local/environment.dev and changing Database=Beacon to Database=BeaconDemo"
-}
-
-$connStr = $null
-Get-Content $EnvFile | ForEach-Object {
-    $line = $_.Trim()
-    if ($line -and -not $line.StartsWith('#')) {
-        $idx = $line.IndexOf('=')
-        if ($idx -gt 0 -and $line.Substring(0, $idx) -eq 'ConnectionStrings__DefaultConnection') {
-            $connStr = $line.Substring($idx + 1)
-        }
-    }
-}
-
-if (-not $connStr) { Write-Fail "ConnectionStrings__DefaultConnection not found in $EnvFile" }
-
-$dbName = if ($connStr -match '(?i)Database=([^;]+)') { $Matches[1] } else { '(unknown)' }
-Write-Ok "Target database: $dbName"
+$connStr = "Data Source=$DbFile"
+$dbName  = 'local/beacon-demo.db'
 
 # ── Drop and recreate database ────────────────────────────────────────────────
 Write-Step "Resetting $dbName"

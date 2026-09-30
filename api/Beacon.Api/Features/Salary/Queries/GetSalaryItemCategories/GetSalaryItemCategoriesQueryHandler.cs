@@ -11,7 +11,7 @@ public class GetSalaryItemCategoriesQueryHandler(AppDbContext db)
         await db.SalaryItemCategories
             .Where(c => c.SalaryProfileId == query.ProfileId)
             .OrderBy(c => c.ItemType)
-            .ThenBy(c => c.Name)
+            .ThenBy(c => EF.Functions.Collate(c.Name, SqliteSetup.DisplayOrder))
             .Select(c => new SalaryItemCategoryResponse(c.Id, c.SalaryProfileId, c.Name, c.Color, c.ItemType, c.IsProtected))
             .ToListAsync(ct);
 }

@@ -23,6 +23,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<InvestmentLot> InvestmentLots => Set<InvestmentLot>();
     public DbSet<InvestmentPriceSnapshot> InvestmentPriceSnapshots => Set<InvestmentPriceSnapshot>();
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RoundDecimalsToScale();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        RoundDecimalsToScale();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// SQLite stores a decimal as text of any length, so each column is held to the scale it
+    /// declares, rounding half away from zero as SQL Server did when it stored these columns.
+    /// </summary>
+    private void RoundDecimalsToScale()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+                continue;
+
+            foreach (var property in entry.Properties)
+            {
+                if (property.CurrentValue is decimal value && property.Metadata.GetScale() is int scale)
+                {
+                    var rounded = Math.Round(value, scale, MidpointRounding.AwayFromZero);
+                    if (rounded != value)
+                        property.CurrentValue = rounded;
+                }
+            }
+        }
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Text compares, sorts and stays unique regardless of case, as it did under SQL Server's
+        // case-insensitive collation. NOCASE folds ASCII letters only, so searches lower-case both
+        // sides and lists shown to people sort with SqliteSetup.DisplayOrder.
+        configurationBuilder.Properties<string>().UseCollation("NOCASE");
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<MonthlyStatement>(e =>
@@ -31,9 +74,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Bank).HasMaxLength(50).IsRequired();
             e.Property(s => s.Account).HasMaxLength(100).IsRequired();
             e.Property(s => s.Currency).HasMaxLength(3).IsFixedLength();
-            e.Property(s => s.OpeningBalance).HasColumnType("decimal(18,2)");
-            e.Property(s => s.ClosingBalance).HasColumnType("decimal(18,2)");
-            e.Property(s => s.PprBalance).HasColumnType("decimal(18,2)");
+            e.Property(s => s.OpeningBalance).HasPrecision(18, 2);
+            e.Property(s => s.ClosingBalance).HasPrecision(18, 2);
+            e.Property(s => s.PprBalance).HasPrecision(18, 2);
             e.Property(s => s.SourceFile).HasMaxLength(500);
             e.HasIndex(s => new { s.Bank, s.PeriodFrom }).IsUnique();
         });
@@ -42,8 +85,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(t => t.Id);
             e.Property(t => t.Description).HasMaxLength(500).IsRequired();
-            e.Property(t => t.Amount).HasColumnType("decimal(18,2)");
-            e.Property(t => t.Balance).HasColumnType("decimal(18,2)");
+            e.Property(t => t.Amount).HasPrecision(18, 2);
+            e.Property(t => t.Balance).HasPrecision(18, 2);
             e.Property(t => t.Type).HasMaxLength(20);
             e.HasOne(t => t.Statement)
              .WithMany(s => s.Transactions)
@@ -68,7 +111,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(r => r.Id);
             e.Property(r => r.Pattern).HasMaxLength(200).IsRequired(false);
-            e.Property(r => r.Value).HasColumnType("decimal(18,2)");
+            e.Property(r => r.Value).HasPrecision(18, 2);
             e.HasOne(r => r.Category)
              .WithMany(c => c.Rules)
              .HasForeignKey(r => r.CategoryId)
@@ -99,14 +142,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<SalarySlip>(e =>
         {
             e.HasKey(s => s.Id);
-            e.Property(s => s.GrossAmount).HasColumnType("decimal(18,2)");
-            e.Property(s => s.NetAmount).HasColumnType("decimal(18,2)");
+            e.Property(s => s.GrossAmount).HasPrecision(18, 2);
+            e.Property(s => s.NetAmount).HasPrecision(18, 2);
             e.Property(s => s.Notes).HasMaxLength(1000);
             e.Property(s => s.SourceFile).HasMaxLength(500);
-            e.Property(s => s.BaseAmount).HasColumnType("decimal(18,2)");
-            e.Property(s => s.HoursWorked).HasColumnType("decimal(18,2)");
-            e.Property(s => s.HourlyRate).HasColumnType("decimal(18,2)");
-            e.Property(s => s.TotalEspecie).HasColumnType("decimal(18,2)");
+            e.Property(s => s.BaseAmount).HasPrecision(18, 2);
+            e.Property(s => s.HoursWorked).HasPrecision(18, 2);
+            e.Property(s => s.HourlyRate).HasPrecision(18, 2);
+            e.Property(s => s.TotalEspecie).HasPrecision(18, 2);
             e.HasOne(s => s.SalaryProfile)
              .WithMany(p => p.SalarySlips)
              .HasForeignKey(s => s.SalaryProfileId)
@@ -117,11 +160,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<SalaryLineItem>(e =>
         {
             e.HasKey(i => i.Id);
-            e.Property(i => i.Amount).HasColumnType("decimal(18,2)");
-            e.Property(i => i.Quantity).HasColumnType("decimal(18,2)");
-            e.Property(i => i.UnitValue).HasColumnType("decimal(18,2)");
-            e.Property(i => i.Percentage).HasColumnType("decimal(18,2)");
-            e.Property(i => i.IncidenciaBase).HasColumnType("decimal(18,2)");
+            e.Property(i => i.Amount).HasPrecision(18, 2);
+            e.Property(i => i.Quantity).HasPrecision(18, 2);
+            e.Property(i => i.UnitValue).HasPrecision(18, 2);
+            e.Property(i => i.Percentage).HasPrecision(18, 2);
+            e.Property(i => i.IncidenciaBase).HasPrecision(18, 2);
             e.HasOne(i => i.SalarySlip)
              .WithMany(s => s.LineItems)
              .HasForeignKey(i => i.SalarySlipId)
@@ -136,7 +179,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(r => r.Id);
             e.Property(r => r.StoreName).HasMaxLength(200).IsRequired();
-            e.Property(r => r.Total).HasColumnType("decimal(18,2)");
+            e.Property(r => r.Total).HasPrecision(18, 2);
             e.Property(r => r.Notes).HasMaxLength(1000);
             e.Property(r => r.SourceFile).HasMaxLength(500);
             e.Property(r => r.PdfPath).HasMaxLength(500);
@@ -151,8 +194,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(i => i.Id);
             e.Property(i => i.Description).HasMaxLength(500).IsRequired();
-            e.Property(i => i.Amount).HasColumnType("decimal(18,2)");
-            e.Property(i => i.Quantity).HasColumnType("decimal(18,4)");
+            e.Property(i => i.Amount).HasPrecision(18, 2);
+            e.Property(i => i.Quantity).HasPrecision(18, 4);
             e.Property(i => i.ReceiptCategory).HasMaxLength(200);
             e.HasOne(i => i.Category)
              .WithMany()
@@ -177,7 +220,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(r => r.Id);
             e.Property(r => r.Pattern).HasMaxLength(200).IsRequired(false);
-            e.Property(r => r.Value).HasColumnType("decimal(18,2)");
+            e.Property(r => r.Value).HasPrecision(18, 2);
         });
 
         modelBuilder.Entity<GroceryReceiptCategoryMapping>(e =>
@@ -199,8 +242,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(a => a.Isin).HasMaxLength(12);
             e.Property(a => a.Name).HasMaxLength(200).IsRequired();
             e.Property(a => a.Notes).HasMaxLength(500);
-            // Filtered unique index: many assets may have no ISIN, but a set ISIN identifies one asset.
-            e.HasIndex(a => a.Isin).IsUnique().HasFilter("[Isin] IS NOT NULL");
+            // Many assets may have no ISIN, but a set ISIN identifies one asset. SQLite unique
+            // indexes treat NULLs as distinct, so no filter is needed.
+            e.HasIndex(a => a.Isin).IsUnique();
             e.HasMany(a => a.Lots)
              .WithOne(l => l.Asset)
              .HasForeignKey(l => l.AssetId)
@@ -215,16 +259,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(l => l.Id);
             // 6dp so fractional savings-plan shares (e.g. Trade Republic quantity: 0.031295) are exact.
-            e.Property(l => l.Quantity).HasColumnType("decimal(18,6)");
-            e.Property(l => l.PricePerUnit).HasColumnType("decimal(18,4)");
-            e.Property(l => l.Fees).HasColumnType("decimal(18,2)");
+            e.Property(l => l.Quantity).HasPrecision(18, 6);
+            e.Property(l => l.PricePerUnit).HasPrecision(18, 4);
+            e.Property(l => l.Fees).HasPrecision(18, 2);
             e.Property(l => l.Notes).HasMaxLength(500);
         });
 
         modelBuilder.Entity<InvestmentPriceSnapshot>(e =>
         {
             e.HasKey(p => p.Id);
-            e.Property(p => p.PricePerUnit).HasColumnType("decimal(18,4)");
+            e.Property(p => p.PricePerUnit).HasPrecision(18, 4);
             e.HasIndex(p => new { p.AssetId, p.Date }).IsUnique();
         });
 
@@ -232,7 +276,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(t => t.Id);
             e.Property(t => t.Id).ValueGeneratedNever();
-            e.Property(t => t.AccessToken).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(t => t.AccessToken).IsRequired();
             e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
             e.Property(t => t.Scopes).HasMaxLength(500);
             e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", "Id = 1"));

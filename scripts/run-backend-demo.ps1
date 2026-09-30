@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Beacon — Start the .NET API against the demo database (BeaconDemo)
+# Beacon — Start the .NET API against the demo database (local/beacon-demo.db)
 
 $ErrorActionPreference = 'Stop'
 
@@ -19,8 +19,8 @@ Write-Step 'Loading environment'
 if (-not (Test-Path $EnvFile)) {
     Write-Host "    [ERROR] Missing $EnvFile" -ForegroundColor Red
     Write-Host "    Create local/environment.demo by copying local/environment.dev" -ForegroundColor Gray
-    Write-Host "    and changing Database=Beacon to Database=BeaconDemo" -ForegroundColor Gray
-    Write-Host "    (uploads and backups always go to local/uploads-demo and local/backups-demo)" -ForegroundColor Gray
+    Write-Host "    (the database, uploads and backups are always local/beacon-demo.db," -ForegroundColor Gray
+    Write-Host "    local/uploads-demo and local/backups-demo)" -ForegroundColor Gray
     exit 1
 }
 
@@ -42,12 +42,13 @@ $env:ASPNETCORE_ENVIRONMENT = 'Demo'
 
 # The demo database references no stored PDF, so it must never share a folder with real
 # uploads: the startup cleanup would treat them all as orphans. Whatever the environment file
-# says, the demo keeps its uploads and backups in folders of its own.
+# says, the demo keeps its database, uploads and backups in files and folders of its own.
+$env:ConnectionStrings__DefaultConnection = "Data Source=$(Join-Path $ProjectRoot 'local/beacon-demo.db')"
 $env:Storage__Path = Join-Path $ProjectRoot 'local/uploads-demo'
 $env:Backup__Path  = Join-Path $ProjectRoot 'local/backups-demo'
 New-Item -ItemType Directory -Force -Path $env:Storage__Path, $env:Backup__Path | Out-Null
-Write-Ok "Environment loaded (ApiKey=$env:ApiKey, DB=BeaconDemo)"
-Write-Ok 'Demo files: local/uploads-demo, local/backups-demo'
+Write-Ok "Environment loaded (ApiKey=$env:ApiKey)"
+Write-Ok 'Demo files: local/beacon-demo.db, local/uploads-demo, local/backups-demo'
 
 # ── Migrations ────────────────────────────────────────────────────────────────
 Write-Step 'Running migrations'

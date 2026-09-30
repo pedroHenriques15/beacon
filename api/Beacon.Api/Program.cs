@@ -85,9 +85,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
-        sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:DefaultConnection is not configured - set it to \"Data Source=<path to the database file>\".");
+// Before Build(), so `dotnet ef database update` creates the folder too.
+SqliteSetup.EnsureDatabaseFolder(connectionString);
+builder.Services.AddDbContext<AppDbContext>(options => options.UseBeaconSqlite(connectionString));
 
 builder.Services.AddSingleton<IBankStatementParser, ActivoBankParser>();
 builder.Services.AddSingleton<IBankStatementParser, BpiParser>();
