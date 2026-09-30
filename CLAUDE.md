@@ -38,7 +38,7 @@ data. Never `git add -f` an ignored file.
 ## Repository map
 
 ```
-api/Beacon.Api/     ASP.NET Core 8 API: Controllers/, Features/ (one folder per use case),
+api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per use case),
                     Services/ (uploads, storage, Google, pricing), Services/Parsing/ (parsers),
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests on EF Core InMemory
@@ -183,7 +183,7 @@ Before a task's PR:
 
 ## Commands
 
-Development runs on the host (ADR-019): .NET 8 SDK, Node 22 or newer, Python 3 with
+Development runs on the host (ADR-019): .NET 10 SDK, Node 22 or newer, Python 3 with
 `pdfplumber`, SQL Server on `localhost`. Config: `local/environment.dev` (demo:
 `local/environment.demo`).
 
@@ -197,6 +197,7 @@ scripts/reset-db.ps1           drop and recreate the local database (reads appse
 
 cd api && dotnet test Beacon.Tests/                     backend tests
 dotnet format beacon.sln                                format the backend (repository root)
+dotnet tool restore                                     dotnet-ef pinned in dotnet-tools.json (scripts run it)
 cd api/Beacon.Api && dotnet ef migrations add <Name>    new migration
 cd api/Beacon.Api && dotnet ef database update          apply migrations (run-backend does it on start)
 cd web && ng test --watch=false                         frontend tests

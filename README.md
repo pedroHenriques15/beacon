@@ -78,14 +78,14 @@ Bank statements must be EUR - non-EUR statements are rejected at upload (salary 
 
 ## Tech stack
 
-| Layer          | Technology                                     |
-| -------------- | ---------------------------------------------- |
-| PDF extraction | Python 3 + pdfplumber                          |
-| API            | ASP.NET Core 8 (.NET 8)                        |
-| Database       | SQL Server + EF Core 8 (code-first migrations) |
-| Frontend       | Angular 21 (standalone components, signals)    |
-| Charts         | Chart.js 4                                     |
-| Tests          | xUnit (backend), Vitest (frontend)             |
+| Layer          | Technology                                      |
+| -------------- | ----------------------------------------------- |
+| PDF extraction | Python 3 + pdfplumber                           |
+| API            | ASP.NET Core 10 (.NET 10)                       |
+| Database       | SQL Server + EF Core 10 (code-first migrations) |
+| Frontend       | Angular 21 (standalone components, signals)     |
+| Charts         | Chart.js 4                                      |
+| Tests          | xUnit (backend), Vitest (frontend)              |
 
 ---
 
@@ -149,7 +149,7 @@ After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: 
 
 ### Requirements
 
-- .NET 8 SDK (plus the EF tool: `dotnet tool install --global dotnet-ef`)
+- .NET 10 SDK. The EF tool (`dotnet-ef`) is pinned in `dotnet-tools.json`: `dotnet tool restore` installs it, and the scripts run that themselves.
 - Node.js 22 (via nvm recommended)
 - SQL Server (local, or via Docker:
   `docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<yourStrong!Password>' -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest`)
@@ -171,6 +171,7 @@ The committed `api/Beacon.Api/Properties/launchSettings.json` sets `ASPNETCORE_E
 ### Create the database (first run only)
 
 ```bash
+dotnet tool restore
 cd api/Beacon.Api
 dotnet ef database update
 ```

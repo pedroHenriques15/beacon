@@ -147,10 +147,7 @@ if [[ "$MODE" == "production" ]]; then
 
     step "Running migrations"
     cd "$BACKEND_DIR"
-    if ! dotnet ef --version &>/dev/null; then
-        dotnet tool install --global dotnet-ef
-        export PATH="$PATH:$HOME/.dotnet/tools"
-    fi
+    dotnet tool restore
     ConnectionStrings__DefaultConnection="$CONN_STR" dotnet ef database update
     ok "Migrations applied"
 
@@ -235,10 +232,7 @@ ok "Environment loaded (ApiKey=${ApiKey})"
 
 step "Running migrations"
 cd "$BACKEND_DIR"
-if ! dotnet ef --version &>/dev/null; then
-    dotnet tool install --global dotnet-ef || fail "Could not install dotnet-ef"
-    export PATH="$PATH:$HOME/.dotnet/tools"
-fi
+dotnet tool restore || fail "Could not restore dotnet-ef (dotnet-tools.json)"
 ConnectionStrings__DefaultConnection="$CONN_STR" dotnet ef database update \
     || fail "Migrations failed - not starting the API against a stale schema"
 ok "Migrations applied"

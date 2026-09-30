@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/api/Beacon.Api/bin/Debug/net8.0/Beacon.Api.dll",
+            "program": "${workspaceFolder}/api/Beacon.Api/bin/Debug/net10.0/Beacon.Api.dll",
             "args": [],
             "cwd": "${workspaceFolder}/api/Beacon.Api",
             "stopAtEntry": false,

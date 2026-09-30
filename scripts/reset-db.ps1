@@ -26,15 +26,15 @@ if (-not $Force) {
 Write-Step "Checking prerequisites"
 
 if (-not (Get-Command "dotnet" -ErrorAction SilentlyContinue)) {
-    Write-Fail "dotnet not found. Install .NET 8 SDK from https://dotnet.microsoft.com/download/dotnet/8"
+    Write-Fail "dotnet not found. Install the .NET 10 SDK from https://dotnet.microsoft.com/download/dotnet/10.0"
 }
 Write-Ok "dotnet found"
 
-$null = dotnet ef --version 2>&1
+$null = dotnet tool restore --tool-manifest (Join-Path $ProjectRoot "dotnet-tools.json") 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "dotnet-ef not found. Run: dotnet tool install --global dotnet-ef"
+    Write-Fail "dotnet tool restore failed: dotnet-ef is pinned in dotnet-tools.json at the repository root"
 }
-Write-Ok "dotnet-ef found"
+Write-Ok "dotnet-ef restored"
 
 Write-Step "Reading connection string"
 

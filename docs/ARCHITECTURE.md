@@ -21,8 +21,8 @@ objects, and `ParseVerifier` checks the result before it is saved.
 | Layer | Technology |
 |---|---|
 | PDF extraction | Python 3 + `pdfplumber` |
-| Backend API | ASP.NET Core 8 (.NET 8) |
-| Database | SQL Server + EF Core 8 (code-first) |
+| Backend API | ASP.NET Core 10 (.NET 10) |
+| Database | SQL Server + EF Core 10 (code-first) |
 | Frontend | Angular 21 (standalone components, signals) |
 | Charts | chart.js 4.5 |
 | Testing (backend) | xUnit + EF Core InMemory |
@@ -114,6 +114,7 @@ beacon/
 ├── .github/
 │   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
 │   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
+├── dotnet-tools.json             # Pins dotnet-ef; the scripts run `dotnet tool restore`
 └── beacon.sln
 ```
 

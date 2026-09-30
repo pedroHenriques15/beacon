@@ -33,12 +33,12 @@ fi
 
 step "Checking prerequisites"
 
-command -v dotnet &>/dev/null || err "dotnet not found. Install .NET 8 SDK."
+command -v dotnet &>/dev/null || err "dotnet not found. Install the .NET 10 SDK."
 ok "dotnet found"
 
-command -v dotnet-ef &>/dev/null || dotnet tool run dotnet-ef --version &>/dev/null 2>&1 || \
-    dotnet ef --version &>/dev/null 2>&1 || err "dotnet-ef not found. Run: dotnet tool install --global dotnet-ef"
-ok "dotnet-ef found"
+dotnet tool restore --tool-manifest "$PROJECT_ROOT/dotnet-tools.json" >/dev/null \
+    || err "dotnet tool restore failed: dotnet-ef is pinned in dotnet-tools.json at the repository root"
+ok "dotnet-ef restored"
 
 step "Reading connection string"
 
