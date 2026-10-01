@@ -24,6 +24,22 @@
 --     5 excluded transactions (mix of categorised and uncategorised)
 --     3 excluded grocery items
 --
+--   Features with no other demo data (sections 26–32):
+--     Trade Republic — 12 statements with monthly "Savings plan execution"
+--       ETF buys (excluded, mirrored as investment lots) and Deel payouts
+--     MEAL CARD — 12 statements as the meal card text import stores them
+--     Investments — the savings-plan ETF and gold in grams (three buys,
+--       one sell), with monthly price snapshots and a week of daily ones
+--     micro1 profile — 3 EUR slips with a "Deel exchange fee" deduction;
+--       the March one merges a second pay run
+--     Grocery receipt category mappings, and items filed by them
+--     Names with an accented first letter ("Ótica", "Óleos & Condimentos",
+--       "Échelle Labs (micro1)") for the DISPLAY_ORDER sort
+--
+-- The dates here run from April 2025 to March 2026. scripts/seed-demo.ps1 moves every date by
+-- whole months so that March 2026 becomes the current month, keeping month ends on month ends,
+-- so the dashboard and the current month always have data.
+--
 -- SQLite. Usage: scripts/seed-demo.ps1, which runs it through scripts/SeedRunner. SeedRunner rewrites the decimals afterwards in the
 -- text form EF Core uses, so amounts may be written here as plain numbers.
 --
@@ -1237,17 +1253,352 @@ SET Description      = 'DIVIDENDO COMPLEMENTAR MBCP',
 WHERE Id = 325;
 
 -- ============================================================
+-- 26. CATEGORY with an accented first letter, and its rule
+--     'Ótica' sorts among the O's (DISPLAY_ORDER), not after 'Z'.
+-- ============================================================
+
+INSERT INTO [Categories] ([Id],[Name],[Color],[IsProtected]) VALUES
+(11,'Ótica','#0ea5e9',0);
+
+INSERT INTO [CategoryRules] ([Id],[CategoryId],[Pattern],[Value]) VALUES
+(34,11,'OTICA',NULL);
+
+
+-- ============================================================
+-- 27. TRADE REPUBLIC (statements 52–63) and MEAL CARD (64–75)
+--     Trade Republic: a monthly transfer in from BPI [internal], a monthly
+--       'Savings plan execution' ETF buy (excluded, no category; mirrored as
+--       lots in section 29), interest, card payments, and the Deel payouts
+--       of the micro1 slips (section 31), two of them in March 2026.
+--     MEAL CARD: as the meal card text import stores it: no account, no
+--       PDF, every row's Balance 0, only the statement balances chained.
+-- ============================================================
+
+INSERT INTO [MonthlyStatements]
+  ([Id],[Bank],[Account],[PeriodFrom],[PeriodTo],[Currency],[OpeningBalance],[ClosingBalance],[SourceFile],[PdfPath],[FileHash],[ImportedAt])
+VALUES
+(52,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-04-01','2025-04-30','EUR',500.00,550.83,'trade_republic_2025_04.pdf',NULL,NULL,'2025-05-02 10:00:00'),
+(53,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-05-01','2025-05-31','EUR',550.83,601.75,'trade_republic_2025_05.pdf',NULL,NULL,'2025-06-02 10:00:00'),
+(54,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-06-01','2025-06-30','EUR',601.75,523.75,'trade_republic_2025_06.pdf',NULL,NULL,'2025-07-02 10:00:00'),
+(55,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-07-01','2025-07-31','EUR',523.75,574.62,'trade_republic_2025_07.pdf',NULL,NULL,'2025-08-02 10:00:00'),
+(56,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-08-01','2025-08-31','EUR',574.62,625.58,'trade_republic_2025_08.pdf',NULL,NULL,'2025-09-02 10:00:00'),
+(57,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-09-01','2025-09-30','EUR',625.58,676.62,'trade_republic_2025_09.pdf',NULL,NULL,'2025-10-02 10:00:00'),
+(58,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-10-01','2025-10-31','EUR',676.62,720.45,'trade_republic_2025_10.pdf',NULL,NULL,'2025-11-02 10:00:00'),
+(59,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-11-01','2025-11-30','EUR',720.45,771.65,'trade_republic_2025_11.pdf',NULL,NULL,'2025-12-02 10:00:00'),
+(60,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2025-12-01','2025-12-31','EUR',771.65,822.94,'trade_republic_2025_12.pdf',NULL,NULL,'2026-01-02 10:00:00'),
+(61,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2026-01-01','2026-01-31','EUR',822.94,2988.73,'trade_republic_2026_01.pdf',NULL,NULL,'2026-02-02 10:00:00'),
+(62,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2026-02-01','2026-02-28','EUR',2988.73,5146.24,'trade_republic_2026_02.pdf',NULL,NULL,'2026-03-02 10:00:00'),
+(63,'TRADE REPUBLIC','PT50 0000 0000 7777 8888 9','2026-03-01','2026-03-31','EUR',5146.24,7355.79,'trade_republic_2026_03.pdf',NULL,NULL,'2026-04-02 10:00:00'),
+(64,'MEAL CARD','','2025-04-01','2025-04-30','EUR',42.15,42.15,'meal-card-text-import',NULL,NULL,'2025-05-04 10:00:00'),
+(65,'MEAL CARD','','2025-05-01','2025-05-31','EUR',42.15,45.15,'meal-card-text-import',NULL,NULL,'2025-06-04 10:00:00'),
+(66,'MEAL CARD','','2025-06-01','2025-06-30','EUR',45.15,51.15,'meal-card-text-import',NULL,NULL,'2025-07-04 10:00:00'),
+(67,'MEAL CARD','','2025-07-01','2025-07-31','EUR',51.15,51.15,'meal-card-text-import',NULL,NULL,'2025-08-04 10:00:00'),
+(68,'MEAL CARD','','2025-08-01','2025-08-31','EUR',51.15,54.15,'meal-card-text-import',NULL,NULL,'2025-09-04 10:00:00'),
+(69,'MEAL CARD','','2025-09-01','2025-09-30','EUR',54.15,60.15,'meal-card-text-import',NULL,NULL,'2025-10-04 10:00:00'),
+(70,'MEAL CARD','','2025-10-01','2025-10-31','EUR',60.15,60.15,'meal-card-text-import',NULL,NULL,'2025-11-04 10:00:00'),
+(71,'MEAL CARD','','2025-11-01','2025-11-30','EUR',60.15,63.15,'meal-card-text-import',NULL,NULL,'2025-12-04 10:00:00'),
+(72,'MEAL CARD','','2025-12-01','2025-12-31','EUR',63.15,69.15,'meal-card-text-import',NULL,NULL,'2026-01-04 10:00:00'),
+(73,'MEAL CARD','','2026-01-01','2026-01-31','EUR',69.15,69.15,'meal-card-text-import',NULL,NULL,'2026-02-04 10:00:00'),
+(74,'MEAL CARD','','2026-02-01','2026-02-28','EUR',69.15,72.15,'meal-card-text-import',NULL,NULL,'2026-03-04 10:00:00'),
+(75,'MEAL CARD','','2026-03-01','2026-03-31','EUR',72.15,78.15,'meal-card-text-import',NULL,NULL,'2026-04-04 10:00:00');
+
+INSERT INTO [Transactions]
+  ([Id],[StatementId],[DatePosting],[DateValue],[Description],[Amount],[Type],[Balance],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded])
+VALUES
+(349,52,'2025-04-01','2025-04-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',700.00,9,NULL,1,1),
+(350,52,'2025-04-02','2025-04-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.266892',150.00,'debit',550.00,NULL,NULL,0,1),
+(351,52,'2025-04-30','2025-04-30','Interest Your interest payment',0.83,'credit',550.83,10,NULL,1,0),
+(352,53,'2025-05-01','2025-05-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',750.83,9,NULL,1,1),
+(353,53,'2025-05-02','2025-05-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.248439',150.00,'debit',600.83,NULL,NULL,0,1),
+(354,53,'2025-05-31','2025-05-31','Interest Your interest payment',0.92,'credit',601.75,10,NULL,1,0),
+(355,54,'2025-06-01','2025-06-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',801.75,9,NULL,1,1),
+(356,54,'2025-06-02','2025-06-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.230517',150.00,'debit',651.75,NULL,NULL,0,1),
+(357,54,'2025-06-14','2025-06-14','OTICAS LUX Card Transaction',129.00,'debit',522.75,11,34,0,0),
+(358,54,'2025-06-30','2025-06-30','Interest Your interest payment',1.00,'credit',523.75,10,NULL,1,0),
+(359,55,'2025-07-01','2025-07-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',723.75,9,NULL,1,1),
+(360,55,'2025-07-02','2025-07-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.206273',150.00,'debit',573.75,NULL,NULL,0,1),
+(361,55,'2025-07-31','2025-07-31','Interest Your interest payment',0.87,'credit',574.62,10,NULL,1,0),
+(362,56,'2025-08-01','2025-08-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',774.62,9,NULL,1,1),
+(363,56,'2025-08-02','2025-08-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.218522',150.00,'debit',624.62,NULL,NULL,0,1),
+(364,56,'2025-08-31','2025-08-31','Interest Your interest payment',0.96,'credit',625.58,10,NULL,1,0),
+(365,57,'2025-09-01','2025-09-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',825.58,9,NULL,1,1),
+(366,57,'2025-09-02','2025-09-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.182965',150.00,'debit',675.58,NULL,NULL,0,1),
+(367,57,'2025-09-30','2025-09-30','Interest Your interest payment',1.04,'credit',676.62,10,NULL,1,0),
+(368,58,'2025-10-01','2025-10-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',876.62,9,NULL,1,1),
+(369,58,'2025-10-02','2025-10-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.158749',150.00,'debit',726.62,NULL,NULL,0,1),
+(370,58,'2025-10-09','2025-10-09','MINI MERCADO Card Transaction',7.30,'debit',719.32,NULL,NULL,0,0),
+(371,58,'2025-10-31','2025-10-31','Interest Your interest payment',1.13,'credit',720.45,10,NULL,1,0),
+(372,59,'2025-11-01','2025-11-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',920.45,9,NULL,1,1),
+(373,59,'2025-11-02','2025-11-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.170047',150.00,'debit',770.45,NULL,NULL,0,1),
+(374,59,'2025-11-30','2025-11-30','Interest Your interest payment',1.20,'credit',771.65,10,NULL,1,0),
+(375,60,'2025-12-01','2025-12-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',971.65,9,NULL,1,1),
+(376,60,'2025-12-02','2025-12-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.139818',150.00,'debit',821.65,NULL,NULL,0,1),
+(377,60,'2025-12-31','2025-12-31','Interest Your interest payment',1.29,'credit',822.94,10,NULL,1,0),
+(378,61,'2026-01-01','2026-01-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',1022.94,9,NULL,1,1),
+(379,61,'2026-01-02','2026-01-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.127396',150.00,'debit',872.94,NULL,NULL,0,1),
+(380,61,'2026-01-27','2026-01-27','Transfer Incoming transfer from Deel Inc.',2114.42,'credit',2987.36,8,NULL,1,0),
+(381,61,'2026-01-31','2026-01-31','Interest Your interest payment',1.37,'credit',2988.73,10,NULL,1,0),
+(382,62,'2026-02-01','2026-02-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',3188.73,9,NULL,1,1),
+(383,62,'2026-02-02','2026-02-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.147666',150.00,'debit',3038.73,NULL,NULL,0,1),
+(384,62,'2026-02-19','2026-02-19','OTICAS LUX Card Transaction',45.00,'debit',2993.73,11,34,0,0),
+(385,62,'2026-02-26','2026-02-26','Transfer Incoming transfer from Deel Inc.',2147.53,'credit',5141.26,8,NULL,1,0),
+(386,62,'2026-02-28','2026-02-28','Interest Your interest payment',4.98,'credit',5146.24,10,NULL,1,0),
+(387,63,'2026-03-01','2026-03-01','Transfer Incoming transfer from Demo Holder (PT50 0010 0000 5678 9012 1)',200.00,'credit',5346.24,9,NULL,1,1),
+(388,63,'2026-03-02','2026-03-02','Trade Savings plan execution IE00BK5BQT80 Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating, quantity: 1.117318',150.00,'debit',5196.24,NULL,NULL,0,1),
+(389,63,'2026-03-06','2026-03-06','MINI MERCADO Card Transaction',12.45,'debit',5183.79,NULL,NULL,0,0),
+(390,63,'2026-03-13','2026-03-13','Transfer Incoming transfer from Deel Inc.',1054.51,'credit',6238.30,8,NULL,1,0),
+(391,63,'2026-03-27','2026-03-27','Transfer Incoming transfer from Deel Inc.',1108.91,'credit',7347.21,8,NULL,1,0),
+(392,63,'2026-03-31','2026-03-31','Interest Your interest payment',8.58,'credit',7355.79,10,NULL,1,0),
+(393,64,'2025-04-03','2025-04-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(394,64,'2025-04-08','2025-04-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(395,64,'2025-04-16','2025-04-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(396,64,'2025-04-24','2025-04-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(397,64,'2025-04-28','2025-04-28','CONTINENTE BOM DIA',125.91,'debit',0.00,2,3,0,0),
+(398,65,'2025-05-03','2025-05-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(399,65,'2025-05-07','2025-05-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(400,65,'2025-05-15','2025-05-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(401,65,'2025-05-22','2025-05-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(402,65,'2025-05-28','2025-05-28','CONTINENTE BOM DIA',115.66,'debit',0.00,2,3,0,0),
+(403,66,'2025-06-03','2025-06-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(404,66,'2025-06-08','2025-06-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(405,66,'2025-06-16','2025-06-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(406,66,'2025-06-24','2025-06-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(407,66,'2025-06-28','2025-06-28','CONTINENTE BOM DIA',119.91,'debit',0.00,2,3,0,0),
+(408,67,'2025-07-03','2025-07-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(409,67,'2025-07-07','2025-07-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(410,67,'2025-07-15','2025-07-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(411,67,'2025-07-22','2025-07-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(412,67,'2025-07-28','2025-07-28','CONTINENTE BOM DIA',118.66,'debit',0.00,2,3,0,0),
+(413,68,'2025-08-03','2025-08-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(414,68,'2025-08-08','2025-08-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(415,68,'2025-08-16','2025-08-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(416,68,'2025-08-24','2025-08-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(417,68,'2025-08-28','2025-08-28','CONTINENTE BOM DIA',122.91,'debit',0.00,2,3,0,0),
+(418,69,'2025-09-03','2025-09-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(419,69,'2025-09-07','2025-09-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(420,69,'2025-09-15','2025-09-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(421,69,'2025-09-22','2025-09-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(422,69,'2025-09-28','2025-09-28','CONTINENTE BOM DIA',112.66,'debit',0.00,2,3,0,0),
+(423,70,'2025-10-03','2025-10-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(424,70,'2025-10-08','2025-10-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(425,70,'2025-10-16','2025-10-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(426,70,'2025-10-24','2025-10-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(427,70,'2025-10-28','2025-10-28','CONTINENTE BOM DIA',125.91,'debit',0.00,2,3,0,0),
+(428,71,'2025-11-03','2025-11-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(429,71,'2025-11-07','2025-11-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(430,71,'2025-11-15','2025-11-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(431,71,'2025-11-22','2025-11-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(432,71,'2025-11-28','2025-11-28','CONTINENTE BOM DIA',115.66,'debit',0.00,2,3,0,0),
+(433,72,'2025-12-03','2025-12-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(434,72,'2025-12-08','2025-12-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(435,72,'2025-12-16','2025-12-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(436,72,'2025-12-24','2025-12-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(437,72,'2025-12-28','2025-12-28','CONTINENTE BOM DIA',119.91,'debit',0.00,2,3,0,0),
+(438,73,'2026-01-03','2026-01-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(439,73,'2026-01-07','2026-01-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(440,73,'2026-01-15','2026-01-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(441,73,'2026-01-22','2026-01-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(442,73,'2026-01-28','2026-01-28','CONTINENTE BOM DIA',118.66,'debit',0.00,2,3,0,0),
+(443,74,'2026-02-03','2026-02-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(444,74,'2026-02-08','2026-02-08','RESTAURANTE O PATEO',11.40,'debit',0.00,2,8,0,0),
+(445,74,'2026-02-16','2026-02-16','PINGO DOCE ALFAMA',23.85,'debit',0.00,2,4,0,0),
+(446,74,'2026-02-24','2026-02-24','PADARIA CENTRAL',6.70,'debit',0.00,NULL,NULL,0,0),
+(447,74,'2026-02-28','2026-02-28','CONTINENTE BOM DIA',122.91,'debit',0.00,2,3,0,0),
+(448,75,'2026-03-03','2026-03-03','CARREGAMENTO EMPRESA ABC LDA',167.86,'credit',0.00,8,NULL,1,0),
+(449,75,'2026-03-07','2026-03-07','RESTAURANTE O PATEO',12.10,'debit',0.00,2,8,0,0),
+(450,75,'2026-03-15','2026-03-15','PINGO DOCE ALFAMA',31.20,'debit',0.00,2,4,0,0),
+(451,75,'2026-03-22','2026-03-22','PADARIA CENTRAL',5.90,'debit',0.00,NULL,NULL,0,0),
+(452,75,'2026-03-28','2026-03-28','CONTINENTE BOM DIA',112.66,'debit',0.00,2,3,0,0);
+
+
+-- ============================================================
+-- 28. INVESTMENT ASSETS
+--     1: the ETF the Trade Republic savings plan buys, as the import creates
+--        it (matched by ISIN, no ticker, so no price fetch spends quota)
+--     2: physical gold in grams, entered by hand
+-- ============================================================
+
+INSERT INTO [InvestmentAssets] ([Id],[AssetType],[Ticker],[Isin],[Name],[Notes],[ImportedAt]) VALUES
+(1,'ETF',NULL,'IE00BK5BQT80','Vanguard Funds PLC - Vanguard FTSE All- World UCITS ETF (USD) Accumulating','Auto-created from a Trade Republic savings plan (IE00BK5BQT80). Set the ETF ticker to enable price updates.','2025-05-02 10:00:00'),
+(2,'Gold',NULL,NULL,'Gold coins and bars','Demo note: physical gold, priced per gram','2025-04-20 10:00:00');
+
+
+-- ============================================================
+-- 29. INVESTMENT LOTS
+--     1–12: one per savings-plan row in section 27: same date and quantity,
+--           unit price = amount / quantity (4 dp), no fees
+--     13–16: gold: three buys and one sell (negative quantity)
+-- ============================================================
+
+INSERT INTO [InvestmentLots] ([Id],[AssetId],[Date],[Quantity],[PricePerUnit],[Fees],[Notes],[ImportedAt]) VALUES
+( 1,1,'2025-04-02',1.266892,118.4000,0,'Trade Republic savings plan','2025-04-02 10:00:00'),
+( 2,1,'2025-05-02',1.248439,120.1500,0,'Trade Republic savings plan','2025-05-02 10:00:00'),
+( 3,1,'2025-06-02',1.230517,121.9000,0,'Trade Republic savings plan','2025-06-02 10:00:00'),
+( 4,1,'2025-07-02',1.206273,124.3500,0,'Trade Republic savings plan','2025-07-02 10:00:00'),
+( 5,1,'2025-08-02',1.218522,123.1000,0,'Trade Republic savings plan','2025-08-02 10:00:00'),
+( 6,1,'2025-09-02',1.182965,126.8000,0,'Trade Republic savings plan','2025-09-02 10:00:00'),
+( 7,1,'2025-10-02',1.158749,129.4499,0,'Trade Republic savings plan','2025-10-02 10:00:00'),
+( 8,1,'2025-11-02',1.170047,128.2000,0,'Trade Republic savings plan','2025-11-02 10:00:00'),
+( 9,1,'2025-12-02',1.139818,131.6000,0,'Trade Republic savings plan','2025-12-02 10:00:00'),
+(10,1,'2026-01-02',1.127396,133.0500,0,'Trade Republic savings plan','2026-01-02 10:00:00'),
+(11,1,'2026-02-02',1.147666,130.7000,0,'Trade Republic savings plan','2026-02-02 10:00:00'),
+(12,1,'2026-03-02',1.117318,134.2501,0,'Trade Republic savings plan','2026-03-02 10:00:00'),
+(13,2,'2025-04-17',20,93.50,12.00,'Demo note: 20 g bar','2025-04-17 10:00:00'),
+(14,2,'2025-08-21',10,99.40,8.00,'Demo note: two 5 g coins','2025-08-21 10:00:00'),
+(15,2,'2025-12-11',15,106.20,9.50,NULL,'2025-12-11 10:00:00'),
+(16,2,'2026-02-12',-12,109.60,6.00,'Demo note: sold part of the first bar','2026-02-12 10:00:00');
+
+
+-- ============================================================
+-- 30. INVESTMENT PRICE SNAPSHOTS  (both assets: the first of each month,
+--     and every day of the last week of February 2026)
+--     The last one falls on the first day of the newest month, so after
+--     seed-demo.ps1 moves the dates it is never in the future.
+-- ============================================================
+
+INSERT INTO [InvestmentPriceSnapshots] ([Id],[AssetId],[Date],[PricePerUnit],[ImportedAt]) VALUES
+( 1,1,'2025-04-01',118.40,'2025-04-01 18:00:00'),
+( 2,1,'2025-05-01',120.15,'2025-05-01 18:00:00'),
+( 3,1,'2025-06-01',121.90,'2025-06-01 18:00:00'),
+( 4,1,'2025-07-01',124.35,'2025-07-01 18:00:00'),
+( 5,1,'2025-08-01',123.10,'2025-08-01 18:00:00'),
+( 6,1,'2025-09-01',126.80,'2025-09-01 18:00:00'),
+( 7,1,'2025-10-01',129.45,'2025-10-01 18:00:00'),
+( 8,1,'2025-11-01',128.20,'2025-11-01 18:00:00'),
+( 9,1,'2025-12-01',131.60,'2025-12-01 18:00:00'),
+(10,1,'2026-01-01',133.05,'2026-01-01 18:00:00'),
+(11,1,'2026-02-01',130.70,'2026-02-01 18:00:00'),
+(12,1,'2026-02-22',130.95,'2026-02-22 18:00:00'),
+(13,1,'2026-02-23',131.40,'2026-02-23 18:00:00'),
+(14,1,'2026-02-24',130.85,'2026-02-24 18:00:00'),
+(15,1,'2026-02-25',132.10,'2026-02-25 18:00:00'),
+(16,1,'2026-02-26',132.65,'2026-02-26 18:00:00'),
+(17,1,'2026-02-27',133.20,'2026-02-27 18:00:00'),
+(18,1,'2026-02-28',133.70,'2026-02-28 18:00:00'),
+(19,1,'2026-03-01',134.25,'2026-03-01 18:00:00'),
+(20,2,'2025-04-01',93.10,'2025-04-01 18:00:00'),
+(21,2,'2025-05-01',94.80,'2025-05-01 18:00:00'),
+(22,2,'2025-06-01',96.25,'2025-06-01 18:00:00'),
+(23,2,'2025-07-01',97.40,'2025-07-01 18:00:00'),
+(24,2,'2025-08-01',99.15,'2025-08-01 18:00:00'),
+(25,2,'2025-09-01',101.60,'2025-09-01 18:00:00'),
+(26,2,'2025-10-01',104.30,'2025-10-01 18:00:00'),
+(27,2,'2025-11-01',103.75,'2025-11-01 18:00:00'),
+(28,2,'2025-12-01',106.90,'2025-12-01 18:00:00'),
+(29,2,'2026-01-01',109.20,'2026-01-01 18:00:00'),
+(30,2,'2026-02-01',108.45,'2026-02-01 18:00:00'),
+(31,2,'2026-02-22',108.70,'2026-02-22 18:00:00'),
+(32,2,'2026-02-23',109.15,'2026-02-23 18:00:00'),
+(33,2,'2026-02-24',109.80,'2026-02-24 18:00:00'),
+(34,2,'2026-02-25',110.25,'2026-02-25 18:00:00'),
+(35,2,'2026-02-26',110.90,'2026-02-26 18:00:00'),
+(36,2,'2026-02-27',111.35,'2026-02-27 18:00:00'),
+(37,2,'2026-02-28',111.60,'2026-02-28 18:00:00'),
+(38,2,'2026-03-01',111.80,'2026-03-01 18:00:00');
+
+
+-- ============================================================
+-- 31. MICRO1 CONTRACT (profile 4, categories 14–16, slips 31–33)
+--     As a micro1 invoice paired with its Deel withdrawal is saved: EUR
+--     amounts, net = EUR received (the Deel credits in section 27), the
+--     'Deel exchange fee' as a deduction, income − deductions = net.
+--     Slip 33 (Mar 2026) is a second pay run merged into the month: hours
+--     and amounts summed, both invoices named in SourceFile, the hourly
+--     rate weighted by hours.
+--     The profile's name starts with an accented letter (DISPLAY_ORDER).
+-- ============================================================
+
+INSERT INTO [SalaryProfiles] ([Id],[Name],[Description],[HourlyRateFormula]) VALUES
+(4,'Échelle Labs (micro1)','Hourly contract paid in USD through Deel','hours');
+
+INSERT INTO [SalaryItemCategories] ([Id],[SalaryProfileId],[Name],[Color],[ItemType],[IsProtected]) VALUES
+(14,4,'Base Pay',         '#3b82f6','income',   0),
+(15,4,'Other',            '#93c5fd','income',   0),
+(16,4,'Deel exchange fee','#f87171','deduction',0);
+
+INSERT INTO [SalarySlips]
+  ([Id],[SalaryProfileId],[Period],[GrossAmount],[NetAmount],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt],[BaseAmount],[HoursWorked],[HourlyRate],[TotalEspecie])
+VALUES
+(31,4,'2026-01-01',2135.78,2114.42,NULL,'micro1_invoice_2026_01.pdf',NULL,NULL,'2026-02-03 10:00:00',2135.78,80.00,26.70,NULL),
+(32,4,'2026-02-01',2169.22,2147.53,'Demo note: includes a one-off USD 50 bonus','micro1_invoice_2026_02.pdf',NULL,NULL,'2026-03-03 10:00:00',2126.35,80.00,26.58,NULL),
+(33,4,'2026-03-01',2185.27,2163.42,'Demo note: two pay runs merged into one month','micro1_invoice_2026_03a.pdf; micro1_invoice_2026_03b.pdf',NULL,NULL,'2026-04-03 10:00:00',2185.27,82.00,26.65,NULL);
+
+INSERT INTO [SalaryLineItems]
+  ([Id],[SalarySlipId],[SalaryItemCategoryId],[Amount],[SortOrder],[Quantity],[UnitValue],[Percentage],[IncidenciaBase])
+VALUES
+(112,31,14,2135.78,0,NULL,NULL,NULL,NULL),
+(113,31,16,21.36,1,NULL,NULL,NULL,NULL),
+(114,32,14,2126.35,0,NULL,NULL,NULL,NULL),
+(115,32,15,42.87,1,NULL,NULL,NULL,NULL),
+(116,32,16,21.69,2,NULL,NULL,NULL,NULL),
+(117,33,14,2185.27,0,NULL,NULL,NULL,NULL),
+(118,33,16,21.85,1,NULL,NULL,NULL,NULL);
+
+
+-- ============================================================
+-- 32. GROCERY RECEIPT CATEGORIES
+--     Continente receipts print a section name over each item
+--     (GroceryItems.ReceiptCategory); a mapping files every item of that
+--     section under a grocery category when no rule matches it.
+--     Grocery category 9 starts with an accented letter (DISPLAY_ORDER).
+--     'Congelados' is left unmapped, as a new section looks after upload.
+-- ============================================================
+
+INSERT INTO [GroceryCategories] ([Id],[Name],[Color],[IsProtected]) VALUES
+(9,'Óleos & Condimentos','#facc15',0);
+
+INSERT INTO [GroceryReceiptCategoryMappings] ([Id],[ReceiptCategoryName],[GroceryCategoryId]) VALUES
+(1,'Frutas e Legumes',1),
+(2,'Laticínios',2),
+(3,'Talho e Peixaria',3),
+(4,'Padaria',4),
+(5,'Bebidas',5),
+(6,'Limpeza',6),
+(7,'Higiene',7),
+(8,'Azeites e Óleos',9);
+
+-- The Continente receipts above carry their section names.
+UPDATE [GroceryItems]
+SET ReceiptCategory = CASE CategoryId
+    WHEN 1 THEN 'Frutas e Legumes'
+    WHEN 2 THEN 'Laticínios'
+    WHEN 3 THEN 'Talho e Peixaria'
+    WHEN 4 THEN 'Padaria'
+    WHEN 5 THEN 'Bebidas'
+    WHEN 6 THEN 'Limpeza'
+    WHEN 7 THEN 'Higiene'
+END
+WHERE ReceiptId BETWEEN 1 AND 12;
+
+-- Receipt 28: items filed by their section's mapping (no rule, not manual),
+-- one by a rule, and one in the unmapped section, so uncategorised.
+INSERT INTO [GroceryReceipts] ([Id],[StoreName],[ReceiptDate],[Total],[Notes],[SourceFile],[PdfPath],[FileHash],[ImportedAt]) VALUES
+(28,'Continente','2026-03-21',17.55,NULL,NULL,NULL,NULL,'2026-03-21T00:00:00');
+
+INSERT INTO [GroceryItems] ([Id],[ReceiptId],[Description],[Amount],[Quantity],[ReceiptCategory],[CategoryId],[CategoryRuleId],[CategorySetManually],[IsExcluded]) VALUES
+(124,28,'LEITE MIMOSA',1.89,1,'Laticínios',2,4,0,0),
+(125,28,'AZEITE VIRGEM EXTRA',7.49,1,'Azeites e Óleos',9,NULL,0,0),
+(126,28,'MACAS GALA',2.39,1,'Frutas e Legumes',1,NULL,0,0),
+(127,28,'ESPINAFRES',1.79,1,'Frutas e Legumes',1,NULL,0,0),
+(128,28,'GELADO BAUNILHA',3.99,1,'Congelados',NULL,NULL,0,0);
+
+
+-- ============================================================
 COMMIT TRANSACTION;
 -- ================================================
 -- Demo seed complete.
---   10 categories, 33 rules
---   51 statements (ActivoBank/BPI/Revolut 12 each; MBcp 3; CGD 12)
---   348 transactions (5 excluded; 2 amounts >= 10 000)
---   3 salary profiles, 30 slips, 111 line items
---     All 3 profiles have matching bank income transactions (CGD account)
+--   11 categories, 34 rules
+--   75 statements (ActivoBank/BPI/Revolut/CGD/Trade Republic/MEAL CARD 12 each; MBcp 3)
+--   452 transactions (excluded: 5 above, the internal transfers and the
+--     12 savings-plan buys; 2 amounts >= 10 000)
+--   4 salary profiles, 33 slips, 118 line items
+--     Profiles 1–3 have matching bank income (CGD account); profile 4's
+--     Deel payouts land on Trade Republic
 --     Profile 3 gross up to 8 500; slip 30 triggers salary parse warning
---   8 grocery categories, 15 rules
---   27 receipts (Continente 12 + Pingo Doce 12 + Mercadona 3)
---   123 items (3 excluded; 1 item @ 150.00; 1 item qty 12)
+--     Slip 33 merges two micro1 pay runs
+--   9 grocery categories, 15 rules, 8 receipt category mappings
+--   28 receipts (Continente 13 + Pingo Doce 12 + Mercadona 3)
+--   128 items (3 excluded; 1 item @ 150.00; 1 item qty 12)
+--   2 investment assets, 16 lots (1 sell), 38 price snapshots
 --   MBcp statement 39 triggers balance mismatch parse warning
 -- ================================================
