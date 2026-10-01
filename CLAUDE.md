@@ -60,7 +60,7 @@ The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the l
 1. **No real personal data in the repository**, docs included. Fixtures, seed data and
    screenshots are synthetic or come from the demo database.
 2. **No secrets in tracked files.** Local config lives in `local/environment.*` and
-   `appsettings.json`; production config in `/etc/beacon/environment`.
+   `appsettings.json`; production config in `local/environment` in the server's checkout.
 3. **Every category assignment goes through `ExcludedCategory.ApplyCategory`** (ADR-006).
    Never write `.CategoryId = …` directly.
 4. **Totals and charts count only non-excluded rows**: use `allTransactions` and
@@ -154,6 +154,7 @@ Before a task's PR:
 - The docs follow the code: ARCHITECTURE.md for how things work, a new ADR in DECISIONS.md
   for a settled decision, README.md (public) for setup, commands or environment variables,
   and this file for workflow and conventions.
+- A change to anything a deploy relies on (README.md, "Deployment") says so in its PR.
 - A visible change is shown in the PR at 1440 px and 390 px wide, captured against the demo
   database (`scripts/run-backend-demo.ps1`), never real data. Otherwise the description says
   `No visual change.`
@@ -162,8 +163,8 @@ Before a task's PR:
 
 - **`main` is what runs on the server** (ADR-021). It changes only through a release PR from
   `development`, merged with a merge commit, never squashed (a squashed release makes the
-  branches diverge). The server runs a checkout of `main`; how it is deployed is being
-  reworked (there is no deploy script).
+  branches diverge). The server runs a checkout of `main` and deploys each push to it by
+  itself (ADR-027; README.md, "Deployment"), so merging the release PR is the gate.
 - **`development` is integration.** Task branches are cut from it and come back through a PR,
   squash-merged.
 - **Branch names**: `prefix/NNN-work-name`, for example `fix/012-upload-timeout`.

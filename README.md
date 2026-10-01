@@ -280,9 +280,23 @@ Every backend test runs on its own SQLite database, in memory unless it needs a 
 
 ## Deployment
 
-Beacon runs on a home server, built from `main`, and is reached remotely over Tailscale. Nginx serves the Angular build as static files and forwards `/api/*` to Kestrel; the API runs as a `beacon` systemd service whose environment comes from `/etc/beacon/environment`.
+Beacon runs on a home server and is reached remotely over Tailscale. Nginx serves the Angular build as static files and forwards `/api/*` to Kestrel; the API runs as a systemd service whose environment comes from `local/environment` in the server's checkout (git-ignored; the variables from "Environment variables" above, and no `appsettings.json`).
 
-The way to deploy it is being reworked: the previous deploy script has been removed, and its replacement is not in the repository yet.
+The server runs a checkout of `main` (ADR-021) and deploys each new commit on it by itself (ADR-027), so merging a release PR puts it in production a few minutes later. The scripts that do it belong to the server's setup, not to this repository. A deploy:
+
+1. Fast-forwards the checkout, refusing local changes.
+2. Builds the API (`dotnet publish -c Release` in `api/Beacon.Api`, without symbols) with `scripts/pdfExtractor.py` copied beside it, and the client (`npm ci`, then `npx ng build --configuration=production` in `web/`).
+3. Puts `ApiKey` in place of the placeholder in the built client.
+4. Keeps the running release, stops the service, applies the migrations, installs the new release and starts it.
+5. Waits for `/api/health` to answer. If anything fails once the service is stopped, the previous release goes back. Migrations are never reverted.
+
+What a deploy relies on, so a change to any of it says so in its PR:
+
+- `dotnet publish -c Release` in `api/Beacon.Api` produces a runnable `Beacon.Api.dll`, and `npx ng build --configuration=production --output-path=<folder>` in `web/` puts the site in `<folder>/browser`, which Nginx serves.
+- `scripts/pdfExtractor.py` stays at that path; the deploy copies it beside the API, where `Python__ExtractorScript` points.
+- `web/src/environments/environment.prod.ts` carries `FINANCE_HUB_API_KEY_PLACEHOLDER`. The deploy fails if the built client lacks it, or still has it after the replacement.
+- Migrations apply with `dotnet tool restore && dotnet ef database update` in `api/Beacon.Api`, through the `dotnet-ef` pinned in `dotnet-tools.json`, with the connection string from the environment file.
+- `GET /api/health` answers 200 without the API key once the API is up, its database opens and no migration is pending (ADR-026).
 
 To check a running server, `GET /api/health` needs no API key: it answers 200 with `"status": "ok"` and the running `commit` when the API and its database work, and 503 with `"status": "degraded"` and the reason when they don't (`curl -i http://<server>/api/health`).
 
