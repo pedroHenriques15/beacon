@@ -8,10 +8,10 @@ public class DeelWithdrawalParserTests
     private readonly DeelWithdrawalParser _parser = new();
 
     private static string BuildSamplePage(
-        string source = "1,541.50",
-        string fee = "10.79",
-        string rate = "0.86788828",
-        string total = "1,328.49") => $"""
+        string source = "1,600.00",
+        string fee = "12.00",
+        string rate = "0.87654321",
+        string total = "1,391.95") => $"""
         Confirmation Statement
         Withdrawn from Pages 1 of 1
         Example account Deel transaction ID 99999999
@@ -42,7 +42,7 @@ public class DeelWithdrawalParserTests
     [Fact]
     public void CanParse_ReturnsFalseWhenDeelIdPresentButNoTotalSent()
     {
-        Assert.False(_parser.CanParse("Payment reference: Deel transaction ID 98712773"));
+        Assert.False(_parser.CanParse("Payment reference: Deel transaction ID 12345678"));
     }
 
     [Fact]
@@ -63,28 +63,28 @@ public class DeelWithdrawalParserTests
     public void Parse_ExtractsSourceAmount()
     {
         var w = _parser.Parse([BuildSamplePage()]);
-        Assert.Equal(1541.50m, w.SourceAmountUsd);
+        Assert.Equal(1600.00m, w.SourceAmountUsd);
     }
 
     [Fact]
     public void Parse_ExtractsExchangeFeeAsPositiveMagnitude()
     {
         var w = _parser.Parse([BuildSamplePage()]);
-        Assert.Equal(10.79m, w.ExchangeFeeUsd);
+        Assert.Equal(12.00m, w.ExchangeFeeUsd);
     }
 
     [Fact]
     public void Parse_ExtractsExchangeRate()
     {
         var w = _parser.Parse([BuildSamplePage()]);
-        Assert.Equal(0.86788828m, w.ExchangeRate);
+        Assert.Equal(0.87654321m, w.ExchangeRate);
     }
 
     [Fact]
     public void Parse_ExtractsTotalEur()
     {
         var w = _parser.Parse([BuildSamplePage()]);
-        Assert.Equal(1328.49m, w.TotalEur);
+        Assert.Equal(1391.95m, w.TotalEur);
     }
 
     [Fact]

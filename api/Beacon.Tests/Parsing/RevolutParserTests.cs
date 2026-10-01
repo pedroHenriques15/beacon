@@ -205,21 +205,21 @@ public class RevolutParserTests
     [Fact]
     public void Parse_AmountWithThousandSpaces_ParsesCorrectly()
     {
-        var summary = "Conta (Conta Corrente) 0,34€ 0,00€ 1 328,49€ 1 328,83€";
+        var summary = "Conta (Conta Corrente) 0,50€ 0,00€ 1 391,95€ 1 392,45€";
         var txLines = """
-            09/07/2026 10/07/2026 Anthropic 116,86€ 0,34€
-            17/07/2026 17/07/2026 Carregamento de DEEL, INC. 1 328,49€ 1 328,83€
+            09/07/2026 10/07/2026 Example Shop 42,10€ 0,50€
+            17/07/2026 17/07/2026 Carregamento de DEEL, INC. 1 391,95€ 1 392,45€
             """;
         var result = _parser.Parse(ValidFileName, [BuildPage(summary: summary, txLine: txLines)]);
 
-        Assert.Equal(0.34m, result.OpeningBalance);
-        Assert.Equal(1328.83m, result.ClosingBalance);
+        Assert.Equal(0.50m, result.OpeningBalance);
+        Assert.Equal(1392.45m, result.ClosingBalance);
 
         Assert.Equal(2, result.Transactions.Count);
         var deel = result.Transactions[1];
         Assert.Equal("Carregamento de DEEL, INC.", deel.Description);
-        Assert.Equal(1328.49m, deel.Amount);
+        Assert.Equal(1391.95m, deel.Amount);
         Assert.Equal("credit", deel.Type);
-        Assert.Equal(1328.83m, deel.Balance);
+        Assert.Equal(1392.45m, deel.Balance);
     }
 }

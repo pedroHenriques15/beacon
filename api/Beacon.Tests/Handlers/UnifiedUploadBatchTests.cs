@@ -73,20 +73,20 @@ public class UnifiedUploadBatchTests : IDisposable
             NullLogger<UnifiedUploadBatchCommandHandler>.Instance);
     }
 
-    private static string InvoiceText(string total = "1,541.50", string basePay = "1436.50", string other = "105.00") => $"""
+    private static string InvoiceText(string total = "1,600.00", string basePay = "1525.00", string other = "75.00") => $"""
         INVOICE
         BILL TO Micro1 Inc.
         Invoice for work between July 1, 2026 to July 15, 2026
-        Other: Project → Titan | Hours → 28.73 | Pay Rate → $50 | Base Pay → ${basePay} | Other → ${other} USD ${total}
+        Other: Project → Example Group | Hours → 30.50 | Pay Rate → $50 | Base Pay → ${basePay} | Other → ${other} USD ${total}
         Total USD ${total}
         """;
 
-    private static string WithdrawalText(string source = "1,541.50", string total = "1,328.49") => $"""
+    private static string WithdrawalText(string source = "1,600.00", string total = "1,391.95") => $"""
         Confirmation Statement
-        Deel transaction ID 98712773
+        Deel transaction ID 99999999
         Source amount ${source}
-        Exchange fees -$10.79
-        Exchange rate 1.00 USD = 0.86788828 EUR
+        Exchange fees -$12.00
+        Exchange rate 1.00 USD = 0.87654321 EUR
         Total sent €{total}
         """;
 
@@ -177,11 +177,11 @@ public class UnifiedUploadBatchTests : IDisposable
         var parsed = item.SalaryResult!.Parsed;
         Assert.Equal("Micro1", parsed.ParserName);
         Assert.Equal("Micro1 Inc.", parsed.Employer);
-        Assert.Equal(1337.85m, parsed.GrossAmount);
-        Assert.Equal(1328.49m, parsed.NetAmount);
-        Assert.Equal(1246.72m, parsed.LineItems.First(li => li.Description == "Base Pay").Amount);
-        Assert.Equal(91.13m, parsed.LineItems.First(li => li.Description == "Other").Amount);
-        Assert.Equal(9.36m, parsed.LineItems.First(li => li.Description == "Deel exchange fee").Amount);
+        Assert.Equal(1402.47m, parsed.GrossAmount);
+        Assert.Equal(1391.95m, parsed.NetAmount);
+        Assert.Equal(1336.73m, parsed.LineItems.First(li => li.Description == "Base Pay").Amount);
+        Assert.Equal(65.74m, parsed.LineItems.First(li => li.Description == "Other").Amount);
+        Assert.Equal(10.52m, parsed.LineItems.First(li => li.Description == "Deel exchange fee").Amount);
         Assert.Null(parsed.Warnings);
 
         // The client sends this back when it saves the slip: a file name, not a server path.
@@ -243,7 +243,7 @@ public class UnifiedUploadBatchTests : IDisposable
         await using var db = CreateDb();
         var handler = MakeHandler(db, new PerFileExtractor());
 
-        var text = ActivoBankPage + "\nNote: incoming payment from Micro1 Inc. Total USD $1,541.50";
+        var text = ActivoBankPage + "\nNote: incoming payment from Micro1 Inc. Total USD $1,600.00";
         var results = await handler.HandleAsync([MakeFile("jan.pdf", text)]);
 
         var item = Assert.Single(results);

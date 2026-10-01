@@ -7,30 +7,30 @@ public class Micro1ReconcilerTests
 {
     private static ParsedSalarySlip InvoiceUsd() => new(
         "Micro1 Inc.", null, new DateOnly(2026, 7, 1),
-        GrossAmount: 1541.50m, NetAmount: 1541.50m,
+        GrossAmount: 1600.00m, NetAmount: 1600.00m,
         LineItems:
         [
-            new ParsedSalaryLineItem("Base Pay", 1436.50m, "income"),
-            new ParsedSalaryLineItem("Other", 105.00m, "income"),
+            new ParsedSalaryLineItem("Base Pay", 1525.00m, "income"),
+            new ParsedSalaryLineItem("Other", 75.00m, "income"),
         ],
-        BaseAmount: 1436.50m, HoursWorked: 28.73m, HourlyRate: 50m);
+        BaseAmount: 1525.00m, HoursWorked: 30.50m, HourlyRate: 50m);
 
     private static DeelWithdrawal Withdrawal() => new(
-        SourceAmountUsd: 1541.50m, ExchangeFeeUsd: 10.79m,
-        ExchangeRate: 0.86788828m, TotalEur: 1328.49m);
+        SourceAmountUsd: 1600.00m, ExchangeFeeUsd: 12.00m,
+        ExchangeRate: 0.87654321m, TotalEur: 1391.95m);
 
     [Fact]
     public void Reconcile_ProducesEurGrossFromRate()
     {
         var slip = Micro1Reconciler.Reconcile(InvoiceUsd(), Withdrawal());
-        Assert.Equal(1337.85m, slip.GrossAmount);
+        Assert.Equal(1402.47m, slip.GrossAmount);
     }
 
     [Fact]
     public void Reconcile_NetIsWithdrawalTotalEur()
     {
         var slip = Micro1Reconciler.Reconcile(InvoiceUsd(), Withdrawal());
-        Assert.Equal(1328.49m, slip.NetAmount);
+        Assert.Equal(1391.95m, slip.NetAmount);
     }
 
     [Fact]
@@ -40,10 +40,10 @@ public class Micro1ReconcilerTests
 
         var basePay = slip.LineItems.First(i => i.Description == "Base Pay");
         var other = slip.LineItems.First(i => i.Description == "Other");
-        Assert.Equal(1246.72m, basePay.Amount);
+        Assert.Equal(1336.73m, basePay.Amount);
         Assert.Equal("income", basePay.ItemType);
         // "Other" absorbs rounding so income items sum exactly to gross.
-        Assert.Equal(91.13m, other.Amount);
+        Assert.Equal(65.74m, other.Amount);
         Assert.Equal("income", other.ItemType);
     }
 
@@ -53,7 +53,7 @@ public class Micro1ReconcilerTests
         var slip = Micro1Reconciler.Reconcile(InvoiceUsd(), Withdrawal());
 
         var fee = slip.LineItems.First(i => i.Description == "Deel exchange fee");
-        Assert.Equal(9.36m, fee.Amount);
+        Assert.Equal(10.52m, fee.Amount);
         Assert.Equal("deduction", fee.ItemType);
     }
 
@@ -61,9 +61,9 @@ public class Micro1ReconcilerTests
     public void Reconcile_ConvertsHourlyRateKeepsHours()
     {
         var slip = Micro1Reconciler.Reconcile(InvoiceUsd(), Withdrawal());
-        Assert.Equal(43.39m, slip.HourlyRate);
-        Assert.Equal(28.73m, slip.HoursWorked);
-        Assert.Equal(1246.72m, slip.BaseAmount);
+        Assert.Equal(43.83m, slip.HourlyRate);
+        Assert.Equal(30.50m, slip.HoursWorked);
+        Assert.Equal(1336.73m, slip.BaseAmount);
     }
 
     [Fact]
@@ -85,13 +85,13 @@ public class Micro1ReconcilerTests
     // A base-pay-only invoice (no "Other" earnings) — the whole gross is base pay.
     private static ParsedSalarySlip BasePayOnlyInvoiceUsd() => new(
         "Micro1 Inc.", null, new DateOnly(2026, 6, 1),
-        GrossAmount: 342.00m, NetAmount: 342.00m,
-        LineItems: [new ParsedSalaryLineItem("Base Pay", 342.00m, "income")],
-        BaseAmount: 342.00m, HoursWorked: 6.84m, HourlyRate: 50m);
+        GrossAmount: 360.00m, NetAmount: 360.00m,
+        LineItems: [new ParsedSalaryLineItem("Base Pay", 360.00m, "income")],
+        BaseAmount: 360.00m, HoursWorked: 7.20m, HourlyRate: 50m);
 
     private static DeelWithdrawal BasePayOnlyWithdrawal() => new(
-        SourceAmountUsd: 342.00m, ExchangeFeeUsd: 2.39m,
-        ExchangeRate: 0.86788828m, TotalEur: 294.75m);
+        SourceAmountUsd: 360.00m, ExchangeFeeUsd: 2.40m,
+        ExchangeRate: 0.87654321m, TotalEur: 313.45m);
 
     [Fact]
     public void Reconcile_BasePayOnlyInvoice_EmitsNoOtherLineItem()
