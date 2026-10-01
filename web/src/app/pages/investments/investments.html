@@ -5,6 +5,24 @@
       <p class="subtitle">ETFs and physical gold positions</p>
     </div>
     <div class="page-header__actions">
+      @if (pricesAsOf(); as asOf) {
+        <span class="inv-prices-as-of" [class.inv-prices-as-of--stale]="stalePrices()">
+          Prices as of {{ formatDate(asOf) }}
+          @if (syncEnabled() === false) {
+            <span title="This server doesn't sync prices (Prices__Enabled=false)">· sync off</span>
+          }
+        </span>
+      }
+      @if (syncEnabled()) {
+        <button
+          class="btn-secondary"
+          [disabled]="!!error() || syncing()"
+          (click)="syncPrices()"
+          title="Fetch the latest daily closes for every held asset"
+        >
+          {{ syncing() && syncingAssetId() == null ? 'Syncing…' : '⟳ Sync prices' }}
+        </button>
+      }
       <button class="btn-secondary" [disabled]="!!error()" (click)="openCreateAsset('ETF')">
         + Add ETF
       </button>
@@ -50,10 +68,10 @@
 
   <div class="inv-stats inv-stats--changes">
     <div class="inv-stat">
-      <span class="inv-stat__label">24h</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(change24h())">
-        @if (change24h() != null) {
-          {{ change24h()! >= 0 ? '+' : '' }}{{ change24h() | number: '1.2-2' }}%
+      <span class="inv-stat__label">1 day</span>
+      <span class="inv-stat__value" [ngClass]="pnlClass(change1d())">
+        @if (change1d() != null) {
+          {{ change1d()! >= 0 ? '+' : '' }}{{ change1d() | number: '1.2-2' }}%
         } @else {
           –
         }
@@ -91,11 +109,11 @@
     </div>
   </div>
 
-  @if (fetchError()) {
-    <div class="inv-fetch-error">{{ fetchError() }}</div>
+  @if (actionError()) {
+    <div class="inv-fetch-error">{{ actionError() }}</div>
   }
-  @if (backfillNotice()) {
-    <div class="inv-backfill-notice">{{ backfillNotice() }}</div>
+  @if (syncNotice()) {
+    <div class="inv-sync-notice">{{ syncNotice() }}</div>
   }
 
   <!-- Tab bar -->
@@ -130,6 +148,9 @@
             >
               {{ m.asset.assetType }}
             </span>
+            @if (m.pricesStale) {
+              <span class="inv-stale-badge" [title]="staleTitle(m)">Stale</span>
+            }
           </div>
 
           <div class="inv-asset-metrics">
@@ -174,10 +195,10 @@
               </span>
             </div>
             <div class="inv-metric inv-metric--change">
-              <span class="inv-metric__label">24h</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.change24h)">
-                @if (m.change24h != null) {
-                  {{ m.change24h >= 0 ? '+' : '' }}{{ m.change24h | number: '1.1-1' }}%
+              <span class="inv-metric__label">1 day</span>
+              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1d)">
+                @if (m.change1d != null) {
+                  {{ m.change1d >= 0 ? '+' : '' }}{{ m.change1d | number: '1.1-1' }}%
                 } @else {
                   –
                 }
@@ -217,14 +238,16 @@
           </div>
 
           <div class="inv-asset-actions" (click)="$event.stopPropagation()">
-            <button
-              class="btn-secondary btn--sm"
-              [disabled]="fetchingAssetId() === m.asset.id"
-              (click)="fetchPrice(m.asset)"
-              title="Fetch latest price from Alpha Vantage"
-            >
-              {{ fetchingAssetId() === m.asset.id ? '…' : '⟳' }}
-            </button>
+            @if (syncEnabled()) {
+              <button
+                class="btn-secondary btn--sm"
+                [disabled]="syncing()"
+                (click)="syncPrices(m.asset)"
+                title="Sync this asset's daily closes"
+              >
+                {{ syncingAssetId() === m.asset.id ? '…' : '⟳' }}
+              </button>
+            }
             <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'buy')">
               Buy
             </button>
@@ -242,20 +265,31 @@
         <!-- Expanded body -->
         @if (expandedAssetId() === m.asset.id) {
           <div class="inv-asset-body">
-            @if (needsBackfill(m.asset)) {
-              <div class="inv-backfill-hint">
+            @if (m.pricesStale) {
+              <div class="inv-stale-hint">
                 <span>
-                  Price history doesn't reach back to your first purchase - Backfill imports daily
-                  closes since then (uses 1 of the 5 daily manual quota calls).
+                  @if (m.asset.priceSyncError) {
+                    Prices could not be synced: {{ m.asset.priceSyncError }}
+                  } @else if (m.latestPriceDate) {
+                    The latest price is from {{ formatDate(m.latestPriceDate) }}.
+                  } @else {
+                    No price yet.
+                  }
                 </span>
-                <button
-                  class="btn-secondary btn--sm"
-                  [disabled]="backfillingAssetId() === m.asset.id"
-                  (click)="backfillHistory(m.asset)"
-                >
-                  {{ backfillingAssetId() === m.asset.id ? 'Backfilling…' : 'Backfill History' }}
-                </button>
+                @if (syncEnabled()) {
+                  <button
+                    class="btn-secondary btn--sm"
+                    [disabled]="syncing()"
+                    (click)="syncPrices(m.asset)"
+                  >
+                    {{ syncingAssetId() === m.asset.id ? 'Syncing…' : 'Sync now' }}
+                  </button>
+                }
               </div>
+            } @else if (m.latestPriceDate) {
+              <p class="inv-close-date">
+                Valued at the close of {{ formatDate(m.latestPriceDate) }}.
+              </p>
             }
 
             <!-- Lots table -->
@@ -318,29 +352,53 @@
               (click)="togglePriceHistory()"
             >
               <span class="inv-section-toggle__chevron" [class.open]="priceHistoryOpen()">▸</span>
-              Price History ({{ m.asset.priceSnapshots.length }})
+              Price History ({{ m.asset.priceCount }})
             </button>
             <app-asset-history-chart
-              [snapshots]="m.asset.priceSnapshots"
+              [snapshots]="expandedPrices() ?? m.asset.priceSnapshots"
               [range]="historyRange()"
             />
             @if (priceHistoryOpen()) {
-              @if (m.asset.priceSnapshots.length === 0) {
+              @if (m.asset.priceCount === 0) {
                 <p class="inv-empty">No prices recorded yet.</p>
+              } @else if (expandedPrices() == null) {
+                <p class="inv-empty">Loading prices…</p>
               } @else {
                 <table class="inv-table inv-table--compact">
                   <thead>
                     <tr>
                       <th>Date</th>
                       <th>Price/Unit</th>
+                      <th>Source</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    @for (snap of m.asset.priceSnapshots; track snap.id) {
+                    @for (snap of expandedPrices()!.slice(0, priceRowsShown()); track snap.id) {
                       <tr>
                         <td>{{ formatDate(snap.date) }}</td>
                         <td>{{ snap.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
+                        <td>
+                          @switch (snap.source) {
+                            @case ('Manual') {
+                              <span
+                                class="inv-source-badge"
+                                title="Entered by hand: a sync never replaces it"
+                                >Manual</span
+                              >
+                            }
+                            @case ('Legacy') {
+                              <span
+                                class="inv-source-muted"
+                                title="Stored before price sources were recorded: an older fetched quote or a price entered by hand. A sync replaces it with that day's close, when there is one."
+                                >Earlier</span
+                              >
+                            }
+                            @default {
+                              <span class="inv-source-muted">Close</span>
+                            }
+                          }
+                        </td>
                         <td class="inv-table__actions">
                           <button class="btn-danger btn--xs" (click)="deletePrice(snap)">
                             Del
@@ -350,6 +408,11 @@
                     }
                   </tbody>
                 </table>
+                @if (expandedPrices()!.length > priceRowsShown()) {
+                  <button type="button" class="btn-secondary btn--sm" (click)="showMorePrices()">
+                    Show older prices
+                  </button>
+                }
               }
             }
           </div>
@@ -379,7 +442,7 @@
               <button
                 class="inv-range-btn"
                 [class.active]="historyRange() === r"
-                (click)="historyRange.set(r)"
+                (click)="setHistoryRange(r)"
               >
                 {{ r }}
               </button>
@@ -438,10 +501,13 @@
         <input
           class="field-input"
           type="text"
-          placeholder="e.g. VWCE"
+          placeholder="e.g. VWCE.DE"
           [value]="modalTicker()"
           (input)="modalTicker.set($any($event.target).value)"
         />
+        <p class="field-hint">
+          The Yahoo Finance symbol of the EUR listing: on Xetra, the ticker ending in .DE.
+        </p>
       }
 
       <label class="field-label">Name</label>

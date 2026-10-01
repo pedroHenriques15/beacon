@@ -50,7 +50,7 @@ Grocery receipts from Continente can be uploaded as PDFs. Items are extracted, m
 
 Meal-card statements (which have no PDF export) are imported by pasting the transaction history as text.
 
-The Investments page tracks ETF and physical gold positions: buy/sell lots with fees, average-cost P&L (realised and unrealised), price change over 24h/1 week/1 month/since purchase, an allocation chart and portfolio value history. Prices come from Alpha Vantage (free tier): automatic refresh during market hours plus a one-call backfill of daily price history back to your first purchase. Gold is tracked in grams; ETFs are assumed EUR-listed.
+The Investments page tracks ETF and physical gold positions: buy/sell lots with fees, average-cost P&L (realised and unrealised), price change over 1 day/1 week/1 month/since purchase, an allocation chart and portfolio value history. Beacon keeps its own daily price history: the first sync of an asset stores 15 years of daily closes, then one sync a day after the European close adds the latest one. Closes come from Yahoo Finance and an ETF known only by its ISIN gets its ticker from OpenFIGI, both without a key or a daily quota, so the server needs outbound HTTPS to `query1.finance.yahoo.com` and `api.openfigi.com`. Prices entered by hand are never overwritten, and stale prices are flagged on the page and in `/api/health`. Gold is tracked in grams; ETFs are assumed EUR-listed.
 
 Beyond finance, the app integrates with Google Calendar and Google Tasks (optional): the Calendar page shows your events and tasks, supports creating/editing both, and works fully offline from Google with a graceful empty state. The Settings page manages the Google connection and database backup/restore, including downloading the backup file.
 
@@ -219,9 +219,11 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `ConnectionStrings__DefaultConnection` | The SQLite database file: `Data Source=<path>`                                                |
 | `Python__Executable`                   | Python binary (`python` or `python3`)                                                         |
 | `Python__ExtractorScript`              | Absolute path to `scripts/pdfExtractor.py`                                                    |
-| `AlphaVantage__ApiKey`                 | Alpha Vantage API key (optional - only needed for investment price fetching)                  |
-| `AlphaVantage__DailyQuota`             | Alpha Vantage daily request quota (default 25)                                                |
-| `AlphaVantage__ReservedForManual`      | Quota reserved for manual fetches and backfills (default 5)                                   |
+| `Prices__Enabled`                      | Sync investment prices (default `true`; set `false` for a demo or offline setup)              |
+| `Prices__HistoryYears`                 | Years of daily closes the first sync of an asset stores (default 15)                          |
+| `Prices__DailyRunTime`                 | Time of the daily price sync, UTC (default `22:00`)                                           |
+| `Prices__GoldProxySymbol`              | EUR-listed gold ETC that prices gold per gram (default `4GLD.DE`)                             |
+| `Prices__JumpWarningPercent`           | Day-to-day price move that logs a warning (default 20)                                        |
 | `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional - only needed for Google Calendar/Tasks sync)            |
 | `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
 | `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console (see below)                             |
@@ -274,7 +276,7 @@ cd web && npm audit --audit-level=high
 
 CI also lists the NuGet packages of `scripts/SeedRunner`, which is not in `beacon.sln`. Dependabot proposes minor and patch updates every week (`.github/dependabot.yml`).
 
-Every backend test runs on its own SQLite database, in memory unless it needs a database file that is missing or damaged. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, the health check, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Every backend test runs on its own SQLite database, in memory unless it needs a database file that is missing or damaged. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, the health check, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including the daily price sync, its sources, ISIN lookup and failures, a changed ticker, stale prices across exchange holidays, and the price source's parsing and retries on synthetic responses) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 

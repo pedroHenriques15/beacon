@@ -1,0 +1,65 @@
+// Price freshness and sync: the "as of" date, stale warnings, sync results, price sources.
+
+.inv-prices-as-of {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+
+  &--stale {
+    color: var(--warning);
+  }
+}
+
+.inv-stale-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.inv-stale-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+
+  button {
+    flex-shrink: 0;
+  }
+}
+
+.inv-close-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.inv-sync-notice {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.inv-source-badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.inv-source-muted {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

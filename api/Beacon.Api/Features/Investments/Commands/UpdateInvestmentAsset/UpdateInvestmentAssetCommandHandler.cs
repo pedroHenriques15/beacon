@@ -1,23 +1,23 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
+using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
 
 public record UpdateInvestmentAssetCommand(int Id, string? Ticker, string Name, string? Notes);
 
-public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
+public class UpdateInvestmentAssetCommandHandler(AppDbContext db, PriceSyncQueue priceSyncQueue)
 {
     public async Task<(InvestmentAssetResponse? Result, string? Error)> HandleAsync(
         UpdateInvestmentAssetCommand command, CancellationToken ct = default)
     {
         var asset = await db.InvestmentAssets
             .Include(a => a.Lots)
-            .Include(a => a.PriceSnapshots)
-            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == command.Id, ct);
 
         if (asset is null) return (null, null);
+        var previousTicker = asset.Ticker;
 
         if (string.IsNullOrWhiteSpace(command.Name))
             return (null, "Name is required.");
@@ -46,14 +46,17 @@ public class UpdateInvestmentAssetCommandHandler(AppDbContext db)
         asset.Name = command.Name.Trim();
         asset.Notes = command.Notes?.Trim();
         await db.SaveChangesAsync(ct);
+        if (asset.Ticker != previousTicker) priceSyncQueue.Enqueue(asset.Id);
+
+        var lots = asset.Lots.OrderByDescending(l => l.Date)
+            .Select(l => new InvestmentLotResponse(l.Id, l.AssetId, l.Date, l.Quantity, l.PricePerUnit, l.Fees, l.Notes))
+            .ToList();
+        var prices = await RecentPrices.LoadAsync(
+            db, new Dictionary<int, DateOnly?> { [asset.Id] = lots.Select(l => (DateOnly?)l.Date).Min() }, ct);
+        var (count, recent) = prices.GetValueOrDefault(asset.Id, (0, []));
 
         return (new InvestmentAssetResponse(
-            asset.Id, asset.AssetType, asset.Ticker, asset.Name, asset.Notes,
-            asset.Lots.OrderByDescending(l => l.Date)
-                .Select(l => new InvestmentLotResponse(l.Id, l.AssetId, l.Date, l.Quantity, l.PricePerUnit, l.Fees, l.Notes))
-                .ToList(),
-            asset.PriceSnapshots.OrderByDescending(p => p.Date)
-                .Select(p => new InvestmentPriceSnapshotResponse(p.Id, p.AssetId, p.Date, p.PricePerUnit))
-                .ToList()), null);
+            asset.Id, asset.AssetType, asset.Ticker, asset.Isin, asset.Name, asset.Notes,
+            asset.PricesSyncedAt, asset.PriceSyncError, count, lots, recent), null);
     }
 }

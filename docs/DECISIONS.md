@@ -91,7 +91,8 @@ ETFs are assumed EUR-listed (UCITS) and their quotes are stored as EUR. Gold qua
 grams, priced through an EUR-listed physical gold ETC (`AlphaVantage__GoldProxyTicker`,
 default `4GLD.DEX`, one unit = one gram), because Alpha Vantage removed XAU from its currency
 endpoints. The proxy trades at a small premium or discount to spot; accepted. A
-non-EUR-listed ticker must not be added.
+non-EUR-listed ticker must not be added. Since ADR-028 the proxy is
+`Prices__GoldProxySymbol` (default `4GLD.DE`, the same ETC in the new source's symbols).
 
 ## ADR-012 · Alpha Vantage free tier, spread across the trading day
 
@@ -100,7 +101,7 @@ Prices come from Alpha Vantage's free tier (25 requests a day).
 hours, 13 s apart, and skips the startup refresh when every asset already has today's
 snapshot; a history backfill is one request per asset and refuses to re-bill. Failures are
 logged and never stop the host. Free-tier closes are unadjusted, so splits and distributions
-can step the history; accepted.
+can step the history; accepted. Superseded by ADR-028.
 
 ## ADR-013 · P&L uses average cost basis, computed in the client
 
@@ -250,3 +251,27 @@ image (a second runtime and a registry for one machine); CI deploying over the p
 (network credentials and SSH keys as repository secrets, and the server reachable from CI);
 artifacts built by CI (storage for one machine that builds them itself). Cost accepted:
 whatever reaches `main` runs minutes later, so the release PR (ADR-021) is the only gate.
+
+## ADR-028 · Daily closes are stored locally, synced once a day from Yahoo Finance
+
+Since 2026-10-01 Beacon keeps every held asset's daily closes in `InvestmentPriceSnapshots`
+instead of asking a quota-limited API for quotes: the first sync stores the last
+`Prices__HistoryYears` (15) years, then one sync a day after the European close
+(`Prices__DailyRunTime`, 22:00 UTC) adds the latest close with one request per asset. Closes
+come from Yahoo Finance's chart endpoint (no key, the whole history in one request); an ETF
+known only by its ISIN gets its ticker from OpenFIGI's mapping (the German composite listing,
+kept only if Yahoo prices it in EUR, ADR-011). Each price records its source: a sync replaces
+`Synced` and `Legacy` rows (those stored before sources were, Alpha Vantage's intraday quotes
+among them) but never a `Manual` one. Stale prices show on the Investments page and in
+`/api/health` as `prices`, which never changes the overall status (deploys gate on it,
+ADR-027). Alternatives: Alpha Vantage's free tier (25 requests a day, and its full daily
+history became premium-only); Stooq's CSV download (free, but since 2026 behind a key obtained
+through a captcha, and no ISIN lookup); paid data APIs (a bill for a personal app). Costs
+accepted: Yahoo's endpoint is unofficial and undocumented, so it may change without notice and
+needs a browser-like `User-Agent`; its closes are adjusted for splits but not for distributions
+(it offers no unadjusted series), so after a split the history before it no longer matches the
+lots' prices, which is rare for UCITS ETFs; Yahoo sometimes lacks a day's close, which the next
+sync (it starts a week back) fills if Yahoo does. Prices count as stale when more than one
+Xetra trading day behind, so weekends and exchange holidays never raise a false warning.
+If Yahoo stops answering, the fallback is a second `IPriceHistorySource` reading Stooq, and in
+the meantime prices entered by hand.

@@ -1,6 +1,7 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
 using Beacon.Api.Models;
+using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
@@ -13,7 +14,7 @@ public record CreateInvestmentLotCommand(
     decimal? Fees,
     string? Notes);
 
-public class CreateInvestmentLotCommandHandler(AppDbContext db)
+public class CreateInvestmentLotCommandHandler(AppDbContext db, PriceSyncQueue priceSyncQueue)
 {
     public async Task<(InvestmentLotResponse? Result, string? Error)> HandleAsync(
         CreateInvestmentLotCommand command, CancellationToken ct = default)
@@ -49,6 +50,11 @@ public class CreateInvestmentLotCommandHandler(AppDbContext db)
 
         db.InvestmentLots.Add(lot);
         await db.SaveChangesAsync(ct);
+
+        // A first buy: fetch the asset's history now rather than at the next daily run.
+        if (lot.Quantity > 0 && !await db.InvestmentPriceSnapshots.AnyAsync(
+                p => p.AssetId == lot.AssetId && p.Source == PriceSources.Synced, ct))
+            priceSyncQueue.Enqueue(lot.AssetId);
 
         return (new InvestmentLotResponse(lot.Id, lot.AssetId, lot.Date, lot.Quantity, lot.PricePerUnit, lot.Fees, lot.Notes), null);
     }

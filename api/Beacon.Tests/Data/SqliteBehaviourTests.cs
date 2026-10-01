@@ -5,6 +5,7 @@ using Beacon.Api.Features.Groceries.Queries.GetGroceryReceipts;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
 using Beacon.Api.Features.Transactions.Queries.GetTransactions;
 using Beacon.Api.Models;
+using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -152,7 +153,7 @@ public class SqliteBehaviourTests
         var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "VWCE", Name = "Vanguard FTSE All-World" };
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
-        var handler = new CreateInvestmentLotCommandHandler(db);
+        var handler = new CreateInvestmentLotCommandHandler(db, TestPricing.Queue());
         await handler.HandleAsync(new CreateInvestmentLotCommand(asset.Id, new DateOnly(2026, 1, 5), 0.031295m, 97.81m, null, null));
         await handler.HandleAsync(new CreateInvestmentLotCommand(asset.Id, new DateOnly(2026, 2, 5), 0.5m, 99.2m, null, null));
 

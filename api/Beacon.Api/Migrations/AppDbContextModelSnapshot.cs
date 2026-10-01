@@ -313,6 +313,19 @@ namespace Beacon.Api.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<string>("PriceSyncError")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("PricesSymbol")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime?>("PricesSyncedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Ticker")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT")
@@ -383,6 +396,12 @@ namespace Beacon.Api.Migrations
                     b.Property<decimal>("PricePerUnit")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
 
                     b.HasKey("Id");
 

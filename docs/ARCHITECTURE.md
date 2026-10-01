@@ -55,8 +55,9 @@ beacon/
 │   │   ├── Middleware/           # ApiKeyMiddleware, ExceptionHandlingMiddleware
 │   │   ├── Migrations/           # EF Core generated migrations
 │   │   ├── Models/               # Domain entities
-│   │   ├── Services/             # Upload services, storage, Google, Alpha Vantage, PDF extractor
-│   │   │   └── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
+│   │   ├── Services/             # Upload services, storage, Google, PDF extractor
+│   │   │   ├── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
+│   │   │   └── Pricing/          # Price source (Yahoo, OpenFIGI), daily sync, queue, Xetra calendar
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
@@ -383,18 +384,17 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 
 Entities: `InvestmentAsset` (`AssetType` is `ETF` or `Gold`; optional `Isin` with a filtered
 unique index, used to match auto-imported holdings), `InvestmentLot` (signed `Quantity`
-`decimal(18,6)`: positive = buy, negative = sell), `InvestmentPriceSnapshot` (unique
-`(AssetId, Date)` index). Endpoints live in `Controllers/InvestmentsController.cs` under
-`/api/investments`; handlers follow the tuple-result pattern `(Result?, Error?)` where
-`(null, null)` maps to 404.
+`decimal(18,6)`: positive = buy, negative = sell), `InvestmentPriceSnapshot` (one price per
+asset per day, unique `(AssetId, Date)` index; `Source` is `Manual`, `Synced` or `Legacy`).
+Endpoints live in `Controllers/InvestmentsController.cs` under `/api/investments`; handlers
+follow the tuple-result pattern `(Result?, Error?)` where `(null, null)` maps to 404.
 
 Conventions:
 
 - **Gold is tracked in grams** (ADR-011): `Quantity` = grams, `PricePerUnit` = EUR/gram.
-  Alpha Vantage removed XAU from its currency endpoints, so gold is priced via an EUR-listed
-  physical gold ETC proxy (`AlphaVantage__GoldProxyTicker`, default `4GLD.DEX` = Xetra-Gold,
-  1 unit = 1 gram → quotes are already EUR/gram, no troy-ounce conversion). The proxy trades
-  at a small premium/discount to spot.
+  Gold is priced via an EUR-listed physical gold ETC proxy (`Prices__GoldProxySymbol`,
+  default `4GLD.DE` = Xetra-Gold, 1 unit = 1 gram → quotes are already EUR/gram, no
+  troy-ounce conversion). The proxy trades at a small premium/discount to spot.
 - **ETFs are assumed EUR-listed (UCITS)**: quotes are stored as EUR with no FX conversion. Do
   not add non-EUR-listed tickers.
 - Sells are validated against net holdings (server and client); editing a lot preserves its
@@ -407,23 +407,65 @@ Conventions:
   `TRADE REPUBLIC` statement. It turns each `Savings plan execution` row (already excluded
   from spending) into an `InvestmentLot`: ISIN + quantity parsed from the description,
   `PricePerUnit = amount / quantity`, `Fees = 0`. The ETF asset is created on first sight,
-  matched by `Isin`, with `Ticker` left null (the user sets it to enable Alpha Vantage
-  pricing; e.g. `VWCE.DEX` for `IE00BK5BQT80`). Idempotent: lots dedup by
+  matched by `Isin`, with `Ticker` left null and queued for a price sync, which finds the
+  ticker from the ISIN (e.g. `VWCE.DE` for `IE00BK5BQT80`). Idempotent: lots dedup by
   `(AssetId, Date, Quantity)`, and import failures are caught so they never fail the upload.
 
-Pricing (`AlphaVantageService`, free tier 25 requests/day, ADR-012):
+Pricing (ADR-028): daily closes are stored, not fetched on demand.
 
-- `GLOBAL_QUOTE` for both ETFs (own ticker) and gold (proxy ticker).
-- `POST /api/investments/assets/{id}/backfill` imports the full daily close history since the
-  asset's earliest lot (`TIME_SERIES_DAILY`: own ticker for ETFs, proxy ticker for gold; one
-  request per call, guarded against re-billing when history already reaches the first lot).
-  Free-tier closes are unadjusted; splits/distributions can step the history.
-- Malformed responses surface Alpha Vantage's `Error Message`/`Note`/`Information` fields as
-  user-facing errors (invalid key, rate limit, bad ticker).
-- `InvestmentPriceRefreshService` (hosted) refreshes all assets during US market hours,
-  spacing requests 13 s apart and spreading `DailyQuota - ReservedForManual` across the
-  session; the startup refresh is skipped when every asset already has a snapshot for today.
-  All failures are caught and logged; the service can never stop the host.
+- **Source**: `Services/Pricing/IPriceHistorySource`, implemented by
+  `YahooPriceHistorySource`. Closes come from Yahoo Finance's chart endpoint
+  (`/v8/finance/chart/{symbol}?period1&period2&interval=1d`) through the `yahoo-finance`
+  `HttpClient`, which sends a browser-like `User-Agent` (without one Yahoo answers 429). Each
+  bar's date is the exchange's (`meta.exchangeTimezoneName`); a bar without a close is skipped;
+  a listing not in EUR is refused (ADR-011). Yahoo's `close` is adjusted for splits but not for
+  distributions: after a split, closes before it no longer match the prices the lots were
+  bought at. An ISIN maps to a symbol through OpenFIGI (`openfigi` client, no key): the ticker
+  of the German composite listing (`exchCode` `GR`) plus `.DE`, kept only if Yahoo prices it in
+  EUR. Network errors, 429 and 5xx are retried up to three times (2 s, 5 s, 15 s); other
+  failures become a `PriceSourceException` whose message the user sees. One that never got an
+  answer is marked `Unavailable`, so an ISIN lookup fails with it rather than report that the
+  ISIN has no EUR listing.
+- **Sync** (`Features/Investments/Commands/SyncPriceHistory/`, `POST
+  /api/investments/prices/sync`, optional `assetId`): one asset, or every asset with net
+  quantity above zero. Gold uses `Prices__GoldProxySymbol`; an ETF its ticker, or, with only
+  an ISIN, the symbol found from it (never overwriting a ticker the user set). With no `Synced`
+  price yet it asks for `Prices__HistoryYears` (15) years; otherwise from seven days before the
+  latest `Synced` close, so gaps fill themselves. One request per asset. A close is inserted on
+  a new date, replaces a `Synced` or `Legacy` price, and never a `Manual` one
+  (`InvestmentPriceSnapshot.Source`; `UpsertInvestmentPrice` writes `Manual`, the migration
+  marked older rows `Legacy`). A move over `Prices__JumpWarningPercent` (20) from the previous
+  close is stored and logged as a warning. The asset keeps `PricesSyncedAt`, the last failure
+  in `PriceSyncError`, and the symbol its synced closes came from in `PricesSymbol`. When the
+  symbol changes (a corrected ticker, another gold proxy), the next sync fetches the whole
+  window again and removes the synced closes the new symbol has no close for; if it fails, the
+  old history stays. One asset's failure never stops the others. Syncs are serialised
+  in-process, since the `(AssetId, Date)` index allows one writer.
+- **Schedule**: `PriceHistorySyncService` (hosted) syncs every held asset at startup and daily
+  at `Prices__DailyRunTime` (22:00 UTC, after the European close), and any asset queued in
+  `PriceSyncQueue`: a new asset, a changed ticker, a first buy, an ETF created by a savings
+  plan. Queuing never makes the request wait for the price source. `Prices__Enabled=false`
+  turns it all off (the demo does): the sync endpoint answers 400, and
+  `GET /api/investments/prices/status` says `enabled: false`, so the page hides its sync
+  controls. Failures are logged and never stop the host.
+- **Serving**: `GET /api/investments/assets` carries each asset's `priceCount` and only the
+  prices its metrics read (`RecentPrices`, queried per asset: 40 days before the latest price,
+  plus the latest price at or before a week ago, a month ago and the first lot). The portfolio
+  value chart loads `GET /api/investments/prices/history?from=` (every asset's prices from the
+  chart's range, each series starting with the asset's latest price before it so a sparsely
+  priced asset is valued from the range's first day, as parallel `dates`/`prices` lists); an
+  expanded asset loads all its prices from `GET /api/investments/assets/{id}/prices`, where
+  each row shows its source (a close, `Manual`, or `Earlier` for `Legacy`). With 15 years for
+  three assets the asset list is about 8 KB instead of 790 KB.
+- **Staleness**: a held asset is stale when its last sync failed, or its latest price is
+  missing or more than one trading day behind: a close is synced the evening of its day, so
+  the newest to expect is the previous trading day's, and one missed sync is allowed
+  (`PriceSyncSettings.IsStale`). Trading days follow Xetra's calendar (`XetraCalendar`:
+  weekdays except 1 January, Good Friday, Easter Monday, 1 May and 24, 25, 26 and 31
+  December), which every `.DE` listing trades on; the client has a copy
+  (`core/utils/xetra-calendar.ts`). The Investments page marks a stale asset and shows the
+  error; `/api/health` reports `prices` as `ok`, `stale` or `disabled`, without changing its
+  status.
 
 ### Google OAuth, Calendar and Tasks
 
@@ -503,9 +545,9 @@ registered in Google Cloud Console at the same time.
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
-| `InvestmentPriceRefreshService` | Hosted service (`AddHostedService`) |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider` | Singleton |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
+| `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
 
@@ -598,9 +640,12 @@ with `status: "degraded"` and a `reason` otherwise: `database unreachable` (no f
 SQLite cannot read) or `migrations pending`. Both carry `version` and `commit`, split from the
 version the SDK stamps on the build (`1.0.0+<commit>` from a git checkout; `commit` is null
 otherwise), and `newestMigration`, the newest migration applied to the database, which after a
-rollback can be newer than the running release's. `GetHealthQueryHandler` checks that the file
-exists before reading it, since a query would make SQLite create a missing file, and logs only
-a degraded answer.
+rollback can be newer than the running release's. A healthy answer also carries `prices`:
+`ok`, `stale` (a held asset's latest price is missing or more than one Xetra trading day
+behind, or its last sync failed; see "Investments") or `disabled`; it never changes the
+status, since deploys gate on it. `GetHealthQueryHandler` checks that the file exists before
+reading it, since a query would make SQLite create a missing file, and logs only a degraded
+answer.
 
 ## Supported banks
 
@@ -633,10 +678,11 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `Python__Executable` | Python binary (`python` on Windows, `python3` on Linux) |
 | `Python__ExtractorScript` | Absolute path to `scripts/pdfExtractor.py` |
 | `Python__TimeoutSeconds` | PDF extraction timeout (default 60); the Python process is killed on expiry |
-| `AlphaVantage__ApiKey` | Alpha Vantage API key for investment price fetching |
-| `AlphaVantage__DailyQuota` | Alpha Vantage daily request quota (default 25) |
-| `AlphaVantage__ReservedForManual` | Quota reserved for manual price refreshes (default 5) |
-| `AlphaVantage__GoldProxyTicker` | EUR-listed gold ETC ticker used to price gold (default `4GLD.DEX`, 1 unit = 1 gram) |
+| `Prices__Enabled` | Sync investment prices (default `true`; `false` in the demo) |
+| `Prices__HistoryYears` | Years of daily closes the first sync of an asset stores (default 15) |
+| `Prices__DailyRunTime` | Time of the daily price sync, UTC (default `22:00`, after the European close) |
+| `Prices__GoldProxySymbol` | EUR-listed gold ETC used to price gold (default `4GLD.DE`, 1 unit = 1 gram) |
+| `Prices__JumpWarningPercent` | Day-to-day move that logs a warning (default 20) |
 | `GoogleServices__ClientId` | Google OAuth 2.0 client ID |
 | `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
 | `GoogleServices__RedirectUri` | OAuth redirect URI: `http://localhost:5098/...` for development, the Tailscale HTTPS name for remote access (see "Google OAuth, Calendar and Tasks") |
@@ -666,13 +712,18 @@ Trade Republic's block-based multi-line layout, and the micro1
 `ExceptionHandlingMiddleware`, `ApplyRuleService` (incl. Excluded-category rules setting
 `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
 stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
-Trade Republic savings-plan exclusion), `AlphaVantageService` (incl. request-URI pinning),
+Trade Republic savings-plan exclusion), `YahooPriceHistorySource` (chart and OpenFIGI
+parsing on synthetic responses, EUR check, retries, an unavailable source),
+`PriceHistorySyncService` (schedule, queue, turned off), `XetraCalendar` and stale prices,
+the price-source migration,
 CQRS handlers for Backup (incl. investment tables), Categories,
-Health (a missing, damaged or unmigrated database),
+Health (a missing, damaged or unmigrated database; prices ok, stale or disabled),
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
 Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell
-validation, price backfill), input validation, `GoogleOAuthService` (each connection state),
+validation, price sync with its sources, ISIN lookup and failures, a changed symbol, recent
+prices and history queries with the price carried into a range, sync status, sync triggers),
+input validation, `GoogleOAuthService` (each connection state),
 `GoogleCalendarService`, `GoogleTasksService`, the Calendar and Tasks controllers' Google
 error responses and the health route's status codes (`Controllers/`).
 

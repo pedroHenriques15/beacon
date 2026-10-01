@@ -27,11 +27,6 @@ Quality:
 - Firefox testing.
 - An error and non-error logging system.
 
-Investments:
-
-- Keep a local daily price history (about 15 years per held asset, one new close a day)
-  instead of fetching prices from a rate-limited API.
-
 ## Later
 
 - Import and export data from several pages.

@@ -24,9 +24,10 @@ public class UpsertInvestmentPriceCommandHandler(AppDbContext db)
         if (existing is not null)
         {
             existing.PricePerUnit = command.PricePerUnit;
+            existing.Source = PriceSources.Manual;
             existing.ImportedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            return (new InvestmentPriceSnapshotResponse(existing.Id, existing.AssetId, existing.Date, existing.PricePerUnit), null);
+            return (new InvestmentPriceSnapshotResponse(existing.Id, existing.AssetId, existing.Date, existing.PricePerUnit, existing.Source), null);
         }
 
         var snapshot = new InvestmentPriceSnapshot
@@ -34,12 +35,13 @@ public class UpsertInvestmentPriceCommandHandler(AppDbContext db)
             AssetId = command.AssetId,
             Date = command.Date,
             PricePerUnit = command.PricePerUnit,
+            Source = PriceSources.Manual,
             ImportedAt = DateTime.UtcNow,
         };
 
         db.InvestmentPriceSnapshots.Add(snapshot);
         await db.SaveChangesAsync(ct);
 
-        return (new InvestmentPriceSnapshotResponse(snapshot.Id, snapshot.AssetId, snapshot.Date, snapshot.PricePerUnit), null);
+        return (new InvestmentPriceSnapshotResponse(snapshot.Id, snapshot.AssetId, snapshot.Date, snapshot.PricePerUnit, snapshot.Source), null);
     }
 }

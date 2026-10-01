@@ -1,13 +1,14 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
 using Beacon.Api.Models;
+using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Investments.Commands.CreateInvestmentAsset;
 
 public record CreateInvestmentAssetCommand(string AssetType, string? Ticker, string Name, string? Notes);
 
-public class CreateInvestmentAssetCommandHandler(AppDbContext db)
+public class CreateInvestmentAssetCommandHandler(AppDbContext db, PriceSyncQueue priceSyncQueue)
 {
     private static readonly string[] ValidTypes = ["ETF", "Gold"];
 
@@ -49,7 +50,9 @@ public class CreateInvestmentAssetCommandHandler(AppDbContext db)
 
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync(ct);
+        priceSyncQueue.Enqueue(asset.Id);
 
-        return (new InvestmentAssetResponse(asset.Id, asset.AssetType, asset.Ticker, asset.Name, asset.Notes, [], []), null);
+        return (new InvestmentAssetResponse(
+            asset.Id, asset.AssetType, asset.Ticker, asset.Isin, asset.Name, asset.Notes, null, null, 0, [], []), null);
     }
 }
