@@ -25,6 +25,8 @@
     "@angular/build": "^21.2.24",
     "@angular/cli": "^21.2.24",
     "@angular/compiler-cli": "^21.2.25",
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "happy-dom": "^20.8.9",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
