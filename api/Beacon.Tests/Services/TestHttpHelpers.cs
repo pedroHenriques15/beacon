@@ -7,6 +7,14 @@ internal sealed class ThrowingHttpMessageHandler : HttpMessageHandler
         throw new InvalidOperationException("Unexpected HTTP call in this test.");
 }
 
+/// <summary>No answer at all: a network failure (HttpRequestException) or a timeout (TaskCanceledException).</summary>
+internal sealed class FailingHttpMessageHandler(Exception failure) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken) =>
+        throw failure;
+}
+
 internal sealed class FakeHttpMessageHandler(System.Net.HttpStatusCode status, string body)
     : HttpMessageHandler
 {

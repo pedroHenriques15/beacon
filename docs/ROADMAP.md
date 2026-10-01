@@ -12,7 +12,7 @@ removes it. Settled decisions go to DECISIONS.md.
 | Salary | built |
 | Groceries | built |
 | Investments | built · how transfers count in totals is open |
-| Calendar and tasks (Google) | built · reconnect bug open |
+| Calendar and tasks (Google) | built |
 | Workflow and tooling | markdown tasks, git hooks and CI formatting checks in place |
 
 ## Now
@@ -35,7 +35,6 @@ Tooling:
 
 Integrations:
 
-- Google appears connected, but the calendar does not load after a long time without use.
 - The Angular dev server warns that it is for local testing only when it is bound with
   `--host` ("It hasn't been reviewed for security issues"); decide how to serve the client
   to other devices without it.

@@ -4,6 +4,7 @@ using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Beacon.Tests.Services;
@@ -42,7 +43,7 @@ public class GoogleTasksServiceTests : IDisposable
         var cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         return new GoogleOAuthService(
             new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
-            CreateOAuthConfig(), db, cache);
+            CreateOAuthConfig(), db, cache, NullLogger<GoogleOAuthService>.Instance);
     }
 
     private static GoogleOAuthService CreateOAuthSvcNoToken(AppDbContext db)
@@ -50,7 +51,7 @@ public class GoogleTasksServiceTests : IDisposable
         var cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         return new GoogleOAuthService(
             new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
-            CreateOAuthConfig(), db, cache);
+            CreateOAuthConfig(), db, cache, NullLogger<GoogleOAuthService>.Instance);
     }
 
     private static GoogleTasksService CreateTasksSvc(
@@ -166,8 +167,9 @@ public class GoogleTasksServiceTests : IDisposable
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateTasksSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
-        await Assert.ThrowsAsync<GoogleNotConnectedException>(
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(
             () => svc.GetTasksAsync("list1"));
+        Assert.Equal(GoogleConnectionState.NotConnected, ex.State);
     }
 
     [Fact]

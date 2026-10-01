@@ -25,10 +25,8 @@ export class SettingsComponent implements OnInit {
   restoreMessage = signal('');
 
   ngOnInit(): void {
+    this.googleAuth.loadStatus();
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      if (params['google'] === 'connected' || params['google'] === 'error') {
-        this.googleAuth.loadStatus();
-      }
       if (params['google'] === 'error') {
         this.errorMessage.set('Could not connect to Google. Please try again.');
       }

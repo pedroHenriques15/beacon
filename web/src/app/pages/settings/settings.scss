@@ -30,6 +30,10 @@
     border-color: var(--success);
   }
 
+  &--expired {
+    border-color: var(--warning);
+  }
+
   &--loading {
     justify-content: center;
     min-height: 72px;
@@ -41,6 +45,10 @@
 
     &--muted {
       color: var(--text-muted);
+    }
+
+    &--warning {
+      color: var(--warning);
     }
   }
 
@@ -58,6 +66,17 @@
     font-size: 0.85rem;
     color: var(--text-muted);
     margin: 0;
+
+    &--warning {
+      color: var(--warning);
+      margin-top: 0.35rem;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-shrink: 0;
   }
 }
 
@@ -113,7 +132,8 @@
     gap: 0.75rem;
   }
 
-  .backup-card__actions {
+  .backup-card__actions,
+  .google-card__actions {
     flex-direction: column;
 
     button {

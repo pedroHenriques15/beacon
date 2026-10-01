@@ -4,6 +4,7 @@ using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Beacon.Tests.Services;
@@ -42,7 +43,7 @@ public class GoogleCalendarServiceTests : IDisposable
         var cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         return new GoogleOAuthService(
             new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
-            CreateOAuthConfig(), db, cache);
+            CreateOAuthConfig(), db, cache, NullLogger<GoogleOAuthService>.Instance);
     }
 
     private static GoogleOAuthService CreateOAuthSvcNoToken(AppDbContext db)
@@ -50,7 +51,7 @@ public class GoogleCalendarServiceTests : IDisposable
         var cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         return new GoogleOAuthService(
             new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
-            CreateOAuthConfig(), db, cache);
+            CreateOAuthConfig(), db, cache, NullLogger<GoogleOAuthService>.Instance);
     }
 
     private static GoogleCalendarService CreateCalendarSvc(
@@ -164,8 +165,9 @@ public class GoogleCalendarServiceTests : IDisposable
         var oauthSvc = CreateOAuthSvcNoToken(db);
         var svc = CreateCalendarSvc(oauthSvc, new ThrowingHttpMessageHandler());
 
-        await Assert.ThrowsAsync<GoogleNotConnectedException>(
+        var ex = await Assert.ThrowsAsync<GoogleConnectionException>(
             () => svc.GetEventsAsync(new DateTime(2026, 5, 1), new DateTime(2026, 5, 31)));
+        Assert.Equal(GoogleConnectionState.NotConnected, ex.State);
     }
 
     [Fact]

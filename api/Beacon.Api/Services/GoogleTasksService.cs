@@ -150,8 +150,7 @@ public class GoogleTasksService(GoogleOAuthService oauthService, IHttpClientFact
 
     private async Task<HttpClient> CreateClientAsync(CancellationToken ct)
     {
-        var token = await oauthService.GetValidAccessTokenAsync(ct)
-            ?? throw new GoogleNotConnectedException();
+        var token = await oauthService.GetValidAccessTokenAsync(ct);
 
         var client = httpClientFactory.CreateClient("google-tasks");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

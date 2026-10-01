@@ -60,6 +60,7 @@ beacon/
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
 │   └── Beacon.Tests/             # xUnit test project; SqliteTestDatabase gives each test an in-memory SQLite database
+│       ├── Controllers/          # Controller responses (Google connection errors)
 │       ├── Data/                 # SQLite behaviour, DatabaseCopier
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
@@ -429,7 +430,35 @@ Pricing (`AlphaVantageService`, free tier 25 requests/day, ADR-012):
 
 `Services/GoogleOAuthService.cs` manages Google OAuth tokens (ADR-017). It stores a single
 access + refresh token in the `GoogleOAuthTokens` table. Call `GetValidAccessTokenAsync()`
-from any service that needs to call Google APIs; it handles token refresh automatically.
+from any service that needs to call Google APIs: it refreshes an expired access token, and
+throws `GoogleConnectionException` when there is no token to use.
+
+The connection has four states (`GoogleConnectionState`), reported by
+`GET /api/auth/google/status` as `state` (with `connected`, true for the second and fourth):
+
+| State | Meaning |
+|---|---|
+| `notConnected` | No row in `GoogleOAuthTokens`. |
+| `connected` | The access token is valid, or was just refreshed. |
+| `reconnectRequired` | Google rejected the refresh token (`invalid_grant`: it expired or was revoked). |
+| `unreachable` | The access token expired and the refresh failed for another reason (network, timeout, Google error); the token is kept for the next attempt. |
+
+The status endpoint refreshes an expired access token before answering, so it tells the
+truth, not just whether a row exists. On `invalid_grant` the row is kept with both tokens
+blanked: a blank refresh token means `reconnectRequired` on every later check, until the
+account is connected again (which also resets `ConnectedAt`) or disconnected. Refresh failures
+are logged as warnings. Google expires a refresh token after 7 days while the OAuth consent
+screen's publishing status is "Testing", and after six months without use.
+
+The Calendar and Tasks endpoints map `GoogleConnectionException` through
+`Controllers/GoogleConnectionErrors.cs`, with a `code` next to `error`:
+
+| Response | When |
+|---|---|
+| 401 `google_not_connected` | No account is connected. |
+| 401 `google_reconnect_required` | The account must be connected again. |
+| 503 `google_unreachable` | Google could not be reached to refresh the token. |
+| 502 (no code) | Google's API answered with an error. |
 
 `/api/auth/google/callback` is **exempt from API key validation** (the redirect comes from
 Google's servers, with no `X-Api-Key` header). All other `/api/auth/google/*` endpoints
@@ -455,12 +484,21 @@ One-time setup:
 
 1. Create a Google Cloud project and enable the Calendar and Tasks APIs.
 2. Create OAuth 2.0 Web Client credentials.
-3. Add the redirect URI to `appsettings.json` under `GoogleServices:RedirectUri`.
-4. Set `GoogleServices:ClientId` and `GoogleServices:ClientSecret`.
+3. Set the OAuth consent screen's publishing status to "In production", so refresh tokens do
+   not expire after 7 days. The app stays unverified: Google shows a warning screen when you
+   connect, which is fine for personal use.
+4. Add the redirect URI to `appsettings.json` under `GoogleServices:RedirectUri`, and
+   register the same URI on the client in Google Cloud Console.
+5. Set `GoogleServices:ClientId`, `GoogleServices:ClientSecret` and
+   `GoogleServices:FrontendUrl`.
 
-For local development use `http://localhost:5098/api/auth/google/callback`; for Tailscale
-access use `http://<tailscale-ip>:5098/api/auth/google/callback`. Both can be registered in
-Google Cloud Console at the same time.
+Google accepts plain HTTP and IP addresses only for localhost: any other redirect URI must be
+HTTPS with a domain name. For local development use
+`http://localhost:5098/api/auth/google/callback`. For access over Tailscale, serve Beacon on
+its Tailscale HTTPS name (`tailscale serve`) and use
+`https://<device>.<tailnet>.ts.net/api/auth/google/callback`, with
+`GoogleServices:FrontendUrl` set to `https://<device>.<tailnet>.ts.net`. Both URIs can be
+registered in Google Cloud Console at the same time.
 
 ### DI lifetimes
 
@@ -490,6 +528,15 @@ All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModule
 
 `core/interceptors/api-key.interceptor.ts` injects `X-Api-Key: <apiKey>` on every request
 whose URL starts with `/api`. The interceptor is registered in `app.config.ts`.
+
+### Google connection
+
+`GoogleAuthService.status` holds the connection state (see "Google OAuth, Calendar and
+Tasks"); the Calendar and Settings pages call `loadStatus()` when they open.
+`core/interceptors/google-connection.interceptor.ts` watches `/api/calendar` and `/api/tasks`
+calls: an error with code `google_reconnect_required` or `google_not_connected` reloads the
+status while it still says connected, so both pages switch to their reconnect or connect state
+instead of showing an empty calendar.
 
 ## Database
 
@@ -582,8 +629,8 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `AlphaVantage__GoldProxyTicker` | EUR-listed gold ETC ticker used to price gold (default `4GLD.DEX`, 1 unit = 1 gram) |
 | `GoogleServices__ClientId` | Google OAuth 2.0 client ID |
 | `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
-| `GoogleServices__RedirectUri` | OAuth redirect URI (localhost for development, Tailscale IP for remote) |
-| `GoogleServices__FrontendUrl` | Angular app origin the OAuth callback redirects to (e.g. `http://localhost:4200`) |
+| `GoogleServices__RedirectUri` | OAuth redirect URI: `http://localhost:5098/...` for development, the Tailscale HTTPS name for remote access (see "Google OAuth, Calendar and Tasks") |
+| `GoogleServices__FrontendUrl` | Angular app origin the OAuth callback redirects to (e.g. `http://localhost:4200`, or `https://<device>.<tailnet>.ts.net`) |
 
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
 `scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
@@ -611,7 +658,8 @@ CQRS handlers for Backup (incl. investment tables), Categories,
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
 Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell
-validation, price backfill), input validation, `GoogleOAuthService`,
-`GoogleCalendarService`, `GoogleTasksService`.
+validation, price backfill), input validation, `GoogleOAuthService` (each connection state),
+`GoogleCalendarService`, `GoogleTasksService`, and the Calendar and Tasks controllers' Google
+error responses (`Controllers/`).
 
 Frontend: Vitest specs next to the code (`*.spec.ts`), run by `ng test`.
