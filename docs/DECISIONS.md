@@ -275,3 +275,22 @@ sync (it starts a week back) fills if Yahoo does. Prices count as stale when mor
 Xetra trading day behind, so weekends and exchange holidays never raise a false warning.
 If Yahoo stops answering, the fallback is a second `IPriceHistorySource` reading Stooq, and in
 the meantime prices entered by hand.
+
+## ADR-029 · Log files through Serilog, beside the console
+
+Since 2026-10-01 the API also writes its logs to daily files (`Logs__Path`, kept
+`Logs__Keep` days) that the Settings page reads back, and the web client reports its uncaught
+errors there. Serilog (`Serilog.Extensions.Logging`, `Serilog.Sinks.File`,
+`Serilog.Formatting.Compact`) is added as a second provider of `ILogger`, not as a replacement:
+the console output the server's journal already holds stays the same, and the level filters
+stay those of `Logging:LogLevel`, with defaults in code (production has no
+`appsettings.json`). The files are Serilog's compact JSON (CLEF), one event per line, which the
+API reads back and tools like `jq` understand. `Logs__Path` is optional: unset or unwritable
+means console only and a warning, never a failed start, so an older environment file still
+deploys. Alternatives: the console only (journald is out of reach from the app and the
+phone); Serilog replacing the providers (`UseSerilog`, its own level settings: changes the
+console and the server's existing `Logging__LogLevel__*` lines would stop working);
+`Microsoft.Extensions.Logging` has no file provider; a database table (log writes competing
+with the app's own, and logs lost with the database they would explain). Costs accepted: three
+packages; the files hold statement descriptions and paths, so they live under `local/` and are
+never committed; reading scans whole files, fine at a home server's volume.

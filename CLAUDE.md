@@ -40,7 +40,7 @@ data. Never `git add -f` an ignored file.
 
 ```
 api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per use case),
-                    Services/ (uploads, storage, Google, pricing), Services/Parsing/ (parsers),
+                    Services/ (uploads, storage, Google, pricing, logging), Services/Parsing/ (parsers),
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests, each on its own in-memory SQLite database
 web/src/app/        Angular 22 client: core/ (services, models, interceptors), pages/ (routes)

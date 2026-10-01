@@ -11,11 +11,12 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { DatePipe } from '@angular/common';
+import { SettingsLogsComponent } from './settings-logs';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, SettingsLogsComponent],
   templateUrl: './settings.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './settings.scss',

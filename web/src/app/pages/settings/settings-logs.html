@@ -1,0 +1,73 @@
+<div class="logs-filters">
+  <select class="field-select" aria-label="Level" (change)="setLevel($any($event.target).value)">
+    @for (level of levels; track level.value) {
+      <option [value]="level.value" [selected]="level.value === minLevel()">
+        {{ level.label }}
+      </option>
+    }
+  </select>
+  <select
+    class="field-select"
+    aria-label="Time window"
+    (change)="setWindow($any($event.target).value)"
+  >
+    @for (window of windows; track window.label) {
+      <!-- [selected] per option: a [value] on the select is set before the options exist. -->
+      <option [value]="window.hours ?? ''" [selected]="window.hours === windowHours()">
+        {{ window.label }}
+      </option>
+    }
+  </select>
+  <input
+    class="field-input logs-filters__search"
+    type="search"
+    placeholder="Search messages and errors"
+    aria-label="Search"
+    [value]="search()"
+    (keyup.enter)="setSearch($any($event.target).value)"
+    (search)="setSearch($any($event.target).value)"
+  />
+  <button class="btn-secondary" [disabled]="loading()" (click)="load()">
+    {{ loading() ? 'Loading…' : 'Refresh' }}
+  </button>
+</div>
+
+@if (error(); as message) {
+  <p class="logs-empty error-text">{{ message }}</p>
+} @else if (page(); as p) {
+  @if (!p.enabled) {
+    <p class="logs-empty">
+      This server writes no log files: set <code>Logs__Path</code> to a folder it can write to.
+    </p>
+  } @else if (p.entries.length === 0) {
+    <p class="logs-empty">No entries match.</p>
+  } @else {
+    <ul class="log-list">
+      @for (entry of p.entries; track $index) {
+        <li class="log-entry" [class]="levelClass(entry)">
+          <div class="log-entry__meta">
+            <time [attr.datetime]="entry.timestamp">{{
+              entry.timestamp | date: 'dd MMM HH:mm:ss'
+            }}</time>
+            <span class="log-entry__level">{{ entry.level }}</span>
+            @if (entry.source) {
+              <span class="log-entry__source" [title]="entry.source">{{ shortSource(entry) }}</span>
+            }
+          </div>
+          <p class="log-entry__message">{{ entry.message }}</p>
+          @if (entry.details) {
+            <details class="log-entry__details">
+              <summary>Details</summary>
+              <pre>{{ entry.details }}</pre>
+            </details>
+          }
+        </li>
+      }
+    </ul>
+    @if (p.more) {
+      <p class="logs-empty">
+        Showing the newest {{ limit }} entries; narrow the filters to see older ones.
+      </p>
+    }
+  }
+}

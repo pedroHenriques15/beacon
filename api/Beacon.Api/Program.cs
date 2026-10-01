@@ -41,6 +41,8 @@ using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
 using Beacon.Api.Features.Investments.Commands.SyncPriceHistory;
 using Beacon.Api.Features.Investments.Shared;
+using Beacon.Api.Features.Logs.Commands.LogClientError;
+using Beacon.Api.Features.Logs.Queries.GetLogs;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -79,11 +81,18 @@ using Beacon.Api.Features.Health.Queries.GetHealth;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Middleware;
 using Beacon.Api.Services;
+using Beacon.Api.Services.Logging;
 using Beacon.Api.Services.Parsing;
 using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Console output stays as it is; the files are a second provider, with the same level filters.
+LogLevels.ApplyDefaults(builder.Logging, builder.Configuration);
+var (logFiles, logFilesWarning) = LogFiles.Resolve(builder.Configuration, builder.Environment.ContentRootPath);
+logFiles.AddTo(builder.Logging);
+builder.Services.AddSingleton(logFiles);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -229,6 +238,10 @@ builder.Services.AddScoped<SyncPriceHistoryCommandHandler>();
 builder.Services.AddScoped<SavingsPlanImportService>();
 builder.Services.AddHostedService<PriceHistorySyncService>();
 
+builder.Services.AddScoped<GetLogsQueryHandler>();
+builder.Services.AddScoped<LogClientErrorCommandHandler>();
+builder.Services.AddClientErrorRateLimit();
+
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
         policy.WithOrigins("http://localhost:4200")
@@ -236,6 +249,9 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()));
 
 var app = builder.Build();
+
+if (logFilesWarning is not null)
+    app.Logger.LogWarning("{Warning}", logFilesWarning);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -286,8 +302,10 @@ app.Use(async (context, next) =>
 
 if (app.Environment.IsDevelopment())
     app.UseCors();
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<ApiKeyMiddleware>();
+app.UseRateLimiter();
 app.MapControllers();
 
 await SeedDefaultDataAsync(app);

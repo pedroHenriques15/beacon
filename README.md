@@ -224,6 +224,9 @@ The Angular dev server proxies `/api/*` to `http://localhost:5098` via `web/prox
 | `Prices__DailyRunTime`                 | Time of the daily price sync, UTC (default `22:00`)                                           |
 | `Prices__GoldProxySymbol`              | EUR-listed gold ETC that prices gold per gram (default `4GLD.DE`)                             |
 | `Prices__JumpWarningPercent`           | Day-to-day price move that logs a warning (default 20)                                        |
+| `Logs__Path`                           | Folder for the log files (optional; without it, logs go to the console only)                  |
+| `Logs__Keep`                           | Days of log files kept (default 14)                                                           |
+| `Logging__LogLevel__<Category>`        | Minimum log level for a category (`Default` for the rest); see ARCHITECTURE.md, "Logging"     |
 | `GoogleServices__ClientId`             | Google OAuth 2.0 client ID (optional - only needed for Google Calendar/Tasks sync)            |
 | `GoogleServices__ClientSecret`         | Google OAuth 2.0 client secret                                                                |
 | `GoogleServices__RedirectUri`          | OAuth redirect URI registered in Google Cloud Console (see below)                             |
@@ -276,7 +279,7 @@ cd web && npm audit --audit-level=high
 
 CI also lists the NuGet packages of `scripts/SeedRunner`, which is not in `beacon.sln`. Dependabot proposes minor and patch updates every week (`.github/dependabot.yml`).
 
-Every backend test runs on its own SQLite database, in memory unless it needs a database file that is missing or damaged. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, the health check, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including the daily price sync, its sources, ISIN lookup and failures, a changed ticker, stale prices across exchange holidays, and the price source's parsing and retries on synthetic responses) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Every backend test runs on its own SQLite database, in memory unless it needs a database file that is missing or damaged. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key, exception and request-logging middleware, the log files and their reader (filters, limits, client errors), the health check, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including the daily price sync, its sources, ISIN lookup and failures, a changed ticker, stale prices across exchange holidays, and the price source's parsing and retries on synthetic responses) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 
