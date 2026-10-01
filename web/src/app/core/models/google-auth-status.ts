@@ -1,9 +1,6 @@
 /** `reconnectRequired`: Google rejected the stored token. `unreachable`: Google did not answer. */
 export type GoogleConnectionState =
-  | 'notConnected'
-  | 'connected'
-  | 'reconnectRequired'
-  | 'unreachable';
+  'notConnected' | 'connected' | 'reconnectRequired' | 'unreachable';
 
 export interface GoogleAuthStatus {
   state: GoogleConnectionState;
