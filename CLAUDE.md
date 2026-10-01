@@ -175,11 +175,16 @@ Before a task's PR:
 - **Dependabot** opens update PRs against `development` (`.github/dependabot.yml`): each
   week one grouped PR per ecosystem (NuGet, npm, GitHub Actions), and a security update
   whenever an alert has a fix (one PR per package, except `@angular/*`, which move
-  together). They have no task file, and their branches (`dependabot/...`)
-  and titles (`chore: bump ...`) do not follow `prefix/NNN-...`; the hooks never see them,
-  since Dependabot pushes on GitHub. Read the changes and release notes, wait for CI, and
-  squash-merge with a `chore: ...` title of at most 72 characters. An update that breaks
-  something, or an Angular major, becomes a task instead.
+  together). Version updates never propose a major; a security update still can, when the
+  fix exists only in a new major. They have no task file, and their branches
+  (`dependabot/...`) and titles (`chore: bump ...`) do not follow `prefix/NNN-...`; the hooks
+  never see them, since Dependabot pushes on GitHub. Read the changes and release notes, wait
+  for CI, and squash-merge with a `chore: ...` title of at most 72 characters. A PR that
+  needs only a small mechanical fix to pass CI (a formatter's new output, say) gets it as a
+  commit on Dependabot's branch, then is squash-merged as usual; Dependabot stops rebasing a
+  branch with someone else's commit, and `@dependabot recreate` would drop the fix. An update
+  that needs real code changes becomes a task instead, and so does a major that is needed
+  (an unsupported version, a security fix only in a major).
 - **Never push directly to `main` or `development`**, with one exception: a planning commit,
   which changes only `docs/ROADMAP.md`, may go straight to `development` (subject like
   `chore: update roadmap`), so updating the plan needs no PR.
