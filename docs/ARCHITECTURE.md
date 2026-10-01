@@ -23,10 +23,10 @@ objects, and `ParseVerifier` checks the result before it is saved.
 | PDF extraction | Python 3 + `pdfplumber` |
 | Backend API | ASP.NET Core 10 (.NET 10) |
 | Database | SQLite + EF Core 10 (code-first) |
-| Frontend | Angular 21 (standalone components, signals) |
+| Frontend | Angular 22 (standalone components, signals) |
 | Charts | chart.js 4.5 |
 | Testing (backend) | xUnit + in-memory SQLite |
-| Testing (frontend) | Vitest 4 |
+| Testing (frontend) | Vitest 5 |
 | Formatting | Prettier 3.8 |
 
 ## Repository layout
@@ -525,6 +525,11 @@ registered in Google Cloud Console at the same time.
 
 All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModules.
 
+Angular 22 made OnPush the default change detection and `fetch` the default HTTP backend. The
+upgrade kept the earlier behaviour: every component declares
+`changeDetection: ChangeDetectionStrategy.Eager`, and `app.config.ts` passes `withXhr()` to
+`provideHttpClient`. A component without the line gets OnPush.
+
 ### HTTP authentication
 
 `core/interceptors/api-key.interceptor.ts` injects `X-Api-Key: <apiKey>` on every request
@@ -538,16 +543,6 @@ Tasks"); the Calendar and Settings pages call `loadStatus()` when they open.
 calls: an error with code `google_reconnect_required` or `google_not_connected` reloads the
 status while it still says connected, so both pages switch to their reconnect or connect state
 instead of showing an empty calendar.
-
-### Dependencies
-
-`@emnapi/core` and `@emnapi/runtime` are dev dependencies that no code imports. The build
-tooling needs them only as optional peers (`@angular/build` → `@rolldown/binding-wasm32-wasi`
-→ `@napi-rs/wasm-runtime`), and Dependabot drops optional peers from the lockfiles it writes,
-after which `npm ci` in CI fails with `Missing: @emnapi/core@… from lock file`. Listing them
-directly keeps them in the lockfile. Remove them only once `package-lock.json` no longer
-lists `@napi-rs/wasm-runtime` (`npm ls` won't show it: npm installs the wasm binding only
-where no native one exists).
 
 ## Database
 

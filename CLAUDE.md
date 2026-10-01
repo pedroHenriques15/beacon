@@ -43,7 +43,7 @@ api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per
                     Services/ (uploads, storage, Google, pricing), Services/Parsing/ (parsers),
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests, each on its own in-memory SQLite database
-web/src/app/        Angular 21 client: core/ (services, models, interceptors), pages/ (routes)
+web/src/app/        Angular 22 client: core/ (services, models, interceptors), pages/ (routes)
 scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
                     setup (enables the git hooks), MigrateToSqlite/ (SQL Server database to SQLite)
 .githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
@@ -199,7 +199,7 @@ Before a task's PR:
 
 ## Commands
 
-Development runs on the host (ADR-019): .NET 10 SDK, Node 22 or newer, Python 3 with
+Development runs on the host (ADR-019): .NET 10 SDK, Node 22.22.3+ or 24.15+, Python 3 with
 `pdfplumber`. The database is a SQLite file, `local/beacon.db`. Config: `local/environment.dev`
 (demo: `local/environment.demo`).
 

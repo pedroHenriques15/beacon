@@ -83,7 +83,7 @@ Bank statements must be EUR - non-EUR statements are rejected at upload (salary 
 | PDF extraction | Python 3 + pdfplumber                       |
 | API            | ASP.NET Core 10 (.NET 10)                   |
 | Database       | SQLite + EF Core 10 (code-first migrations) |
-| Frontend       | Angular 21 (standalone components, signals) |
+| Frontend       | Angular 22 (standalone components, signals) |
 | Charts         | Chart.js 4                                  |
 | Tests          | xUnit (backend), Vitest (frontend)          |
 
@@ -150,7 +150,7 @@ After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: 
 ### Requirements
 
 - .NET 10 SDK. The EF tool (`dotnet-ef`) is pinned in `dotnet-tools.json`: `dotnet tool restore` installs it, and the scripts run that themselves.
-- Node.js 22 (via nvm recommended)
+- Node.js 22.22.3 or newer 22.x, or 24.15 or newer (Angular 22 requires one of these; via nvm recommended)
 - Python 3 + pdfplumber: `pip install -r scripts/requirements.txt`
   (on Debian/Ubuntu with PEP 668 protection, use a venv or `pip install --user --break-system-packages -r scripts/requirements.txt`)
 

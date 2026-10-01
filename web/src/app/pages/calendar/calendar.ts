@@ -7,6 +7,7 @@ import {
   inject,
   signal,
   untracked,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -64,6 +65,7 @@ const MONTH_NAMES = [
   standalone: true,
   imports: [EventModalComponent, TaskModalComponent, RouterLink, SlicePipe, DatePipe],
   templateUrl: './calendar.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './calendar.scss',
 })
 export class CalendarPage implements OnInit {

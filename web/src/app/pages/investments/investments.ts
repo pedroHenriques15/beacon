@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CurrencyPipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -50,6 +51,7 @@ Chart.register(
   standalone: true,
   imports: [CurrencyPipe, DecimalPipe, NgClass, FormsModule, AssetHistoryChart],
   templateUrl: './investments.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './investments.scss',
 })
 export class InvestmentsComponent implements OnDestroy {

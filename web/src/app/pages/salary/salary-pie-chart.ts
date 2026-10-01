@@ -7,6 +7,7 @@ import {
   OnChanges,
   OnDestroy,
   SimpleChanges,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import {
   Chart,
@@ -30,6 +31,7 @@ Chart.register(ArcElement, DoughnutController, Tooltip, Legend);
       <canvas #canvas></canvas>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       :host {

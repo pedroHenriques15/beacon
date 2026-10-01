@@ -7,6 +7,7 @@ import {
   ElementRef,
   effect,
   OnDestroy,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -45,6 +46,7 @@ Chart.register(
   standalone: true,
   imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink],
   templateUrl: './analytics.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './analytics.scss',
 })
 export class AnalyticsComponent implements OnDestroy {
