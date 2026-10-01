@@ -115,7 +115,8 @@ beacon/
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
 ├── local/                        # git-ignored: environment.dev/.demo, beacon.db, uploads/, backups/ (demo: beacon-demo.db, uploads-demo/, backups-demo/), sample PDFs
 ├── .github/
-│   ├── workflows/ci.yml          # Formatting checks (dotnet format, Prettier), tests, production build
+│   ├── workflows/ci.yml          # Dependency audits (NuGet, npm), formatting checks (dotnet format, Prettier), tests, production build
+│   ├── dependabot.yml            # Weekly grouped dependency updates against development
 │   └── pull_request_template.md  # What, Why, How tested, screenshots or "No visual change."
 ├── dotnet-tools.json             # Pins dotnet-ef; the scripts run `dotnet tool restore`
 └── beacon.sln

@@ -29,10 +29,6 @@ Quality:
 - Improve the demo database so it covers many cases, and build a database with real data
   for personal use.
 
-Tooling:
-
-- Vulnerability scanning in CI (GitHub Actions).
-
 Integrations:
 
 - The Angular dev server warns that it is for local testing only when it is bound with

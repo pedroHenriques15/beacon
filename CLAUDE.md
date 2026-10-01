@@ -132,7 +132,8 @@ SCSS:
 
 - Every change belongs to a task file, `docs/tasks/NNN-work-name.md`. Use the `task` skill:
   `/task draft <the work>`, `/task start NNN`, `/task finish NNN`, `/task drop NNN <reason>`,
-  or `/task` alone to list open tasks.
+  or `/task` alone to list open tasks. The one exception is Dependabot's dependency updates
+  (see "Git workflow").
 - Task files are private: `docs/tasks/` is git-ignored, so drafting a task, changing its
   status and moving it to `docs/tasks/done/` are local edits, never commits. Public docs
   (ROADMAP.md, ARCHITECTURE.md, this file) never link to a task file or cite its number; the
@@ -170,6 +171,14 @@ Before a task's PR:
   not what. A squash-merged PR's title becomes the commit subject.
 - **Hotfix**: branch from `main`, PR into `main`, then bring `main` into `development`
   through a `merge/NNN-main-into-development` branch merged with a merge commit.
+- **Dependabot** opens update PRs against `development` (`.github/dependabot.yml`): each
+  week one grouped PR per ecosystem (NuGet, npm, GitHub Actions), and a security update
+  whenever an alert has a fix (one PR per package, except `@angular/*`, which move
+  together). They have no task file, and their branches (`dependabot/...`)
+  and titles (`chore: bump ...`) do not follow `prefix/NNN-...`; the hooks never see them,
+  since Dependabot pushes on GitHub. Read the changes and release notes, wait for CI, and
+  squash-merge with a `chore: ...` title of at most 72 characters. An update that breaks
+  something, or an Angular major, becomes a task instead.
 - **Never push directly to `main` or `development`**, with one exception: a planning commit,
   which changes only `docs/ROADMAP.md`, may go straight to `development` (subject like
   `chore: update roadmap`), so updating the plan needs no PR.
@@ -181,9 +190,11 @@ Before a task's PR:
   file is missing or `dropped` (skipped in a clone without `docs/tasks/`). Never bypass them
   with `--no-verify`.
 - **Pull requests** open with `.github/pull_request_template.md` (What, Why, How tested,
-  screenshots or `No visual change.`). CI checks formatting, runs the tests and builds the
-  client. On GitHub the default branch is `development`, squash and merge commits are
-  allowed (rebase merging is off), and head branches are deleted after the merge.
+  screenshots or `No visual change.`). CI audits the dependencies (any vulnerable NuGet
+  package, or an npm advisory rated high or critical, fails it), checks formatting, runs the
+  tests and builds the client. On GitHub the default branch is `development`, squash and
+  merge commits are allowed (rebase merging is off), and head branches are deleted after the
+  merge.
 - Commit, push or open PRs only when asked to.
 
 ## Commands

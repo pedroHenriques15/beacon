@@ -273,7 +273,13 @@ npx ng test --watch=false
 # Formatting, checked by CI: dotnet format from the repository root, Prettier in web/
 dotnet format beacon.sln
 cd web && npx prettier --write .
+
+# Known vulnerabilities, checked by CI: any in NuGet packages, high or critical in npm
+dotnet list beacon.sln package --vulnerable --include-transitive
+cd web && npm audit --audit-level=high
 ```
+
+CI also lists the NuGet packages of `scripts/MigrateToSqlite` and `scripts/SeedRunner`, which are not in `beacon.sln`. Dependabot proposes dependency updates every week (`.github/dependabot.yml`).
 
 Every backend test runs on its own in-memory SQLite database. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale) and the SQL Server to SQLite copier, and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
