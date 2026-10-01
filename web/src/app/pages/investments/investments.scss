@@ -2,6 +2,7 @@
 @use 'investments-stats' as *;
 @use 'investments-table' as *;
 @use 'investments-charts' as *;
+@use 'investments-prices' as *;
 
 .page-header__row {
   display: flex;
@@ -13,6 +14,8 @@
 
 .page-header__actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -43,28 +46,4 @@
   p {
     margin: 0;
   }
-}
-
-.inv-backfill-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: rgba(108, 99, 255, 0.08);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.7rem 1rem;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  margin-bottom: 1.25rem;
-
-  button {
-    flex-shrink: 0;
-  }
-}
-
-.inv-backfill-notice {
-  color: var(--credit);
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
 }

@@ -49,7 +49,7 @@ public class StatementUploadImportTests : IDisposable
 
     private StatementUploadService MakeService(AppDbContext db, IReadOnlyList<string> pages) =>
         new(db, new StubExtractor(pages), _parserFactory, _fileStorage,
-            new SavingsPlanImportService(db, NullLogger<SavingsPlanImportService>.Instance),
+            new SavingsPlanImportService(db, TestPricing.Queue(), NullLogger<SavingsPlanImportService>.Instance),
             NullLogger<StatementUploadService>.Instance);
 
     private static FormFile MakeFormFile(string content, string fileName = "statement.pdf")

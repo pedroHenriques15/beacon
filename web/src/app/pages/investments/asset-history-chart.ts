@@ -20,6 +20,24 @@ import {
 } from 'chart.js';
 import { InvestmentPriceSnapshot } from '../../core/models/statement.model';
 
+export const HISTORY_RANGES = ['1M', '3M', '1Y', '5Y', 'All'] as const;
+export type HistoryRange = (typeof HISTORY_RANGES)[number];
+
+const RANGE_DAYS: Record<Exclude<HistoryRange, 'All'>, number> = {
+  '1M': 30,
+  '3M': 91,
+  '1Y': 365,
+  '5Y': 1826,
+};
+
+/** The first ISO date inside the range, or null for 'All'. */
+export function rangeCutoff(range: HistoryRange): string | null {
+  if (range === 'All') return null;
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - RANGE_DAYS[range]);
+  return cutoff.toISOString().slice(0, 10);
+}
+
 Chart.register(
   LineController,
   LineElement,
@@ -42,20 +60,15 @@ Chart.register(
 })
 export class AssetHistoryChart implements OnDestroy {
   snapshots = input.required<InvestmentPriceSnapshot[]>();
-  range = input<'1M' | '3M' | '1Y' | 'All'>('1Y');
+  range = input<HistoryRange>('1Y');
 
   private canvas = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
   private chart?: Chart;
 
   points = computed(() => {
     const asc = [...this.snapshots()].sort((a, b) => a.date.localeCompare(b.date));
-    const range = this.range();
-    if (range === 'All') return asc;
-    const days = range === '1M' ? 30 : range === '3M' ? 91 : 365;
-    const cutoff = new Date();
-    cutoff.setUTCDate(cutoff.getUTCDate() - days);
-    const iso = cutoff.toISOString().slice(0, 10);
-    return asc.filter((s) => s.date >= iso);
+    const cutoff = rangeCutoff(this.range());
+    return cutoff == null ? asc : asc.filter((s) => s.date >= cutoff);
   });
 
   constructor() {

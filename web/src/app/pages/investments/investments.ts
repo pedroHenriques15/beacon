@@ -30,8 +30,17 @@ import {
   InvestmentAsset,
   InvestmentLot,
   InvestmentPriceSnapshot,
+  SyncPriceHistoryResponse,
 } from '../../core/models/statement.model';
-import { AssetHistoryChart } from './asset-history-chart';
+import {
+  AssetHistoryChart,
+  HISTORY_RANGES,
+  HistoryRange,
+  rangeCutoff,
+} from './asset-history-chart';
+
+/** Price history rows shown at a time: years of daily closes would make a very long table. */
+const PRICE_ROWS_STEP = 30;
 
 Chart.register(
   ArcElement,
@@ -66,7 +75,7 @@ export class InvestmentsComponent implements OnDestroy {
   totalPnl = this.svc.totalUnrealizedPnl;
   totalPct = this.svc.totalUnrealizedPct;
   totalRealized = this.svc.totalRealizedPnl;
-  change24h = this.svc.portfolioChange24h;
+  change1d = this.svc.portfolioChange1d;
   change1w = this.svc.portfolioChange1w;
   change1m = this.svc.portfolioChange1m;
 
@@ -74,11 +83,26 @@ export class InvestmentsComponent implements OnDestroy {
 
   activeTab = signal<'all' | 'ETF' | 'Gold'>('all');
   expandedAssetId = signal<number | null>(null);
-  fetchingAssetId = signal<number | null>(null);
-  fetchError = signal<string | null>(null);
-  backfillingAssetId = signal<number | null>(null);
-  backfillNotice = signal<string | null>(null);
+  actionError = signal<string | null>(null);
+  syncing = signal(false);
+  syncingAssetId = signal<number | null>(null);
+  syncNotice = signal<string | null>(null);
   priceHistoryOpen = signal(false);
+  priceRowsShown = signal(PRICE_ROWS_STEP);
+  /** Every price of the expanded asset, newest first, loaded when it opens. */
+  expandedPrices = signal<InvestmentPriceSnapshot[] | null>(null);
+
+  /** The oldest latest price among held assets: every held position is valued at least this recently. */
+  pricesAsOf = computed(() => {
+    const dates = this.assetMetrics()
+      .filter((m) => m.totalQuantity > 0 && m.latestPriceDate != null)
+      .map((m) => m.latestPriceDate!)
+      .sort();
+    return dates[0] ?? null;
+  });
+  stalePrices = computed(() => this.assetMetrics().some((m) => m.pricesStale));
+  /** Sync controls show only where the server syncs prices (not in the demo). */
+  syncEnabled = this.svc.priceSyncEnabled;
 
   filteredMetrics = computed(() => {
     const tab = this.activeTab();
@@ -93,6 +117,7 @@ export class InvestmentsComponent implements OnDestroy {
     const assets = this.assets();
     return this.svc.portfolioHistoryFor(
       tab === 'all' ? assets : assets.filter((a) => a.assetType === tab),
+      this.svc.priceHistory() ?? undefined,
     );
   });
 
@@ -148,23 +173,20 @@ export class InvestmentsComponent implements OnDestroy {
   // ---- Charts ----
   allocationCanvas = viewChild<ElementRef<HTMLCanvasElement>>('allocationCanvas');
   historyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('historyCanvas');
-  historyRange = signal<'1M' | '3M' | '1Y' | 'All'>('1Y');
-  readonly historyRanges = ['1M', '3M', '1Y', 'All'] as const;
+  historyRange = signal<HistoryRange>('1Y');
+  readonly historyRanges = HISTORY_RANGES;
   private allocationChart?: Chart;
   private historyChart?: Chart;
 
   filteredHistory = computed(() => {
     const points = this.tabHistory();
-    const range = this.historyRange();
-    if (range === 'All' || points.length === 0) return points;
-    const days = range === '1M' ? 30 : range === '3M' ? 91 : 365;
-    const cutoff = new Date();
-    cutoff.setUTCDate(cutoff.getUTCDate() - days);
-    const cutoffIso = cutoff.toISOString().slice(0, 10);
-    return points.filter((p) => p.date >= cutoffIso);
+    const cutoff = rangeCutoff(this.historyRange());
+    return cutoff == null ? points : points.filter((p) => p.date >= cutoff);
   });
 
   constructor() {
+    this.svc.loadPriceSyncStatus();
+    this.svc.loadPriceHistory(rangeCutoff(this.historyRange()));
     effect(() => {
       this.allocationCanvas();
       this.tabAllocation();
@@ -232,11 +254,18 @@ export class InvestmentsComponent implements OnDestroy {
             notes: body.notes,
           });
 
+    const previousTicker = this.assets().find((a) => a.id === this.editingAssetId())?.ticker;
     req$.subscribe({
-      next: () => {
+      next: (saved) => {
         this.showAssetModal.set(false);
         this.assetSaving.set(false);
-        this.svc.load();
+        // A new asset or ticker: fetch its history now, so the page shows it straight away.
+        const newSymbol = this.assetModalMode() === 'create' || saved.ticker !== previousTicker;
+        if (newSymbol && this.syncEnabled()) {
+          this.syncPrices(saved);
+        } else {
+          this.reload();
+        }
       },
       error: (err) => {
         this.assetError.set(err?.error ?? 'Failed to save asset.');
@@ -248,8 +277,8 @@ export class InvestmentsComponent implements OnDestroy {
   deleteAsset(asset: InvestmentAsset): void {
     if (!confirm(`Delete "${asset.name}" and all its data?`)) return;
     this.svc.deleteAsset(asset.id).subscribe({
-      next: () => this.svc.load(),
-      error: (err) => this.fetchError.set(err?.error ?? 'Failed to delete asset.'),
+      next: () => this.reload(),
+      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete asset.'),
     });
   }
 
@@ -347,7 +376,7 @@ export class InvestmentsComponent implements OnDestroy {
       next: () => {
         this.showLotModal.set(false);
         this.lotSaving.set(false);
-        this.svc.load();
+        this.reload();
       },
       error: (err) => {
         this.lotError.set(err?.error ?? 'Failed to save entry.');
@@ -359,8 +388,8 @@ export class InvestmentsComponent implements OnDestroy {
   deleteLot(lot: InvestmentLot): void {
     if (!confirm('Delete this entry?')) return;
     this.svc.deleteLot(lot.id).subscribe({
-      next: () => this.svc.load(),
-      error: (err) => this.fetchError.set(err?.error ?? 'Failed to delete entry.'),
+      next: () => this.reload(),
+      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete entry.'),
     });
   }
 
@@ -387,7 +416,7 @@ export class InvestmentsComponent implements OnDestroy {
         next: () => {
           this.showPriceModal.set(false);
           this.priceSaving.set(false);
-          this.svc.load();
+          this.reload();
         },
         error: () => {
           this.priceError.set('Failed to save price.');
@@ -399,68 +428,91 @@ export class InvestmentsComponent implements OnDestroy {
   deletePrice(snap: InvestmentPriceSnapshot): void {
     if (!confirm('Delete this price snapshot?')) return;
     this.svc.deletePrice(snap.id).subscribe({
-      next: () => this.svc.load(),
-      error: (err) => this.fetchError.set(err?.error ?? 'Failed to delete price snapshot.'),
+      next: () => this.reload(),
+      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete price snapshot.'),
     });
   }
 
-  // ---- Fetch price (Alpha Vantage) ----
-  fetchPrice(asset: InvestmentAsset): void {
-    this.fetchingAssetId.set(asset.id);
-    this.fetchError.set(null);
-    this.svc.fetchPrice(asset.id).subscribe({
-      next: () => {
-        this.fetchingAssetId.set(null);
-        this.svc.load();
+  // ---- Price sync ----
+  /** Syncs one asset's daily closes, or every held asset's when none is given. */
+  syncPrices(asset?: InvestmentAsset): void {
+    this.syncing.set(true);
+    this.syncingAssetId.set(asset?.id ?? null);
+    this.syncNotice.set(null);
+    this.actionError.set(null);
+    this.svc.syncPrices(asset?.id).subscribe({
+      next: (res) => {
+        this.syncing.set(false);
+        this.syncingAssetId.set(null);
+        this.syncNotice.set(InvestmentsComponent.syncSummary(res));
+        this.reload();
       },
       error: (err) => {
-        this.fetchingAssetId.set(null);
-        this.fetchError.set(err?.error ?? 'Failed to fetch price.');
+        this.syncing.set(false);
+        this.syncingAssetId.set(null);
+        this.actionError.set(err?.error ?? 'Price sync failed.');
+        this.reload();
       },
     });
+  }
+
+  private static syncSummary(res: SyncPriceHistoryResponse): string {
+    if (res.assets.length === 0) return 'No held assets to sync.';
+    return res.assets
+      .map((a) => {
+        if (a.error) return `${a.name}: ${a.error}`;
+        const changed = a.added + a.replaced;
+        const removed = a.removed > 0 ? ` ${a.removed} from the previous ticker removed.` : '';
+        return changed === 0 && a.removed === 0
+          ? `${a.name}: up to date.`
+          : `${a.name}: ${changed} price${changed === 1 ? '' : 's'} updated.${removed}`;
+      })
+      .join(' ');
+  }
+
+  staleTitle(m: { asset: InvestmentAsset; latestPriceDate: string | null }): string {
+    if (m.asset.priceSyncError) return m.asset.priceSyncError;
+    return m.latestPriceDate
+      ? `Latest price is from ${this.formatDate(m.latestPriceDate)}.`
+      : 'No price yet.';
   }
 
   toggleExpand(id: number): void {
     this.expandedAssetId.update((cur) => (cur === id ? null : id));
     this.priceHistoryOpen.set(false);
+    this.priceRowsShown.set(PRICE_ROWS_STEP);
+    this.expandedPrices.set(null);
+    this.loadExpandedPrices();
+  }
+
+  setHistoryRange(range: HistoryRange): void {
+    this.historyRange.set(range);
+    this.svc.loadPriceHistory(rangeCutoff(range));
+  }
+
+  /** Reloads the assets (and the chart's history), and the expanded asset's prices. */
+  private reload(): void {
+    this.svc.load();
+    this.loadExpandedPrices();
+  }
+
+  private loadExpandedPrices(): void {
+    const id = this.expandedAssetId();
+    if (id == null) return;
+    this.svc.getAssetPrices(id).subscribe({
+      next: (prices) => {
+        if (this.expandedAssetId() === id) this.expandedPrices.set(prices);
+      },
+      error: () => this.actionError.set('Failed to load the price history.'),
+    });
   }
 
   togglePriceHistory(): void {
     this.priceHistoryOpen.update((open) => !open);
   }
 
-  // ---- Backfill history ----
-  needsBackfill(asset: InvestmentAsset): boolean {
-    if (asset.lots.length === 0) return false;
-    if (asset.priceSnapshots.length === 0) return true;
-    const firstLot = asset.lots.reduce(
-      (min, l) => (l.date < min ? l.date : min),
-      asset.lots[0].date,
-    );
-    const earliestSnap = asset.priceSnapshots.reduce(
-      (min, s) => (s.date < min ? s.date : min),
-      asset.priceSnapshots[0].date,
-    );
-    const threshold = new Date(firstLot + 'T00:00:00Z');
-    threshold.setUTCDate(threshold.getUTCDate() + 7);
-    return earliestSnap > threshold.toISOString().slice(0, 10);
-  }
-
-  backfillHistory(asset: InvestmentAsset): void {
-    this.backfillingAssetId.set(asset.id);
-    this.backfillNotice.set(null);
-    this.fetchError.set(null);
-    this.svc.backfillHistory(asset.id).subscribe({
-      next: (res) => {
-        this.backfillingAssetId.set(null);
-        this.backfillNotice.set(res.message);
-        this.svc.load();
-      },
-      error: (err) => {
-        this.backfillingAssetId.set(null);
-        this.fetchError.set(err?.error ?? 'Backfill failed.');
-      },
-    });
+  showMorePrices(): void {
+    this.priceRowsShown.update((n) => n + PRICE_ROWS_STEP);
   }
 
   // ---- Helpers ----

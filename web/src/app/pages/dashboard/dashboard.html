@@ -60,9 +60,9 @@
             </span>
           </div>
           <div class="bank-card__period">
-            24h:
-            <span [ngClass]="(investments.portfolioChange24h() ?? 0) >= 0 ? 'credit' : 'debit'">
-              {{ formatSignedPct(investments.portfolioChange24h()) }}
+            1 day:
+            <span [ngClass]="(investments.portfolioChange1d() ?? 0) >= 0 ? 'credit' : 'debit'">
+              {{ formatSignedPct(investments.portfolioChange1d()) }}
             </span>
           </div>
         </div>

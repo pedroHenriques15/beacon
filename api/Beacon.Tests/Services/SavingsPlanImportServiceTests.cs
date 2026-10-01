@@ -24,7 +24,7 @@ public class SavingsPlanImportServiceTests : IDisposable
     private DbContextOptions<AppDbContext> DbOptions() => _database.Options;
 
     private static SavingsPlanImportService MakeService(AppDbContext db) =>
-        new(db, NullLogger<SavingsPlanImportService>.Instance);
+        new(db, TestPricing.Queue(), NullLogger<SavingsPlanImportService>.Instance);
 
     private static MonthlyStatement TrStatement(params (string Desc, decimal Amount, DateOnly Date)[] rows) =>
         new()
@@ -108,7 +108,7 @@ public class SavingsPlanImportServiceTests : IDisposable
         {
             AssetType = "ETF",
             Isin = "IE00BK5BQT80",
-            Ticker = "VWCE.DEX",
+            Ticker = "VWCE.DE",
             Name = "My existing ETF",
         });
         await db.SaveChangesAsync();
@@ -119,7 +119,7 @@ public class SavingsPlanImportServiceTests : IDisposable
         Assert.Equal(1, count);
         var asset = await db.InvestmentAssets.Include(a => a.Lots).SingleAsync();
         Assert.Equal("My existing ETF", asset.Name);      // not duplicated
-        Assert.Equal("VWCE.DEX", asset.Ticker);
+        Assert.Equal("VWCE.DE", asset.Ticker);
         Assert.Single(asset.Lots);
     }
 
@@ -146,5 +146,21 @@ public class SavingsPlanImportServiceTests : IDisposable
 
         Assert.Equal(0, count);
         Assert.Equal(0, await db.InvestmentLots.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportAsync_QueuesAPriceSyncForEachNewAsset()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var queue = TestPricing.Queue();
+        var service = new SavingsPlanImportService(db, queue, NullLogger<SavingsPlanImportService>.Instance);
+
+        await service.ImportAsync(TrStatement((SavingsDesc, 5.16m, new DateOnly(2026, 8, 3))));
+        var asset = await db.InvestmentAssets.SingleAsync();
+        Assert.Equal([asset.Id], TestPricing.Drain(queue));
+
+        // The asset exists now: a later statement adds lots without queuing it again.
+        await service.ImportAsync(TrStatement((SavingsDesc2, 100m, new DateOnly(2026, 8, 17))));
+        Assert.Empty(TestPricing.Drain(queue));
     }
 }

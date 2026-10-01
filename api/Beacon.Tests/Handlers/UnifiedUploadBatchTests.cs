@@ -4,6 +4,7 @@ using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
+using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -61,7 +62,7 @@ public class UnifiedUploadBatchTests : IDisposable
         var salaryFactory = new SalarySlipParserFactory([new CentralGestParser(), new DomirestParser()]);
         var statementService = new StatementUploadService(
             db, extractor, bankFactory, _fileStorage,
-            new SavingsPlanImportService(db, NullLogger<SavingsPlanImportService>.Instance),
+            new SavingsPlanImportService(db, TestPricing.Queue(), NullLogger<SavingsPlanImportService>.Instance),
             NullLogger<StatementUploadService>.Instance);
         var groceryService = new GroceryReceiptUploadService(
             db, extractor, groceryFactory, _fileStorage, NullLogger<GroceryReceiptUploadService>.Instance);

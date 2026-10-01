@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { InvestmentsService } from './investments.service';
+import { InvestmentsService, isPriceStale } from './investments.service';
 import { InvestmentAsset, InvestmentLot, InvestmentPriceSnapshot } from '../models/statement.model';
 
 let nextId = 1;
@@ -26,6 +26,7 @@ function makeSnap(overrides: Partial<InvestmentPriceSnapshot> = {}): InvestmentP
     assetId: 1,
     date: '2026-07-22',
     pricePerUnit: 120,
+    source: 'Synced',
     ...overrides,
   };
 }
@@ -38,9 +39,13 @@ function makeAsset(
   return {
     id: 1,
     assetType: 'ETF',
-    ticker: 'VWCE',
+    ticker: 'VWCE.DE',
+    isin: null,
     name: 'Vanguard FTSE All-World',
     notes: null,
+    pricesSyncedAt: null,
+    priceSyncError: null,
+    priceCount: priceSnapshots.length,
     lots,
     priceSnapshots,
     ...overrides,
@@ -161,12 +166,12 @@ describe('InvestmentsService metrics', () => {
     expect(m.unrealizedPct).toBeNull();
   });
 
-  it('returns null 24h change with a single snapshot', () => {
+  it('returns null 1-day change with a single snapshot', () => {
     load([makeAsset([makeLot()], [makeSnap()])]);
-    expect(service.assetMetrics()[0].change24h).toBeNull();
+    expect(service.assetMetrics()[0].change1d).toBeNull();
   });
 
-  it('computes 24h change from the two latest snapshots', () => {
+  it('computes the 1-day change from the two latest snapshots', () => {
     load([
       makeAsset(
         [makeLot()],
@@ -176,7 +181,7 @@ describe('InvestmentsService metrics', () => {
         ],
       ),
     ]);
-    expect(service.assetMetrics()[0].change24h).toBeCloseTo(4, 4);
+    expect(service.assetMetrics()[0].change1d).toBeCloseTo(4, 4);
   });
 
   it('computes 1w change against the nearest snapshot at or before 7 days prior', () => {
@@ -298,5 +303,172 @@ describe('InvestmentsService metrics', () => {
     ]);
     const points = service.portfolioHistory();
     expect(points.map((p) => p.date)).toEqual(['2026-01-05']);
+  });
+
+  it('gives the same history as a per-date scan over a long daily series', () => {
+    // Three years of weekday closes for two assets, with buys and a sell along the way.
+    const dates: string[] = [];
+    for (let d = new Date('2023-01-02T00:00:00Z'); d < new Date('2026-01-01T00:00:00Z');) {
+      if (d.getUTCDay() % 6 !== 0) dates.push(d.toISOString().slice(0, 10));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const snaps = (assetId: number, base: number) =>
+      dates.map((date, i) => makeSnap({ assetId, date, pricePerUnit: base + (i % 17) })).reverse();
+    const etf = makeAsset(
+      [
+        makeLot({ assetId: 1, date: '2023-06-01', quantity: 10, pricePerUnit: 100, fees: 1 }),
+        makeLot({ assetId: 1, date: '2024-03-15', quantity: 5, pricePerUnit: 110 }),
+        makeLot({ assetId: 1, date: '2025-02-03', quantity: -8, pricePerUnit: 120, fees: 2 }),
+      ],
+      snaps(1, 100),
+      { id: 1 },
+    );
+    const gold = makeAsset(
+      [makeLot({ assetId: 2, date: '2024-01-10', quantity: 30, pricePerUnit: 60 })],
+      snaps(2, 60),
+      { id: 2, assetType: 'Gold', ticker: null, name: 'Gold' },
+    );
+
+    const points = service.portfolioHistoryFor([etf, gold]);
+
+    const expected = dates
+      .map((date) => {
+        let totalValue = 0;
+        let invested = 0;
+        for (const asset of [etf, gold]) {
+          const lots = asset.lots.filter((l) => l.date <= date);
+          invested += lots.reduce((s, l) => s + l.quantity * l.pricePerUnit + (l.fees ?? 0), 0);
+          const qty = lots.reduce((s, l) => s + l.quantity, 0);
+          const snap = asset.priceSnapshots.find((s) => s.date <= date);
+          if (snap && qty > 0) totalValue += qty * snap.pricePerUnit;
+        }
+        return { date, totalValue, invested };
+      })
+      .filter((p) => p.totalValue > 0);
+    expect(points.map((p) => p.date)).toEqual(expected.map((p) => p.date));
+    points.forEach((p, i) => {
+      expect(p.totalValue).toBeCloseTo(expected[i].totalValue, 6);
+      expect(p.invested).toBeCloseTo(expected[i].invested, 6);
+    });
+  });
+
+  it('marks a held asset stale when its latest price is too old or its sync failed', () => {
+    service.today.set('2026-07-27');
+    load([
+      makeAsset([makeLot()], [makeSnap({ date: '2026-07-22' })], { id: 1 }),
+      makeAsset([makeLot({ assetId: 2 })], [makeSnap({ assetId: 2, date: '2026-07-24' })], {
+        id: 2,
+      }),
+      makeAsset([makeLot({ assetId: 3 })], [makeSnap({ assetId: 3, date: '2026-07-24' })], {
+        id: 3,
+        priceSyncError: 'No prices found for X.DE.',
+      }),
+      makeAsset(
+        [makeLot({ assetId: 4 }), makeLot({ assetId: 4, quantity: -10 })],
+        [makeSnap({ assetId: 4, date: '2026-01-02' })],
+        { id: 4 },
+      ),
+    ]);
+    expect(service.assetMetrics().map((m) => m.pricesStale)).toEqual([true, false, true, false]);
+    expect(service.assetMetrics()[1].latestPriceDate).toBe('2026-07-24');
+  });
+
+  it('marks prices stale more than one trading day behind, skipping weekends', () => {
+    expect(isPriceStale('2026-07-24', '2026-07-28')).toBe(false);
+    expect(isPriceStale('2026-07-24', '2026-07-29')).toBe(true);
+    expect(isPriceStale(null, '2026-07-29')).toBe(true);
+  });
+
+  it('does not mark prices stale over Easter or Christmas', () => {
+    // Good Friday and Easter Monday: on Tuesday, Thursday's close is the latest to expect.
+    expect(isPriceStale('2026-04-02', '2026-04-07')).toBe(false);
+    expect(isPriceStale('2026-03-31', '2026-04-07')).toBe(true);
+    // 24 to 26 December 2025 closed: on Monday the 29th, the 23rd's close is current.
+    expect(isPriceStale('2025-12-23', '2025-12-29')).toBe(false);
+    expect(isPriceStale('2025-12-19', '2025-12-29')).toBe(true);
+  });
+
+  it('asks whether the server syncs prices', () => {
+    expect(service.priceSyncEnabled()).toBeNull();
+    service.loadPriceSyncStatus();
+    controller.expectOne('/api/investments/prices/status').flush({ enabled: false });
+    expect(service.priceSyncEnabled()).toBe(false);
+  });
+
+  it('syncs one asset or all of them through the sync endpoint', () => {
+    service.syncPrices(3).subscribe();
+    const one = controller.expectOne((r) => r.url === '/api/investments/prices/sync');
+    expect(one.request.method).toBe('POST');
+    expect(one.request.params.get('assetId')).toBe('3');
+    one.flush({ assets: [] });
+
+    service.syncPrices().subscribe();
+    const all = controller.expectOne((r) => r.url === '/api/investments/prices/sync');
+    expect(all.request.params.has('assetId')).toBe(false);
+    all.flush({ assets: [] });
+  });
+
+  it('values the portfolio from the loaded price history when one is given', () => {
+    const asset = makeAsset(
+      [makeLot({ date: '2026-01-05', quantity: 10, pricePerUnit: 100 })],
+      [makeSnap({ date: '2026-07-22', pricePerUnit: 120 })],
+    );
+    const points = service.portfolioHistoryFor(
+      [asset],
+      [{ assetId: 1, dates: ['2026-01-02', '2026-01-05', '2026-01-06'], prices: [99, 100, 101] }],
+    );
+    expect(points.map((p) => [p.date, p.totalValue])).toEqual([
+      ['2026-01-05', 1000],
+      ['2026-01-06', 1010],
+    ]);
+  });
+
+  it('values a sparsely priced asset from the price before the range', () => {
+    // The history for a range starts each asset with its latest price before it (the API's
+    // carry-in), so gold priced in January still counts on February's dates.
+    const etf = makeAsset([makeLot({ assetId: 1, date: '2025-12-01', quantity: 10 })], [], {
+      id: 1,
+    });
+    const gold = makeAsset([makeLot({ assetId: 2, date: '2025-12-01', quantity: 2 })], [], {
+      id: 2,
+      assetType: 'Gold',
+      ticker: null,
+      name: 'Gold',
+    });
+    const points = service.portfolioHistoryFor(
+      [etf, gold],
+      [
+        { assetId: 1, dates: ['2026-01-30', '2026-02-02'], prices: [100, 101] },
+        { assetId: 2, dates: ['2026-01-15'], prices: [50] },
+      ],
+    );
+    expect(points.map((p) => [p.date, p.totalValue])).toEqual([
+      ['2026-01-15', 100],
+      ['2026-01-30', 1100],
+      ['2026-02-02', 1110],
+    ]);
+  });
+
+  it('loads the chart history from a date, and again on every reload', () => {
+    service.loadPriceHistory('2025-10-01');
+    const first = controller.expectOne((r) => r.url === '/api/investments/prices/history');
+    expect(first.request.params.get('from')).toBe('2025-10-01');
+    first.flush([{ assetId: 1, dates: ['2025-10-01'], prices: [100] }]);
+    expect(service.priceHistory()).toHaveLength(1);
+
+    service.load();
+    const again = controller.expectOne((r) => r.url === '/api/investments/prices/history');
+    expect(again.request.params.get('from')).toBe('2025-10-01');
+    again.flush([]);
+    controller.expectOne('/api/investments/assets').flush([]);
+  });
+
+  it('keeps the latest range when answers arrive out of order', () => {
+    service.loadPriceHistory('2025-10-01');
+    service.loadPriceHistory(null);
+    const [older, latest] = controller.match((r) => r.url === '/api/investments/prices/history');
+    latest.flush([{ assetId: 1, dates: ['2011-10-04'], prices: [30] }]);
+    older.flush([{ assetId: 1, dates: ['2025-10-01'], prices: [100] }]);
+    expect(service.priceHistory()![0].dates).toEqual(['2011-10-04']);
   });
 });

@@ -1,6 +1,7 @@
 using Beacon.Api.Controllers;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Health.Queries.GetHealth;
+using Beacon.Tests.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,7 @@ public class HealthControllerTests : IDisposable
     public void Dispose() => _database.Dispose();
 
     private static HealthController CreateController(AppDbContext db) =>
-        new(new GetHealthQueryHandler(db, NullLogger<GetHealthQueryHandler>.Instance));
+        new(new GetHealthQueryHandler(db, TestPricing.Config(), TimeProvider.System, NullLogger<GetHealthQueryHandler>.Instance));
 
     [Fact]
     public async Task Healthy_Returns200()
