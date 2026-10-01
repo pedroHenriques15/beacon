@@ -97,9 +97,9 @@ beacon/
 │   ├── run-backend.ps1           # Load local/environment.dev, apply migrations, start the API on :5098
 │   ├── run-frontend.ps1          # Wait for the API, then ng serve on :4200
 │   ├── run-backend-demo.ps1      # (WIP) API against the demo database (local/beacon-demo.db), with its own uploads-demo/ and backups-demo/
-│   ├── seed-demo.sql             # (WIP) Synthetic demo data (SQLite)
-│   ├── seed-demo.ps1             # (WIP) Seed the demo database through SeedRunner
-│   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a SQLite database, then rewrites decimals and dates as EF writes them
+│   ├── seed-demo.sql             # Synthetic demo data covering every feature (SQLite), April 2025 to March 2026
+│   ├── seed-demo.ps1             # Recreate the demo database and seed it through SeedRunner
+│   ├── SeedRunner/               # Console app: runs a SQL file against a SQLite database, then moves every date so the newest month is the current one and rewrites decimals and dates as EF writes them
 │   └── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
 ├── docs/
 │   ├── ARCHITECTURE.md           # This file

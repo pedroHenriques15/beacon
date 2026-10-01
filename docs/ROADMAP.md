@@ -26,8 +26,6 @@ Quality:
 - Test edge cases thoroughly (large values, for example).
 - Firefox testing.
 - An error and non-error logging system.
-- Improve the demo database so it covers many cases, and build a database with real data
-  for personal use.
 
 ## Later
 
