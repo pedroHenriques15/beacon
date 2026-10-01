@@ -134,7 +134,7 @@ them, reloaded after every mutation.
 Calendar and Tasks share one access and refresh token pair in `GoogleOAuthTokens`, refreshed
 by `GoogleOAuthService`, which fits a single-user app (ADR-001). The OAuth callback is the one
 API route exempt from the API key, because Google's redirect cannot carry it. Tasks appear
-inside the Calendar page; there is no separate route.
+inside the Calendar page; there is no separate route. ADR-026 exempts the health route too.
 
 ## ADR-018 · Everything is public except secrets, personal data and task files
 
@@ -226,3 +226,14 @@ SQLite cannot translate, a foreign key pointing nowhere or a violated unique ind
 one-slip-per-month index was never exercised); the move surfaced seven tests that seeded
 foreign keys from ids InMemory had handed out before saving. A mocked `AppDbContext` still
 tests the mock, so it stays out. The suite still runs in a few seconds.
+
+## ADR-026 · The health route answers without the API key
+
+`GET /api/health` tells deploy scripts and monitors whether the API and its database work and
+which release is running: 200 with `status: "ok"`, or 503 with `status: "degraded"` and a
+short reason (database unreachable, migrations pending), both with the version and commit the
+SDK stamps on the build. Since 2026-10-01 it is the second route exempt from the API key,
+after the OAuth callback (ADR-017), so a probe holds no secret and keeps working when the key
+changes. The exemption gives nothing away: anyone who can reach the server can read the key
+from the built client (ADR-001). Even so, the route returns only the status and the release,
+never counts, paths or settings.

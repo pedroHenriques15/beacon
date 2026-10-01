@@ -73,6 +73,7 @@ using Beacon.Api.Features.GroceryCategories.Commands.DeleteGroceryReceiptCategor
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryCategories;
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryCategoryRules;
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
+using Beacon.Api.Features.Health.Queries.GetHealth;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Middleware;
 using Beacon.Api.Services;
@@ -180,6 +181,8 @@ builder.Services.AddScoped<UnifiedUploadBatchCommandHandler>();
 
 builder.Services.AddScoped<CreateBackupCommandHandler>();
 builder.Services.AddScoped<RestoreBackupCommandHandler>();
+
+builder.Services.AddScoped<GetHealthQueryHandler>();
 
 builder.Services.AddScoped<GetSalaryProfilesQueryHandler>();
 builder.Services.AddScoped<CreateSalaryProfileCommandHandler>();

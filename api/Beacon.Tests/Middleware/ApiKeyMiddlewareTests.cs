@@ -169,4 +169,32 @@ public class ApiKeyMiddlewareTests
         Assert.False(nextCalled);
         Assert.Equal(StatusCodes.Status401Unauthorized, ctx.Response.StatusCode);
     }
+
+    [Theory]
+    [InlineData("/api/health")]
+    [InlineData("/api/Health")]
+    public async Task HealthPath_BypassesApiKey(string path)
+    {
+        bool nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx = BuildContext(path);
+
+        await middleware.InvokeAsync(ctx);
+
+        Assert.True(nextCalled);
+        Assert.NotEqual(StatusCodes.Status401Unauthorized, ctx.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HealthSubPath_RequiresApiKey()
+    {
+        bool nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, "secret");
+        var ctx = BuildContext("/api/health/extra");
+
+        await middleware.InvokeAsync(ctx);
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, ctx.Response.StatusCode);
+    }
 }

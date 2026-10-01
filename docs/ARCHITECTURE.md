@@ -44,6 +44,7 @@ beacon/
 │   │   │   ├── Groceries/
 │   │   │   │   └── Shared/       # GroceryApplyRuleService
 │   │   │   ├── GroceryCategories/
+│   │   │   ├── Health/           # GetHealth (answers without the API key)
 │   │   │   ├── Investments/
 │   │   │   │   └── Shared/       # SavingsPlanImportService
 │   │   │   ├── Salary/
@@ -60,7 +61,7 @@ beacon/
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
 │   └── Beacon.Tests/             # xUnit test project; SqliteTestDatabase gives each test an in-memory SQLite database
-│       ├── Controllers/          # Controller responses (Google connection errors)
+│       ├── Controllers/          # Controller responses (Google connection errors, health status codes)
 │       ├── Data/                 # SQLite behaviour
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
@@ -587,9 +588,19 @@ and then runs the PDF cleanup (see "PDF storage").
 
 ## API surface
 
-All endpoints require the `X-Api-Key` header, except `/swagger` in development and
-`GET /api/auth/google/callback`. Use Swagger (`http://localhost:5098/swagger`) or read
-`Controllers/` for the full surface.
+All endpoints require the `X-Api-Key` header, except `/swagger` in development,
+`GET /api/auth/google/callback` (ADR-017) and `GET /api/health` (ADR-026). Use Swagger
+(`http://localhost:5098/swagger`) or read `Controllers/` for the full surface.
+
+`GET /api/health` is for deploy scripts and monitors. It answers 200 with `status: "ok"` when
+the database file exists, its migration history reads and no migration is pending, and 503
+with `status: "degraded"` and a `reason` otherwise: `database unreachable` (no file, or one
+SQLite cannot read) or `migrations pending`. Both carry `version` and `commit`, split from the
+version the SDK stamps on the build (`1.0.0+<commit>` from a git checkout; `commit` is null
+otherwise), and `newestMigration`, the newest migration applied to the database, which after a
+rollback can be newer than the running release's. `GetHealthQueryHandler` checks that the file
+exists before reading it, since a query would make SQLite create a missing file, and logs only
+a degraded answer.
 
 ## Supported banks
 
@@ -641,7 +652,9 @@ by systemd `EnvironmentFile`).
 
 Backend: `api/Beacon.Tests/` (xUnit, ADR-025). A test class holds a `SqliteTestDatabase` in a
 field, so every test gets its own in-memory SQLite database with the production schema and
-connection setup; `CreateDb()` again gives a fresh context on the same database. Seed related
+connection setup; `CreateDb()` again gives a fresh context on the same database. A test of a
+missing or damaged database file (the health handler's) points a context at a temporary folder
+instead, since an in-memory database can be neither. Seed related
 rows through navigations (`Category = cat`), not through ids read before `SaveChanges`: ids are
 assigned on save. `Data/` pins the engine behaviour the app relies on (decimal sums and sorts
 in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, foreign keys).
@@ -654,11 +667,12 @@ Trade Republic's block-based multi-line layout, and the micro1
 stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
 Trade Republic savings-plan exclusion), `AlphaVantageService` (incl. request-URI pinning),
 CQRS handlers for Backup (incl. investment tables), Categories,
+Health (a missing, damaged or unmigrated database),
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
 Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell
 validation, price backfill), input validation, `GoogleOAuthService` (each connection state),
-`GoogleCalendarService`, `GoogleTasksService`, and the Calendar and Tasks controllers' Google
-error responses (`Controllers/`).
+`GoogleCalendarService`, `GoogleTasksService`, the Calendar and Tasks controllers' Google
+error responses and the health route's status codes (`Controllers/`).
 
 Frontend: Vitest specs next to the code (`*.spec.ts`), run by `ng test`.

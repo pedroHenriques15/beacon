@@ -255,7 +255,7 @@ Beacon used SQL Server until 30 September 2026. The one-off tool that copied a S
 ## Tests
 
 ```bash
-# Backend - xUnit (631 tests)
+# Backend - xUnit (642 tests)
 cd api
 dotnet test Beacon.Tests/
 
@@ -274,7 +274,7 @@ cd web && npm audit --audit-level=high
 
 CI also lists the NuGet packages of `scripts/SeedRunner`, which is not in `beacon.sln`. Dependabot proposes minor and patch updates every week (`.github/dependabot.yml`).
 
-Every backend test runs on its own in-memory SQLite database. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Every backend test runs on its own SQLite database, in memory unless it needs a database file that is missing or damaged. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, the health check, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 
@@ -284,11 +284,13 @@ Beacon runs on a home server, built from `main`, and is reached remotely over Ta
 
 The way to deploy it is being reworked: the previous deploy script has been removed, and its replacement is not in the repository yet.
 
+To check a running server, `GET /api/health` needs no API key: it answers 200 with `"status": "ok"` and the running `commit` when the API and its database work, and 503 with `"status": "degraded"` and the reason when they don't (`curl -i http://<server>/api/health`).
+
 ---
 
 ## Security model
 
-A single shared API key (`X-Api-Key` header) protects every endpoint - there are no user accounts. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
+A single shared API key (`X-Api-Key` header) protects every endpoint - there are no user accounts. Two routes answer without it: the Google OAuth callback, which Google's redirect calls, and `/api/health`, which reports only whether the API works and which release runs. The key is embedded in the built frontend, so anyone who can load the app can call the API: the intended deployment is a private network (e.g. Tailscale) where reachability *is* the trust boundary. Do not expose the app directly to the internet.
 
 ---
 

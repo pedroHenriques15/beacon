@@ -9,8 +9,10 @@ public class ApiKeyMiddleware(RequestDelegate next, IConfiguration config, IHost
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Google's redirect cannot carry the key; the health check answers callers that hold none.
         if (context.Request.Path.StartsWithSegments("/swagger") ||
-            context.Request.Path == "/api/auth/google/callback")
+            context.Request.Path == "/api/auth/google/callback" ||
+            context.Request.Path == "/api/health")
         {
             await next(context);
             return;
