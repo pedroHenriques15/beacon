@@ -1,0 +1,121 @@
+.slip-modal {
+  width: min(680px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.parsed-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  background: color-mix(in srgb, var(--text-secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+}
+
+.warn-text {
+  color: var(--warning);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.3rem;
+  margin-top: 0.75rem;
+  .muted {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+}
+
+.field-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  &:focus {
+    outline: none;
+    border-color: var(--focus);
+  }
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+.pdf-attached {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+}
+
+.pdf-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0;
+  &:hover {
+    color: var(--danger);
+  }
+}
+
+.btn-attach-pdf {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  &:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-secondary);
+  }
+}

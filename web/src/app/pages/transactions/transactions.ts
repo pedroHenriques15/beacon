@@ -7,19 +7,21 @@ import {
   OnInit,
   OnDestroy,
   effect,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { FinanceService, EnrichedTransaction } from '../../core/services/finance.service';
+import { Transaction } from '../../core/models/statement.model';
 import { CategoriesService } from '../../core/services/categories.service';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
 import { GroceryItem, GroceryReceiptSummary } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
 import { availableMonths } from '../../core/utils/date-utils';
-import { CATEGORY_INTERNAL_TRANSFER } from '../../core/constants/categories';
+import { CATEGORY_EXCLUDED } from '../../core/constants/categories';
 
 interface PendingChange {
   tx: EnrichedTransaction;
@@ -56,6 +58,7 @@ type GrocerySortCol = 'date' | 'store' | 'description' | 'category' | 'amount' |
   standalone: true,
   imports: [CurrencyPipe, DatePipe, NgClass, FormsModule],
   templateUrl: './transactions.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './transactions.scss',
 })
 export class TransactionsComponent implements OnInit, OnDestroy {
@@ -72,7 +75,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   filterType = signal('');
   filterCategory = signal('');
   search = signal('');
-  showTransfers = signal(false);
 
   sortCol = signal<SortCol>('date');
   sortDir = signal<'asc' | 'desc'>('desc');
@@ -82,6 +84,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   totalCreditAll = signal(0);
   totalDebitAll = signal(0);
   pageLoading = signal(false);
+  fetchError = signal('');
+  gFetchError = signal('');
+  actionError = signal('');
+  modalError = signal('');
   private _skip = 0;
   private _visibleTarget = 20;
   private _filtersReady = false;
@@ -90,12 +96,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   openDropdownId = signal<number | null>(null);
   dropdownPos = signal<{ top: number; left: number } | null>(null);
   catSearch = signal('');
+  // Excluding is its own action (it also sets isExcluded), so the Excluded category is never
+  // offered as a plain category pick.
+  assignableCats = computed(() =>
+    this.catSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
+  );
   filteredCats = computed(() => {
     const q = this.catSearch().toLowerCase();
-    return this.catSvc
-      .categories()
-      .filter((c) => c.name !== CATEGORY_INTERNAL_TRANSFER)
-      .filter((c) => !q || c.name.toLowerCase().includes(q));
+    return this.assignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
   });
   pendingChange = signal<PendingChange | null>(null);
 
@@ -103,6 +111,16 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   ruleCreatePattern = signal('');
   ruleCreateValue = signal<number | null>(null);
   ruleCreateLoading = signal(false);
+
+  pendingExclude = signal<{ tx: EnrichedTransaction } | null>(null);
+  excludeRulePattern = signal('');
+  excludeRuleValue = signal<number | null>(null);
+  excludeRuleLoading = signal(false);
+
+  gPendingExclude = signal<{ item: GroceryItem } | null>(null);
+  gExcludeRulePattern = signal('');
+  gExcludeRuleValue = signal<number | null>(null);
+  gExcludeRuleLoading = signal(false);
 
   showCreateModal = signal(false);
   createTx = signal<EnrichedTransaction | null>(null);
@@ -119,6 +137,20 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
   });
 
+  excludeRuleMatchCount = computed(() => {
+    const pat = this.excludeRulePattern().trim();
+    const val = this.excludeRuleValue();
+    if (!pat && val === null) return null;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+  });
+
+  gExcludeRuleMatchCount = computed(() => {
+    const pat = this.gExcludeRulePattern().trim();
+    const val = this.gExcludeRuleValue();
+    if (!pat && val === null) return null;
+    return this.groceriesSvc.countedItems().filter((i) => matchesRule(i, pat, val)).length;
+  });
+
   createMatchCount = computed(() => {
     const pat = this.createPattern().trim();
     const val = this.createValue();
@@ -127,6 +159,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   });
 
   confirmDeleteTx = signal<EnrichedTransaction | null>(null);
+
+  selectedIds = signal<Set<number>>(new Set());
+  hasSelection = computed(() => this.selectedIds().size > 0);
+  allSelected = computed(
+    () =>
+      this.filtered().length > 0 && this.filtered().every((tx) => this.selectedIds().has(tx.id)),
+  );
+  confirmBulkDelete = signal(false);
 
   showTxModal = signal(false);
   private _editingTxRef = signal<EnrichedTransaction | null>(null);
@@ -193,16 +233,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     () => this.finance.allTransactions().filter((t) => t.categoryId === null).length,
   );
 
-  transferCount = computed(() => {
-    const bank = this.filterBank().toUpperCase();
-    const month = this.filterMonth();
-    return this.finance
-      .allTransactionsRaw()
-      .filter((t) => t.isInternalTransfer)
-      .filter((t) => !bank || t.bank === bank)
-      .filter((t) => !month || t.month === month).length;
-  });
-
   availableMonths = computed(() => availableMonths(this.finance.allTransactionsRaw()));
 
   gFilterStore = signal('');
@@ -226,9 +256,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   gOpenDropdownId = signal<number | null>(null);
   gDropdownPos = signal<{ top: number; left: number } | null>(null);
   gCatSearch = signal('');
+  // Same as assignableCats: excluding an item is its own action, not a category pick.
+  gAssignableCats = computed(() =>
+    this.groceryCatSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
+  );
   gFilteredCats = computed(() => {
     const q = this.gCatSearch().toLowerCase();
-    return this.groceryCatSvc.categories().filter((c) => !q || c.name.toLowerCase().includes(q));
+    return this.gAssignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
   });
 
   gPendingChange = signal<GPendingChange | null>(null);
@@ -250,14 +284,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const pat = this.gRuleCreatePattern().trim();
     const val = this.gRuleCreateValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gCreateMatchCount = computed(() => {
     const pat = this.gCreatePattern().trim();
     const val = this.gCreateValue();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.allItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
   });
 
   gConfirmDeleteItem = signal<GroceryItem | null>(null);
@@ -299,7 +333,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   });
 
   gUnknownCount = computed(
-    () => this.groceriesSvc.allItems().filter((item) => item.categoryId === null).length,
+    () => this.groceriesSvc.countedItems().filter((item) => item.categoryId === null).length,
   );
 
   gFiltered = computed<GroceryItem[]>(() => {
@@ -348,39 +382,32 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   }
 
   constructor() {
-    effect(
-      () => {
-        void (
-          this.filterBank() +
-          this.filterMonth() +
-          this.filterType() +
-          this.filterCategory() +
-          this.search() +
-          String(this.showTransfers()) +
-          this.sortCol() +
-          this.sortDir()
-        );
-        if (!this._filtersReady) return;
-        this._resetAndLoad();
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      void (
+        this.filterBank() +
+        this.filterMonth() +
+        this.filterType() +
+        this.filterCategory() +
+        this.search() +
+        this.sortCol() +
+        this.sortDir()
+      );
+      if (!this._filtersReady) return;
+      this._resetAndLoad();
+    });
 
-    effect(
-      () => {
-        void (
-          this.gFilterStore() +
-          this.gFilterMonth() +
-          this.gFilterCategory() +
-          this.gSearch() +
-          this.gSortCol() +
-          this.gSortDir()
-        );
-        if (!this._gFiltersReady) return;
-        this._gResetAndLoad();
-      },
-      { allowSignalWrites: true },
-    );
+    effect(() => {
+      void (
+        this.gFilterStore() +
+        this.gFilterMonth() +
+        this.gFilterCategory() +
+        this.gSearch() +
+        this.gSortCol() +
+        this.gSortDir()
+      );
+      if (!this._gFiltersReady) return;
+      this._gResetAndLoad();
+    });
   }
 
   ngOnInit(): void {
@@ -409,8 +436,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this._paramsSub?.unsubscribe();
   }
 
-  gFindReceipt(receiptId: number): GroceryReceiptSummary | null {
-    return this.groceriesSvc.receipts().find((r) => r.id === receiptId) ?? null;
+  private receiptsById = computed(
+    () => new Map(this.groceriesSvc.receipts().map((r) => [r.id, r])),
+  );
+
+  gFindReceipt(receiptId: number) {
+    return this.receiptsById().get(receiptId) ?? null;
   }
 
   loadMore(): void {
@@ -431,6 +462,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.totalCount.set(0);
     this.totalCreditAll.set(0);
     this.totalDebitAll.set(0);
+    this.selectedIds.set(new Set());
     this._skip = 0;
     this._fetchPage(0, this._visibleTarget);
   }
@@ -438,10 +470,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   private _fetchPage(skip: number, take: number): void {
     this.pageLoading.set(true);
     const cat = this.filterCategory();
-    const internalTransferCat = this.catSvc
-      .categories()
-      .find((c) => c.name === CATEGORY_INTERNAL_TRANSFER);
-    const isFilteringByTransfer = !!internalTransferCat && cat === String(internalTransferCat.id);
 
     this._currentSub = this.finance
       .getTransactions({
@@ -452,12 +480,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         search: this.search() || undefined,
         skip,
         take,
-        includeTransfers: this.showTransfers() || isFilteringByTransfer || undefined,
         sortBy: this.sortCol(),
         sortDir: this.sortDir(),
       })
       .subscribe({
         next: (res) => {
+          this.fetchError.set('');
           this.loadedItems.update((items) => [...items, ...res.items]);
           this.totalCount.set(res.totalCount);
           if (skip === 0) {
@@ -467,7 +495,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this._skip = this.loadedItems().length;
           this.pageLoading.set(false);
         },
-        error: () => this.pageLoading.set(false),
+        error: () => {
+          this.pageLoading.set(false);
+          this.fetchError.set('Could not load transactions - the server may be unavailable.');
+        },
       });
   }
 
@@ -550,14 +581,31 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.pendingRuleCreate.set(null);
     if (createRule && (this.ruleCreatePattern().trim() || this.ruleCreateValue() !== null)) {
       this.ruleCreateLoading.set(true);
+      this.actionError.set('');
+      const ruleFailed = () => {
+        this.ruleCreateLoading.set(false);
+        this.actionError.set('Could not create the rule. Please try again.');
+      };
       this.catSvc
         .createRule(p.categoryId, this.ruleCreatePattern().trim(), this.ruleCreateValue())
-        .subscribe(() => {
-          this.catSvc.setTransactionCategory(p.tx.id, p.categoryId).subscribe(() => {
-            this.ruleCreateLoading.set(false);
-            this.finance.reload();
-            this._resetAndLoad();
-          });
+        .subscribe({
+          next: () => {
+            this.catSvc.setTransactionCategory(p.tx.id, p.categoryId).subscribe({
+              next: () => {
+                this.ruleCreateLoading.set(false);
+                const category =
+                  this.catSvc.categories().find((c) => c.id === p.categoryId) ?? null;
+                this.finance.updateTransactionLocally(p.tx.id, {
+                  categoryId: p.categoryId,
+                  category,
+                });
+                this.finance.reload();
+                this._resetAndLoad();
+              },
+              error: ruleFailed,
+            });
+          },
+          error: ruleFailed,
         });
     } else {
       this.applyCategory(p.tx.id, p.categoryId, null);
@@ -579,6 +627,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const tx = this.createTx();
     if (!tx || !this.createName().trim()) return;
     this.createLoading.set(true);
+    this.actionError.set('');
     this.catSvc
       .createCategory(
         this.createName().trim(),
@@ -586,30 +635,169 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.createPattern().trim() || undefined,
         this.createValue(),
       )
-      .subscribe((cat) => {
-        this.catSvc.setTransactionCategory(tx.id, cat.id).subscribe(() => {
+      .subscribe({
+        next: (cat) => {
+          this.catSvc.setTransactionCategory(tx.id, cat.id).subscribe({
+            next: () => {
+              this.createLoading.set(false);
+              this.showCreateModal.set(false);
+              this.finance.updateTransactionLocally(tx.id, { categoryId: cat.id, category: cat });
+              this.finance.reload();
+              this._resetAndLoad();
+            },
+            error: () => {
+              this.createLoading.set(false);
+              this.actionError.set('Category created but could not be assigned. Please retry.');
+            },
+          });
+        },
+        error: () => {
           this.createLoading.set(false);
-          this.showCreateModal.set(false);
-          this.finance.reload();
-          this._resetAndLoad();
-        });
+          this.actionError.set('Could not create the category. Please try again.');
+        },
       });
   }
 
-  unmarkTransfer(tx: EnrichedTransaction, e: MouseEvent): void {
+  includeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
-    this.finance.markTransfers([tx.id], true).subscribe(() => {
-      this.finance.reload();
-      this._resetAndLoad();
+    this.actionError.set('');
+    this.finance.markTransfers([tx.id], true).subscribe({
+      next: () => {
+        this.finance.updateTransactionLocally(tx.id, {
+          isExcluded: false,
+          categoryId: null,
+          category: null,
+          categorySetManually: false,
+          categoryRuleId: null,
+        });
+        this._resetAndLoad();
+      },
+      error: () => this.actionError.set('Could not include the transaction. Please try again.'),
     });
   }
 
-  markTransfer(tx: EnrichedTransaction, e: MouseEvent): void {
+  excludeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
-    this.finance.markTransfers([tx.id]).subscribe(() => {
-      this.finance.reload();
-      this._resetAndLoad();
+    this.excludeRulePattern.set(tx.description);
+    this.excludeRuleValue.set(null);
+    this.pendingExclude.set({ tx });
+  }
+
+  cancelExclude(): void {
+    this.pendingExclude.set(null);
+  }
+
+  confirmExclude(createRule: boolean): void {
+    this.actionError.set('');
+    const p = this.pendingExclude();
+    if (!p) return;
+    this.pendingExclude.set(null);
+    const excludedCat = this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
+
+    const doExclude = () => {
+      this.finance.markTransfers([p.tx.id]).subscribe({
+        next: () => {
+          this.excludeRuleLoading.set(false);
+          this.finance.updateTransactionLocally(p.tx.id, {
+            isExcluded: true,
+            categoryId: excludedCat?.id ?? null,
+            category: excludedCat,
+            categorySetManually: false,
+            categoryRuleId: null,
+          });
+          this.finance.reload();
+          this._resetAndLoad();
+        },
+        error: () => {
+          this.excludeRuleLoading.set(false);
+          this.actionError.set('Could not exclude the transaction. Please try again.');
+        },
+      });
+    };
+
+    if (
+      createRule &&
+      excludedCat &&
+      (this.excludeRulePattern().trim() || this.excludeRuleValue() !== null)
+    ) {
+      this.excludeRuleLoading.set(true);
+      this.catSvc
+        .createRule(excludedCat.id, this.excludeRulePattern().trim(), this.excludeRuleValue())
+        .subscribe({
+          next: () => doExclude(),
+          error: () => {
+            this.excludeRuleLoading.set(false);
+            this.actionError.set('Could not create the exclude rule. Please try again.');
+          },
+        });
+    } else {
+      doExclude();
+    }
+  }
+
+  gExcludeItem(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.gExcludeRulePattern.set(item.description);
+    this.gExcludeRuleValue.set(null);
+    this.gPendingExclude.set({ item });
+  }
+
+  gIncludeItem(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.actionError.set('');
+    this.groceriesSvc.markItemsExcluded([item.id], true).subscribe({
+      next: () => {
+        this.groceriesSvc.loadAllItems();
+        this._gResetAndLoad();
+      },
+      error: () => this.actionError.set('Could not include the item. Please try again.'),
     });
+  }
+
+  gCancelExclude(): void {
+    this.gPendingExclude.set(null);
+  }
+
+  gConfirmExclude(createRule: boolean): void {
+    this.actionError.set('');
+    const p = this.gPendingExclude();
+    if (!p) return;
+    this.gPendingExclude.set(null);
+    const excludedCat =
+      this.groceryCatSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
+
+    const doExclude = () => {
+      this.groceriesSvc.markItemsExcluded([p.item.id]).subscribe({
+        next: () => {
+          this.gExcludeRuleLoading.set(false);
+          this.groceriesSvc.loadAllItems();
+          this._gResetAndLoad();
+        },
+        error: () => {
+          this.gExcludeRuleLoading.set(false);
+          this.actionError.set('Could not exclude the item. Please try again.');
+        },
+      });
+    };
+
+    if (
+      createRule &&
+      excludedCat &&
+      (this.gExcludeRulePattern().trim() || this.gExcludeRuleValue() !== null)
+    ) {
+      this.gExcludeRuleLoading.set(true);
+      this.groceryCatSvc
+        .createRule(excludedCat.id, this.gExcludeRulePattern().trim(), this.gExcludeRuleValue())
+        .subscribe({
+          next: () => doExclude(),
+          error: () => {
+            this.gExcludeRuleLoading.set(false);
+            this.actionError.set('Could not create the exclude rule. Please try again.');
+          },
+        });
+    } else {
+      doExclude();
+    }
   }
 
   requestDeleteTransfer(tx: EnrichedTransaction, e: MouseEvent): void {
@@ -618,12 +806,77 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   }
 
   confirmDelete(): void {
+    this.actionError.set('');
     const tx = this.confirmDeleteTx();
     if (!tx) return;
     this.confirmDeleteTx.set(null);
-    this.finance.deleteTransaction(tx.id).subscribe(() => {
-      this.finance.reload();
-      this._resetAndLoad();
+    this.finance.deleteTransaction(tx.id).subscribe({
+      next: () => {
+        this.finance.removeTransactionLocally(tx.id);
+        this._resetAndLoad();
+      },
+      error: () => this.actionError.set('Could not delete the transaction. Please try again.'),
+    });
+  }
+
+  toggleRow(id: number): void {
+    this.selectedIds.update((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  toggleAll(): void {
+    if (this.allSelected()) {
+      this.selectedIds.set(new Set());
+    } else {
+      this.selectedIds.set(new Set(this.filtered().map((tx) => tx.id)));
+    }
+  }
+
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  bulkExclude(): void {
+    this.actionError.set('');
+    const ids = [...this.selectedIds()];
+    const excludedCat = this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED) ?? null;
+    this.finance.markTransfers(ids).subscribe({
+      next: () => {
+        this.clearSelection();
+        ids.forEach((id) =>
+          this.finance.updateTransactionLocally(id, {
+            isExcluded: true,
+            categoryId: excludedCat?.id ?? null,
+            category: excludedCat,
+            categorySetManually: false,
+            categoryRuleId: null,
+          }),
+        );
+        this._resetAndLoad();
+      },
+      error: () => this.actionError.set('Could not exclude the selected transactions.'),
+    });
+  }
+
+  bulkDelete(): void {
+    this.confirmBulkDelete.set(true);
+  }
+
+  confirmBulkDeleteAction(): void {
+    this.actionError.set('');
+    const ids = [...this.selectedIds()];
+    this.confirmBulkDelete.set(false);
+    this.finance.deleteTransactions(ids).subscribe({
+      next: () => {
+        this.clearSelection();
+        ids.forEach((id) => this.finance.removeTransactionLocally(id));
+        this._resetAndLoad();
+      },
+      error: () => this.actionError.set('Could not delete the selected transactions.'),
     });
   }
 
@@ -638,6 +891,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.txType.set(tx.type as 'credit' | 'debit');
     this.txBalance.set(tx.balance);
     this.txCategoryId.set(tx.categoryId);
+    this.modalError.set('');
     this.showTxModal.set(true);
   }
 
@@ -655,13 +909,22 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         categoryId: this.txCategoryId(),
         categorySetManually: true,
       })
-      .subscribe({ next: () => this._afterTxSave(), error: () => this.txLoading.set(false) });
+      .subscribe({
+        next: (updated) => this._afterTxSave(updated),
+        error: () => {
+          this.txLoading.set(false);
+          this.modalError.set('Could not save the transaction. Please try again.');
+        },
+      });
   }
 
-  private _afterTxSave(): void {
+  private _afterTxSave(updated: Transaction): void {
     this.txLoading.set(false);
     this.showTxModal.set(false);
-    this.finance.reload();
+    const category = updated.categoryId
+      ? (this.catSvc.categories().find((c) => c.id === updated.categoryId) ?? null)
+      : null;
+    this.finance.updateTransactionLocally(updated.id, { ...updated, category });
     this._resetAndLoad();
   }
 
@@ -670,12 +933,17 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     categoryId: number | null,
     deleteRuleId: number | null,
   ): void {
-    this.catSvc
-      .setTransactionCategory(txId, categoryId, deleteRuleId ?? undefined)
-      .subscribe(() => {
-        this.finance.reload();
+    this.actionError.set('');
+    this.catSvc.setTransactionCategory(txId, categoryId, deleteRuleId ?? undefined).subscribe({
+      next: () => {
+        const category = categoryId
+          ? (this.catSvc.categories().find((c) => c.id === categoryId) ?? null)
+          : null;
+        this.finance.updateTransactionLocally(txId, { categoryId, category });
         this._resetAndLoad();
-      });
+      },
+      error: () => this.actionError.set('Could not change the category. Please try again.'),
+    });
   }
 
   gSort(col: GrocerySortCol): void {
@@ -757,14 +1025,25 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.gPendingRuleCreate.set(null);
     if (createRule && (this.gRuleCreatePattern().trim() || this.gRuleCreateValue() !== null)) {
       this.gRuleCreateLoading.set(true);
+      this.actionError.set('');
+      const gRuleFailed = () => {
+        this.gRuleCreateLoading.set(false);
+        this.actionError.set('Could not create the rule. Please try again.');
+      };
       this.groceryCatSvc
         .createRule(p.categoryId, this.gRuleCreatePattern().trim(), this.gRuleCreateValue())
-        .subscribe(() => {
-          this.groceryCatSvc.setItemCategory(p.item.id, p.categoryId).subscribe(() => {
-            this.gRuleCreateLoading.set(false);
-            this.groceriesSvc.loadAllItems();
-            this._gResetAndLoad();
-          });
+        .subscribe({
+          next: () => {
+            this.groceryCatSvc.setItemCategory(p.item.id, p.categoryId).subscribe({
+              next: () => {
+                this.gRuleCreateLoading.set(false);
+                this.groceriesSvc.loadAllItems();
+                this._gResetAndLoad();
+              },
+              error: gRuleFailed,
+            });
+          },
+          error: gRuleFailed,
         });
     } else {
       this._gApplyCategory(p.item.id, p.categoryId, null);
@@ -786,6 +1065,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const item = this.gCreateItem();
     if (!item || !this.gCreateName().trim()) return;
     this.gCreateLoading.set(true);
+    this.actionError.set('');
     this.groceryCatSvc
       .createCategory(
         this.gCreateName().trim(),
@@ -793,13 +1073,25 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.gCreatePattern().trim() || undefined,
         this.gCreateValue(),
       )
-      .subscribe((cat) => {
-        this.groceryCatSvc.setItemCategory(item.id, cat.id).subscribe(() => {
+      .subscribe({
+        next: (cat) => {
+          this.groceryCatSvc.setItemCategory(item.id, cat.id).subscribe({
+            next: () => {
+              this.gCreateLoading.set(false);
+              this.gShowCreateModal.set(false);
+              this.groceriesSvc.loadAllItems();
+              this._gResetAndLoad();
+            },
+            error: () => {
+              this.gCreateLoading.set(false);
+              this.actionError.set('Category created but could not be assigned. Please retry.');
+            },
+          });
+        },
+        error: () => {
           this.gCreateLoading.set(false);
-          this.gShowCreateModal.set(false);
-          this.groceriesSvc.loadAllItems();
-          this._gResetAndLoad();
-        });
+          this.actionError.set('Could not create the category. Please try again.');
+        },
       });
   }
 
@@ -809,13 +1101,17 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   }
 
   gConfirmDelete(): void {
+    this.actionError.set('');
     const item = this.gConfirmDeleteItem();
     if (!item) return;
     this.gConfirmDeleteItem.set(null);
-    this.groceriesSvc.deleteItem(item.id).subscribe(() => {
-      this.groceriesSvc.reload();
-      this.groceriesSvc.loadAllItems();
-      this._gResetAndLoad();
+    this.groceriesSvc.deleteItem(item.id).subscribe({
+      next: () => {
+        this.groceriesSvc.reload();
+        this.groceriesSvc.loadAllItems();
+        this._gResetAndLoad();
+      },
+      error: () => this.actionError.set('Could not delete the item. Please try again.'),
     });
   }
 
@@ -825,6 +1121,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.gItemDescription.set(item.description);
     this.gItemAmount.set(item.amount);
     this.gItemQuantity.set(item.quantity);
+    this.modalError.set('');
     this.gShowItemModal.set(true);
   }
 
@@ -844,7 +1141,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this.groceriesSvc.loadAllItems();
           this._gResetAndLoad();
         },
-        error: () => this.gItemLoading.set(false),
+        error: () => {
+          this.gItemLoading.set(false);
+          this.modalError.set('Could not save the item. Please try again.');
+        },
       });
   }
 
@@ -853,6 +1153,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.gNewItemDescription.set('');
     this.gNewItemAmount.set(null);
     this.gNewItemQuantity.set(1);
+    this.modalError.set('');
     this.gShowCreateItemModal.set(true);
   }
 
@@ -874,7 +1175,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this.groceriesSvc.loadAllItems();
           this._gResetAndLoad();
         },
-        error: () => this.gNewItemLoading.set(false),
+        error: () => {
+          this.gNewItemLoading.set(false);
+          this.modalError.set('Could not create the item. Please try again.');
+        },
       });
   }
 
@@ -884,13 +1188,17 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   }
 
   gConfirmReceiptDelete(): void {
+    this.actionError.set('');
     const receipt = this.gConfirmDeleteReceipt();
     if (!receipt) return;
     this.gConfirmDeleteReceipt.set(null);
-    this.groceriesSvc.deleteReceipt(receipt.id).subscribe(() => {
-      this.groceriesSvc.reload();
-      this.groceriesSvc.loadAllItems();
-      this._gResetAndLoad();
+    this.groceriesSvc.deleteReceipt(receipt.id).subscribe({
+      next: () => {
+        this.groceriesSvc.reload();
+        this.groceriesSvc.loadAllItems();
+        this._gResetAndLoad();
+      },
+      error: () => this.actionError.set('Could not delete the receipt. Please try again.'),
     });
   }
 
@@ -899,12 +1207,14 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     categoryId: number | null,
     deleteRuleId: number | null,
   ): void {
-    this.groceryCatSvc
-      .setItemCategory(itemId, categoryId, deleteRuleId ?? undefined)
-      .subscribe(() => {
+    this.actionError.set('');
+    this.groceryCatSvc.setItemCategory(itemId, categoryId, deleteRuleId ?? undefined).subscribe({
+      next: () => {
         this.groceriesSvc.loadAllItems();
         this._gResetAndLoad();
-      });
+      },
+      error: () => this.actionError.set('Could not change the category. Please try again.'),
+    });
   }
 
   gLoadMore(): void {
@@ -941,6 +1251,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
     this._gCurrentSub = this.groceriesSvc.getItems(params).subscribe({
       next: (res) => {
+        this.gFetchError.set('');
         this.gLoadedItems.update((items) => [...items, ...res.items]);
         this.gTotalCount.set(res.totalCount);
         if (skip === 0) {
@@ -949,7 +1260,10 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this._gSkip = this.gLoadedItems().length;
         this.gPageLoading.set(false);
       },
-      error: () => this.gPageLoading.set(false),
+      error: () => {
+        this.gPageLoading.set(false);
+        this.gFetchError.set('Could not load grocery items - the server may be unavailable.');
+      },
     });
   }
 }

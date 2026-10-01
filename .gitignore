@@ -4,8 +4,11 @@
 **/TestResults/
 coverage/
 
-# Visual Studio
+# Visual Studio / VS Code (the shared tasks and launch config are committed)
 .vs/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
 *.suo
 *.user
 *.userosscache
@@ -14,6 +17,12 @@ coverage/
 # Rider / JetBrains
 .idea/
 *.iml
+
+# ─── Claude Code: machine-specific permissions (server paths, sudo rules) ────
+.claude/settings.local.json
+
+# ─── Task files: private working notes, local only (ADR-018, ADR-020) ────────
+docs/tasks/
 
 # ─── Environment & secrets ──────────────────────────────────────────────────
 .env
@@ -24,7 +33,6 @@ coverage/
 appsettings.json
 appsettings.*.json
 !appsettings.template.json
-api/FinanceHub.Api/Properties/launchSettings.json
 
 # ─── Certificates ────────────────────────────────────────────────────────────
 *.pfx
@@ -38,6 +46,10 @@ api/FinanceHub.Api/Properties/launchSettings.json
 
 # ─── Local runtime data (secrets + backups) — never commit ───────────────────
 local/
+# SQLite databases live in local/; these catch one created anywhere else.
+*.db
+*.db-shm
+*.db-wal
 
 # ─── Angular / Node ─────────────────────────────────────────────────────────
 web/node_modules/
@@ -45,9 +57,6 @@ web/dist/
 web/.angular/
 npm-debug.log*
 yarn-error.log*
-
-# ─── Deploy build staging ───────────────────────────────────────────────────
-.build/
 
 # ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/

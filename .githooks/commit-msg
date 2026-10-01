@@ -1,0 +1,37 @@
+#!/bin/sh
+# Checks the commit message against CLAUDE.md, "Git workflow": a subject of at most 72
+# characters and, on a task branch (prefix/NNN-work-name), a subject that starts with
+# "prefix(NNN): ". Enabled by scripts/setup.ps1 or scripts/setup.sh (core.hooksPath).
+# Subjects that git writes itself (merges, reverts, autosquash) are skipped.
+
+subject=$(tr -d '\r' < "$1" | awk 'NF && !/^#/ { print; exit }')
+case "$subject" in
+  'Merge '* | 'Revert '* | 'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+esac
+
+status=0
+
+length=$(printf '%s' "$subject" | wc -m | tr -d ' ')
+if [ "$length" -gt 72 ]; then
+  echo "commit-msg: the subject has $length characters, the limit is 72." >&2
+  status=1
+fi
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null)
+case "$branch" in
+  feature/[0-9][0-9][0-9]-* | fix/[0-9][0-9][0-9]-* | refactor/[0-9][0-9][0-9]-* | \
+  tests/[0-9][0-9][0-9]-* | chore/[0-9][0-9][0-9]-* | merge/[0-9][0-9][0-9]-*)
+    prefix=${branch%%/*}
+    number=${branch#*/}
+    number=${number%%-*}
+    case "$subject" in
+      "$prefix($number): "*) ;;
+      *)
+        echo "commit-msg: on '$branch' the subject must start with '$prefix($number): '." >&2
+        status=1
+        ;;
+    esac
+    ;;
+esac
+
+exit $status

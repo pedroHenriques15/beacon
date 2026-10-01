@@ -93,7 +93,7 @@
     opacity 0.15s,
     color 0.15s;
   &:hover {
-    color: #a5b4fc;
+    color: var(--primary-light);
   }
   &.danger:hover {
     color: var(--danger);

@@ -1,0 +1,101 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Beacon: Start Backend",
+      "type": "process",
+      "command": "pwsh",
+      "windows": { "command": "powershell" },
+      "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/run-backend.ps1"],
+      "presentation": {
+        "label": "Backend (API)",
+        "group": "beacon",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Beacon: Start Frontend",
+      "type": "process",
+      "command": "pwsh",
+      "windows": { "command": "powershell" },
+      "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/run-frontend.ps1"],
+      "presentation": {
+        "label": "Frontend (Angular)",
+        "group": "beacon",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Beacon: Start All",
+      "dependsOn": ["Beacon: Start Backend", "Beacon: Start Frontend"],
+      "dependsOrder": "parallel",
+      "presentation": {
+        "reveal": "never"
+      },
+      "problemMatcher": []
+    },
+    {
+        "label": "build",
+        "command": "dotnet",
+        "type": "process",
+        "args": [
+            "build",
+            "${workspaceFolder}/beacon.sln",
+            "/property:GenerateFullPaths=true",
+            "/consoleloggerparameters:NoSummary;ForceNoAlign"
+        ],
+        "problemMatcher": "$msCompile"
+    },
+    {
+        "label": "publish",
+        "command": "dotnet",
+        "type": "process",
+        "args": [
+            "publish",
+            "${workspaceFolder}/beacon.sln",
+            "/property:GenerateFullPaths=true",
+            "/consoleloggerparameters:NoSummary;ForceNoAlign"
+        ],
+        "problemMatcher": "$msCompile"
+    },
+    {
+        "label": "watch",
+        "command": "dotnet",
+        "type": "process",
+        "args": [
+            "watch",
+            "run",
+            "--project",
+            "${workspaceFolder}/beacon.sln"
+        ],
+        "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Beacon: Start Backend (Demo)",
+      "type": "process",
+      "command": "pwsh",
+      "windows": { "command": "powershell" },
+      "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/run-backend-demo.ps1"],
+      "presentation": {
+        "label": "Backend (Demo DB)",
+        "group": "beacon",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Beacon: Start All (Demo)",
+      "dependsOn": ["Beacon: Start Backend (Demo)", "Beacon: Start Frontend"],
+      "dependsOrder": "parallel",
+      "presentation": {
+        "reveal": "never"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,7 +1,15 @@
+<app-confirm-dialog
+  [open]="confirmPending() !== null"
+  title="Confirm Delete"
+  [message]="confirmPending()?.message ?? ''"
+  (confirmed)="onConfirmPending()"
+  (cancelled)="confirmPending.set(null)"
+/>
+
 <div class="page-header">
   <div class="header-row">
     <div>
-      <h1>Categories & Rules</h1>
+      <h1>Categories</h1>
       <p class="subtitle">Auto-assign categories based on description patterns</p>
     </div>
     <div class="header-actions">
@@ -15,6 +23,13 @@
     </div>
   </div>
 </div>
+
+@if (actionError()) {
+  <div class="error-banner">
+    <span>{{ actionError() }}</span>
+    <button class="banner-dismiss" (click)="actionError.set('')">✕</button>
+  </div>
+}
 
 <div class="tabs">
   <button

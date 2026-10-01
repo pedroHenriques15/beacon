@@ -1,0 +1,75 @@
+@use '../../../_shared' as *;
+
+.inv-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 1.5rem;
+  margin-top: 2rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inv-chart-body {
+  position: relative;
+  height: 300px;
+}
+
+.inv-chart-card {
+  @include card(12px);
+  padding: 1.5rem;
+}
+
+.inv-chart-title {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.inv-chart-placeholder {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.inv-chart-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+
+  .inv-chart-title {
+    margin: 0;
+  }
+}
+
+.inv-chart-timeframe {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.inv-range-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+
+  &.active {
+    border-color: var(--primary);
+    color: var(--text-primary);
+    background: rgba(108, 99, 255, 0.12);
+  }
+}
+
+.inv-asset-chart {
+  height: 180px;
+  margin-bottom: 1.25rem;
+}

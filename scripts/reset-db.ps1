@@ -4,7 +4,7 @@ param([switch]$Force)
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$BackendDir = Join-Path $ProjectRoot "api\FinanceHub.Api"
+$BackendDir = Join-Path $ProjectRoot "api\Beacon.Api"
 
 function Write-Step { param($msg) Write-Host "" ; Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
@@ -12,7 +12,7 @@ function Write-Fail { param($msg) Write-Host "" ; Write-Host "[ERROR] $msg" -For
 
 Write-Host ""
 Write-Host "Finance Hub - Database Reset" -ForegroundColor White
-Write-Host "This will DROP the FinanceHub database and recreate it from migrations." -ForegroundColor Yellow
+Write-Host "This will DROP the Beacon database and recreate it from migrations." -ForegroundColor Yellow
 Write-Host "All data (statements, transactions, categories, rules) will be lost." -ForegroundColor Yellow
 
 if (-not $Force) {
@@ -26,15 +26,21 @@ if (-not $Force) {
 Write-Step "Checking prerequisites"
 
 if (-not (Get-Command "dotnet" -ErrorAction SilentlyContinue)) {
-    Write-Fail "dotnet not found. Install .NET 8 SDK from https://dotnet.microsoft.com/download/dotnet/8"
+    Write-Fail "dotnet not found. Install the .NET 10 SDK from https://dotnet.microsoft.com/download/dotnet/10.0"
 }
 Write-Ok "dotnet found"
+
+$null = dotnet tool restore --tool-manifest (Join-Path $ProjectRoot "dotnet-tools.json") 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "dotnet tool restore failed: dotnet-ef is pinned in dotnet-tools.json at the repository root"
+}
+Write-Ok "dotnet-ef restored"
 
 Write-Step "Reading connection string"
 
 $appSettings = Join-Path $BackendDir "appsettings.json"
 if (-not (Test-Path $appSettings)) {
-    Write-Fail "appsettings.json not found.`n    Copy api\FinanceHub.Api\appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
+    Write-Fail "appsettings.json not found.`n    Copy api\Beacon.Api\appsettings.template.json to appsettings.json and fill in your connection string, API key, and Python script path."
 }
 
 $config = Get-Content $appSettings -Raw | ConvertFrom-Json
@@ -44,23 +50,22 @@ if ([string]::IsNullOrWhiteSpace($connStr)) {
     Write-Fail "ConnectionStrings.DefaultConnection is empty in appsettings.json"
 }
 
-if ($connStr -match "Database=([^;]+)") {
+if ($connStr -match '(?i)Data\s+Source=([^;]+)') {
     $dbName = $Matches[1].Trim()
 }
 else {
-    Write-Fail "Could not parse database name from connection string"
+    Write-Fail "Could not parse Data Source (the database file) from connection string"
 }
 
 Write-Ok "Target database: $dbName"
 
-# --- Build the project first ---
 Write-Step "Building project"
 
 Push-Location $BackendDir
 try {
-    dotnet build -c Release --nologo -v q 2>&1 | Out-Null
+    $buildOutput = dotnet build -c Release --nologo -v q 2>&1
     if ($LASTEXITCODE -ne 0) {
-        dotnet build --nologo
+        Write-Host $buildOutput
         Write-Fail "Build failed - fix compilation errors before resetting the database"
     }
     Write-Ok "Build succeeded"
@@ -73,8 +78,13 @@ Write-Step "Dropping database '$dbName'"
 
 Push-Location $BackendDir
 try {
-    dotnet ef database drop --force --no-build 2>&1 | Out-Null
+    $prevDiag = [Environment]::GetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Process')
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Critical', 'Process')
+
+    $dropOutput = dotnet ef database drop --force --no-build 2>&1
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', $prevDiag, 'Process')
     if ($LASTEXITCODE -ne 0) {
+        Write-Host $dropOutput -ForegroundColor Gray
         Write-Fail "dotnet ef database drop failed (exit $LASTEXITCODE)"
     }
     Write-Ok "Database dropped"
@@ -87,7 +97,11 @@ Write-Step "Applying migrations to fresh database"
 
 Push-Location $BackendDir
 try {
+    $prevDiag = [Environment]::GetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Process')
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', 'Critical', 'Process')
+
     $updateOutput = dotnet ef database update --no-build 2>&1
+    [Environment]::SetEnvironmentVariable('Logging__LogLevel__Microsoft.AspNetCore.Hosting.Diagnostics', $prevDiag, 'Process')
     if ($LASTEXITCODE -ne 0) {
         Write-Host $updateOutput -ForegroundColor Gray
         Write-Fail "dotnet ef database update failed (exit $LASTEXITCODE)"

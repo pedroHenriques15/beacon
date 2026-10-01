@@ -1,3 +1,11 @@
+<app-confirm-dialog
+  [open]="confirmDeleteId() !== null"
+  title="Delete Statement"
+  message="Delete this statement and all its transactions?"
+  (confirmed)="onConfirmDelete()"
+  (cancelled)="confirmDeleteId.set(null)"
+/>
+
 @if (finance.loading()) {
   <div class="loading">Loading financial data…</div>
 } @else if (finance.error()) {
@@ -8,14 +16,57 @@
     <p class="subtitle">Financial overview across all accounts</p>
   </div>
 
+  @if (finance.unknownTypeCount() > 0) {
+    <div class="warning-banner">
+      <span>
+        {{ finance.unknownTypeCount() }} unclassified
+        {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded from
+        income and expense totals.
+      </span>
+      <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
+    </div>
+  }
+
   <div class="net-worth-card">
-    <span class="label">Total Balance</span>
-    <span class="amount">{{ finance.totalBalance() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+    <span class="label">Net Worth</span>
+    <span class="amount">{{ netWorth() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
+    <span class="breakdown">
+      Cash {{ cashTotal() | currency: 'EUR' : 'symbol' : '1.2-2' }} · Invested
+      {{ investedTotal() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+    </span>
   </div>
 
   <section class="section">
     <h2 class="section-title">Accounts</h2>
     <div class="bank-grid">
+      @if (investments.assets().length > 0) {
+        <div
+          class="bank-card investments-card"
+          title="Open investments"
+          (click)="navigateToInvestments()"
+        >
+          <div class="bank-card__header">
+            <span class="bank-name">PORTFOLIO</span>
+          </div>
+          <div class="bank-card__balance">
+            {{ investments.totalCurrentValue() | currency: 'EUR' : 'symbol' : '1.2-2' }}
+          </div>
+          <div class="bank-card__meta">
+            <span [ngClass]="investments.totalUnrealizedPnl() >= 0 ? 'credit' : 'debit'">
+              {{ investments.totalUnrealizedPnl() >= 0 ? '+' : ''
+              }}{{ investments.totalUnrealizedPnl() | currency: 'EUR' : 'symbol' : '1.2-2' }} ({{
+                formatSignedPct(investments.totalUnrealizedPct())
+              }})
+            </span>
+          </div>
+          <div class="bank-card__period">
+            24h:
+            <span [ngClass]="(investments.portfolioChange24h() ?? 0) >= 0 ? 'credit' : 'debit'">
+              {{ formatSignedPct(investments.portfolioChange24h()) }}
+            </span>
+          </div>
+        </div>
+      }
       @for (card of orderedCards(); track card.bank) {
         <div
           class="bank-card"
@@ -48,6 +99,79 @@
   </section>
 
   <section class="section">
+    <h2 class="section-title">{{ formatMonth(monthSnapshot().month) }}</h2>
+    <div class="snapshot-strip">
+      <div class="snapshot-card">
+        <span class="snapshot-label">Income</span>
+        <span class="snapshot-value credit"
+          >+{{ monthSnapshot().income | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
+        >
+        @if (monthSnapshot().incomeDelta !== null) {
+          <span
+            class="snapshot-delta"
+            [ngClass]="monthSnapshot().incomeDelta! >= 0 ? 'credit' : 'debit'"
+          >
+            {{ formatSignedPct(monthSnapshot().incomeDelta) }} vs prev month
+          </span>
+        }
+      </div>
+      <div class="snapshot-card">
+        <span class="snapshot-label">Expenses</span>
+        <span class="snapshot-value debit"
+          >−{{ monthSnapshot().expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
+        >
+        @if (monthSnapshot().expensesDelta !== null) {
+          <span
+            class="snapshot-delta"
+            [ngClass]="monthSnapshot().expensesDelta! >= 0 ? 'debit' : 'credit'"
+          >
+            {{ formatSignedPct(monthSnapshot().expensesDelta) }} vs prev month
+          </span>
+        }
+      </div>
+      <div class="snapshot-card">
+        <span class="snapshot-label">Net</span>
+        <span class="snapshot-value" [ngClass]="monthSnapshot().net >= 0 ? 'credit' : 'debit'">
+          {{ monthSnapshot().net >= 0 ? '+' : ''
+          }}{{ monthSnapshot().net | currency: 'EUR' : 'symbol' : '1.2-2' }}
+        </span>
+        @if (monthSnapshot().netDelta !== null) {
+          <span
+            class="snapshot-delta"
+            [ngClass]="monthSnapshot().netDelta! >= 0 ? 'credit' : 'debit'"
+          >
+            {{ monthSnapshot().netDelta! >= 0 ? '+' : ''
+            }}{{ monthSnapshot().netDelta! | currency: 'EUR' : 'symbol' : '1.2-2' }} vs prev month
+          </span>
+        }
+      </div>
+    </div>
+  </section>
+
+  @if (topCategories().length > 0) {
+    <section class="section">
+      <h2 class="section-title">Top Spending · {{ formatMonth(monthSnapshot().month) }}</h2>
+      <div class="cat-bar-list">
+        @for (cat of topCategories(); track cat.label) {
+          <div class="cat-bar-row">
+            <span class="cat-bar-label">{{ cat.label }}</span>
+            <div class="cat-bar-track">
+              <div
+                class="cat-bar-fill"
+                [style.width.%]="cat.pct"
+                [style.background]="cat.color"
+              ></div>
+            </div>
+            <span class="cat-bar-amount debit">
+              {{ cat.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
+            </span>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="section">
     <div class="section-header">
       <h2 class="section-title">Monthly Summary</h2>
       <div class="bank-filter-bar">
@@ -73,10 +197,10 @@
           @for (row of monthlyTotals(); track row.month) {
             <tr class="clickable" (click)="navigateToMonth(row.month)">
               <td>{{ formatMonth(row.month) }}</td>
-              <td class="num credit">{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-              <td class="num debit">{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num credit">+{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
+              <td class="num debit">−{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
               <td class="num" [ngClass]="row.net >= 0 ? 'credit' : 'debit'">
-                {{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
+                {{ row.net >= 0 ? '+' : '' }}{{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
               </td>
             </tr>
           }
@@ -100,7 +224,7 @@
         </thead>
         <tbody>
           @for (s of allStatements(); track s.id) {
-            <tr>
+            <tr [class.clickable]="s.pdfPath" (click)="openStatementFile(s.id, s.pdfPath)">
               <td [style.color]="bankColor(s.bank)">{{ s.bank }}</td>
               <td>{{ formatPeriod(s.periodFrom, s.periodTo) }}</td>
               <td class="num">{{ s.transactions.length }}</td>

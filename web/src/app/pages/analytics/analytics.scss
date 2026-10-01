@@ -36,7 +36,7 @@
   outline: none;
   align-self: flex-start;
   &:focus {
-    border-color: #4f8cff;
+    border-color: var(--focus);
   }
   option {
     background: var(--surface);

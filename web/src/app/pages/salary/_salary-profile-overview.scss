@@ -14,7 +14,7 @@
     border-color 0.15s,
     box-shadow 0.15s;
   &:hover {
-    border-color: rgba(148, 163, 184, 0.35);
+    border-color: color-mix(in srgb, var(--text-secondary) 35%, transparent);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   }
 }
@@ -30,6 +30,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
+  min-height: calc(2 * 1.1rem * 1.4);
 }
 
 .poc-badge-actions {
@@ -82,6 +83,35 @@
   color: var(--text-muted);
   text-align: right;
   margin-top: 0.5rem;
+}
+
+.salary-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5rem 2rem;
+  color: var(--text-muted);
+  text-align: center;
+
+  .empty-state-icon {
+    color: var(--text-muted);
+    opacity: 0.45;
+    margin-bottom: 1.25rem;
+  }
+
+  .empty-state-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem;
+  }
+
+  .empty-state-desc {
+    font-size: 0.875rem;
+    max-width: 360px;
+    margin: 0 0 1.5rem;
+    line-height: 1.55;
+  }
 }
 
 @media (max-width: 700px) {

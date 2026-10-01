@@ -99,6 +99,6 @@
   cursor: pointer;
 
   &:hover {
-    background: rgba(108, 99, 255, 0.08);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
   }
 }

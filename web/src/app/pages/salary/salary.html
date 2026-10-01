@@ -1,3 +1,11 @@
+<app-confirm-dialog
+  [open]="confirmPending() !== null"
+  title="Confirm Delete"
+  [message]="confirmPending()?.message ?? ''"
+  (confirmed)="onConfirmPending()"
+  (cancelled)="confirmPending.set(null)"
+/>
+
 @if (loading()) {
   <div class="loading">Loading salary data…</div>
 } @else {
@@ -8,58 +16,92 @@
           <h1>Salary</h1>
           <p class="subtitle">Track wages and deductions across all income sources</p>
         </div>
+        @if (profiles().length > 0) {
+          <button class="btn-primary" (click)="openProfileCreate()">+ New profile</button>
+        }
       </div>
     </div>
 
-    <div class="profile-overview-grid">
-      @for (profile of profiles(); track profile.id) {
-        @let latestSlip = latestSlipPerProfile().get(profile.id);
-        <div class="profile-overview-card" (click)="enterProfile(profile.id)">
-          <div class="poc-header">
-            <div class="poc-title">{{ profile.name }}</div>
-            <div class="poc-badge-actions" (click)="$event.stopPropagation()">
-              <button class="icon-btn show" title="Edit profile" (click)="openProfileEdit(profile)">
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
+    @if (profiles().length === 0) {
+      <div class="empty-state salary-empty-state">
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="empty-state-icon"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+        <p class="empty-state-title">No salary profiles yet</p>
+        <p class="empty-state-desc">
+          Create a profile for each employer, then upload pay slips to track your earnings.
+        </p>
+        <button class="btn-primary" (click)="openProfileCreate()">+ New profile</button>
+      </div>
+    } @else {
+      <div class="profile-overview-grid">
+        @for (profile of profiles(); track profile.id) {
+          @let latestSlip = latestSlipPerProfile().get(profile.id);
+          <div class="profile-overview-card" (click)="enterProfile(profile.id)">
+            <div class="poc-header">
+              <div class="poc-title">{{ profile.name }}</div>
+              <div class="poc-badge-actions" (click)="$event.stopPropagation()">
+                <button
+                  class="icon-btn show"
+                  title="Edit profile"
+                  (click)="openProfileEdit(profile)"
                 >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            @if (latestSlip) {
+              <div class="poc-period">{{ formatPeriod(latestSlip.period) }}</div>
+              <div class="poc-amounts">
+                <span class="poc-gross">{{
+                  latestSlip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
+                }}</span>
+                <span class="poc-arrow">→</span>
+                <span class="poc-net">{{
+                  netFromLineItems(latestSlip) | currency: 'EUR' : 'symbol' : '1.2-2'
+                }}</span>
+              </div>
+              <div class="poc-chart">
+                <app-salary-pie-chart [slip]="latestSlip" [showLegend]="false" />
+              </div>
+            } @else {
+              <div class="poc-no-slips">No slips yet - click to view</div>
+            }
+
+            <div class="poc-footer">
+              {{ profile.slipCount }} slip{{ profile.slipCount !== 1 ? 's' : '' }} &nbsp;›
             </div>
           </div>
-
-          @if (latestSlip) {
-            <div class="poc-period">{{ formatPeriod(latestSlip.period) }}</div>
-            <div class="poc-amounts">
-              <span class="poc-gross">{{
-                latestSlip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
-              <span class="poc-arrow">→</span>
-              <span class="poc-net">{{
-                netFromLineItems(latestSlip) | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
-            </div>
-            <div class="poc-chart">
-              <app-salary-pie-chart [slip]="latestSlip" [showLegend]="false" />
-            </div>
-          } @else {
-            <div class="poc-no-slips">No slips yet - click to view</div>
-          }
-
-          <div class="poc-footer">
-            {{ profile.slipCount }} slip{{ profile.slipCount !== 1 ? 's' : '' }} &nbsp;›
-          </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
+    }
   }
 
   @if (view() === 'profile') {
@@ -455,15 +497,17 @@
             <select
               class="field-input li-cat"
               [ngModel]="li.salaryItemCategoryId"
-              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', +$event)"
+              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', $event)"
             >
               <option [ngValue]="null">Category…</option>
               @for (type of itemTypes; track type.value) {
-                <optgroup [label]="type.label">
-                  @for (c of catsByType(type.value); track c.id) {
-                    <option [value]="c.id">{{ c.name }}</option>
-                  }
-                </optgroup>
+                @if (catsByType(type.value).length > 0) {
+                  <optgroup [label]="type.label">
+                    @for (c of catsByType(type.value); track c.id) {
+                      <option [ngValue]="c.id">{{ c.name }}</option>
+                    }
+                  </optgroup>
+                }
               }
             </select>
           </div>
@@ -523,6 +567,16 @@
         [ngModel]="profileDesc()"
         (ngModelChange)="profileDesc.set($event)"
       />
+      <label class="field-label">True hourly rate formula</label>
+      <select
+        class="field-input"
+        [ngModel]="profileFormula()"
+        (ngModelChange)="profileFormula.set($event)"
+      >
+        <option value="days">Net ÷ (days worked × 8h)</option>
+        <option value="hours">Net ÷ hours worked</option>
+        <option value="workdays">Net ÷ (weekdays in month × 8h)</option>
+      </select>
       <div class="modal-actions">
         <button class="btn-secondary" (click)="showProfileModal.set(false)">Cancel</button>
         <button

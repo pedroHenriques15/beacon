@@ -10,12 +10,19 @@ import {
   SalarySlip,
 } from '../models/statement.model';
 
-const PROFILE_A: SalaryProfile = { id: 1, name: 'Main Job', description: null, slipCount: 2 };
+const PROFILE_A: SalaryProfile = {
+  id: 1,
+  name: 'Main Job',
+  description: null,
+  slipCount: 2,
+  hourlyRateFormula: 'days',
+};
 const PROFILE_B: SalaryProfile = {
   id: 2,
   name: 'Side Job',
   description: 'Consulting',
   slipCount: 0,
+  hourlyRateFormula: 'days',
 };
 
 const CAT_INCOME: SalaryItemCategory = {
@@ -40,8 +47,8 @@ const SLIP: SalarySlip = {
   salaryProfileId: 1,
   profileName: 'Main Job',
   period: '2026-03-01',
-  grossAmount: 1774.4,
-  netAmount: 1619.4,
+  grossAmount: 1680,
+  netAmount: 1308,
   notes: null,
   pdfPath: 'salary/abc.pdf',
   sourceFile: 'march.pdf',
@@ -55,11 +62,11 @@ const SLIP: SalarySlip = {
 
 const PARSED: ParsedSlipResponse = {
   parserName: 'CentralGest',
-  employer: 'KONK CONSULTING',
-  employerNif: '506977544',
+  employer: 'EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.',
+  employerNif: '999000002',
   period: '2026-03-01',
-  grossAmount: 1774.4,
-  netAmount: 1619.4,
+  grossAmount: 1680,
+  netAmount: 1308,
   baseAmount: null,
   hoursWorked: null,
   hourlyRate: null,
@@ -67,7 +74,7 @@ const PARSED: ParsedSlipResponse = {
   lineItems: [
     {
       description: 'Vencimento',
-      amount: 1000,
+      amount: 1200,
       itemType: 'income',
       quantity: null,
       unitValue: null,
@@ -76,7 +83,7 @@ const PARSED: ParsedSlipResponse = {
     },
     {
       description: 'IRS',
-      amount: 45,
+      amount: 60,
       itemType: 'tax',
       quantity: null,
       unitValue: null,
@@ -155,7 +162,7 @@ describe('SalaryService', () => {
     const req = ctrl.expectOne('/api/salary/item-categories');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({
-      profileId: 1,
+      salaryProfileId: 1,
       name: 'PPR',
       color: '#6c63ff',
       itemType: 'income',
@@ -211,9 +218,9 @@ describe('SalaryService', () => {
     const body = {
       salaryProfileId: 1,
       period: '2026-03-01',
-      grossAmount: 1774.4,
-      netAmount: 1619.4,
-      lineItems: [{ salaryItemCategoryId: 10, amount: 1000, sortOrder: 0 }],
+      grossAmount: 1680,
+      netAmount: 1308,
+      lineItems: [{ salaryItemCategoryId: 10, amount: 1200, sortOrder: 0 }],
     };
     service.createSlip(body).subscribe();
     const req = ctrl.expectOne('/api/salary/slips');
@@ -226,13 +233,27 @@ describe('SalaryService', () => {
   it('updateSlip() PUTs to /api/salary/slips/:id', () => {
     const body = {
       period: '2026-03-01',
-      grossAmount: 1774.4,
-      netAmount: 1619.4,
+      grossAmount: 1680,
+      netAmount: 1308,
       lineItems: [],
     };
     service.updateSlip(100, body).subscribe();
     const req = ctrl.expectOne('/api/salary/slips/100');
     expect(req.request.method).toBe('PUT');
+    req.flush(SLIP);
+  });
+
+  it('mergeSlip() POSTs to /api/salary/slips/:id/merge without a period', () => {
+    const body = {
+      grossAmount: 350.62,
+      netAmount: 348.34,
+      lineItems: [{ salaryItemCategoryId: 10, amount: 350.62, sortOrder: 0 }],
+    };
+    service.mergeSlip(100, body).subscribe();
+    const req = ctrl.expectOne('/api/salary/slips/100/merge');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.grossAmount).toBe(350.62);
+    expect(req.request.body.period).toBeUndefined();
     req.flush(SLIP);
   });
 
@@ -281,9 +302,9 @@ describe('SalaryService', () => {
 
     ctrl.expectOne('/api/salary/parse-pdf').flush(PARSED);
 
-    expect(result?.employer).toBe('KONK CONSULTING');
+    expect(result?.employer).toBe('EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.');
     expect(result?.period).toBe('2026-03-01');
-    expect(result?.grossAmount).toBe(1774.4);
+    expect(result?.grossAmount).toBe(1680);
   });
 
   it('parsePdf() returns line items from response', () => {

@@ -14,7 +14,7 @@
 
 %error-block {
   padding: 0.5rem 0.85rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   color: var(--danger);
   border-radius: 6px;
   font-size: 0.85rem;

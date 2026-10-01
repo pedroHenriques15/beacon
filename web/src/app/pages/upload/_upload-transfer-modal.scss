@@ -34,7 +34,7 @@
 
   &.selected {
     border-color: var(--primary);
-    background: rgba(108, 99, 255, 0.06);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
   }
   &:hover {
     border-color: #475569;
@@ -42,7 +42,6 @@
 
   input[type='checkbox'] {
     flex-shrink: 0;
-    cursor: pointer;
   }
 }
 
@@ -62,11 +61,11 @@
   border-radius: 4px;
   white-space: nowrap;
   &.debit {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
   &.credit {
-    background: rgba(52, 211, 153, 0.12);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
     color: var(--success);
   }
 }

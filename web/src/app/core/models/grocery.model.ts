@@ -34,6 +34,7 @@ export interface GroceryItem {
   categoryName: string | null;
   categoryColor: string | null;
   categorySetManually: boolean;
+  isExcluded: boolean;
   receiptCategory?: string;
 }
 
@@ -57,6 +58,7 @@ export interface GroceryReceiptUploadResult {
   itemCount: number;
   wasDuplicate: boolean;
   newReceiptCategories: string[];
+  warnings?: string[] | null;
 }
 
 export interface GroceryReceiptCategoryMapping {

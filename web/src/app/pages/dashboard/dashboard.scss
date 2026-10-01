@@ -1,5 +1,6 @@
 @use 'dashboard-cards' as *;
 @use 'dashboard-table' as *;
+@use 'dashboard-stats' as *;
 
 .page-header {
   margin-bottom: 2rem;
@@ -25,8 +26,14 @@
   .amount {
     font-size: 2.75rem;
     font-weight: 700;
-    color: #f1f5f9;
+    color: var(--text-heading);
     letter-spacing: -0.02em;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  }
+
+  .breakdown {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
   }
 }

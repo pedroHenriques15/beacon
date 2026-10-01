@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build *)",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet run *)",
+      "Bash(dotnet ef migrations *)",
+      "Bash(npm test *)",
+      "Bash(npx ng *)",
+      "Bash(ng test *)",
+      "Bash(ng build *)",
+      "Bash(npx prettier *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}
