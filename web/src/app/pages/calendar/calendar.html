@@ -199,7 +199,11 @@
         }
 
         @if (completedTasks().length > 0) {
-          <button class="tasks-panel__toggle" type="button" (click)="showCompleted.update(v => !v)">
+          <button
+            class="tasks-panel__toggle"
+            type="button"
+            (click)="showCompleted.update((v) => !v)"
+          >
             {{ showCompleted() ? 'Hide' : 'Show' }} completed ({{ completedTasks().length }})
           </button>
           @if (showCompleted()) {
