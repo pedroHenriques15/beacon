@@ -6,6 +6,7 @@ import {
   effect,
   input,
   viewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import {
   Chart,
@@ -32,6 +33,7 @@ Chart.register(
 @Component({
   selector: 'app-asset-history-chart',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (points().length > 1) {
       <div class="inv-asset-chart"><canvas #canvas></canvas></div>

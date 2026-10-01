@@ -1,4 +1,11 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  OnInit,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SalaryService } from '../../core/services/salary.service';
@@ -35,6 +42,7 @@ interface LineItemDraft {
     ConfirmDialogComponent,
   ],
   templateUrl: './salary.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './salary.scss',
 })
 export class SalaryComponent implements OnInit {

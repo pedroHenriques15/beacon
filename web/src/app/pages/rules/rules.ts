@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CategoriesService } from '../../core/services/categories.service';
 import { FinanceService } from '../../core/services/finance.service';
@@ -14,6 +14,7 @@ import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/con
   standalone: true,
   imports: [FormsModule, ConfirmDialogComponent],
   templateUrl: './rules.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './rules.scss',
 })
 export class RulesComponent {

@@ -1,4 +1,12 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CalendarEvent, CalendarEventFormData } from '../../core/models/calendar-event';
 import { GOOGLE_CALENDAR_COLOR_ENTRIES } from '../../core/constants/calendar-colors';
@@ -8,6 +16,7 @@ import { GOOGLE_CALENDAR_COLOR_ENTRIES } from '../../core/constants/calendar-col
   standalone: true,
   imports: [FormsModule],
   templateUrl: './event-modal.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './_calendar-modal.scss',
 })
 export class EventModalComponent implements OnChanges {

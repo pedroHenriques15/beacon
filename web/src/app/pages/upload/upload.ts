@@ -1,4 +1,11 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -65,6 +72,7 @@ const BANK_DETECT_ERROR = 'Could not detect bank';
   standalone: true,
   imports: [NgClass, DatePipe, FormsModule, CurrencyPipe, RouterLink],
   templateUrl: './upload.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './upload.scss',
 })
 export class UploadComponent implements OnInit {

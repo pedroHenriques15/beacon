@@ -1,4 +1,12 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Task, TaskFormData, TaskList } from '../../core/models/task';
 
@@ -7,6 +15,7 @@ import { Task, TaskFormData, TaskList } from '../../core/models/task';
   standalone: true,
   imports: [FormsModule],
   templateUrl: './task-modal.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './_task-modal.scss',
 })
 export class TaskModalComponent implements OnChanges {

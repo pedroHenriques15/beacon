@@ -7,6 +7,7 @@ import {
   OnInit,
   OnDestroy,
   effect,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -57,6 +58,7 @@ type GrocerySortCol = 'date' | 'store' | 'description' | 'category' | 'amount' |
   standalone: true,
   imports: [CurrencyPipe, DatePipe, NgClass, FormsModule],
   templateUrl: './transactions.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './transactions.scss',
 })
 export class TransactionsComponent implements OnInit, OnDestroy {

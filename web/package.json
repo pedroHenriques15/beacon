@@ -11,26 +11,23 @@
   "private": true,
   "packageManager": "npm@11.5.1",
   "dependencies": {
-    "@angular/common": "^21.2.25",
-    "@angular/compiler": "^21.2.25",
-    "@angular/core": "^21.2.25",
-    "@angular/forms": "^21.2.25",
-    "@angular/platform-browser": "^21.2.25",
-    "@angular/router": "^21.2.25",
+    "@angular/common": "^22.2.1",
+    "@angular/compiler": "^22.2.1",
+    "@angular/core": "^22.2.1",
+    "@angular/forms": "^22.2.1",
+    "@angular/platform-browser": "^22.2.1",
+    "@angular/router": "^22.2.1",
     "chart.js": "^4.5.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.24",
-    "@angular/cli": "^21.2.24",
-    "@angular/compiler-cli": "^21.2.25",
-    "@emnapi/core": "^1.11.3",
-    "@emnapi/runtime": "^1.11.3",
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.2.0",
+    "@angular/compiler-cli": "^22.2.1",
     "happy-dom": "^20.14.5",
-    "jsdom": "^28.0.0",
     "prettier": "^3.9.9",
-    "typescript": "~5.9.2",
-    "vitest": "^4.0.8"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3"
   }
 }
