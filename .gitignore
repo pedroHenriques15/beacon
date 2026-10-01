@@ -58,9 +58,6 @@ web/.angular/
 npm-debug.log*
 yarn-error.log*
 
-# ─── Deploy build staging ───────────────────────────────────────────────────
-.build/
-
 # ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]

@@ -24,8 +24,7 @@
 --     5 excluded transactions (mix of categorised and uncategorised)
 --     3 excluded grocery items
 --
--- SQLite. Usage: scripts/seed-demo.ps1 (Windows) or scripts/seed-demo.sh (Linux), which
--- run it through scripts/SeedRunner. SeedRunner rewrites the decimals afterwards in the
+-- SQLite. Usage: scripts/seed-demo.ps1, which runs it through scripts/SeedRunner. SeedRunner rewrites the decimals afterwards in the
 -- text form EF Core uses, so amounts may be written here as plain numbers.
 --
 -- WARNING: Will fail on duplicate key if data already exists.

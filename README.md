@@ -131,10 +131,9 @@ beacon/
 │       └── pages/             # Lazy-loaded routed components
 ├── scripts/
 │   ├── pdfExtractor.py        # Python: PDF → page text (called by .NET)
-│   ├── deploy.sh              # Build and launch dev/prod in new terminals
 │   ├── run-backend.ps1        # API with local/environment.dev (applies migrations first)
 │   ├── run-frontend.ps1       # Angular dev server, once the API answers
-│   └── reset-db.sh / .ps1     # Drop + recreate database
+│   └── reset-db.ps1           # Drop + recreate database
 ├── docs/                      # Architecture, decisions (ADRs), roadmap, screenshots
 ├── .claude/                   # Claude Code agents, the task skill, shared permissions
 ├── CLAUDE.md                  # Working rules: invariants, conventions, git workflow
@@ -158,7 +157,7 @@ After cloning, run `scripts/setup.sh` (or `scripts/setup.ps1` on Windows) once: 
 
 Copy `api/Beacon.Api/appsettings.template.json` to `appsettings.Development.json` and fill in:
 
-- `ApiKey` - **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether - set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production, where `deploy.sh` injects it into the frontend build.
+- `ApiKey` - **must be `dev-only-key` for local development**: the Angular dev build sends that exact value (`web/src/environments/environment.ts`) in the `X-Api-Key` header, so a different backend key makes every frontend call fail with 401. Note that if you leave `ApiKey` unset entirely, Development mode skips key validation altogether - set it anyway so dev behaves like production (which fails closed). Pick your own secret only for production: the production build carries the placeholder `FINANCE_HUB_API_KEY_PLACEHOLDER` (`web/src/environments/environment.prod.ts`), which the deployment must replace with that key in the built files.
 - `ConnectionStrings.DefaultConnection` - `Data Source=<path to the database file>`, for example `Data Source=/home/you/beacon/local/beacon.db`. The file and its folder are created by the first `dotnet ef database update`.
 - `Storage.Path` - where uploaded PDFs will be stored
 - `Python.Executable` - `python3` on Linux/macOS, `python` on Windows (the stock `python3` alias on Windows opens the Microsoft Store instead of running Python)
@@ -243,26 +242,20 @@ dotnet ef migrations add <MigrationName>
 dotnet ef database update
 ```
 
-To reset to a clean state: `./scripts/reset-db.sh` (Linux) or `./scripts/reset-db.ps1` (Windows).
+To reset to a clean state: `./scripts/reset-db.ps1` (PowerShell).
 
 The whole database is one file. To back it up, copy it while the API is stopped (with WAL, recent writes may still sit in the `-wal` file beside it while the API runs), or use the backup on the Settings page.
 
 ### Moving from SQL Server
 
-Beacon used SQL Server until 30 September 2026. To move a database to SQLite, first bring it up to date with the last SQL Server release (its last migration is `StorePdfPathsAsFileNames`), then:
-
-```bash
-dotnet run --project scripts/MigrateToSqlite -- "<SQL Server connection string>" "<path of the new .db file>"
-```
-
-The tool only reads the SQL Server database. It copies every table, ids included, into the new file, then compares the two row by row and prints the result per table. It never overwrites an existing file, and if the copy differs from the source it deletes the new one. Afterwards, point `ConnectionStrings__DefaultConnection` at the new file.
+Beacon used SQL Server until 30 September 2026. The one-off tool that copied a SQL Server database into SQLite has since been removed; to move an older database, check out a commit that still has `scripts/MigrateToSqlite` (`git log -- scripts/MigrateToSqlite`) and follow the README there.
 
 ---
 
 ## Tests
 
 ```bash
-# Backend - xUnit (633 tests)
+# Backend - xUnit (631 tests)
 cd api
 dotnet test Beacon.Tests/
 
@@ -279,27 +272,17 @@ dotnet list beacon.sln package --vulnerable --include-transitive
 cd web && npm audit --audit-level=high
 ```
 
-CI also lists the NuGet packages of `scripts/MigrateToSqlite` and `scripts/SeedRunner`, which are not in `beacon.sln`. Dependabot proposes dependency updates every week (`.github/dependabot.yml`).
+CI also lists the NuGet packages of `scripts/SeedRunner`, which is not in `beacon.sln`. Dependabot proposes dependency updates every week (`.github/dependabot.yml`).
 
-Every backend test runs on its own in-memory SQLite database. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale) and the SQL Server to SQLite copier, and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
+Every backend test runs on its own in-memory SQLite database. Backend coverage spans all bank/salary/grocery parsers, the upload pipeline (behind a stubbed PDF extractor), PDF storage and the startup cleanup of orphaned PDFs, the API-key and exception middleware, categorisation rules, backup/restore (with a round trip on a real SQLite database), the SQLite behaviour the app relies on (decimal sums and sorts in SQL, searches and sorting with accents, unique names that ignore case, decimals held to their scale), and the CQRS handlers for statements, transactions, categories, salary (including merging a second pay run into a month), groceries, investments (including Alpha Vantage request pinning and price-history backfill) and Google services, plus the micro1/Deel invoice pairing and USD-to-EUR reconciliation.
 
 ---
 
 ## Deployment
 
-`scripts/deploy.sh --production` is headless-safe (works over plain SSH). It builds the API and the Angular bundle **before touching the live service**, injects the production API key into the *built* frontend files (tracked sources are never modified), snapshots the current release to `/opt/beacon.prev`, stops the service, applies EF migrations to the SQLite file (nothing else holds it then), deploys to `/opt/beacon`, and restarts the `beacon` systemd service and Nginx - verifying the API actually answers before declaring success. Every step fails loudly (`set -euo pipefail`); a failed build leaves production untouched.
+Beacon runs on a home server, built from `main`, and is reached remotely over Tailscale. Nginx serves the Angular build as static files and forwards `/api/*` to Kestrel; the API runs as a `beacon` systemd service whose environment comes from `/etc/beacon/environment`.
 
-```bash
-./scripts/deploy.sh --production   # deploy
-./scripts/deploy.sh --rollback     # restore the previous release (migrations are NOT reverted)
-journalctl -u beacon -f            # production logs (journald)
-```
-
-Server prerequisites: a `beacon` systemd unit at `/etc/systemd/system/beacon.service`, Nginx, and a filled-in `local/environment` file (loaded via the unit's `EnvironmentFile`). Its `ConnectionStrings__DefaultConnection` names the database file, for example `Data Source=/home/you/beacon/local/Database/beacon.db`: `deploy.sh` makes that folder writable by the `beacon` group (the service writes the file and its `-wal`/`-shm` companions there) and refuses a path under `/opt/beacon`, which every deploy replaces.
-
-Development mode (`./scripts/deploy.sh`) opens API and Web dev servers in two tiled gnome-terminal windows - a desktop convenience, not used in production.
-
-The app is designed to run on a home server and be accessed remotely over Tailscale. Nginx acts as a reverse proxy, serving the Angular build as static files and forwarding `/api/*` to Kestrel.
+The way to deploy it is being reworked: the previous deploy script has been removed, and its replacement is not in the repository yet.
 
 ---
 

@@ -213,7 +213,8 @@ The migrations start over from one SQLite `InitialCreate`; an existing database 
 `scripts/MigrateToSqlite`, which copies every table through EF, keeping ids, and compares the
 result row by row. The backup round trip that needed SQL Server (ADR-015) now runs on every
 test run. Costs accepted: one writer at a time, and `NOCASE` folds only ASCII letters in
-equality and unique names.
+equality and unique names. `scripts/MigrateToSqlite` and the `DatabaseCopier` it used were
+removed on 2026-10-01, once the move was done.
 
 ## ADR-025 · Backend tests run on an in-memory SQLite database
 
