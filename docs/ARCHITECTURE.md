@@ -36,7 +36,7 @@ beacon/
 ├── api/
 │   ├── Beacon.Api/
 │   │   ├── Controllers/          # REST endpoint handlers
-│   │   ├── Data/                 # AppDbContext, SqliteSetup (connection setup), DatabaseCopier
+│   │   ├── Data/                 # AppDbContext, SqliteSetup (connection setup)
 │   │   ├── Features/             # Feature-driven CQRS (see below)
 │   │   │   ├── Backup/
 │   │   │   ├── Categories/
@@ -61,7 +61,7 @@ beacon/
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
 │   └── Beacon.Tests/             # xUnit test project; SqliteTestDatabase gives each test an in-memory SQLite database
 │       ├── Controllers/          # Controller responses (Google connection errors)
-│       ├── Data/                 # SQLite behaviour, DatabaseCopier
+│       ├── Data/                 # SQLite behaviour
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
 │       ├── Parsing/              # Parser tests (bank, salary slip, grocery)
@@ -92,17 +92,14 @@ beacon/
 ├── scripts/
 │   ├── pdfExtractor.py           # PDF → JSON page text (run by PdfExtractorService)
 │   ├── requirements.txt          # pdfplumber
-│   ├── deploy.sh                 # Build and run: --development (default), --production, --rollback
-│   ├── reset-db.sh / .ps1        # Drop and recreate the local database (reads appsettings.json)
+│   ├── reset-db.ps1              # Drop and recreate the local database (reads appsettings.json)
 │   ├── run-backend.ps1           # Load local/environment.dev, apply migrations, start the API on :5098
 │   ├── run-frontend.ps1          # Wait for the API, then ng serve on :4200
 │   ├── run-backend-demo.ps1      # (WIP) API against the demo database (local/beacon-demo.db), with its own uploads-demo/ and backups-demo/
 │   ├── seed-demo.sql             # (WIP) Synthetic demo data (SQLite)
-│   ├── seed-demo.ps1 / .sh       # (WIP) Seed the demo database (Windows, through SeedRunner / Linux server)
+│   ├── seed-demo.ps1             # (WIP) Seed the demo database through SeedRunner
 │   ├── SeedRunner/               # (WIP) Console app: runs a SQL file against a SQLite database, then rewrites decimals and dates as EF writes them
-│   ├── MigrateToSqlite/          # Console app: copies a SQL Server Beacon database into a new SQLite file and compares the two
-│   ├── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
-│   └── readPdf.py                # Print a PDF's extracted text page by page (parser debugging)
+│   └── setup.sh / .ps1           # Once per clone: git config core.hooksPath .githooks
 ├── docs/
 │   ├── ARCHITECTURE.md           # This file
 │   ├── DECISIONS.md              # Settled decisions (ADRs)
@@ -588,10 +585,6 @@ tools in `scripts/` all go through `UseBeaconSqlite`.
 At startup `Program.cs` seeds default data (including the protected Excluded categories)
 and then runs the PDF cleanup (see "PDF storage").
 
-`Data/DatabaseCopier.cs` copies every table from one Beacon database to another, keeping ids,
-and compares the two row by row. `scripts/MigrateToSqlite` uses it to move a SQL Server
-database (the last SQL Server release's schema) into a new SQLite file.
-
 ## API surface
 
 All endpoints require the `X-Api-Key` header, except `/swagger` in development and
@@ -651,8 +644,8 @@ field, so every test gets its own in-memory SQLite database with the production 
 connection setup; `CreateDb()` again gives a fresh context on the same database. Seed related
 rows through navigations (`Category = cat`), not through ids read before `SaveChanges`: ids are
 assigned on save. `Data/` pins the engine behaviour the app relies on (decimal sums and sorts
-in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, foreign keys)
-and `DatabaseCopier`. Coverage: all bank/salary/grocery parsers (incl.
+in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, foreign keys).
+Coverage: all bank/salary/grocery parsers (incl.
 Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,

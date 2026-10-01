@@ -44,8 +44,8 @@ api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests, each on its own in-memory SQLite database
 web/src/app/        Angular 22 client: core/ (services, models, interceptors), pages/ (routes)
-scripts/            pdfExtractor.py (run by the API), deploy.sh, reset-db, run-backend/-frontend,
-                    setup (enables the git hooks), MigrateToSqlite/ (SQL Server database to SQLite)
+scripts/            pdfExtractor.py (run by the API), reset-db, run-backend/-frontend, setup
+                    (enables the git hooks), seed-demo and SeedRunner/ (demo database)
 .githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
 docs/               ARCHITECTURE, DECISIONS, ROADMAP, screenshots/; tasks/ (git-ignored)
 .claude/            agents/ (scaffolders), skills/task/ (task workflow), settings.json (shared)
@@ -161,7 +161,8 @@ Before a task's PR:
 
 - **`main` is what runs on the server** (ADR-021). It changes only through a release PR from
   `development`, merged with a merge commit, never squashed (a squashed release makes the
-  branches diverge). Deploy from a checkout of `main` with `scripts/deploy.sh --production`.
+  branches diverge). The server runs a checkout of `main`; how it is deployed is being
+  reworked (there is no deploy script).
 - **`development` is integration.** Task branches are cut from it and come back through a PR,
   squash-merged.
 - **Branch names**: `prefix/NNN-work-name`, for example `fix/012-upload-timeout`.
