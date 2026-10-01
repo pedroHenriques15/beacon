@@ -72,7 +72,8 @@ The full tree is in ARCHITECTURE.md, "Repository layout". Update both when the l
 8. **Salary item categories belong to one profile** (ADR-009). Validate line items against
    the target slip's profile.
 9. **Backend tests use an in-memory SQLite database per test** (`SqliteTestDatabase`, held in a
-   field of the test class). Never mock `AppDbContext` (ADR-025).
+   field of the test class); only a test of a missing or damaged database file uses a file in
+   a temporary folder. Never mock `AppDbContext` (ADR-025).
 10. **Angular uses standalone components and signals only.** No NgModules (ADR-016).
 
 ## Conventions
