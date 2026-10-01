@@ -1,0 +1,55 @@
+# Weekly dependency updates, one grouped pull request per ecosystem, against `development`.
+# How these pull requests fit the workflow: CLAUDE.md, "Git workflow".
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - /api/Beacon.Api
+      - /api/Beacon.Tests
+      - /scripts/SeedRunner
+      - /scripts/MigrateToSqlite
+    schedule:
+      interval: weekly
+    target-branch: development
+    commit-message:
+      prefix: chore
+    groups:
+      nuget:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    target-branch: development
+    commit-message:
+      prefix: chore
+    groups:
+      npm:
+        patterns: ['*']
+        update-types: [minor, patch]
+      # Security updates are one PR per package unless a group applies to them. The Angular
+      # packages require each other at exactly the same version, so a fix for one installs
+      # only together with the rest.
+      angular-security:
+        applies-to: security-updates
+        patterns: ['@angular/*']
+    ignore:
+      # A new Angular major goes through `ng update` and its migrations, as its own piece of
+      # work; Dependabot would only bump the numbers. Each Angular release supports a narrow
+      # TypeScript range, so TypeScript moves with Angular, not on its own.
+      - dependency-name: '@angular/*'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major, version-update:semver-minor]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: development
+    commit-message:
+      prefix: chore
+    groups:
+      github-actions:
+        patterns: ['*']
