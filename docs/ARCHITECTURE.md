@@ -539,6 +539,16 @@ calls: an error with code `google_reconnect_required` or `google_not_connected` 
 status while it still says connected, so both pages switch to their reconnect or connect state
 instead of showing an empty calendar.
 
+### Dependencies
+
+`@emnapi/core` and `@emnapi/runtime` are dev dependencies that no code imports. The build
+tooling needs them only as optional peers (`@angular/build` → `@rolldown/binding-wasm32-wasi`
+→ `@napi-rs/wasm-runtime`), and Dependabot drops optional peers from the lockfiles it writes,
+after which `npm ci` in CI fails with `Missing: @emnapi/core@… from lock file`. Listing them
+directly keeps them in the lockfile. Remove them only once `package-lock.json` no longer
+lists `@napi-rs/wasm-runtime` (`npm ls` won't show it: npm installs the wasm binding only
+where no native one exists).
+
 ## Database
 
 SQLite (ADR-024): one file, named by `ConnectionStrings__DefaultConnection`
