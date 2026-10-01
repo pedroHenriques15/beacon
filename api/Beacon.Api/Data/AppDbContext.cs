@@ -282,7 +282,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(t => t.AccessToken).IsRequired();
             e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
             e.Property(t => t.Scopes).HasMaxLength(500);
-            e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", "Id = 1"));
+            e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", $"Id = {GoogleOAuthToken.SingletonId}"));
         });
     }
 }

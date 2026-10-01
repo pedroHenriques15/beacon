@@ -4,6 +4,7 @@ using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -160,6 +161,40 @@ public class GoogleOAuthServiceTests : IDisposable
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => svc.ExchangeCodeAsync("auth-code", state!));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StatusChecks_LogNoEfQueryWarning(bool connected)
+    {
+        // EF warns when it compiles a query, once per internal service provider: without caching
+        // those, each case compiles the token query, and would warn, on its own.
+        var provider = new CapturingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(b => b.AddProvider(provider));
+        var options = new DbContextOptionsBuilder<AppDbContext>(_database.Options)
+            .UseLoggerFactory(loggerFactory).EnableServiceProviderCaching(false).Options;
+        await using var db = new AppDbContext(options);
+        if (connected)
+        {
+            db.GoogleOAuthTokens.Add(new GoogleOAuthToken
+            {
+                Id = GoogleOAuthToken.SingletonId,
+                AccessToken = "token",
+                RefreshToken = "refresh",
+                ExpiresAt = DateTime.UtcNow.AddHours(1),
+                ConnectedAt = DateTime.UtcNow.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+        }
+        using var cache = CreateCache();
+
+        await CreateService(db, cache).GetStatusAsync();
+
+        Assert.DoesNotContain(provider.Entries, e =>
+            e.Category.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
+            && e.Level >= LogLevel.Warning);
     }
 
     [Fact]

@@ -82,7 +82,7 @@ public class GoogleOAuthService(
     /// </summary>
     public async Task<string> GetValidAccessTokenAsync(CancellationToken ct = default)
     {
-        var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct)
+        var token = await FindTokenAsync(ct)
             ?? throw new GoogleConnectionException(GoogleConnectionState.NotConnected);
 
         var state = await RefreshIfExpiredAsync(token, ct);
@@ -97,7 +97,7 @@ public class GoogleOAuthService(
     /// </summary>
     public async Task<GoogleAuthStatus> GetStatusAsync(CancellationToken ct = default)
     {
-        var token = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
+        var token = await FindTokenAsync(ct);
         if (token is null)
             return new GoogleAuthStatus(GoogleConnectionState.NotConnected, null, null);
 
@@ -172,9 +172,16 @@ public class GoogleOAuthService(
         }
     }
 
+    /// <summary>
+    /// The single token row, by its key: a <c>First</c> with no filter or order would make EF log a
+    /// warning on every status check.
+    /// </summary>
+    private ValueTask<Models.GoogleOAuthToken?> FindTokenAsync(CancellationToken ct) =>
+        db.GoogleOAuthTokens.FindAsync([Models.GoogleOAuthToken.SingletonId], ct);
+
     private async Task UpsertTokenAsync(TokenResponse body, CancellationToken ct)
     {
-        var existing = await db.GoogleOAuthTokens.FirstOrDefaultAsync(ct);
+        var existing = await FindTokenAsync(ct);
         if (existing is null)
         {
             if (string.IsNullOrEmpty(body.RefreshToken))
@@ -182,7 +189,7 @@ public class GoogleOAuthService(
 
             db.GoogleOAuthTokens.Add(new Models.GoogleOAuthToken
             {
-                Id = 1,
+                Id = Models.GoogleOAuthToken.SingletonId,
                 AccessToken = body.AccessToken,
                 RefreshToken = body.RefreshToken,
                 ExpiresAt = DateTime.UtcNow.AddSeconds(body.ExpiresIn),
