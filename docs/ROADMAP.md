@@ -29,12 +29,6 @@ Quality:
 - Improve the demo database so it covers many cases, and build a database with real data
   for personal use.
 
-Integrations:
-
-- The Angular dev server warns that it is for local testing only when it is bound with
-  `--host` ("It hasn't been reviewed for security issues"); decide how to serve the client
-  to other devices without it.
-
 ## Later
 
 - Import and export data from several pages.
@@ -46,7 +40,5 @@ Integrations:
   analytics and totals, if at all.
 - Settings: more options.
 - Update the README, including the screenshots.
-- Better Docker containers. The dev container is gone (ADR-019); decide whether this still
-  means anything for production.
 - Android app.
 - Automatic email scanning and better email rule filters (research).

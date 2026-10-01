@@ -237,3 +237,16 @@ after the OAuth callback (ADR-017), so a probe holds no secret and keeps working
 changes. The exemption gives nothing away: anyone who can reach the server can read the key
 from the built client (ADR-001). Even so, the route returns only the status and the release,
 never counts, paths or settings.
+
+## ADR-027 · The server deploys `main` by itself
+
+Since 2026-10-01 the server notices a new commit on `main`, builds the API and the client from
+its own checkout, applies the migrations with the service stopped, installs the release,
+checks `/api/health` (ADR-026) and puts the previous release back if anything fails;
+migrations are never reverted. The scripts that do it live with the server's setup, outside
+this repository, and the server only reads from GitHub: no deploy key, nothing GitHub can
+call. README.md, "Deployment", lists what a deploy relies on here. Alternatives: a container
+image (a second runtime and a registry for one machine); CI deploying over the private network
+(network credentials and SSH keys as repository secrets, and the server reachable from CI);
+artifacts built by CI (storage for one machine that builds them itself). Cost accepted:
+whatever reaches `main` runs minutes later, so the release PR (ADR-021) is the only gate.

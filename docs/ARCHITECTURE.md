@@ -645,8 +645,9 @@ statement parsers") and stored under bank name `MEAL CARD`.
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
 `scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
 `scripts/run-backend-demo.ps1`, which always points the database at `local/beacon-demo.db`,
-`Storage__Path` at `local/uploads-demo` and `Backup__Path` at `local/backups-demo`); in production in `/etc/beacon/environment` (loaded
-by systemd `EnvironmentFile`).
+`Storage__Path` at `local/uploads-demo` and `Backup__Path` at `local/backups-demo`); in production in `local/environment` in the server's
+checkout of `main` (loaded by systemd `EnvironmentFile`; the server has no `appsettings.json`).
+How the server deploys is in README.md, "Deployment" (ADR-027).
 
 ## Tests
 
