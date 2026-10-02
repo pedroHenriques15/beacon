@@ -22,6 +22,13 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
                 context.Request.Method, context.Request.Path);
             await WriteProblemAsync(context, StatusCodes.Status400BadRequest, "Unsupported request", ex.Message);
         }
+        catch (BadHttpRequestException ex)
+        {
+            // A body over the endpoint's size limit (413), or a malformed request.
+            logger.LogWarning("Bad request for {Method} {Path}: {Reason}",
+                context.Request.Method, context.Request.Path, ex.Message);
+            await WriteProblemAsync(context, ex.StatusCode, "Bad request", ex.Message);
+        }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             if (!context.Response.HasStarted)

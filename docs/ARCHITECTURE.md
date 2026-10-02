@@ -47,15 +47,17 @@ beacon/
 │   │   │   ├── Health/           # GetHealth (answers without the API key)
 │   │   │   ├── Investments/
 │   │   │   │   └── Shared/       # SavingsPlanImportService
+│   │   │   ├── Logs/             # GetLogs, LogClientError
 │   │   │   ├── Salary/
 │   │   │   ├── Shared/           # ExcludedCategory, ProtectedEntityHelper, ValidationExtensions
 │   │   │   ├── Statements/
 │   │   │   ├── Transactions/
 │   │   │   └── Upload/           # UnifiedUploadBatch (multi-type batch upload)
-│   │   ├── Middleware/           # ApiKeyMiddleware, ExceptionHandlingMiddleware
+│   │   ├── Middleware/           # ApiKeyMiddleware, ExceptionHandlingMiddleware, RequestLoggingMiddleware
 │   │   ├── Migrations/           # EF Core generated migrations
 │   │   ├── Models/               # Domain entities
 │   │   ├── Services/             # Upload services, storage, Google, PDF extractor
+│   │   │   ├── Logging/          # Log files (Serilog), level defaults, client-error rate limit
 │   │   │   ├── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
 │   │   │   └── Pricing/          # Price source (Yahoo, OpenFIGI), daily sync, queue, Xetra calendar
 │   │   ├── Validation/           # ValidationResult
@@ -541,11 +543,46 @@ its Tailscale HTTPS name (`tailscale serve`) and use
 `GoogleServices:FrontendUrl` set to `https://<device>.<tailnet>.ts.net`. Both URIs can be
 registered in Google Cloud Console at the same time.
 
+### Logging
+
+Logs go to the console as before (journald on the server) and, when `Logs__Path` is set, to
+files (ADR-029). `Services/Logging/LogFiles` adds Serilog (`Serilog.Extensions.Logging`,
+`Serilog.Sinks.File`) as a second provider of the usual `ILogger`, so the ~90 log calls and the
+console stay unchanged. The files are Serilog's compact JSON (CLEF): one object per line with
+`@t`, `@mt` (the message template), `@l` (left out for Information), `@x` (an exception) and
+the template's properties, plus `SourceContext`. A file a day, `beacon-yyyyMMdd.json` (a day
+over 100 MB rolls to `_001` and on), and files older than `Logs__Keep` days (14) are removed.
+`Logs__Path` is optional: unset, or a folder that can't be created or written, leaves the
+console only, with one warning at startup, so a server whose environment predates the setting
+still deploys.
+
+- **Levels** (`LogLevels`): set in code, since production has no `appsettings.json`:
+  Information by default, `Microsoft`, `Microsoft.EntityFrameworkCore` and `System` at Warning
+  (no per-request framework lines, no SQL), `Microsoft.Hosting.Lifetime` at Information. Each
+  is overridden by `Logging__LogLevel__<Category>` (`Default` for the rest), which applies to
+  the console and the files alike.
+- **Requests**: `RequestLoggingMiddleware`, first in the pipeline, logs one line per request
+  (method, path, status, duration; never the query string, which can carry search terms), at
+  Error for a 5xx.
+- **Reading** (`Features/Logs/Queries/GetLogs/`, `GET /api/logs`): the newest entries first,
+  filtered by `minLevel` (Serilog's names: Verbose, Debug, Information, Warning, Error, Fatal),
+  a `from`/`to` window and a text `search` over message, details and source, at most `limit`
+  (200, capped at 1000; `more` says older ones matched). It reads the newest files first, each
+  from its last line back, and stops at the limit or the window's start. Messages are rendered
+  from the template, strings unquoted. `enabled: false` when the server writes no files.
+- **Client errors** (`Features/Logs/Commands/LogClientError/`, `POST
+  /api/logs/client-errors`): message, stack and route, logged at Error under the category
+  `Beacon.Client` with the stack as `ClientStack`. Each field is cut to its cap (1,000, 8,000
+  and 300 characters), the body to 16 KB (413 beyond, from Kestrel) and the rate to 30 a minute
+  (`ClientErrorRateLimit`, 429 beyond).
+- The Settings page's "Logs" section (`pages/settings/settings-logs.ts`) lists the entries with
+  a level filter, a time window and a search, errors highlighted and details expandable.
+
 ### DI lifetimes
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider` | Singleton |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
 | Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
 | `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
@@ -583,6 +620,14 @@ Tasks"); the Calendar and Settings pages call `loadStatus()` when they open.
 calls: an error with code `google_reconnect_required` or `google_not_connected` reloads the
 status while it still says connected, so both pages switch to their reconnect or connect state
 instead of showing an empty calendar.
+
+### Client errors
+
+`core/services/client-error-handler.ts` replaces Angular's `ErrorHandler` (`app.config.ts`):
+it logs to the console as before and posts each uncaught error (message, stack, route; URLs
+without their query strings) to `POST /api/logs/client-errors`, at most ten a minute. A report
+that fails is dropped, never reported in turn. `provideBrowserGlobalErrorListeners()` sends
+the window's errors and unhandled rejections to it.
 
 ## Database
 
@@ -683,6 +728,9 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `Prices__DailyRunTime` | Time of the daily price sync, UTC (default `22:00`, after the European close) |
 | `Prices__GoldProxySymbol` | EUR-listed gold ETC used to price gold (default `4GLD.DE`, 1 unit = 1 gram) |
 | `Prices__JumpWarningPercent` | Day-to-day move that logs a warning (default 20) |
+| `Logs__Path` | Folder for the log files (optional; without it, or when it can't be written, logs go to the console only) |
+| `Logs__Keep` | Days of log files kept (default 14) |
+| `Logging__LogLevel__<Category>` | Minimum level for a category (`Default` for the rest), overriding the defaults in "Logging" |
 | `GoogleServices__ClientId` | Google OAuth 2.0 client ID |
 | `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
 | `GoogleServices__RedirectUri` | OAuth redirect URI: `http://localhost:5098/...` for development, the Tailscale HTTPS name for remote access (see "Google OAuth, Calendar and Tasks") |
@@ -691,7 +739,8 @@ statement parsers") and stored under bank name `MEAL CARD`.
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
 `scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
 `scripts/run-backend-demo.ps1`, which always points the database at `local/beacon-demo.db`,
-`Storage__Path` at `local/uploads-demo` and `Backup__Path` at `local/backups-demo`); in production in `local/environment` in the server's
+`Storage__Path` at `local/uploads-demo`, `Backup__Path` at `local/backups-demo` and
+`Logs__Path` at `local/logs-demo`); in production in `local/environment` in the server's
 checkout of `main` (loaded by systemd `EnvironmentFile`; the server has no `appsettings.json`).
 How the server deploys is in README.md, "Deployment" (ADR-027).
 
@@ -709,7 +758,9 @@ Coverage: all bank/salary/grocery parsers (incl.
 Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,
-`ExceptionHandlingMiddleware`, `ApplyRuleService` (incl. Excluded-category rules setting
+`ExceptionHandlingMiddleware` (incl. a body over its limit), `RequestLoggingMiddleware`, the
+log files (missing or unwritable folder, retention, level defaults and overrides, JSON lines
+read back), `ApplyRuleService` (incl. Excluded-category rules setting
 `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
 stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
 Trade Republic savings-plan exclusion), `YahooPriceHistorySource` (chart and OpenFIGI
@@ -720,11 +771,13 @@ CQRS handlers for Backup (incl. investment tables), Categories,
 Health (a missing, damaged or unmigrated database; prices ok, stale or disabled),
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
-Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell
+Statements (incl. meal-card text import), Logs (level, time and text filters, the limit,
+client errors with their caps), Investments (assets, lots, prices, oversell
 validation, price sync with its sources, ISIN lookup and failures, a changed symbol, recent
 prices and history queries with the price carried into a range, sync status, sync triggers),
 input validation, `GoogleOAuthService` (each connection state),
 `GoogleCalendarService`, `GoogleTasksService`, the Calendar and Tasks controllers' Google
-error responses and the health route's status codes (`Controllers/`).
+error responses, the health route's status codes and the client-error route's size and rate
+limits on Kestrel (`Controllers/`).
 
 Frontend: Vitest specs next to the code (`*.spec.ts`), run by `ng test`.

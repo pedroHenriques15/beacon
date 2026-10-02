@@ -25,7 +25,6 @@ Quality:
 
 - Test edge cases thoroughly (large values, for example).
 - Firefox testing.
-- An error and non-error logging system.
 
 ## Later
 
