@@ -21,10 +21,7 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-Quality:
-
-- Test edge cases thoroughly (large values, for example).
-- Firefox testing.
+Nothing is lined up; the next item comes from "Later".
 
 ## Later
 
