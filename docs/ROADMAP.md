@@ -36,3 +36,5 @@ Nothing is lined up; the next item comes from "Later".
 - Update the README, including the screenshots.
 - Android app.
 - Automatic email scanning and better email rule filters (research).
+- Show which monthly documents are overdue, so a missing statement or salary slip is noticed.
+- Import XTB statements, with their ETF buys as investment lots.
