@@ -93,6 +93,20 @@
   }
 }
 
+// Quiet: icon buttons inside list rows; still 44 px.
+.btn-icon--quiet {
+  border-color: transparent;
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+  }
+
+  &.btn-icon--danger:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+
 .link-btn {
   display: inline-flex;
   align-items: center;

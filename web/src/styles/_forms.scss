@@ -49,6 +49,12 @@
   }
 }
 
+// Safari draws search fields natively, ignoring the pill radius and padding.
+input[type='search'].field-input {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 textarea.field-input {
   min-height: 88px;
   padding: 0.75rem 1rem;
