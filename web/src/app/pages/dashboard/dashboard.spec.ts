@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { DashboardComponent } from './dashboard';
+import { bankInitials } from '../../core/utils/bank';
 import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService } from '../../core/services/investments.service';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
@@ -70,7 +71,8 @@ describe('DashboardComponent', () => {
   const totalCurrentValueSignal = signal(0);
   const totalUnrealizedPnlSignal = signal(0);
   const totalUnrealizedPctSignal = signal<number | null>(null);
-  const portfolioChange24hSignal = signal<number | null>(null);
+  const portfolioChange1dSignal = signal<number | null>(null);
+  const loadPriceHistory = vi.fn();
 
   beforeEach(() => {
     statementsSignal.set([]);
@@ -82,7 +84,8 @@ describe('DashboardComponent', () => {
     totalCurrentValueSignal.set(0);
     totalUnrealizedPnlSignal.set(0);
     totalUnrealizedPctSignal.set(null);
-    portfolioChange24hSignal.set(null);
+    portfolioChange1dSignal.set(null);
+    loadPriceHistory.mockClear();
 
     TestBed.configureTestingModule({
       imports: [DashboardComponent],
@@ -109,7 +112,10 @@ describe('DashboardComponent', () => {
             totalCurrentValue: totalCurrentValueSignal,
             totalUnrealizedPnl: totalUnrealizedPnlSignal,
             totalUnrealizedPct: totalUnrealizedPctSignal,
-            portfolioChange24h: portfolioChange24hSignal,
+            portfolioChange1d: portfolioChange1dSignal,
+            portfolioHistory: signal([]),
+            assetMetrics: signal([]),
+            loadPriceHistory,
           },
         },
       ],
@@ -232,6 +238,96 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('selectedMonth', () => {
+    it('starts at the latest closed month', () => {
+      monthlySummariesSignal.set([
+        makeSummary({ month: monthKey(0), income: 5, net: 5 }),
+        makeSummary({ month: monthKey(-1), income: 3, net: 3 }),
+      ]);
+      expect(component.selectedMonth()).toBe(monthKey(-1));
+    });
+
+    it('drives the snapshot when the scrubber picks another month', () => {
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-02', income: 200, expenses: 80, net: 120 }),
+        makeSummary({ month: '2025-01', income: 100, expenses: 50, net: 50 }),
+        makeSummary({ month: '2024-12', income: 40, expenses: 10, net: 30 }),
+      ]);
+      component.selectedMonth.set('2025-01');
+      const snap = component.monthSnapshot();
+      expect(snap.month).toBe('2025-01');
+      expect(snap.income).toBe(100);
+      expect(snap.prev?.income).toBe(40);
+    });
+
+    it('keeps the choice when the data reloads with the same months', () => {
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-02', income: 2, net: 2 }),
+        makeSummary({ month: '2025-01', income: 1, net: 1 }),
+      ]);
+      component.selectedMonth.set('2025-01');
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-02', income: 3, net: 3 }),
+        makeSummary({ month: '2025-01', income: 1, net: 1 }),
+      ]);
+      expect(component.selectedMonth()).toBe('2025-01');
+    });
+
+    it('lists the scrubber months oldest first', () => {
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-02', income: 2, expenses: 1, net: 1 }),
+        makeSummary({ month: '2025-01', bank: 'BPI', income: 1, net: 1 }),
+        makeSummary({ month: '2025-01', bank: 'REVOLUT', income: 4, net: 4 }),
+      ]);
+      expect(component.months()).toEqual([
+        { key: '2025-01', income: 5, expenses: 0 },
+        { key: '2025-02', income: 2, expenses: 1 },
+      ]);
+    });
+
+    it('limits the six months to those up to the selected one', () => {
+      monthlySummariesSignal.set(
+        Array.from({ length: 9 }, (_, i) =>
+          makeSummary({ month: `2025-0${i + 1}`, income: i, net: i }),
+        ),
+      );
+      component.selectedMonth.set('2025-07');
+      expect(component.sixMonths().map((r) => r.month)).toEqual([
+        '2025-07',
+        '2025-06',
+        '2025-05',
+        '2025-04',
+        '2025-03',
+        '2025-02',
+      ]);
+    });
+  });
+
+  describe('uncategorised', () => {
+    it('counts the selected month’s rows without a category', () => {
+      monthlySummariesSignal.set([makeSummary({ month: '2025-01', income: 1, net: 1 })]);
+      allTransactionsSignal.set([
+        makeTx({ id: 1, amount: 12 }),
+        makeTx({ id: 2, amount: 3, categoryId: 4, category: { name: 'Food', color: '#f00' } }),
+        makeTx({ id: 3, amount: 8, month: '2024-12' }),
+      ]);
+      expect(component.uncategorised()).toEqual({ count: 1, amount: 12 });
+    });
+  });
+
+  it('loads a year of prices for the Investments sparkline', () => {
+    expect(loadPriceHistory).toHaveBeenCalledTimes(1);
+  });
+
+  describe('bankInitials', () => {
+    it('abbreviates bank names for the avatars', () => {
+      expect(bankInitials('BPI')).toBe('BPI');
+      expect(bankInitials('ActivoBank')).toBe('AB');
+      expect(bankInitials('Trade Republic')).toBe('TR');
+      expect(bankInitials('Revolut')).toBe('RE');
+    });
+  });
+
   describe('topCategories', () => {
     beforeEach(() => {
       monthlySummariesSignal.set([makeSummary({ month: '2025-01', income: 1, net: 1 })]);
@@ -260,20 +356,35 @@ describe('DashboardComponent', () => {
       expect(cats[0].total).toBe(5);
     });
 
-    it('falls back to the Unknown category and default colour', () => {
+    it('falls back to the Unknown category and the fallback colour token', () => {
       allTransactionsSignal.set([makeTx({ amount: 7 })]);
       const cats = component.topCategories();
       expect(cats[0].label).toBe(CATEGORY_UNKNOWN);
-      expect(cats[0].color).toBe('#475569');
+      expect(cats[0].color).toBe('var(--category-fallback)');
     });
 
-    it('caps the list at 5 categories', () => {
+    it('lists every category, largest first, with its share of the month', () => {
       allTransactionsSignal.set(
         Array.from({ length: 7 }, (_, i) =>
           makeTx({ id: i, amount: i + 1, category: { name: `Cat${i}`, color: '#111' } }),
         ),
       );
-      expect(component.topCategories()).toHaveLength(5);
+      const cats = component.topCategories();
+      expect(cats).toHaveLength(7);
+      expect(cats[0]).toMatchObject({ label: 'Cat6', total: 7, share: 25 });
+    });
+
+    it('follows the selected month', () => {
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-01', income: 1, net: 1 }),
+        makeSummary({ month: '2024-12', income: 1, net: 1 }),
+      ]);
+      allTransactionsSignal.set([
+        makeTx({ amount: 5, category: { name: 'Food', color: '#f00' } }),
+        makeTx({ amount: 9, month: '2024-12', category: { name: 'Rent', color: '#00f' } }),
+      ]);
+      component.selectedMonth.set('2024-12');
+      expect(component.topCategories().map((c) => c.label)).toEqual(['Rent']);
     });
 
     it('is empty when there are no debit transactions', () => {
@@ -291,8 +402,8 @@ describe('DashboardComponent', () => {
       expect(component.formatSignedPct(1.55)).toBe('+1.6%');
     });
 
-    it('keeps the minus sign for negative values', () => {
-      expect(component.formatSignedPct(-2.34)).toBe('-2.3%');
+    it('writes negative values with a true minus sign', () => {
+      expect(component.formatSignedPct(-2.34)).toBe('−2.3%');
     });
   });
 });

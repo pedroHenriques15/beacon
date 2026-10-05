@@ -27,7 +27,10 @@ using Beacon.Api.Features.Salary.Commands.UpdateSalarySlip;
 using Beacon.Api.Features.Salary.Queries.GetSalaryItemCategories;
 using Beacon.Api.Features.Salary.Queries.GetSalaryProfiles;
 using Beacon.Api.Features.Salary.Queries.GetSalarySlips;
+using Beacon.Api.Features.Investments.Queries.GetAssetPrices;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
+using Beacon.Api.Features.Investments.Queries.GetPriceHistory;
+using Beacon.Api.Features.Investments.Queries.GetPriceSyncStatus;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
@@ -36,9 +39,10 @@ using Beacon.Api.Features.Investments.Commands.UpdateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
-using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
-using Beacon.Api.Features.Investments.Commands.BackfillPriceHistory;
+using Beacon.Api.Features.Investments.Commands.SyncPriceHistory;
 using Beacon.Api.Features.Investments.Shared;
+using Beacon.Api.Features.Logs.Commands.LogClientError;
+using Beacon.Api.Features.Logs.Queries.GetLogs;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Commands.UploadStatement;
@@ -77,10 +81,18 @@ using Beacon.Api.Features.Health.Queries.GetHealth;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Middleware;
 using Beacon.Api.Services;
+using Beacon.Api.Services.Logging;
 using Beacon.Api.Services.Parsing;
+using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Console output stays as it is; the files are a second provider, with the same level filters.
+LogLevels.ApplyDefaults(builder.Logging, builder.Configuration);
+var (logFiles, logFilesWarning) = LogFiles.Resolve(builder.Configuration, builder.Environment.ContentRootPath);
+logFiles.AddTo(builder.Logging);
+builder.Services.AddSingleton(logFiles);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -117,8 +129,19 @@ builder.Services.AddHttpClient("google-calendar")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient("google-tasks")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
-builder.Services.AddHttpClient("alpha-vantage")
+// Yahoo answers 429 to a client that doesn't look like a browser.
+builder.Services.AddHttpClient(YahooPriceHistorySource.YahooClient)
+    .ConfigureHttpClient(c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(30);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36");
+    });
+builder.Services.AddHttpClient(YahooPriceHistorySource.OpenFigiClient)
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IPriceHistorySource, YahooPriceHistorySource>();
+builder.Services.AddSingleton<PriceSyncQueue>();
 builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<GoogleTasksService>();
@@ -199,8 +222,10 @@ builder.Services.AddScoped<CreateSalaryItemCategoryCommandHandler>();
 builder.Services.AddScoped<UpdateSalaryItemCategoryCommandHandler>();
 builder.Services.AddScoped<DeleteSalaryItemCategoryCommandHandler>();
 
-builder.Services.AddScoped<AlphaVantageService>();
 builder.Services.AddScoped<GetInvestmentAssetsQueryHandler>();
+builder.Services.AddScoped<GetAssetPricesQueryHandler>();
+builder.Services.AddScoped<GetPriceHistoryQueryHandler>();
+builder.Services.AddScoped<GetPriceSyncStatusQueryHandler>();
 builder.Services.AddScoped<CreateInvestmentAssetCommandHandler>();
 builder.Services.AddScoped<UpdateInvestmentAssetCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentAssetCommandHandler>();
@@ -209,10 +234,13 @@ builder.Services.AddScoped<UpdateInvestmentLotCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentLotCommandHandler>();
 builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
-builder.Services.AddScoped<FetchInvestmentPriceCommandHandler>();
-builder.Services.AddScoped<BackfillPriceHistoryCommandHandler>();
+builder.Services.AddScoped<SyncPriceHistoryCommandHandler>();
 builder.Services.AddScoped<SavingsPlanImportService>();
-builder.Services.AddHostedService<InvestmentPriceRefreshService>();
+builder.Services.AddHostedService<PriceHistorySyncService>();
+
+builder.Services.AddScoped<GetLogsQueryHandler>();
+builder.Services.AddScoped<LogClientErrorCommandHandler>();
+builder.Services.AddClientErrorRateLimit();
 
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
@@ -221,6 +249,9 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()));
 
 var app = builder.Build();
+
+if (logFilesWarning is not null)
+    app.Logger.LogWarning("{Warning}", logFilesWarning);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -271,8 +302,10 @@ app.Use(async (context, next) =>
 
 if (app.Environment.IsDevelopment())
     app.UseCors();
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<ApiKeyMiddleware>();
+app.UseRateLimiter();
 app.MapControllers();
 
 await SeedDefaultDataAsync(app);

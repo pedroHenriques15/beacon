@@ -21,16 +21,7 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-Quality:
-
-- Test edge cases thoroughly (large values, for example).
-- Firefox testing.
-- An error and non-error logging system.
-
-Investments:
-
-- Keep a local daily price history (about 15 years per held asset, one new close a day)
-  instead of fetching prices from a rate-limited API.
+Nothing is queued; the next items come from "Later".
 
 ## Later
 
@@ -45,3 +36,5 @@ Investments:
 - Update the README, including the screenshots.
 - Android app.
 - Automatic email scanning and better email rule filters (research).
+- Show which monthly documents are overdue, so a missing statement or salary slip is noticed.
+- Import XTB statements, with their ETF buys as investment lots.

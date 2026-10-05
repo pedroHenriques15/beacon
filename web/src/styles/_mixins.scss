@@ -1,0 +1,41 @@
+// Mixins and breakpoints only: this module emits no CSS, so a component can
+// `@use` it without copying the global classes into its own styles.
+
+$desktop: 1024px;
+$phone: 640px;
+
+@mixin card($radius: 24px) {
+  background: var(--surface);
+  border: none;
+  border-radius: $radius;
+}
+
+// Money, percentages, counts and dates in stats and tables.
+@mixin figures {
+  font-family: var(--font-figures);
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin below-desktop {
+  @media (max-width: #{$desktop - 1px}) {
+    @content;
+  }
+}
+
+@mixin phone {
+  @media (max-width: #{$phone - 1px}) {
+    @content;
+  }
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

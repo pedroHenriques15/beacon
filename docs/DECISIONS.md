@@ -91,7 +91,8 @@ ETFs are assumed EUR-listed (UCITS) and their quotes are stored as EUR. Gold qua
 grams, priced through an EUR-listed physical gold ETC (`AlphaVantage__GoldProxyTicker`,
 default `4GLD.DEX`, one unit = one gram), because Alpha Vantage removed XAU from its currency
 endpoints. The proxy trades at a small premium or discount to spot; accepted. A
-non-EUR-listed ticker must not be added.
+non-EUR-listed ticker must not be added. Since ADR-028 the proxy is
+`Prices__GoldProxySymbol` (default `4GLD.DE`, the same ETC in the new source's symbols).
 
 ## ADR-012 · Alpha Vantage free tier, spread across the trading day
 
@@ -100,7 +101,7 @@ Prices come from Alpha Vantage's free tier (25 requests a day).
 hours, 13 s apart, and skips the startup refresh when every asset already has today's
 snapshot; a history backfill is one request per asset and refuses to re-bill. Failures are
 logged and never stop the host. Free-tier closes are unadjusted, so splits and distributions
-can step the history; accepted.
+can step the history; accepted. Superseded by ADR-028.
 
 ## ADR-013 · P&L uses average cost basis, computed in the client
 
@@ -250,3 +251,71 @@ image (a second runtime and a registry for one machine); CI deploying over the p
 (network credentials and SSH keys as repository secrets, and the server reachable from CI);
 artifacts built by CI (storage for one machine that builds them itself). Cost accepted:
 whatever reaches `main` runs minutes later, so the release PR (ADR-021) is the only gate.
+
+## ADR-028 · Daily closes are stored locally, synced once a day from Yahoo Finance
+
+Since 2026-10-01 Beacon keeps every held asset's daily closes in `InvestmentPriceSnapshots`
+instead of asking a quota-limited API for quotes: the first sync stores the last
+`Prices__HistoryYears` (15) years, then one sync a day after the European close
+(`Prices__DailyRunTime`, 22:00 UTC) adds the latest close with one request per asset. Closes
+come from Yahoo Finance's chart endpoint (no key, the whole history in one request); an ETF
+known only by its ISIN gets its ticker from OpenFIGI's mapping (the German composite listing,
+kept only if Yahoo prices it in EUR, ADR-011). Each price records its source: a sync replaces
+`Synced` and `Legacy` rows (those stored before sources were, Alpha Vantage's intraday quotes
+among them) but never a `Manual` one. Stale prices show on the Investments page and in
+`/api/health` as `prices`, which never changes the overall status (deploys gate on it,
+ADR-027). Alternatives: Alpha Vantage's free tier (25 requests a day, and its full daily
+history became premium-only); Stooq's CSV download (free, but since 2026 behind a key obtained
+through a captcha, and no ISIN lookup); paid data APIs (a bill for a personal app). Costs
+accepted: Yahoo's endpoint is unofficial and undocumented, so it may change without notice and
+needs a browser-like `User-Agent`; its closes are adjusted for splits but not for distributions
+(it offers no unadjusted series), so after a split the history before it no longer matches the
+lots' prices, which is rare for UCITS ETFs; Yahoo sometimes lacks a day's close, which the next
+sync (it starts a week back) fills if Yahoo does. Prices count as stale when more than one
+Xetra trading day behind, so weekends and exchange holidays never raise a false warning.
+If Yahoo stops answering, the fallback is a second `IPriceHistorySource` reading Stooq, and in
+the meantime prices entered by hand.
+
+## ADR-029 · Log files through Serilog, beside the console
+
+Since 2026-10-01 the API also writes its logs to daily files (`Logs__Path`, kept
+`Logs__Keep` days) that the Settings page reads back, and the web client reports its uncaught
+errors there. Serilog (`Serilog.Extensions.Logging`, `Serilog.Sinks.File`,
+`Serilog.Formatting.Compact`) is added as a second provider of `ILogger`, not as a replacement:
+the console output the server's journal already holds stays the same, and the level filters
+stay those of `Logging:LogLevel`, with defaults in code (production has no
+`appsettings.json`). The files are Serilog's compact JSON (CLEF), one event per line, which the
+API reads back and tools like `jq` understand. `Logs__Path` is optional: unset or unwritable
+means console only and a warning, never a failed start, so an older environment file still
+deploys. Alternatives: the console only (journald is out of reach from the app and the
+phone); Serilog replacing the providers (`UseSerilog`, its own level settings: changes the
+console and the server's existing `Logging__LogLevel__*` lines would stop working);
+`Microsoft.Extensions.Logging` has no file provider; a database table (log writes competing
+with the app's own, and logs lost with the database they would explain). Costs accepted: three
+packages; the files hold statement descriptions and paths, so they live under `local/` and are
+never committed; reading scans whole files, fine at a home server's volume.
+
+## ADR-030 · The River design: midnight palette, three typefaces, phone-first navigation
+
+Since 2026-10-05 the client follows one design, "River": money organised along time. Pages
+that show money pick their month with a month scrubber, Home draws the month's spending day by
+day, and lists are timelines grouped by day. The palette is "midnight", a near-black blue
+ground (`--bg` `#03070f`) with surfaces a step lighter, a pale blue accent (`--primary`) and two
+money colours: `--credit` (mint) for money in and `--debit` (coral) for chart marks. It is dark
+only, with no theme switcher. Three typefaces each have one job: Manrope for text, Unbounded
+for headings and page titles, Bricolage Grotesque with tabular figures for every number
+(money, percentages, counts, timeline dates), so columns of amounts line up and read as
+figures at a glance. On desktop (1024 px and wider) the sections sit in a pill group in the
+header, with Settings and Upload PDF beside it. Below 1024 px a bottom nav holds the six main
+sections, a "More" sheet holds Categories and Settings, and a round Upload button floats above
+the nav on every page, one tap away. Pie and doughnut charts give way to sorted horizontal
+bars, which compare categories by length and keep their labels readable on a phone. Outflows
+in lists are neutral text with a minus sign and inflows mint with a plus: red would turn every
+ordinary payment into an alarm, so coral is kept for the chart marks and for the ring that
+says a transaction still needs a category. Below 640 px every dialog is a bottom sheet.
+Alternatives: four other design directions compared on the same screens, and River's first
+palette (purple on near-black); the previous client, a slate-and-purple admin layout with a
+sidebar, was hard to use on a phone. Costs accepted: three web fonts to load, mitigated by
+`display=swap` and the preconnects; a dark-only client; route paths keep their old names
+(`/dashboard`, `/transactions`, `/analytics`, `/investments`, `/rules`) while their labels
+change to Home, Activity, Insights, Invest and Categories.

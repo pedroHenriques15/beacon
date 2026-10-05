@@ -1,0 +1,165 @@
+@use '../../../styles/mixins' as *;
+@use 'salary-base' as *;
+
+// Page header (title, profile segmented control, actions) and the slip picker.
+
+.salary-header {
+  &__lead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.profile-tabs {
+  @extend %scroll-row;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 0;
+  flex-wrap: nowrap;
+
+  .tab-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+}
+
+.profile-note {
+  @extend %meta;
+  margin: -12px 0 16px;
+  font-size: 13px;
+}
+
+.picker {
+  margin-bottom: 22px;
+
+  &__track {
+    @extend %scroll-row;
+    position: relative;
+    gap: 8px;
+  }
+
+  &__earlier {
+    flex: 0 0 auto;
+    width: 88px;
+    height: 76px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 22px;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+}
+
+.slip-chip {
+  flex: 1 0 92px;
+  height: 76px;
+  padding: 0 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 22px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+
+  &--older {
+    display: none;
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--surface-raised);
+    border: 1.5px solid var(--primary);
+  }
+
+  &__month {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  &__year {
+    @include figures;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  &__net {
+    @include figures;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+}
+
+@include below-desktop {
+  // The title moves to the shell's top bar: actions first, then the profiles.
+  .salary-header {
+    &__lead {
+      width: 100%;
+    }
+
+    &__actions {
+      order: -1;
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    // The shell's floating Upload button takes its place.
+    &__upload {
+      display: none;
+    }
+  }
+
+  .picker {
+    margin-bottom: 18px;
+
+    &__track {
+      gap: 6px;
+      margin: 0 -20px;
+      padding: 0 20px 2px;
+    }
+
+    &__earlier {
+      display: none;
+    }
+  }
+
+  .slip-chip {
+    flex: 0 0 auto;
+    min-width: 76px;
+    height: 64px;
+    padding: 0 12px;
+    gap: 4px;
+    border-radius: var(--radius-md);
+
+    &--older {
+      display: flex;
+    }
+  }
+}

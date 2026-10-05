@@ -1,6 +1,8 @@
 using System.Reflection;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Health.Queries.GetHealth;
+using Beacon.Api.Models;
+using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -24,7 +26,7 @@ public class HealthHandlerTests : IDisposable
     }
 
     private static GetHealthQueryHandler CreateHandler(AppDbContext db) =>
-        new(db, NullLogger<GetHealthQueryHandler>.Instance);
+        new(db, TestPricing.Config(), TimeProvider.System, NullLogger<GetHealthQueryHandler>.Instance);
 
     // Without pooling no connection keeps the file open, so Dispose can delete the folder.
     private static AppDbContext CreateFileDb(string path) =>
@@ -86,6 +88,81 @@ public class HealthHandlerTests : IDisposable
         Assert.Equal(GetHealthResponse.Degraded, health.Status);
         Assert.Equal("database unreachable", health.Reason);
         Assert.False(File.Exists(path));
+    }
+
+    // ---- Prices ----
+
+    private static readonly DateOnly Today = new(2026, 9, 30);
+
+    private static GetHealthQueryHandler CreatePricesHandler(AppDbContext db, params (string Key, string Value)[] settings) =>
+        new(db, TestPricing.Config(settings),
+            new FixedTimeProvider(new DateTimeOffset(Today.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero)),
+            NullLogger<GetHealthQueryHandler>.Instance);
+
+    private static async Task SeedHeldAsync(AppDbContext db, string name, DateOnly? latestPrice, string? error = null)
+    {
+        var asset = new InvestmentAsset { AssetType = "ETF", Ticker = $"{name}.DE", Name = name, PriceSyncError = error };
+        db.InvestmentAssets.Add(asset);
+        await db.SaveChangesAsync();
+        db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 2), Quantity = 1, PricePerUnit = 100 });
+        if (latestPrice is DateOnly date)
+            db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
+            {
+                AssetId = asset.Id,
+                Date = date,
+                PricePerUnit = 100,
+                Source = PriceSources.Synced,
+            });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Prices_CurrentForEveryHeldAsset_AreOk()
+    {
+        await using var db = _database.CreateContext();
+        // Today is a Wednesday: Monday's close is one trading day behind, still current.
+        await SeedHeldAsync(db, "A", Today.AddDays(-1));
+        await SeedHeldAsync(db, "B", Today.AddDays(-2));
+
+        var health = await CreatePricesHandler(db).HandleAsync();
+
+        Assert.Equal(GetHealthResponse.PricesOk, health.Prices);
+    }
+
+    [Fact]
+    public async Task Prices_TooOldOrFailing_AreStale_ButTheStatusStaysOk()
+    {
+        await using var db = _database.CreateContext();
+        await SeedHeldAsync(db, "Old", Today.AddDays(-5)); // the Friday before
+        await SeedHeldAsync(db, "Failing", Today, error: "The price source did not answer.");
+        await SeedHeldAsync(db, "Fresh", Today);
+
+        var health = await CreatePricesHandler(db).HandleAsync();
+
+        Assert.Equal(GetHealthResponse.Ok, health.Status);
+        Assert.Equal(GetHealthResponse.PricesStale, health.Prices);
+    }
+
+    [Fact]
+    public async Task Prices_MissingForAHeldAsset_AreStale()
+    {
+        await using var db = _database.CreateContext();
+        await SeedHeldAsync(db, "Unpriced", latestPrice: null);
+
+        var health = await CreatePricesHandler(db).HandleAsync();
+
+        Assert.Equal(GetHealthResponse.PricesStale, health.Prices);
+    }
+
+    [Fact]
+    public async Task Prices_WhenSyncIsTurnedOff_AreDisabled()
+    {
+        await using var db = _database.CreateContext();
+        await SeedHeldAsync(db, "Old", Today.AddDays(-30));
+
+        var health = await CreatePricesHandler(db, ("Prices:Enabled", "false")).HandleAsync();
+
+        Assert.Equal(GetHealthResponse.PricesDisabled, health.Prices);
     }
 
     [Theory]

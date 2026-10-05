@@ -1,14 +1,17 @@
-using Beacon.Api.Features.Investments.Commands.BackfillPriceHistory;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
-using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
+using Beacon.Api.Features.Investments.Commands.SyncPriceHistory;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
+using Beacon.Api.Features.Investments.Queries.GetAssetPrices;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
+using Beacon.Api.Features.Investments.Queries.GetPriceHistory;
+using Beacon.Api.Features.Investments.Queries.GetPriceSyncStatus;
+using Beacon.Api.Services.Pricing;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Beacon.Api.Controllers;
@@ -17,6 +20,9 @@ namespace Beacon.Api.Controllers;
 [Route("api/[controller]")]
 public class InvestmentsController(
     GetInvestmentAssetsQueryHandler getAssets,
+    GetAssetPricesQueryHandler getAssetPrices,
+    GetPriceHistoryQueryHandler getPriceHistory,
+    GetPriceSyncStatusQueryHandler getPriceSyncStatus,
     CreateInvestmentAssetCommandHandler createAsset,
     UpdateInvestmentAssetCommandHandler updateAsset,
     DeleteInvestmentAssetCommandHandler deleteAsset,
@@ -25,8 +31,8 @@ public class InvestmentsController(
     DeleteInvestmentLotCommandHandler deleteLot,
     UpsertInvestmentPriceCommandHandler upsertPrice,
     DeleteInvestmentPriceSnapshotCommandHandler deletePrice,
-    FetchInvestmentPriceCommandHandler fetchPrice,
-    BackfillPriceHistoryCommandHandler backfillHistory) : ControllerBase
+    SyncPriceHistoryCommandHandler syncPrices,
+    IConfiguration configuration) : ControllerBase
 {
     [HttpGet("assets")]
     public async Task<IActionResult> GetAssets(CancellationToken ct) =>
@@ -56,20 +62,28 @@ public class InvestmentsController(
         return found ? NoContent() : NotFound();
     }
 
-    [HttpPost("assets/{id:int}/fetch-price")]
-    public async Task<IActionResult> FetchPrice(int id, CancellationToken ct)
+    [HttpGet("assets/{id:int}/prices")]
+    public async Task<IActionResult> GetAssetPrices(int id, CancellationToken ct)
     {
-        var (result, error) = await fetchPrice.HandleAsync(new FetchInvestmentPriceCommand(id), ct);
-        if (result is null && error is null) return NotFound();
-        return error is not null ? BadRequest(error) : Ok(result);
+        var prices = await getAssetPrices.HandleAsync(new GetAssetPricesQuery(id), ct);
+        return prices is null ? NotFound() : Ok(prices);
     }
 
-    [HttpPost("assets/{id:int}/backfill")]
-    public async Task<IActionResult> BackfillHistory(int id, CancellationToken ct)
+    [HttpGet("prices/history")]
+    public async Task<IActionResult> GetPriceHistory([FromQuery] DateOnly? from, CancellationToken ct) =>
+        Ok(await getPriceHistory.HandleAsync(new GetPriceHistoryQuery(from), ct));
+
+    [HttpGet("prices/status")]
+    public IActionResult GetPriceSyncStatus() => Ok(getPriceSyncStatus.Handle(new GetPriceSyncStatusQuery()));
+
+    [HttpPost("prices/sync")]
+    public async Task<IActionResult> SyncPrices([FromQuery] int? assetId, CancellationToken ct)
     {
-        var (result, error) = await backfillHistory.HandleAsync(new BackfillPriceHistoryCommand(id), ct);
-        if (result is null && error is null) return NotFound();
-        return error is not null ? BadRequest(error) : Ok(result);
+        if (!PriceSyncSettings.Enabled(configuration))
+            return BadRequest("Price sync is turned off on this server (Prices:Enabled=false).");
+
+        var result = await syncPrices.HandleAsync(new SyncPriceHistoryCommand(assetId), ct);
+        return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPost("lots")]

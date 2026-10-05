@@ -1,190 +1,170 @@
+@use '../../../styles/mixins' as *;
+
+// Desktop month. calendar-layout.ts places the span bars with the same sizes: cells 4 px
+// apart, 8 px cell padding, a 28 px day number with 5 px under it, chips and bars 26 px tall.
+.cal-grid-wrap {
+  overflow-x: auto;
+}
+
 .cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  border-top: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
+  @include card(var(--radius-lg));
+  min-width: 700px;
+  padding: 8px 8px 10px;
   transition: opacity 0.2s;
 
   &--loading {
     opacity: 0.5;
     pointer-events: none;
   }
-}
 
-.cal-day-name {
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  min-width: 0;
-  padding: 0.5rem;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.cal-cell {
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  min-height: 96px;
-  min-width: 0;
-  padding: 0.4rem 0.5rem 0.5rem;
-  transition: background 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 6%, var(--surface));
-  }
-
-  &--other-month {
-    opacity: 0.35;
-  }
-
-  &--today .cal-cell__num {
-    background: var(--primary);
-    color: #fff;
-    border-radius: 50%;
-    width: 1.6rem;
-    height: 1.6rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  &__names {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    font-size: 12px;
     font-weight: 700;
-    font-size: 0.85rem;
+    color: var(--text-secondary);
+
+    span {
+      padding: 8px 12px;
+    }
   }
-}
-
-.cal-cell__num {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  line-height: 1.6rem;
-  width: 1.6rem;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.cal-cell__events {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.cal-chip {
-  background: color-mix(in srgb, var(--primary) 20%, transparent);
-  border-left: 2px solid var(--primary);
-  border-radius: 4px;
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.75rem;
-  overflow: hidden;
-  padding: 0.15rem 0.4rem;
-  white-space: nowrap;
-  transition: background 0.15s;
-
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 35%, transparent);
-  }
-}
-
-.cal-chip__time {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  font-size: 0.7rem;
-}
-
-.cal-chip__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .cal-week {
-  grid-column: 1 / -1;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
 }
 
-.cal-cell__span-spacer {
-  flex-shrink: 0;
-  height: calc(var(--max-span-row, 0) * 1.6rem);
-}
-
-.cal-span-bar {
-  position: absolute;
-  height: 1.5rem;
-  background: color-mix(in srgb, var(--primary) 20%, transparent);
-  border-radius: 0;
-  color: var(--text-primary);
-  cursor: pointer;
+.cal-cell {
   display: flex;
-  align-items: center;
-  font-size: 0.75rem;
-  overflow: hidden;
-  padding: 0 0.4rem;
-  white-space: nowrap;
-  transition: background 0.15s;
-
-  &--start {
-    border-left: 2px solid var(--primary);
-    border-radius: 4px 0 0 4px;
-  }
-
-  &--end {
-    border-radius: 0 4px 4px 0;
-  }
-
-  &--start#{&}--end {
-    border-radius: 4px;
-  }
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  min-height: 126px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  cursor: pointer;
 
   &:hover {
-    background: color-mix(in srgb, var(--primary) 35%, transparent);
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+  }
+
+  &--other {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border-soft);
+  }
+
+  &--today,
+  &--today:hover {
+    background: var(--surface-raised);
+    box-shadow: inset 0 0 0 1.5px var(--primary);
+  }
+
+  &__num {
+    @include figures;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  &--other &__num {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  &--today &__num {
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 800;
+  }
+
+  &__spans {
+    flex-shrink: 0;
   }
 }
 
-.cal-span-bar__title {
+// Text stays in --text-primary on a tint of the Google colour, which reads on every one of
+// them; the dot carries the colour itself.
+.cal-chip,
+.cal-span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--ev, var(--primary)) 22%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--ev, var(--primary)) 36%, transparent);
+  }
+}
+
+.cal-chip__dot,
+.cal-span__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ev, var(--primary));
+}
+
+.cal-chip__time {
+  @include figures;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.cal-chip__title,
+.cal-span__title {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.cal-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.cal-legend__item {
-  display: flex;
-  align-items: center;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--cal-color, var(--border));
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--cal-color, var(--primary)) 12%, transparent);
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--text-primary);
-  transition:
-    opacity 0.15s,
-    background 0.15s;
-  user-select: none;
-
-  &--hidden {
-    opacity: 0.35;
-  }
+// A bar across the days of an event over several days; flat where it carries on into the
+// previous or next week.
+.cal-span {
+  position: absolute;
+  padding: 0 12px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ev, var(--primary)) 32%, transparent);
+  font-weight: 700;
 
   &:hover {
-    background: color-mix(in srgb, var(--cal-color, var(--primary)) 22%, transparent);
+    background: color-mix(in srgb, var(--ev, var(--primary)) 46%, transparent);
+  }
+
+  &--start {
+    border-top-left-radius: 13px;
+    border-bottom-left-radius: 13px;
+  }
+
+  &--end {
+    border-top-right-radius: 13px;
+    border-bottom-right-radius: 13px;
   }
 }

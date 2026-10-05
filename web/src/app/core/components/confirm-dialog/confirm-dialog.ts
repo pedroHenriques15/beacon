@@ -5,6 +5,7 @@ import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from 
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './confirm-dialog.html',
+  styleUrl: './confirm-dialog.scss',
 })
 export class ConfirmDialogComponent {
   @Input() open = false;

@@ -1,0 +1,108 @@
+@use '../../../styles/mixins' as *;
+
+.google .error-banner {
+  margin: 0 0 12px;
+}
+
+// The connection row: a status avatar, what it means, and its actions.
+.google-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+
+  &--loading {
+    min-height: 44px;
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface-raised);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+
+    &--ok {
+      color: var(--credit);
+    }
+
+    &--warning {
+      color: var(--warning);
+    }
+  }
+
+  &__info {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__label {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+
+  &__detail {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+
+  &__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--warning);
+
+    // A hollow ring, like the review row's.
+    &::before {
+      content: '';
+      flex-shrink: 0;
+      width: 10px;
+      height: 10px;
+      margin-top: 4px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+    }
+  }
+
+  // Desktop column: the actions under the text, lined up with it.
+  &__actions {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-left: 58px;
+  }
+}
+
+// Tablets: wide enough for the actions to sit at the end of the row.
+@include below-desktop {
+  .google-card__actions {
+    flex-basis: auto;
+    padding-left: 0;
+  }
+}
+
+// Phones: the actions on their own line, full width.
+@include phone {
+  .google-card__actions {
+    flex-basis: 100%;
+
+    button {
+      flex: 1 1 0;
+    }
+  }
+}

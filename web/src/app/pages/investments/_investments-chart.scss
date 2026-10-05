@@ -1,0 +1,140 @@
+@use '../../../styles/mixins' as *;
+
+// The value-against-money-put-in chart, with its range switch and legend.
+
+.chart-card {
+  grid-area: chart;
+  @include card(var(--radius-xl));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  &__title {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    h2 {
+      font-size: 20px;
+    }
+  }
+
+  &__detail {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  // Grows with the figures beside it; a zero basis keeps the canvas from feeding its own height.
+  &__canvas {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 280px;
+  }
+
+  &__placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    margin: 0;
+    padding: 24px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+}
+
+// The shared segmented pill group, on the page ground inside the card.
+.range {
+  margin: 0;
+  background: var(--bg);
+
+  .tab-btn {
+    min-width: 52px;
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__line {
+    width: 18px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--credit);
+  }
+
+  &__dash {
+    width: 18px;
+    height: 0;
+    border-top: 2px dashed var(--neutral-mark);
+  }
+}
+
+@include below-desktop {
+  .chart-card {
+    gap: 12px;
+    padding: 14px 14px 12px;
+    border-radius: var(--radius-lg);
+
+    &__head {
+      flex-direction: column-reverse;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    &__title h2 {
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    &__detail {
+      font-size: 12px;
+    }
+
+    &__canvas {
+      flex: none;
+      height: 200px;
+      min-height: 0;
+    }
+  }
+
+  .range {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+
+    .tab-btn {
+      min-width: 0;
+      padding: 0;
+    }
+  }
+
+  .legend {
+    gap: 6px 16px;
+    font-size: 12px;
+  }
+}

@@ -1,6 +1,6 @@
 <app-confirm-dialog
   [open]="confirmDeleteId() !== null"
-  title="Delete Statement"
+  title="Delete statement"
   message="Delete this statement and all its transactions?"
   (confirmed)="onConfirmDelete()"
   (cancelled)="confirmDeleteId.set(null)"
@@ -11,228 +11,198 @@
 } @else if (finance.error()) {
   <div class="error">{{ finance.error() }}</div>
 } @else {
-  <div class="page-header">
-    <h1>Dashboard</h1>
-    <p class="subtitle">Financial overview across all accounts</p>
-  </div>
+  <h1 class="visually-hidden">Home</h1>
 
   @if (finance.unknownTypeCount() > 0) {
     <div class="warning-banner">
       <span>
         {{ finance.unknownTypeCount() }} unclassified
-        {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded from
-        income and expense totals.
+        {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} left out of
+        income and spending totals.
       </span>
       <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
     </div>
   }
 
-  <div class="net-worth-card">
-    <span class="label">Net Worth</span>
-    <span class="amount">{{ netWorth() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
-    <span class="breakdown">
-      Cash {{ cashTotal() | currency: 'EUR' : 'symbol' : '1.2-2' }} · Invested
-      {{ investedTotal() | currency: 'EUR' : 'symbol' : '1.2-2' }}
-    </span>
-  </div>
-
-  <section class="section">
-    <h2 class="section-title">Accounts</h2>
-    <div class="bank-grid">
-      @if (investments.assets().length > 0) {
-        <div
-          class="bank-card investments-card"
-          title="Open investments"
-          (click)="navigateToInvestments()"
-        >
-          <div class="bank-card__header">
-            <span class="bank-name">PORTFOLIO</span>
-          </div>
-          <div class="bank-card__balance">
-            {{ investments.totalCurrentValue() | currency: 'EUR' : 'symbol' : '1.2-2' }}
-          </div>
-          <div class="bank-card__meta">
-            <span [ngClass]="investments.totalUnrealizedPnl() >= 0 ? 'credit' : 'debit'">
-              {{ investments.totalUnrealizedPnl() >= 0 ? '+' : ''
-              }}{{ investments.totalUnrealizedPnl() | currency: 'EUR' : 'symbol' : '1.2-2' }} ({{
-                formatSignedPct(investments.totalUnrealizedPct())
-              }})
-            </span>
-          </div>
-          <div class="bank-card__period">
-            24h:
-            <span [ngClass]="(investments.portfolioChange24h() ?? 0) >= 0 ? 'credit' : 'debit'">
-              {{ formatSignedPct(investments.portfolioChange24h()) }}
-            </span>
-          </div>
-        </div>
-      }
-      @for (card of orderedCards(); track card.bank) {
-        <div
-          class="bank-card"
-          [style.--accent]="bankColor(card.bank)"
-          [class.bank-card--selected]="selectedBank() === card.bank"
-          [class.bank-card--dragging]="draggedBank() === card.bank"
-          [class.bank-card--drag-over]="dragOverBank() === card.bank"
-          draggable="true"
-          (dragstart)="onDragStart(card.bank)"
-          (dragover)="onDragOver($event, card.bank)"
-          (drop)="onDrop(card.bank)"
-          (dragend)="onDragEnd()"
-          (click)="toggleBank(card.bank)"
-        >
-          <div class="bank-card__header">
-            <span class="bank-name">{{ card.bank }}</span>
-          </div>
-          <div class="bank-card__balance">
-            {{ card.balance | currency: 'EUR' : 'symbol' : '1.2-2' }}
-          </div>
-          <div class="bank-card__meta">
-            <span>{{ card.txCount }} transactions</span>
-          </div>
-          <div class="bank-card__period">
-            Statement to {{ card.periodTo | date: 'dd MMM yyyy' }}
-          </div>
-        </div>
-      }
-    </div>
-  </section>
-
-  <section class="section">
-    <h2 class="section-title">{{ formatMonth(monthSnapshot().month) }}</h2>
-    <div class="snapshot-strip">
-      <div class="snapshot-card">
-        <span class="snapshot-label">Income</span>
-        <span class="snapshot-value credit"
-          >+{{ monthSnapshot().income | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-        >
-        @if (monthSnapshot().incomeDelta !== null) {
-          <span
-            class="snapshot-delta"
-            [ngClass]="monthSnapshot().incomeDelta! >= 0 ? 'credit' : 'debit'"
-          >
-            {{ formatSignedPct(monthSnapshot().incomeDelta) }} vs prev month
-          </span>
-        }
-      </div>
-      <div class="snapshot-card">
-        <span class="snapshot-label">Expenses</span>
-        <span class="snapshot-value debit"
-          >−{{ monthSnapshot().expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-        >
-        @if (monthSnapshot().expensesDelta !== null) {
-          <span
-            class="snapshot-delta"
-            [ngClass]="monthSnapshot().expensesDelta! >= 0 ? 'debit' : 'credit'"
-          >
-            {{ formatSignedPct(monthSnapshot().expensesDelta) }} vs prev month
-          </span>
-        }
-      </div>
-      <div class="snapshot-card">
-        <span class="snapshot-label">Net</span>
-        <span class="snapshot-value" [ngClass]="monthSnapshot().net >= 0 ? 'credit' : 'debit'">
-          {{ monthSnapshot().net >= 0 ? '+' : ''
-          }}{{ monthSnapshot().net | currency: 'EUR' : 'symbol' : '1.2-2' }}
-        </span>
-        @if (monthSnapshot().netDelta !== null) {
-          <span
-            class="snapshot-delta"
-            [ngClass]="monthSnapshot().netDelta! >= 0 ? 'credit' : 'debit'"
-          >
-            {{ monthSnapshot().netDelta! >= 0 ? '+' : ''
-            }}{{ monthSnapshot().netDelta! | currency: 'EUR' : 'symbol' : '1.2-2' }} vs prev month
-          </span>
-        }
-      </div>
-    </div>
-  </section>
-
-  @if (topCategories().length > 0) {
-    <section class="section">
-      <h2 class="section-title">Top Spending · {{ formatMonth(monthSnapshot().month) }}</h2>
-      <div class="cat-bar-list">
-        @for (cat of topCategories(); track cat.label) {
-          <div class="cat-bar-row">
-            <span class="cat-bar-label">{{ cat.label }}</span>
-            <div class="cat-bar-track">
-              <div
-                class="cat-bar-fill"
-                [style.width.%]="cat.pct"
-                [style.background]="cat.color"
-              ></div>
-            </div>
-            <span class="cat-bar-amount debit">
-              {{ cat.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </span>
-          </div>
-        }
-      </div>
-    </section>
+  @if (months().length > 0) {
+    <app-month-scrubber
+      class="home-scrubber"
+      [months]="months()"
+      [selected]="selectedMonth()"
+      (selectedChange)="selectedMonth.set($event)"
+    />
   }
 
-  <section class="section">
-    <div class="section-header">
-      <h2 class="section-title">Monthly Summary</h2>
-      <div class="bank-filter-bar">
-        @if (selectedBank()) {
-          <span class="bank-filter-label" [style.color]="bankColor(selectedBank()!)">{{
-            selectedBank()
-          }}</span>
-          <button class="btn-clear" (click)="selectedBank.set(null)">Show all</button>
-        }
-      </div>
-    </div>
-    <div class="table-wrapper table-wrapper--scrollable">
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th>Month</th>
-            <th class="num" style="min-width: 130px">Income</th>
-            <th class="num" style="min-width: 130px">Expenses</th>
-            <th class="num" style="min-width: 130px">Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of monthlyTotals(); track row.month) {
-            <tr class="clickable" (click)="navigateToMonth(row.month)">
-              <td>{{ formatMonth(row.month) }}</td>
-              <td class="num credit">+{{ row.income | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-              <td class="num debit">−{{ row.expenses | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-              <td class="num" [ngClass]="row.net >= 0 ? 'credit' : 'debit'">
-                {{ row.net >= 0 ? '+' : '' }}{{ row.net | currency: 'EUR' : 'symbol' : '1.2-2' }}
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
+  @let snap = monthSnapshot();
+  @let monthLong = monthName(snap.month);
+  @let prevShort = monthName(snap.prevMonth, 'short');
 
-  <section class="section">
-    <h2 class="section-title">Statements</h2>
-    <div class="table-wrapper table-wrapper--scrollable">
-      <table class="summary-table">
-        <thead>
-          <tr>
-            <th>Bank</th>
-            <th>Period</th>
-            <th class="num">Transactions</th>
-            <th class="num">Closing Balance</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (s of allStatements(); track s.id) {
-            <tr [class.clickable]="s.pdfPath" (click)="openStatementFile(s.id, s.pdfPath)">
-              <td [style.color]="bankColor(s.bank)">{{ s.bank }}</td>
-              <td>{{ formatPeriod(s.periodFrom, s.periodTo) }}</td>
-              <td class="num">{{ s.transactions.length }}</td>
-              <td class="num">{{ s.closingBalance | currency: 'EUR' : 'symbol' : '1.2-2' }}</td>
-              <td class="action-cell">
+  <div class="home">
+    <div class="home__main">
+      <section class="river-card" aria-labelledby="river-h">
+        <div class="river-card__head">
+          <div class="river-card__title">
+            <h2 id="river-h">
+              Spent in {{ monthLong }}<span class="river-card__by-day">, day by day</span>
+            </h2>
+            <p class="river-card__total">{{ eur(river().total) }}</p>
+          </div>
+          @if (riverNote(); as note) {
+            <p class="river-card__note">{{ note }}</p>
+          }
+        </div>
+        <app-river-chart [series]="river()" />
+        <div class="legend">
+          <span class="legend__item"><span class="legend__line"></span>{{ monthLong }}</span>
+          <span class="legend__item"
+            ><span class="legend__dash"></span>{{ monthName(river().previous) }}</span
+          >
+          <span class="legend__item legend__item--wide"
+            ><span class="legend__dot"></span>Transaction, sized by amount</span
+          >
+          <span class="legend__item"
+            ><span class="legend__dot legend__dot--hollow"></span>Needs a category</span
+          >
+          <span class="legend__item"
+            ><span class="legend__dot legend__dot--in"></span>Money in</span
+          >
+        </div>
+      </section>
+
+      @if (latestDays().length > 0) {
+        <section class="latest" aria-labelledby="latest-h">
+          <div class="block-head">
+            <h2 id="latest-h">Latest days</h2>
+            <a class="link-btn" routerLink="/transactions" [queryParams]="monthQuery(snap.month)"
+              >All {{ monthLong }} activity</a
+            >
+          </div>
+          <ol class="timeline">
+            @for (day of latestDays(); track day.date) {
+              <li class="timeline__day">
+                <span class="timeline__node" aria-hidden="true"></span>
+                <span class="timeline__date">
+                  <span class="timeline__label">{{ day.date | date: 'd MMM' }}</span>
+                  <span class="timeline__weekday">{{ day.date | date: 'EEEE' }}</span>
+                </span>
+                <div class="timeline__rows">
+                  @for (tx of day.shown; track tx.id) {
+                    <div class="tx-row">
+                      @if (tx.categoryId === null) {
+                        <span class="ring" aria-label="Needs a category"></span>
+                      } @else {
+                        <span class="cat-dot" [style.--_dot]="tx.category?.color"></span>
+                      }
+                      <span class="tx-row__text">
+                        <span class="tx-row__desc">{{ tx.description }}</span>
+                        <span class="tx-row__meta"
+                          >{{ tx.category?.name ?? 'No category' }}, {{ tx.bank }}</span
+                        >
+                      </span>
+                      <span class="tx-row__amount" [class.amount-in]="tx.type === 'credit'">{{
+                        signedEur(tx.type === 'credit' ? tx.amount : -tx.amount)
+                      }}</span>
+                    </div>
+                  }
+                  @if (day.more > 0) {
+                    <a
+                      class="timeline__more"
+                      routerLink="/transactions"
+                      [queryParams]="monthQuery(day.date.slice(0, 7))"
+                      >{{ day.more }} more that day</a
+                    >
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+
+      <section class="six" aria-labelledby="six-h">
+        <div class="block-head">
+          <h2 id="six-h">Last six months</h2>
+          @if (selectedBank(); as bank) {
+            <span class="six__filter">
+              <span class="chip">{{ bank }} only</span>
+              <button type="button" class="link-btn" (click)="selectedBank.set(null)">
+                Show all
+              </button>
+            </span>
+          }
+        </div>
+        <div class="six__table" role="table" aria-label="Last six months">
+          <div class="six__row six__row--head" role="row">
+            <span role="columnheader">Month</span>
+            <span role="columnheader" class="num">In</span>
+            <span role="columnheader" class="num">Out</span>
+            <span role="columnheader" class="num">Kept</span>
+            <span role="columnheader" class="six__flow">Flow</span>
+          </div>
+          @for (row of sixMonths(); track row.month) {
+            <a
+              class="six__row"
+              role="row"
+              [class.six__row--selected]="row.month === snap.month"
+              routerLink="/transactions"
+              [queryParams]="monthQuery(row.month)"
+            >
+              <span role="rowheader" class="six__month"
+                ><span class="six__long">{{ row.label }}</span
+                ><span class="six__short">{{ row.short }}</span></span
+              >
+              <span role="cell" class="num">{{ signedEur(row.income) }}</span>
+              <span role="cell" class="num">{{ signedEur(-row.expenses) }}</span>
+              <span role="cell" class="num six__kept" [class.amount-in]="row.net >= 0">{{
+                signedEur(row.net)
+              }}</span>
+              <span role="cell" class="six__flow" aria-hidden="true">
+                <span class="six__bar six__bar--in" [style.width.%]="row.inPct"></span>
+                <span class="six__bar six__bar--out" [style.width.%]="row.outPct"></span>
+              </span>
+            </a>
+          } @empty {
+            <p class="empty">No months with counted money yet.</p>
+          }
+        </div>
+      </section>
+
+      @if (allStatements().length > 0) {
+        <section class="statements" aria-labelledby="statements-h">
+          <div class="block-head">
+            <h2 id="statements-h">Statements</h2>
+            @if (selectedBank(); as bank) {
+              <span class="chip">{{ bank }} only</span>
+            }
+          </div>
+          <ul class="statements__list">
+            @for (s of shownStatements(); track s.id) {
+              <li class="statement">
+                <span class="avatar" aria-hidden="true">{{ bankInitials(s.bank) }}</span>
                 <button
-                  class="btn-icon danger"
-                  title="Delete statement"
+                  type="button"
+                  class="statement__open"
+                  [disabled]="!s.pdfPath"
+                  [attr.aria-label]="
+                    s.pdfPath
+                      ? 'Open the PDF of ' + s.bank + ', ' + formatPeriod(s.periodFrom, s.periodTo)
+                      : null
+                  "
+                  (click)="openStatementFile(s.id, s.pdfPath)"
+                >
+                  <span class="statement__name">{{ s.bank }}</span>
+                  <span class="statement__meta"
+                    >{{ formatPeriod(s.periodFrom, s.periodTo) }},
+                    {{ s.transactions.length }} transactions</span
+                  >
+                </button>
+                <span class="statement__balance">{{ eur(s.closingBalance) }}</span>
+                <button
+                  type="button"
+                  class="btn-icon statement__delete"
+                  [attr.aria-label]="
+                    'Delete statement ' + s.bank + ', ' + formatPeriod(s.periodFrom, s.periodTo)
+                  "
                   [disabled]="deleting() === s.id"
                   (click)="deleteStatement(s.id, $event)"
                 >
@@ -240,28 +210,222 @@
                     …
                   } @else {
                     <svg
-                      width="15"
-                      height="15"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
+                      aria-hidden="true"
                     >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14H6L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                      <path d="M9 6V4h6v2" />
+                      <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
                     </svg>
                   }
                 </button>
-              </td>
-            </tr>
+              </li>
+            }
+          </ul>
+          @if (allStatements().length > 6) {
+            <button
+              type="button"
+              class="btn-secondary statements__more"
+              (click)="showAllStatements.set(!showAllStatements())"
+            >
+              {{
+                showAllStatements()
+                  ? 'Show fewer'
+                  : 'Show all ' + allStatements().length + ' statements'
+              }}
+            </button>
           }
-        </tbody>
-      </table>
+        </section>
+      }
     </div>
-  </section>
+
+    <aside class="home__aside">
+      <section class="worth" aria-labelledby="worth-h">
+        <h2 id="worth-h">Net worth</h2>
+        <p class="worth__total">{{ eur(netWorth()) }}</p>
+        @if (netWorthChange(); as change) {
+          <p class="worth__change">
+            <span class="delta" [class.delta--down]="change.amount < 0">{{
+              signedEur(change.amount)
+            }}</span>
+            since {{ change.since | date: 'd MMM' }}
+          </p>
+        }
+        <div
+          class="worth__split"
+          role="img"
+          [attr.aria-label]="'Cash ' + eur(cashTotal()) + ', investments ' + eur(investedTotal())"
+        >
+          <span class="worth__cash" [style.width.%]="cashShare()"></span>
+          <span class="worth__invest" [style.width.%]="100 - cashShare()"></span>
+        </div>
+        <div class="worth__legend">
+          <span>Cash {{ eur(cashTotal()) }}</span>
+          <span>Investments {{ eur(investedTotal()) }}</span>
+        </div>
+      </section>
+
+      <section class="tiles" [attr.aria-label]="monthLong + ' in and out'">
+        <div class="tile">
+          <span class="tile__label">In</span>
+          <span class="tile__value">{{ signedEur(snap.income) }}</span>
+          @if (snap.prev) {
+            <span class="tile__prev">{{ prevShort }} {{ eur(snap.prev.income) }}</span>
+          }
+        </div>
+        <div class="tile">
+          <span class="tile__label">Out</span>
+          <span class="tile__value">{{ signedEur(-snap.expenses) }}</span>
+          @if (snap.prev) {
+            <span class="tile__prev">{{ prevShort }} {{ eur(snap.prev.expenses) }}</span>
+          }
+        </div>
+        <div class="tile tile--kept">
+          <span class="tile__label">Kept</span>
+          <span class="tile__value" [class.amount-in]="snap.net >= 0">{{
+            signedEur(snap.net)
+          }}</span>
+          @if (snap.prev) {
+            <span class="tile__prev">{{ prevShort }} {{ signedEur(snap.prev.net) }}</span>
+          }
+        </div>
+      </section>
+
+      @if (uncategorised().count > 0) {
+        <a
+          class="review-row"
+          routerLink="/transactions"
+          [queryParams]="{ filter: 'unknown', month: snap.month }"
+        >
+          <span class="review-row__rings" aria-hidden="true">
+            <span class="ring"></span><span class="ring ring--sm"></span
+            ><span class="ring ring--lg"></span>
+          </span>
+          <span class="review-row__text">
+            <strong
+              >{{ uncategorised().count }}
+              {{ uncategorised().count === 1 ? 'transaction needs' : 'transactions need' }} a
+              category</strong
+            >
+            <span>{{ eur(uncategorised().amount) }} in {{ monthLong }} has no category yet</span>
+          </span>
+          <span class="btn-accent review-row__action">Review</span>
+        </a>
+      }
+
+      @if (investments.assets().length > 0) {
+        <a class="invest-row" routerLink="/investments">
+          <span class="invest-row__text">
+            <span class="invest-row__label">Investments</span>
+            <span class="invest-row__value">{{ eur(investments.totalCurrentValue()) }}</span>
+            <span class="invest-row__meta">
+              @if (investments.portfolioChange1d() !== null) {
+                <span
+                  class="invest-row__change"
+                  [class.invest-row__change--down]="investments.portfolioChange1d()! < 0"
+                  >{{ formatSignedPct(investments.portfolioChange1d()) }}</span
+                >
+                today{{ latestPriceDate() ? ',' : '' }}
+              }
+              @if (latestPriceDate(); as date) {
+                prices of {{ date | date: 'EEE d MMM' }}
+              }
+            </span>
+          </span>
+          @if (investSpark(); as spark) {
+            <svg
+              class="spark"
+              width="132"
+              height="54"
+              viewBox="0 0 112 48"
+              role="img"
+              [attr.aria-label]="
+                'Portfolio value over 12 months, ' + eur(spark.first) + ' to ' + eur(spark.last)
+              "
+            >
+              <path class="spark__area" [attr.d]="spark.area" />
+              <path class="spark__line" [attr.d]="spark.line" />
+              <circle class="spark__end" cx="108" [attr.cy]="spark.endY" r="3.5" />
+            </svg>
+          }
+        </a>
+      }
+
+      <section class="accounts" aria-labelledby="accounts-h">
+        <div class="block-head">
+          <h2 id="accounts-h">Accounts</h2>
+          <span class="block-head__aside">{{ eur(cashTotal()) }} cash</span>
+        </div>
+        <ul class="accounts__list">
+          @for (card of orderedCards(); track card.bank) {
+            <li
+              class="account"
+              [class.account--dragging]="draggedBank() === card.bank"
+              [class.account--drag-over]="dragOverBank() === card.bank"
+              draggable="true"
+              (dragstart)="onDragStart(card.bank)"
+              (dragover)="onDragOver($event, card.bank)"
+              (drop)="onDrop(card.bank)"
+              (dragend)="onDragEnd()"
+            >
+              <button
+                type="button"
+                class="account__button"
+                [attr.aria-pressed]="selectedBank() === card.bank"
+                [attr.aria-label]="'Show only ' + card.bank + ' in the last six months'"
+                (click)="toggleBank(card.bank)"
+              >
+                <span class="avatar" aria-hidden="true">{{ card.initials }}</span>
+                <span class="account__text">
+                  <span class="account__name">{{ card.bank }}</span>
+                  <span class="account__meta"
+                    >Statement to {{ card.periodTo | date: 'd MMM' }},
+                    {{ card.txCount }} transactions</span
+                  >
+                </span>
+                <span class="account__balance">{{ eur(card.balance) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+        <a class="btn-secondary accounts__upload" routerLink="/upload">Upload statements</a>
+      </section>
+
+      @if (topCategories().length > 0) {
+        <section class="cats" aria-labelledby="cats-h">
+          <div class="block-head">
+            <h2 id="cats-h">Where it went</h2>
+            <a class="link-btn" routerLink="/analytics"
+              ><span class="cats__desktop">Insights</span
+              ><span class="cats__phone">All categories</span></a
+            >
+          </div>
+          <ul class="cats__list">
+            @for (cat of topCategories(); track cat.label; let i = $index) {
+              <li class="cat" [class.cat--extra]="i >= 4">
+                <span class="cat__name"
+                  ><span class="cat-dot" [style.--_dot]="cat.color"></span>{{ cat.label }}</span
+                >
+                <span class="cat__track"
+                  ><span
+                    class="cat__bar"
+                    [style.width.%]="cat.pct"
+                    [style.background]="cat.color"
+                  ></span
+                ></span>
+                <span class="cat__amount"
+                  ><span class="cat__share">{{ cat.share }}%</span> {{ eur(cat.total) }}</span
+                >
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </aside>
+  </div>
 }

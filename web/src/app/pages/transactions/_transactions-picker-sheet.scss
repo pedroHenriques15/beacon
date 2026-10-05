@@ -1,0 +1,61 @@
+@use '../../../styles/mixins' as *;
+
+// Phones: a bottom sheet with the row on top and the categories in two columns.
+// A mixin, so the picker can include it after its desktop rules.
+@mixin picker-sheet {
+  @include phone {
+    :host {
+      pointer-events: auto;
+    }
+
+    .backdrop {
+      display: block;
+      position: absolute;
+      inset: 0;
+      background: var(--overlay);
+    }
+
+    .picker {
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      max-height: 88vh;
+      gap: 12px;
+      padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+      background: var(--surface);
+      border-width: 1px 0 0;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      box-shadow: none;
+
+      &::before {
+        content: '';
+        flex-shrink: 0;
+        align-self: center;
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border);
+      }
+    }
+
+    .picker__head,
+    .picker__row {
+      display: flex;
+    }
+
+    .picker__list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-content: start;
+      gap: 8px;
+    }
+
+    .opt {
+      min-height: 48px;
+      border-color: var(--border);
+      background: var(--surface-raised);
+    }
+  }
+}

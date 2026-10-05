@@ -1,0 +1,174 @@
+@use '../../../styles/mixins' as *;
+
+// "Groceries in <month>" and "By store".
+.groc {
+  flex: 1 1 380px;
+
+  &__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    h2 {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+  }
+
+  &__title {
+    margin-top: 4px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 800;
+  }
+}
+
+.stores {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.store {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &__line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  &__name {
+    font-weight: 700;
+  }
+
+  &__count {
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  &__amount {
+    @include figures;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  &__track {
+    display: block;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--surface-raised);
+  }
+
+  &__bar {
+    display: block;
+    height: 100%;
+    border-radius: 6px;
+    background: var(--debit);
+  }
+}
+
+// "Most bought".
+.bought {
+  flex: 999 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__table {
+    @include card(var(--radius-lg));
+    font-size: 14px;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(70px, 1fr) minmax(90px, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 50px;
+    padding: 0 20px;
+    border-top: 1px solid var(--border-soft);
+
+    &--head {
+      min-height: 44px;
+      border-top: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+
+      > span {
+        font-family: var(--font-body);
+      }
+    }
+  }
+
+  &__name {
+    min-width: 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    display: none;
+  }
+
+  &__qty {
+    @include figures;
+    color: var(--text-secondary);
+  }
+
+  &__spent {
+    @include figures;
+    font-weight: 800;
+  }
+}
+
+@include below-desktop {
+  .bought__table {
+    background: none;
+    border-radius: 0;
+  }
+
+  .bought__row {
+    padding: 0;
+  }
+}
+
+@include phone {
+  .bought__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 0;
+    border-top: none;
+    border-bottom: 1px solid var(--border-soft);
+
+    &--head {
+      display: none;
+    }
+  }
+
+  .bought__qty {
+    display: none;
+  }
+
+  .bought__meta {
+    display: block;
+    margin-top: 2px;
+    @include figures;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .store__track {
+    height: 10px;
+  }
+}

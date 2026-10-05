@@ -43,6 +43,14 @@ public class ExceptionHandlingMiddlewareTests
     }
 
     [Fact]
+    public async Task BadHttpRequest_KeepsItsStatus_ForABodyOverTheLimit()
+    {
+        var (status, _) = await RunAsync(new BadHttpRequestException("Request body too large.", 413));
+
+        Assert.Equal(413, status);
+    }
+
+    [Fact]
     public async Task UnhandledException_MapsTo500WithoutLeakingDetails()
     {
         var (status, body) = await RunAsync(new InvalidOperationException("secret internal state /srv/path"));

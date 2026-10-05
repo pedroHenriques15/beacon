@@ -1,73 +1,118 @@
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 3rem 2rem;
-  text-align: center;
-  cursor: pointer;
-  transition:
-    border-color 0.2s,
-    background 0.2s;
-  margin-top: 0.5rem;
+@use '../../../styles/mixins' as *;
 
-  &.drag-over {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 6%, transparent);
-  }
-  &.busy {
-    cursor: default;
-    opacity: 0.7;
-  }
-  svg {
-    opacity: 0.4;
-    margin-bottom: 1rem;
-  }
+// The drop zone, as the upload sheet draws it: dashed, on the page ground, inside a section.
+.drop-card {
+  padding: 20px;
 }
 
-.drop-label {
-  color: var(--text-muted);
-  margin: 0 0 1rem;
-}
-
-.btn-upload {
-  display: inline-block;
-  padding: 0.5rem 1.25rem;
-  background: var(--primary);
-  color: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: opacity 0.2s;
-  &:hover {
-    opacity: 0.85;
-  }
-}
-
-.upload-btns {
+.drop {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 0.5rem;
+  gap: 14px;
+  min-height: 340px;
+  padding: 40px 24px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed color-mix(in srgb, var(--border), var(--text-muted) 25%);
+  background: var(--bg);
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+
+  &--over {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+
+    // The children ignore the pointer, so moving over them does not fire dragleave.
+    > * {
+      pointer-events: none;
+    }
+  }
+
+  &--busy {
+    cursor: progress;
+  }
+
+  &__icon {
+    color: var(--primary);
+  }
+
+  &__title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  &__touch {
+    display: none;
+  }
+
+  &__text {
+    max-width: 440px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  &__choose {
+    min-height: 48px;
+    padding: 0 24px;
+    border-radius: 24px;
+    font-size: 15px;
+  }
 }
 
-.btn-upload--secondary {
-  background: var(--surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-}
+// A touch screen has nothing to drop from.
+@media (hover: none) {
+  .drop__pointer {
+    display: none;
+  }
 
-.supported {
-  margin-top: 0.75rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  .drop__touch {
+    display: inline;
+  }
 }
 
 .spinner {
+  display: inline-block;
+  flex-shrink: 0;
   width: 36px;
   height: 36px;
   border: 3px solid var(--border);
-  border-top-color: var(--text-secondary);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-  margin: 0 auto 1rem;
+
+  &--sm {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+  }
+}
+
+@include phone {
+  .drop-card {
+    padding: 12px;
+  }
+
+  .drop {
+    min-height: 0;
+    gap: 12px;
+    padding: 28px 16px;
+
+    &__title {
+      font-size: 17px;
+    }
+  }
 }

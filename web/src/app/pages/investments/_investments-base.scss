@@ -1,0 +1,8 @@
+@use '../../../styles/mixins' as *;
+
+// Placeholders the partials extend; a partial that extends one must @use this file.
+
+// Every figure on the page: money, percentages, quantities, dates in lists.
+%figures {
+  @include figures;
+}

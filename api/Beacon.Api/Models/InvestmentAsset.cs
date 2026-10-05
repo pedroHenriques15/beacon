@@ -9,6 +9,9 @@ public class InvestmentAsset
     public string Name { get; set; } = "";
     public string? Notes { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? PricesSyncedAt { get; set; } // last successful price sync
+    public string? PriceSyncError { get; set; }   // last failed price sync, cleared by a successful one
+    public string? PricesSymbol { get; set; }     // the symbol the synced prices came from
     public ICollection<InvestmentLot> Lots { get; set; } = [];
     public ICollection<InvestmentPriceSnapshot> PriceSnapshots { get; set; } = [];
 }

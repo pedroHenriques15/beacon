@@ -1,0 +1,101 @@
+@use '../../../styles/mixins' as *;
+
+// Holdings as cards below 1300 px: a grid of them, one column on phones.
+
+@media (max-width: 1299px) {
+  .holdings__head {
+    display: none;
+  }
+
+  .holdings__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+
+  .holding {
+    @include card(var(--radius-lg));
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id value'
+      'id gain'
+      'position position'
+      'changes changes'
+      'actions actions';
+    column-gap: 10px;
+    padding: 14px;
+
+    &--open {
+      grid-column: 1 / -1;
+    }
+
+    &__id {
+      grid-area: id;
+      align-self: start;
+      margin: -6px 0 0 -10px;
+    }
+
+    &__value {
+      grid-area: value;
+      font-size: 15px;
+    }
+
+    &__gain {
+      grid-area: gain;
+      font-size: 12px;
+    }
+
+    &__value,
+    &__gain {
+      text-align: right;
+    }
+
+    &__position,
+    &__changes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      font-size: 12px;
+    }
+
+    &__position {
+      grid-area: position;
+      margin-top: 10px;
+    }
+
+    &__changes {
+      grid-area: changes;
+      margin-top: 4px;
+    }
+
+    &__actions {
+      grid-area: actions;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      margin-top: 12px;
+
+      > button {
+        grid-column: span 2;
+        min-width: 0;
+        padding: 0 4px;
+        white-space: normal;
+        line-height: 1.1;
+      }
+
+      > .holding__icon-btn {
+        grid-column: span 3;
+      }
+    }
+  }
+
+  .cell {
+    &__label {
+      margin-right: 4px;
+    }
+
+    &__pct {
+      margin-left: 4px;
+    }
+  }
+}

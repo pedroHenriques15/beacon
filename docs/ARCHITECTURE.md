@@ -47,16 +47,19 @@ beacon/
 │   │   │   ├── Health/           # GetHealth (answers without the API key)
 │   │   │   ├── Investments/
 │   │   │   │   └── Shared/       # SavingsPlanImportService
+│   │   │   ├── Logs/             # GetLogs, LogClientError
 │   │   │   ├── Salary/
 │   │   │   ├── Shared/           # ExcludedCategory, ProtectedEntityHelper, ValidationExtensions
 │   │   │   ├── Statements/
 │   │   │   ├── Transactions/
 │   │   │   └── Upload/           # UnifiedUploadBatch (multi-type batch upload)
-│   │   ├── Middleware/           # ApiKeyMiddleware, ExceptionHandlingMiddleware
+│   │   ├── Middleware/           # ApiKeyMiddleware, ExceptionHandlingMiddleware, RequestLoggingMiddleware
 │   │   ├── Migrations/           # EF Core generated migrations
 │   │   ├── Models/               # Domain entities
-│   │   ├── Services/             # Upload services, storage, Google, Alpha Vantage, PDF extractor
-│   │   │   └── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
+│   │   ├── Services/             # Upload services, storage, Google, PDF extractor
+│   │   │   ├── Logging/          # Log files (Serilog), level defaults, client-error rate limit
+│   │   │   ├── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
+│   │   │   └── Pricing/          # Price source (Yahoo, OpenFIGI), daily sync, queue, Xetra calendar
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
 │   │   └── Program.cs            # DI registration, middleware pipeline, startup seeding and PDF cleanup
@@ -69,27 +72,32 @@ beacon/
 │       ├── Services/             # Service-level tests
 │       └── Validation/           # Validator tests
 ├── web/
-│   └── src/app/
-│       ├── core/
-│       │   ├── components/       # Shared components
-│       │   ├── constants/        # Shared constants (e.g. category colours)
-│       │   ├── interceptors/     # apiKeyInterceptor (adds X-Api-Key header)
-│       │   ├── models/           # TypeScript interfaces
-│       │   ├── services/         # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
-│       │   └── utils/            # date-utils, http-params, rule-match
-│       ├── pages/                # Lazy-loaded routed components
-│       │   ├── analytics/
-│       │   ├── calendar/         # incl. event-modal + task-modal components
-│       │   ├── dashboard/
-│       │   ├── investments/
-│       │   ├── rules/
-│       │   ├── salary/
-│       │   ├── settings/
-│       │   ├── transactions/
-│       │   └── upload/
-│       ├── app.ts                # Root component + navigation
-│       ├── app.routes.ts         # Route definitions
-│       └── app.config.ts         # Angular bootstrap config
+│   └── src/
+│       ├── styles.scss           # :root design tokens, fonts, base elements
+│       ├── _shared.scss          # Global classes; forwards the partials in styles/
+│       ├── styles/               # _mixins (no CSS output), _buttons, _forms, _modals, _feedback
+│       └── app/
+│           ├── core/
+│           │   ├── charts/       # chart-theme (chart.js defaults from the CSS variables)
+│           │   ├── components/   # confirm-dialog, month-scrubber
+│           │   ├── constants/    # Shared constants (e.g. category colours)
+│           │   ├── interceptors/ # apiKeyInterceptor (adds X-Api-Key header)
+│           │   ├── models/       # TypeScript interfaces
+│           │   ├── services/     # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
+│           │   └── utils/        # bank, date-utils, http-params, money, month-totals, rule-match
+│           ├── pages/            # Lazy-loaded routed components
+│           │   ├── analytics/
+│           │   ├── calendar/     # incl. event-modal + task-modal components
+│           │   ├── dashboard/    # Home, incl. the River chart (river.ts computes it)
+│           │   ├── investments/
+│           │   ├── rules/
+│           │   ├── salary/
+│           │   ├── settings/
+│           │   ├── transactions/
+│           │   └── upload/
+│           ├── app.ts            # Root component: the shell (top nav, bottom nav, Upload button)
+│           ├── app.routes.ts     # Route definitions
+│           └── app.config.ts     # Angular bootstrap config
 ├── scripts/
 │   ├── pdfExtractor.py           # PDF → JSON page text (run by PdfExtractorService)
 │   ├── requirements.txt          # pdfplumber
@@ -169,10 +177,13 @@ The frontend mirrors this defensively: `finance.service.ts` and `groceries.servi
 treat a row as excluded when `isExcluded` **or** its category is named `Excluded`, so a
 stale row can never be counted. On the grocery side the raw `allItems` signal keeps
 everything (the item list shows excluded rows) and **`countedItems` is the one to use for any
-total or chart**, mirroring `allTransactionsRaw` vs `allTransactions`. The Excluded category
-is never offered as a plain category pick (`assignableCats` / `gAssignableCats` on the
-transactions page), since excluding is its own action, but it stays in *filter* dropdowns so
-excluded rows remain findable. Rules *may* target it; both rule services set the flag when
+total or chart**, mirroring `allTransactionsRaw` vs `allTransactions`. The Activity page
+(`pages/transactions/`) lists excluded rows dimmed, with an "Excluded" chip, and under "Left
+out of totals"; its In, Out and Kept come from `allTransactions` and `countedItems` with every
+filter applied, so those rows never reach a figure. The Excluded category is never offered as
+a plain category pick (`assignableCats` / `gAssignableCats` on the Activity page), since
+excluding is its own action, but it stays in *filter* dropdowns so excluded rows remain
+findable. Rules *may* target it; both rule services set the flag when
 they match.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
@@ -383,18 +394,17 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 
 Entities: `InvestmentAsset` (`AssetType` is `ETF` or `Gold`; optional `Isin` with a filtered
 unique index, used to match auto-imported holdings), `InvestmentLot` (signed `Quantity`
-`decimal(18,6)`: positive = buy, negative = sell), `InvestmentPriceSnapshot` (unique
-`(AssetId, Date)` index). Endpoints live in `Controllers/InvestmentsController.cs` under
-`/api/investments`; handlers follow the tuple-result pattern `(Result?, Error?)` where
-`(null, null)` maps to 404.
+`decimal(18,6)`: positive = buy, negative = sell), `InvestmentPriceSnapshot` (one price per
+asset per day, unique `(AssetId, Date)` index; `Source` is `Manual`, `Synced` or `Legacy`).
+Endpoints live in `Controllers/InvestmentsController.cs` under `/api/investments`; handlers
+follow the tuple-result pattern `(Result?, Error?)` where `(null, null)` maps to 404.
 
 Conventions:
 
 - **Gold is tracked in grams** (ADR-011): `Quantity` = grams, `PricePerUnit` = EUR/gram.
-  Alpha Vantage removed XAU from its currency endpoints, so gold is priced via an EUR-listed
-  physical gold ETC proxy (`AlphaVantage__GoldProxyTicker`, default `4GLD.DEX` = Xetra-Gold,
-  1 unit = 1 gram → quotes are already EUR/gram, no troy-ounce conversion). The proxy trades
-  at a small premium/discount to spot.
+  Gold is priced via an EUR-listed physical gold ETC proxy (`Prices__GoldProxySymbol`,
+  default `4GLD.DE` = Xetra-Gold, 1 unit = 1 gram → quotes are already EUR/gram, no
+  troy-ounce conversion). The proxy trades at a small premium/discount to spot.
 - **ETFs are assumed EUR-listed (UCITS)**: quotes are stored as EUR with no FX conversion. Do
   not add non-EUR-listed tickers.
 - Sells are validated against net holdings (server and client); editing a lot preserves its
@@ -407,23 +417,65 @@ Conventions:
   `TRADE REPUBLIC` statement. It turns each `Savings plan execution` row (already excluded
   from spending) into an `InvestmentLot`: ISIN + quantity parsed from the description,
   `PricePerUnit = amount / quantity`, `Fees = 0`. The ETF asset is created on first sight,
-  matched by `Isin`, with `Ticker` left null (the user sets it to enable Alpha Vantage
-  pricing; e.g. `VWCE.DEX` for `IE00BK5BQT80`). Idempotent: lots dedup by
+  matched by `Isin`, with `Ticker` left null and queued for a price sync, which finds the
+  ticker from the ISIN (e.g. `VWCE.DE` for `IE00BK5BQT80`). Idempotent: lots dedup by
   `(AssetId, Date, Quantity)`, and import failures are caught so they never fail the upload.
 
-Pricing (`AlphaVantageService`, free tier 25 requests/day, ADR-012):
+Pricing (ADR-028): daily closes are stored, not fetched on demand.
 
-- `GLOBAL_QUOTE` for both ETFs (own ticker) and gold (proxy ticker).
-- `POST /api/investments/assets/{id}/backfill` imports the full daily close history since the
-  asset's earliest lot (`TIME_SERIES_DAILY`: own ticker for ETFs, proxy ticker for gold; one
-  request per call, guarded against re-billing when history already reaches the first lot).
-  Free-tier closes are unadjusted; splits/distributions can step the history.
-- Malformed responses surface Alpha Vantage's `Error Message`/`Note`/`Information` fields as
-  user-facing errors (invalid key, rate limit, bad ticker).
-- `InvestmentPriceRefreshService` (hosted) refreshes all assets during US market hours,
-  spacing requests 13 s apart and spreading `DailyQuota - ReservedForManual` across the
-  session; the startup refresh is skipped when every asset already has a snapshot for today.
-  All failures are caught and logged; the service can never stop the host.
+- **Source**: `Services/Pricing/IPriceHistorySource`, implemented by
+  `YahooPriceHistorySource`. Closes come from Yahoo Finance's chart endpoint
+  (`/v8/finance/chart/{symbol}?period1&period2&interval=1d`) through the `yahoo-finance`
+  `HttpClient`, which sends a browser-like `User-Agent` (without one Yahoo answers 429). Each
+  bar's date is the exchange's (`meta.exchangeTimezoneName`); a bar without a close is skipped;
+  a listing not in EUR is refused (ADR-011). Yahoo's `close` is adjusted for splits but not for
+  distributions: after a split, closes before it no longer match the prices the lots were
+  bought at. An ISIN maps to a symbol through OpenFIGI (`openfigi` client, no key): the ticker
+  of the German composite listing (`exchCode` `GR`) plus `.DE`, kept only if Yahoo prices it in
+  EUR. Network errors, 429 and 5xx are retried up to three times (2 s, 5 s, 15 s); other
+  failures become a `PriceSourceException` whose message the user sees. One that never got an
+  answer is marked `Unavailable`, so an ISIN lookup fails with it rather than report that the
+  ISIN has no EUR listing.
+- **Sync** (`Features/Investments/Commands/SyncPriceHistory/`, `POST
+  /api/investments/prices/sync`, optional `assetId`): one asset, or every asset with net
+  quantity above zero. Gold uses `Prices__GoldProxySymbol`; an ETF its ticker, or, with only
+  an ISIN, the symbol found from it (never overwriting a ticker the user set). With no `Synced`
+  price yet it asks for `Prices__HistoryYears` (15) years; otherwise from seven days before the
+  latest `Synced` close, so gaps fill themselves. One request per asset. A close is inserted on
+  a new date, replaces a `Synced` or `Legacy` price, and never a `Manual` one
+  (`InvestmentPriceSnapshot.Source`; `UpsertInvestmentPrice` writes `Manual`, the migration
+  marked older rows `Legacy`). A move over `Prices__JumpWarningPercent` (20) from the previous
+  close is stored and logged as a warning. The asset keeps `PricesSyncedAt`, the last failure
+  in `PriceSyncError`, and the symbol its synced closes came from in `PricesSymbol`. When the
+  symbol changes (a corrected ticker, another gold proxy), the next sync fetches the whole
+  window again and removes the synced closes the new symbol has no close for; if it fails, the
+  old history stays. One asset's failure never stops the others. Syncs are serialised
+  in-process, since the `(AssetId, Date)` index allows one writer.
+- **Schedule**: `PriceHistorySyncService` (hosted) syncs every held asset at startup and daily
+  at `Prices__DailyRunTime` (22:00 UTC, after the European close), and any asset queued in
+  `PriceSyncQueue`: a new asset, a changed ticker, a first buy, an ETF created by a savings
+  plan. Queuing never makes the request wait for the price source. `Prices__Enabled=false`
+  turns it all off (the demo does): the sync endpoint answers 400, and
+  `GET /api/investments/prices/status` says `enabled: false`, so the page hides its sync
+  controls. Failures are logged and never stop the host.
+- **Serving**: `GET /api/investments/assets` carries each asset's `priceCount` and only the
+  prices its metrics read (`RecentPrices`, queried per asset: 40 days before the latest price,
+  plus the latest price at or before a week ago, a month ago and the first lot). The portfolio
+  value chart loads `GET /api/investments/prices/history?from=` (every asset's prices from the
+  chart's range, each series starting with the asset's latest price before it so a sparsely
+  priced asset is valued from the range's first day, as parallel `dates`/`prices` lists); an
+  expanded asset loads all its prices from `GET /api/investments/assets/{id}/prices`, where
+  each row shows its source (a close, `Manual`, or `Earlier` for `Legacy`). With 15 years for
+  three assets the asset list is about 8 KB instead of 790 KB.
+- **Staleness**: a held asset is stale when its last sync failed, or its latest price is
+  missing or more than one trading day behind: a close is synced the evening of its day, so
+  the newest to expect is the previous trading day's, and one missed sync is allowed
+  (`PriceSyncSettings.IsStale`). Trading days follow Xetra's calendar (`XetraCalendar`:
+  weekdays except 1 January, Good Friday, Easter Monday, 1 May and 24, 25, 26 and 31
+  December), which every `.DE` listing trades on; the client has a copy
+  (`core/utils/xetra-calendar.ts`). The Investments page marks a stale asset and shows the
+  error; `/api/health` reports `prices` as `ok`, `stale` or `disabled`, without changing its
+  status.
 
 ### Google OAuth, Calendar and Tasks
 
@@ -499,13 +551,48 @@ its Tailscale HTTPS name (`tailscale serve`) and use
 `GoogleServices:FrontendUrl` set to `https://<device>.<tailnet>.ts.net`. Both URIs can be
 registered in Google Cloud Console at the same time.
 
+### Logging
+
+Logs go to the console as before (journald on the server) and, when `Logs__Path` is set, to
+files (ADR-029). `Services/Logging/LogFiles` adds Serilog (`Serilog.Extensions.Logging`,
+`Serilog.Sinks.File`) as a second provider of the usual `ILogger`, so the ~90 log calls and the
+console stay unchanged. The files are Serilog's compact JSON (CLEF): one object per line with
+`@t`, `@mt` (the message template), `@l` (left out for Information), `@x` (an exception) and
+the template's properties, plus `SourceContext`. A file a day, `beacon-yyyyMMdd.json` (a day
+over 100 MB rolls to `_001` and on), and files older than `Logs__Keep` days (14) are removed.
+`Logs__Path` is optional: unset, or a folder that can't be created or written, leaves the
+console only, with one warning at startup, so a server whose environment predates the setting
+still deploys.
+
+- **Levels** (`LogLevels`): set in code, since production has no `appsettings.json`:
+  Information by default, `Microsoft`, `Microsoft.EntityFrameworkCore` and `System` at Warning
+  (no per-request framework lines, no SQL), `Microsoft.Hosting.Lifetime` at Information. Each
+  is overridden by `Logging__LogLevel__<Category>` (`Default` for the rest), which applies to
+  the console and the files alike.
+- **Requests**: `RequestLoggingMiddleware`, first in the pipeline, logs one line per request
+  (method, path, status, duration; never the query string, which can carry search terms), at
+  Error for a 5xx.
+- **Reading** (`Features/Logs/Queries/GetLogs/`, `GET /api/logs`): the newest entries first,
+  filtered by `minLevel` (Serilog's names: Verbose, Debug, Information, Warning, Error, Fatal),
+  a `from`/`to` window and a text `search` over message, details and source, at most `limit`
+  (200, capped at 1000; `more` says older ones matched). It reads the newest files first, each
+  from its last line back, and stops at the limit or the window's start. Messages are rendered
+  from the template, strings unquoted. `enabled: false` when the server writes no files.
+- **Client errors** (`Features/Logs/Commands/LogClientError/`, `POST
+  /api/logs/client-errors`): message, stack and route, logged at Error under the category
+  `Beacon.Client` with the stack as `ClientStack`. Each field is cut to its cap (1,000, 8,000
+  and 300 characters), the body to 16 KB (413 beyond, from Kestrel) and the rate to 30 a minute
+  (`ClientErrorRateLimit`, 429 beyond).
+- The Settings page's "Logs" section (`pages/settings/settings-logs.ts`) lists the entries with
+  a level filter, a time window and a search, errors highlighted and details expandable.
+
 ### DI lifetimes
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService`, `AlphaVantageService` | Scoped |
-| `InvestmentPriceRefreshService` | Hosted service (`AddHostedService`) |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
+| `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
 
@@ -528,6 +615,54 @@ upgrade kept the earlier behaviour: every component declares
 `changeDetection: ChangeDetectionStrategy.Eager`, and `app.config.ts` passes `withXhr()` to
 `provideHttpClient`. A component without the line gets OnPush.
 
+### Design system
+
+The client follows the River design (ADR-030). Everything below lives in `web/src/`.
+
+- Tokens: `styles.scss` declares every colour, font and radius as a CSS variable on `:root`
+  (`--bg`, `--surface`, `--surface-raised`, `--border`, `--border-soft`, `--chart-grid`, the
+  text greys, `--primary` and `--primary-tint`, `--on-primary` for text on light fills,
+  `--credit`, `--debit`, `--warning`, `--danger`, `--overlay`, `--category-fallback`,
+  `--font-body` / `--font-display` / `--font-figures` / `--font-mono`, `--radius-md` / `-lg` /
+  `-xl`). Components use the variables, never colour literals; chart code keeps only data
+  colours (a category's stored colour).
+- Fonts: Manrope (text), Unbounded (headings, page titles), Bricolage Grotesque (figures, with
+  `font-variant-numeric: tabular-nums` through the `figures` mixin), one Google Fonts `<link>`
+  in `index.html`.
+- Shared styles: `_shared.scss` holds the global classes (`.page-header`, `.section`,
+  `.figures`) and forwards the partials in `styles/`: `_buttons` (`.btn-primary` light fill
+  for the main action, `.btn-accent`, `.btn-secondary`, `.btn-danger`, `.btn-icon` and its
+  quiet variant for rows, `.link-btn`), `_forms` (fields, the segmented `.tab-bar`, `.switch`), `_modals`, `_feedback`
+  (banners, the `.review-row` with hollow `.ring`s, `.cat-dot`, `.chip`). `styles.scss` emits
+  them once. A component that needs a mixin uses `styles/_mixins.scss` (`card`, `figures`,
+  `below-desktop`, `phone`, `visually-hidden`), which emits no CSS, so the global classes are
+  never copied into a component's styles.
+- Shell and breakpoints (`app.html|ts|scss`): from 1024 px a header with the brand, the
+  sections as a pill group (Home, Activity, Insights, Invest, Salary, Calendar, Categories),
+  a Settings icon button and Upload PDF; content capped at 1376 px. Below 1024 px a sticky top
+  bar with the page title (route `data.label`) and a "More" button whose sheet holds Categories
+  and Settings, a fixed bottom nav with the six main sections, and a round Upload button above
+  it on every page but Upload. The phone layouts start below 640 px.
+- Modals: every dialog uses `.modal-overlay > .modal` and sets its width with `--modal-width`;
+  below 640 px the same markup becomes a bottom sheet with a handle.
+- Month scrubber (`core/components/month-scrubber/`): one button per month with its money in
+  and out as two small bars (`aria-pressed`, an `aria-label` that reads both), scaled to the
+  months shown. On desktop it shows as many months as its width holds (up to six) and
+  "Earlier" reveals older ones; on phones the months are a sideways-scrolling row of chips. An
+  "All months" choice comes last where a page allows it. Its months come from `monthCells()`
+  (`core/utils/month-totals.ts`) over `FinanceService.monthlySummaries`. Home, Activity and
+  Insights use it.
+- Charts: `core/charts/chart-theme.ts` reads the tokens with `getComputedStyle` and sets
+  chart.js defaults (`applyChartTheme()`: tick and legend text, gridlines, tooltip), plus
+  `axisOptions()`, `withAlpha()` and `categoryColor()`, which falls back to
+  `--category-fallback`. Small charts are hand-drawn SVG: Home's River chart
+  (`pages/dashboard/river-chart.ts`, its series computed by the pure, tested `river.ts`) and
+  the Investments sparkline. Sorted horizontal bars replace pies.
+- Money is formatted by `core/utils/money.ts`: outflows in neutral text with a true minus
+  sign, inflows in `--credit` with a plus.
+- The scrubber and the River chart are OnPush components driven by signal inputs; the pages
+  keep `ChangeDetectionStrategy.Eager`.
+
 ### HTTP authentication
 
 `core/interceptors/api-key.interceptor.ts` injects `X-Api-Key: <apiKey>` on every request
@@ -541,6 +676,14 @@ Tasks"); the Calendar and Settings pages call `loadStatus()` when they open.
 calls: an error with code `google_reconnect_required` or `google_not_connected` reloads the
 status while it still says connected, so both pages switch to their reconnect or connect state
 instead of showing an empty calendar.
+
+### Client errors
+
+`core/services/client-error-handler.ts` replaces Angular's `ErrorHandler` (`app.config.ts`):
+it logs to the console as before and posts each uncaught error (message, stack, route; URLs
+without their query strings) to `POST /api/logs/client-errors`, at most ten a minute. A report
+that fails is dropped, never reported in turn. `provideBrowserGlobalErrorListeners()` sends
+the window's errors and unhandled rejections to it.
 
 ## Database
 
@@ -598,9 +741,12 @@ with `status: "degraded"` and a `reason` otherwise: `database unreachable` (no f
 SQLite cannot read) or `migrations pending`. Both carry `version` and `commit`, split from the
 version the SDK stamps on the build (`1.0.0+<commit>` from a git checkout; `commit` is null
 otherwise), and `newestMigration`, the newest migration applied to the database, which after a
-rollback can be newer than the running release's. `GetHealthQueryHandler` checks that the file
-exists before reading it, since a query would make SQLite create a missing file, and logs only
-a degraded answer.
+rollback can be newer than the running release's. A healthy answer also carries `prices`:
+`ok`, `stale` (a held asset's latest price is missing or more than one Xetra trading day
+behind, or its last sync failed; see "Investments") or `disabled`; it never changes the
+status, since deploys gate on it. `GetHealthQueryHandler` checks that the file exists before
+reading it, since a query would make SQLite create a missing file, and logs only a degraded
+answer.
 
 ## Supported banks
 
@@ -633,10 +779,14 @@ statement parsers") and stored under bank name `MEAL CARD`.
 | `Python__Executable` | Python binary (`python` on Windows, `python3` on Linux) |
 | `Python__ExtractorScript` | Absolute path to `scripts/pdfExtractor.py` |
 | `Python__TimeoutSeconds` | PDF extraction timeout (default 60); the Python process is killed on expiry |
-| `AlphaVantage__ApiKey` | Alpha Vantage API key for investment price fetching |
-| `AlphaVantage__DailyQuota` | Alpha Vantage daily request quota (default 25) |
-| `AlphaVantage__ReservedForManual` | Quota reserved for manual price refreshes (default 5) |
-| `AlphaVantage__GoldProxyTicker` | EUR-listed gold ETC ticker used to price gold (default `4GLD.DEX`, 1 unit = 1 gram) |
+| `Prices__Enabled` | Sync investment prices (default `true`; `false` in the demo) |
+| `Prices__HistoryYears` | Years of daily closes the first sync of an asset stores (default 15) |
+| `Prices__DailyRunTime` | Time of the daily price sync, UTC (default `22:00`, after the European close) |
+| `Prices__GoldProxySymbol` | EUR-listed gold ETC used to price gold (default `4GLD.DE`, 1 unit = 1 gram) |
+| `Prices__JumpWarningPercent` | Day-to-day move that logs a warning (default 20) |
+| `Logs__Path` | Folder for the log files (optional; without it, or when it can't be written, logs go to the console only) |
+| `Logs__Keep` | Days of log files kept (default 14) |
+| `Logging__LogLevel__<Category>` | Minimum level for a category (`Default` for the rest), overriding the defaults in "Logging" |
 | `GoogleServices__ClientId` | Google OAuth 2.0 client ID |
 | `GoogleServices__ClientSecret` | Google OAuth 2.0 client secret |
 | `GoogleServices__RedirectUri` | OAuth redirect URI: `http://localhost:5098/...` for development, the Tailscale HTTPS name for remote access (see "Google OAuth, Calendar and Tasks") |
@@ -645,7 +795,8 @@ statement parsers") and stored under bank name `MEAL CARD`.
 Never commit these values. Locally they live in `local/environment.dev` (loaded by
 `scripts/run-backend.ps1`) and `local/environment.demo` (loaded by
 `scripts/run-backend-demo.ps1`, which always points the database at `local/beacon-demo.db`,
-`Storage__Path` at `local/uploads-demo` and `Backup__Path` at `local/backups-demo`); in production in `local/environment` in the server's
+`Storage__Path` at `local/uploads-demo`, `Backup__Path` at `local/backups-demo` and
+`Logs__Path` at `local/logs-demo`); in production in `local/environment` in the server's
 checkout of `main` (loaded by systemd `EnvironmentFile`; the server has no `appsettings.json`).
 How the server deploys is in README.md, "Deployment" (ADR-027).
 
@@ -663,17 +814,26 @@ Coverage: all bank/salary/grocery parsers (incl.
 Trade Republic's block-based multi-line layout, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,
-`ExceptionHandlingMiddleware`, `ApplyRuleService` (incl. Excluded-category rules setting
+`ExceptionHandlingMiddleware` (incl. a body over its limit), `RequestLoggingMiddleware`, the
+log files (missing or unwritable folder, retention, level defaults and overrides, JSON lines
+read back), `ApplyRuleService` (incl. Excluded-category rules setting
 `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
 stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
-Trade Republic savings-plan exclusion), `AlphaVantageService` (incl. request-URI pinning),
+Trade Republic savings-plan exclusion), `YahooPriceHistorySource` (chart and OpenFIGI
+parsing on synthetic responses, EUR check, retries, an unavailable source),
+`PriceHistorySyncService` (schedule, queue, turned off), `XetraCalendar` and stale prices,
+the price-source migration,
 CQRS handlers for Backup (incl. investment tables), Categories,
-Health (a missing, damaged or unmigrated database),
+Health (a missing, damaged or unmigrated database; prices ok, stale or disabled),
 Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
 `CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
-Statements (incl. meal-card text import), Investments (assets, lots, prices, oversell
-validation, price backfill), input validation, `GoogleOAuthService` (each connection state),
+Statements (incl. meal-card text import), Logs (level, time and text filters, the limit,
+client errors with their caps), Investments (assets, lots, prices, oversell
+validation, price sync with its sources, ISIN lookup and failures, a changed symbol, recent
+prices and history queries with the price carried into a range, sync status, sync triggers),
+input validation, `GoogleOAuthService` (each connection state),
 `GoogleCalendarService`, `GoogleTasksService`, the Calendar and Tasks controllers' Google
-error responses and the health route's status codes (`Controllers/`).
+error responses, the health route's status codes and the client-error route's size and rate
+limits on Kestrel (`Controllers/`).
 
 Frontend: Vitest specs next to the code (`*.spec.ts`), run by `ng test`.

@@ -1,0 +1,77 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+<div
+  class="picker"
+  role="dialog"
+  aria-labelledby="category-picker-title"
+  (click)="$event.stopPropagation()"
+>
+  <div class="picker__head">
+    <div class="picker__heading">
+      <h2 id="category-picker-title" class="picker__title">Choose a category</h2>
+      @if (progress()) {
+        <span class="picker__progress">{{ progress() }} to review</span>
+      }
+    </div>
+    <button type="button" class="btn-icon" aria-label="Close" (click)="closed.emit()">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  </div>
+
+  @if (description()) {
+    <div class="picker__row">
+      <span class="picker__text">
+        <span class="picker__desc">{{ description() }}</span>
+        <span class="picker__meta">{{ meta() }}</span>
+      </span>
+      <span class="picker__amount figures">{{ amount() }}</span>
+    </div>
+  }
+
+  <input
+    #searchBox
+    class="field-input picker__search"
+    type="search"
+    placeholder="Search categories"
+    aria-label="Search categories"
+    [value]="search()"
+    (input)="onSearch($event)"
+  />
+
+  <div class="picker__list">
+    @for (cat of shown(); track cat.id) {
+      <button
+        type="button"
+        class="opt"
+        [attr.aria-pressed]="cat.id === selectedId()"
+        (click)="picked.emit(cat.id)"
+      >
+        <span class="cat-dot" [style.--_dot]="cat.color"></span>
+        <span class="opt__name">{{ cat.name }}</span>
+      </button>
+    } @empty {
+      <p class="picker__empty">No category matches.</p>
+    }
+  </div>
+
+  <div class="picker__foot">
+    <button type="button" class="link-btn" (click)="create.emit()">New category…</button>
+    @if (progress()) {
+      <button type="button" class="btn-secondary" (click)="skipped.emit()">Skip</button>
+    } @else if (selectedId() !== null) {
+      <button type="button" class="link-btn picker__none" (click)="picked.emit(null)">
+        No category
+      </button>
+    }
+  </div>
+</div>

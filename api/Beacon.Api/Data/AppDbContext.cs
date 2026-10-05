@@ -242,6 +242,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(a => a.Isin).HasMaxLength(12);
             e.Property(a => a.Name).HasMaxLength(200).IsRequired();
             e.Property(a => a.Notes).HasMaxLength(500);
+            e.Property(a => a.PriceSyncError).HasMaxLength(500);
+            e.Property(a => a.PricesSymbol).HasMaxLength(20);
             // Many assets may have no ISIN, but a set ISIN identifies one asset. SQLite unique
             // indexes treat NULLs as distinct, so no filter is needed.
             e.HasIndex(a => a.Isin).IsUnique();
@@ -269,6 +271,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(p => p.Id);
             e.Property(p => p.PricePerUnit).HasPrecision(18, 4);
+            e.Property(p => p.Source).HasMaxLength(10).IsRequired();
             e.HasIndex(p => new { p.AssetId, p.Date }).IsUnique();
         });
 
@@ -279,7 +282,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(t => t.AccessToken).IsRequired();
             e.Property(t => t.RefreshToken).HasMaxLength(512).IsRequired();
             e.Property(t => t.Scopes).HasMaxLength(500);
-            e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", "Id = 1"));
+            e.ToTable(t => t.HasCheckConstraint("CK_SingleToken", $"Id = {GoogleOAuthToken.SingletonId}"));
         });
     }
 }

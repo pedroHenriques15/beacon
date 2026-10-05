@@ -192,25 +192,52 @@ export interface InvestmentPriceSnapshot {
   assetId: number;
   date: string;
   pricePerUnit: number;
+  /** Manual: entered by hand, never replaced by a sync. Legacy: stored before sources were recorded. */
+  source: 'Manual' | 'Synced' | 'Legacy';
 }
 
 export interface InvestmentAsset {
   id: number;
   assetType: 'ETF' | 'Gold';
   ticker: string | null;
+  isin: string | null;
   name: string;
   notes: string | null;
+  pricesSyncedAt: string | null;
+  priceSyncError: string | null;
+  /** Every stored price; priceSnapshots holds only the recent ones the metrics read. */
+  priceCount: number;
   lots: InvestmentLot[];
   priceSnapshots: InvestmentPriceSnapshot[];
 }
 
-export interface BackfillPriceHistoryResponse {
+/** One asset's prices, oldest first, as parallel lists. */
+export interface AssetPriceSeries {
   assetId: number;
-  snapshotsAdded: number;
-  snapshotsSkipped: number;
-  earliestDate: string | null;
-  latestDate: string | null;
-  message: string;
+  dates: string[];
+  prices: number[];
+}
+
+export interface AssetPriceSyncResult {
+  assetId: number;
+  name: string;
+  symbol: string | null;
+  added: number;
+  replaced: number;
+  /** Synced closes dropped because the asset's symbol changed and the new one has none that day. */
+  removed: number;
+  kept: number;
+  latestClose: string | null;
+  error: string | null;
+}
+
+export interface SyncPriceHistoryResponse {
+  assets: AssetPriceSyncResult[];
+}
+
+/** Whether the server syncs prices; the demo doesn't. */
+export interface PriceSyncStatus {
+  enabled: boolean;
 }
 
 export interface ParsedSlipResponse {

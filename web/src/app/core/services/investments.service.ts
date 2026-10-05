@@ -2,11 +2,15 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  BackfillPriceHistoryResponse,
+  AssetPriceSeries,
   InvestmentAsset,
   InvestmentLot,
   InvestmentPriceSnapshot,
+  PriceSyncStatus,
+  SyncPriceHistoryResponse,
 } from '../models/statement.model';
+import { buildParams } from '../utils/http-params';
+import { previousTradingDay } from '../utils/xetra-calendar';
 
 export interface AssetMetric {
   asset: InvestmentAsset;
@@ -19,7 +23,11 @@ export interface AssetMetric {
   unrealizedPct: number | null;
   realizedPnl: number;
   totalReturn: number | null;
-  change24h: number | null;
+  /** Date of the latest price, the close the current price comes from. */
+  latestPriceDate: string | null;
+  /** Held, and its latest price is too old or missing, or its last sync failed. */
+  pricesStale: boolean;
+  change1d: number | null;
   change1w: number | null;
   change1m: number | null;
   changeSincePurchase: number | null;
@@ -37,6 +45,17 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * A latest price is stale when missing or more than one trading day behind: a day's close is
+ * synced that evening, so before then the newest close to expect is the previous trading day's,
+ * and one missed sync is allowed on top. Weekends and Xetra holidays don't count. Matches the
+ * API's PriceSyncSettings.IsStale.
+ */
+export function isPriceStale(latestDate: string | null, today: string): boolean {
+  if (latestDate == null) return true;
+  return latestDate < previousTradingDay(previousTradingDay(today));
+}
+
 function changePct(current: number | null, ref: number | null): number | null {
   if (current == null || ref == null || ref === 0) return null;
   return ((current - ref) / ref) * 100;
@@ -50,11 +69,17 @@ export class InvestmentsService {
   loading = signal(false);
   error = signal<string | null>(null);
 
+  /** Every asset's prices from historyFrom on, for the portfolio value chart; null until loaded. */
+  priceHistory = signal<AssetPriceSeries[] | null>(null);
+  private historyFrom: string | null | undefined;
+  private historyRequest = 0;
+
   constructor() {
     this.load();
   }
 
   load(): void {
+    if (this.historyFrom !== undefined) this.loadPriceHistory(this.historyFrom);
     this.loading.set(true);
     this.error.set(null);
     this.http.get<InvestmentAsset[]>('/api/investments/assets').subscribe({
@@ -67,6 +92,40 @@ export class InvestmentsService {
         this.loading.set(false);
       },
     });
+  }
+
+  /** Loads the portfolio chart's prices from a date (null: all of them), and keeps it for reloads. */
+  loadPriceHistory(from: string | null): void {
+    this.historyFrom = from;
+    // Ranges can change faster than answers arrive: only the latest request's answer counts.
+    const request = ++this.historyRequest;
+    this.http
+      .get<AssetPriceSeries[]>('/api/investments/prices/history', {
+        params: buildParams({ from }),
+      })
+      .subscribe({
+        next: (series) => {
+          if (request === this.historyRequest) this.priceHistory.set(series);
+        },
+        error: () => {
+          if (request === this.historyRequest) this.priceHistory.set(null);
+        },
+      });
+  }
+
+  /** Whether the server syncs prices: null until known, or when it couldn't be asked. */
+  priceSyncEnabled = signal<boolean | null>(null);
+
+  loadPriceSyncStatus(): void {
+    this.http.get<PriceSyncStatus>('/api/investments/prices/status').subscribe({
+      next: (status) => this.priceSyncEnabled.set(status.enabled),
+      error: () => this.priceSyncEnabled.set(null),
+    });
+  }
+
+  /** Every price of one asset, newest first. */
+  getAssetPrices(id: number): Observable<InvestmentPriceSnapshot[]> {
+    return this.http.get<InvestmentPriceSnapshot[]>(`/api/investments/assets/${id}/prices`);
   }
 
   createAsset(body: {
@@ -86,13 +145,12 @@ export class InvestmentsService {
   deleteAsset(id: number): Observable<void> {
     return this.http.delete<void>(`/api/investments/assets/${id}`);
   }
-  fetchPrice(id: number): Observable<InvestmentPriceSnapshot> {
-    return this.http.post<InvestmentPriceSnapshot>(`/api/investments/assets/${id}/fetch-price`, {});
-  }
-  backfillHistory(id: number): Observable<BackfillPriceHistoryResponse> {
-    return this.http.post<BackfillPriceHistoryResponse>(
-      `/api/investments/assets/${id}/backfill`,
+  /** Syncs one asset's prices, or every held asset's when no id is given. */
+  syncPrices(assetId?: number): Observable<SyncPriceHistoryResponse> {
+    return this.http.post<SyncPriceHistoryResponse>(
+      '/api/investments/prices/sync',
       {},
+      { params: buildParams({ assetId }) },
     );
   }
 
@@ -132,6 +190,9 @@ export class InvestmentsService {
   deletePrice(id: number): Observable<void> {
     return this.http.delete<void>(`/api/investments/prices/${id}`);
   }
+
+  /** Today's date (UTC), the reference for stale prices. */
+  today = signal(new Date().toISOString().slice(0, 10));
 
   assetMetrics = computed<AssetMetric[]>(() =>
     this.assets().map((asset) => {
@@ -193,7 +254,11 @@ export class InvestmentsService {
         unrealizedPct,
         realizedPnl,
         totalReturn,
-        change24h: changePct(currentPrice, priorClose),
+        latestPriceDate: latestDate,
+        pricesStale:
+          totalQuantity > 0 &&
+          (asset.priceSyncError != null || isPriceStale(latestDate, this.today())),
+        change1d: changePct(currentPrice, priorClose),
         change1w: changePct(currentPrice, prior1w),
         change1m: changePct(currentPrice, prior1m),
         changeSincePurchase: changePct(currentPrice, priorPurchase),
@@ -217,7 +282,7 @@ export class InvestmentsService {
   });
   totalReturn = computed(() => this.totalRealizedPnl() + this.totalUnrealizedPnl());
 
-  portfolioChange24h = computed(() => this.portfolioChange(null));
+  portfolioChange1d = computed(() => this.portfolioChange(null));
   portfolioChange1w = computed(() => this.portfolioChange(7));
   portfolioChange1m = computed(() => this.portfolioChange(30));
 
@@ -266,34 +331,63 @@ export class InvestmentsService {
       }));
   }
 
-  portfolioHistory = computed<PortfolioPoint[]>(() => this.portfolioHistoryFor(this.assets()));
+  portfolioHistory = computed<PortfolioPoint[]>(() =>
+    this.portfolioHistoryFor(this.assets(), this.priceHistory() ?? undefined),
+  );
 
-  portfolioHistoryFor(assets: InvestmentAsset[]): PortfolioPoint[] {
-    if (assets.length === 0) return [];
+  /**
+   * One point per price date from the first lot on, walking each asset's lots and prices once:
+   * a 15-year daily history would make a per-date scan quadratic. Prices come from
+   * priceHistory when given (the asset list carries only recent ones), else from the assets.
+   */
+  portfolioHistoryFor(assets: InvestmentAsset[], history?: AssetPriceSeries[]): PortfolioPoint[] {
+    const byAsset = new Map(history?.map((h) => [h.assetId, h]));
+    const pricesOf = (asset: InvestmentAsset): { date: string; pricePerUnit: number }[] => {
+      if (history == null) {
+        return [...asset.priceSnapshots].sort((a, b) => a.date.localeCompare(b.date));
+      }
+      const h = byAsset.get(asset.id);
+      return h ? h.dates.map((date, i) => ({ date, pricePerUnit: h.prices[i] })) : [];
+    };
+    const series = assets.map((asset) => ({
+      lots: [...asset.lots].sort((a, b) => a.date.localeCompare(b.date)),
+      prices: pricesOf(asset),
+      lotIndex: 0,
+      priceIndex: 0,
+      quantity: 0,
+      invested: 0,
+      price: null as number | null,
+    }));
 
-    const allDates = [
-      ...new Set(assets.flatMap((a) => a.priceSnapshots.map((s) => s.date))),
-    ].sort();
-    if (allDates.length === 0) return [];
+    const firstLot = series
+      .map((s) => s.lots[0]?.date)
+      .filter((d): d is string => d != null)
+      .sort()[0];
+    if (firstLot == null) return [];
 
-    return allDates
-      .map((date) => {
-        let totalValue = 0;
-        let invested = 0;
-        for (const asset of assets) {
-          // Net money in up to this date: sells (negative quantity) reduce it, fees always add.
-          invested += asset.lots
-            .filter((l) => l.date <= date)
-            .reduce((s, l) => s + l.quantity * l.pricePerUnit + (l.fees ?? 0), 0);
-          const snap = asset.priceSnapshots.find((s) => s.date <= date);
-          if (!snap) continue;
-          const netQty = asset.lots
-            .filter((l) => l.date <= date)
-            .reduce((s, l) => s + l.quantity, 0);
-          if (netQty > 0) totalValue += netQty * snap.pricePerUnit;
+    const dates = [...new Set(series.flatMap((s) => s.prices.map((p) => p.date)))]
+      .filter((d) => d >= firstLot)
+      .sort();
+
+    const points: PortfolioPoint[] = [];
+    for (const date of dates) {
+      let totalValue = 0;
+      let invested = 0;
+      for (const s of series) {
+        // Net money in up to this date: sells (negative quantity) reduce it, fees always add.
+        while (s.lotIndex < s.lots.length && s.lots[s.lotIndex].date <= date) {
+          const lot = s.lots[s.lotIndex++];
+          s.invested += lot.quantity * lot.pricePerUnit + (lot.fees ?? 0);
+          s.quantity += lot.quantity;
         }
-        return { date, totalValue, invested };
-      })
-      .filter((p) => p.totalValue > 0);
+        while (s.priceIndex < s.prices.length && s.prices[s.priceIndex].date <= date) {
+          s.price = s.prices[s.priceIndex++].pricePerUnit;
+        }
+        invested += s.invested;
+        if (s.price != null && s.quantity > 0) totalValue += s.quantity * s.price;
+      }
+      if (totalValue > 0) points.push({ date, totalValue, invested });
+    }
+    return points;
   }
 }

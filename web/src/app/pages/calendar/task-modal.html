@@ -1,9 +1,17 @@
 @if (open) {
   <div class="modal-overlay" (click)="onCancel()">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div
+      class="modal task-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="task-modal-title"
+      (click)="$event.stopPropagation()"
+    >
       <div class="modal-header">
-        <h3>{{ task ? 'Edit Task' : 'New Task' }}</h3>
-        <button class="modal-close" (click)="onCancel()" type="button">&#x2715;</button>
+        <h3 id="task-modal-title">{{ task ? 'Edit Task' : 'New Task' }}</h3>
+        <button class="modal-close" (click)="onCancel()" type="button" aria-label="Close">
+          &#x2715;
+        </button>
       </div>
 
       <label class="field-label" for="task-title">Title</label>
@@ -31,7 +39,7 @@
       <label class="field-label" for="task-notes">Notes</label>
       <textarea
         id="task-notes"
-        class="field-input task-textarea"
+        class="field-input"
         placeholder="Optional notes"
         [(ngModel)]="form.notes"
         name="notes"
@@ -39,15 +47,15 @@
       ></textarea>
 
       @if (task) {
-        <div class="task-completed-row">
-          <label class="field-label" for="task-completed">Completed</label>
+        <label class="task-completed-row" for="task-completed">
           <input
             id="task-completed"
             type="checkbox"
             [(ngModel)]="form.completed"
             name="completed"
           />
-        </div>
+          <span class="field-label">Completed</span>
+        </label>
       }
 
       @if (saveError) {

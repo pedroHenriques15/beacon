@@ -1,0 +1,79 @@
+<div class="share" role="img" [attr.aria-label]="shareLabel()">
+  @for (row of bars().rows; track row.label) {
+    @if (row.share > 0) {
+      <span
+        class="share__seg"
+        [style.flex-grow]="row.share"
+        [style.background]="row.color"
+        [title]="row.label + ', ' + eur(row.total)"
+      ></span>
+    }
+  }
+</div>
+
+@if (previous(); as prev) {
+  <div class="key">
+    <span class="key__item"><span class="key__tick"></span>{{ prev }}</span>
+    <span class="key__item"><span class="key__bar"></span>{{ current() }}</span>
+  </div>
+}
+
+<div class="bars" [class.bars--compare]="!!previous()">
+  <div class="bars__head" aria-hidden="true">
+    <span>Category</span>
+    <span class="num">Share</span>
+    <span class="bars__axis">
+      @for (t of bars().ticks; track $index) {
+        <span>{{ eurAxis(t) }}</span>
+      }
+    </span>
+    <span class="num">{{ current() }}</span>
+    @if (previous(); as prev) {
+      <span class="num">vs {{ prev }}</span>
+    }
+  </div>
+  <ul class="bars__list">
+    @for (row of bars().rows; track row.label) {
+      <li>
+        <button
+          type="button"
+          class="bar-row"
+          [attr.aria-pressed]="selected() === row.label"
+          [attr.aria-label]="rowLabel(row)"
+          (click)="picked.emit(row)"
+        >
+          <span class="bar-row__name">
+            @if (row.label === unknown) {
+              <span class="ring"></span>
+            } @else {
+              <span class="cat-dot" [style.--_dot]="row.color"></span>
+            }
+            <span class="bar-row__label">{{ row.label }}</span>
+          </span>
+          <span class="bar-row__share">{{ row.share.toFixed(1) }}%</span>
+          <span class="bar-row__track">
+            <span
+              class="bar-row__bar"
+              [style.width.%]="row.pct"
+              [style.background]="row.color"
+            ></span>
+            @if (row.prevPct !== null) {
+              <span class="bar-row__tick" [style.left.%]="row.prevPct"></span>
+            }
+          </span>
+          <span class="bar-row__amount">{{ eur(row.total) }}</span>
+          @if (previous()) {
+            <span
+              class="bar-row__change"
+              [class.amount-in]="(row.change ?? 0) < -0.005"
+              [class.bar-row__change--flat]="
+                row.change !== null && row.change > -0.005 && row.change < 0.005
+              "
+              >{{ changeText(row) }}</span
+            >
+          }
+        </button>
+      </li>
+    }
+  </ul>
+</div>

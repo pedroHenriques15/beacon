@@ -1,14 +1,25 @@
 @if (open) {
   <div class="modal-overlay" (click)="cancelled.emit()">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div
+      class="modal confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby="confirm-dialog-message"
+      (click)="$event.stopPropagation()"
+    >
       <div class="modal-header">
-        <h3>{{ title }}</h3>
-        <button class="modal-close" (click)="cancelled.emit()">✕</button>
+        <h3 id="confirm-dialog-title">{{ title }}</h3>
+        <button type="button" class="modal-close" aria-label="Close" (click)="cancelled.emit()">
+          ✕
+        </button>
       </div>
-      <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem">{{ message }}</p>
+      <p id="confirm-dialog-message" class="confirm-dialog__message">{{ message }}</p>
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="cancelled.emit()">Cancel</button>
-        <button class="btn-danger" (click)="confirmed.emit()">{{ confirmLabel }}</button>
+        <button type="button" class="btn-secondary" (click)="cancelled.emit()">Cancel</button>
+        <button type="button" class="btn-danger" (click)="confirmed.emit()">
+          {{ confirmLabel }}
+        </button>
       </div>
     </div>
   </div>

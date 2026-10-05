@@ -1,0 +1,101 @@
+@use '../../../styles/mixins' as *;
+@use 'settings-log-list' as *;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+// Search, level, time window and Refresh: one row that wraps.
+.logs-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+
+  &__search {
+    flex: 1 1 14rem;
+    min-width: 0;
+  }
+
+  // The global segmented group, kept on one line and as tall as the inputs.
+  &__levels {
+    margin: 0;
+    padding: 2px;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 22px;
+    scrollbar-width: none;
+
+    .tab-btn {
+      flex-shrink: 0;
+      white-space: nowrap;
+
+      // The group scrolls on the narrowest phones: keep the focus ring inside it.
+      &:focus-visible {
+        outline-offset: 0;
+      }
+    }
+  }
+
+  &__when {
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+
+    .field-select {
+      width: auto;
+      min-width: 10rem;
+    }
+  }
+}
+
+.logs-empty {
+  @include card(var(--radius-lg));
+  margin: 0;
+  padding: 18px 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+
+  code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+}
+
+.logs-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+// Phones: search on its own line, the level group full width, then the window
+// and Refresh side by side.
+@include phone {
+  .logs-filters {
+    &__search,
+    &__levels,
+    &__when {
+      flex: 1 1 100%;
+    }
+
+    &__levels .tab-btn {
+      flex: 1 1 auto;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    &__when .field-select {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+  }
+}

@@ -1,0 +1,176 @@
+@use '../../../styles/mixins' as *;
+
+// A transaction or grocery item: dot, text, category control, amount, actions.
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  padding: 6px 6px 6px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+
+  > .cat-dot,
+  > .ring {
+    width: 12px;
+    height: 12px;
+  }
+
+  &--needs {
+    border-style: dashed;
+    border-color: var(--border);
+  }
+
+  &--out {
+    opacity: 0.6;
+  }
+
+  &--picked {
+    border-color: var(--primary);
+  }
+
+  &__check {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__desc,
+  &__meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__desc {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  // Shown in the control column on desktop, in the meta line on phones.
+  &__cat {
+    display: none;
+  }
+
+  &__control {
+    flex: 0 0 168px;
+    min-width: 0;
+    display: flex;
+  }
+
+  &__amount {
+    flex: 0 0 auto;
+    min-width: 88px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    font-size: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  &--out &__amount {
+    color: var(--text-secondary);
+  }
+
+  &__balance {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  &__more {
+    border-color: transparent;
+    color: var(--text-secondary);
+  }
+}
+
+.ring--out {
+  border-style: dashed;
+  border-color: var(--neutral-mark);
+}
+
+.choose,
+.cat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+}
+
+.choose {
+  border-color: var(--primary);
+  background: transparent;
+}
+
+.cat-btn {
+  &:hover {
+    border-color: var(--border);
+  }
+
+  &__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@include phone {
+  // The choose button and the Excluded chip wrap under the text.
+  .row {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    min-height: 52px;
+    padding: 4px 4px 4px 12px;
+
+    &__cat {
+      display: inline;
+    }
+
+    &__control {
+      order: 9;
+      flex: 1 0 100%;
+      padding: 0 0 6px 24px;
+    }
+
+    &__control--cat,
+    &__balance {
+      display: none;
+    }
+
+    &__amount {
+      min-width: 0;
+      font-size: 14px;
+    }
+  }
+}

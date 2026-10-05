@@ -4,16 +4,13 @@ using Beacon.Api.Features.Investments.Commands.CreateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.DeleteInvestmentPriceSnapshot;
-using Beacon.Api.Features.Investments.Commands.FetchInvestmentPrice;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentAsset;
 using Beacon.Api.Features.Investments.Commands.UpdateInvestmentLot;
 using Beacon.Api.Features.Investments.Commands.UpsertInvestmentPrice;
 using Beacon.Api.Features.Investments.Queries.GetInvestmentAssets;
 using Beacon.Api.Models;
-using Beacon.Api.Services;
 using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 
 namespace Beacon.Tests.Handlers;
 
@@ -47,7 +44,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateAsset_ETF_PersistsWithTicker()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("ETF", "vwce", "Vanguard FTSE All-World", null));
 
@@ -62,7 +59,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateAsset_Gold_PersistsWithoutTicker()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Gold", null, "Physical Gold", "Stored at home"));
 
@@ -78,7 +75,7 @@ public class InvestmentHandlerTests : IDisposable
     {
         await using var db = CreateDb();
         await SeedEtfAsync(db, "VWCE");
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("ETF", "VWCE", "Another Fund", null));
 
@@ -90,7 +87,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateAsset_ETF_MissingTicker_ReturnsError()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("ETF", null, "Some ETF", null));
 
@@ -102,7 +99,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateAsset_InvalidAssetType_ReturnsError()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Crypto", "BTC", "Bitcoin", null));
 
@@ -117,7 +114,7 @@ public class InvestmentHandlerTests : IDisposable
     {
         await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
-        var handler = new UpdateInvestmentAssetCommandHandler(db);
+        var handler = new UpdateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new UpdateInvestmentAssetCommand(asset.Id, "VWCE", "Updated Name", "new notes"));
 
@@ -130,7 +127,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task UpdateAsset_NotFound_ReturnsNullNull()
     {
         await using var db = CreateDb();
-        var handler = new UpdateInvestmentAssetCommandHandler(db);
+        var handler = new UpdateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new UpdateInvestmentAssetCommand(9999, "X", "Name", null));
 
@@ -194,7 +191,7 @@ public class InvestmentHandlerTests : IDisposable
     {
         await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
-        var handler = new CreateInvestmentLotCommandHandler(db);
+        var handler = new CreateInvestmentLotCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(
             new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 3, 1), 5.5m, 98.40m, 1.50m, "First buy"));
@@ -213,7 +210,7 @@ public class InvestmentHandlerTests : IDisposable
         var asset = await SeedEtfAsync(db);
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 5, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
-        var handler = new CreateInvestmentLotCommandHandler(db);
+        var handler = new CreateInvestmentLotCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(
             new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 6, 1), -2m, 110m, null, null));
@@ -227,7 +224,7 @@ public class InvestmentHandlerTests : IDisposable
     {
         await using var db = CreateDb();
         var asset = await SeedEtfAsync(db);
-        var handler = new CreateInvestmentLotCommandHandler(db);
+        var handler = new CreateInvestmentLotCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(
             new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 1, 1), 0, 100m, null, null));
@@ -240,7 +237,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateLot_InvalidAssetId_ReturnsError()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentLotCommandHandler(db);
+        var handler = new CreateInvestmentLotCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(
             new CreateInvestmentLotCommand(9999, new DateOnly(2025, 1, 1), 1, 100m, null, null));
@@ -445,7 +442,7 @@ public class InvestmentHandlerTests : IDisposable
     public async Task CreateAsset_Gold_IgnoresTickerInput()
     {
         await using var db = CreateDb();
-        var handler = new CreateInvestmentAssetCommandHandler(db);
+        var handler = new CreateInvestmentAssetCommandHandler(db, TestPricing.Queue());
 
         var (result, error) = await handler.HandleAsync(new CreateInvestmentAssetCommand("Gold", "XAU", "Gold Bar", null));
 
@@ -461,7 +458,7 @@ public class InvestmentHandlerTests : IDisposable
         db.InvestmentAssets.Add(asset);
         await db.SaveChangesAsync();
 
-        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db)
+        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db, TestPricing.Queue())
             .HandleAsync(new UpdateInvestmentAssetCommand(asset.Id, "VWCE", "Gold Bar", null));
 
         Assert.Null(error);
@@ -477,7 +474,7 @@ public class InvestmentHandlerTests : IDisposable
         db.InvestmentAssets.Add(second);
         await db.SaveChangesAsync();
 
-        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db)
+        var (result, error) = await new UpdateInvestmentAssetCommandHandler(db, TestPricing.Queue())
             .HandleAsync(new UpdateInvestmentAssetCommand(second.Id, null, "Gold Bar", null));
 
         Assert.Null(result);
@@ -494,7 +491,7 @@ public class InvestmentHandlerTests : IDisposable
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
 
-        var (result, error) = await new CreateInvestmentLotCommandHandler(db).HandleAsync(
+        var (result, error) = await new CreateInvestmentLotCommandHandler(db, TestPricing.Queue()).HandleAsync(
             new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 2, 1), -6m, 110m, null, null));
 
         Assert.Null(result);
@@ -509,7 +506,7 @@ public class InvestmentHandlerTests : IDisposable
         db.InvestmentLots.Add(new InvestmentLot { AssetId = asset.Id, Date = new DateOnly(2025, 1, 1), Quantity = 5, PricePerUnit = 100 });
         await db.SaveChangesAsync();
 
-        var (result, error) = await new CreateInvestmentLotCommandHandler(db).HandleAsync(
+        var (result, error) = await new CreateInvestmentLotCommandHandler(db, TestPricing.Queue()).HandleAsync(
             new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 2, 1), -5m, 110m, null, null));
 
         Assert.Null(error);
@@ -550,21 +547,77 @@ public class InvestmentHandlerTests : IDisposable
         Assert.Contains("more sold than held", error);
     }
 
-    // ---- Fetch price ----
+    // ---- Price sync triggers ----
 
     [Fact]
-    public async Task FetchPrice_NotFound_ReturnsNullNull()
+    public async Task CreateAsset_QueuesAPriceSync()
     {
         await using var db = CreateDb();
-        var av = new AlphaVantageService(
-            new FakeHttpClientFactory(new ThrowingHttpMessageHandler()),
-            new ConfigurationBuilder().AddInMemoryCollection(
-                new Dictionary<string, string?> { ["AlphaVantage:ApiKey"] = "test-key" }).Build());
+        var queue = TestPricing.Queue();
 
-        var (result, error) = await new FetchInvestmentPriceCommandHandler(db, av)
-            .HandleAsync(new FetchInvestmentPriceCommand(9999));
+        var (result, _) = await new CreateInvestmentAssetCommandHandler(db, queue)
+            .HandleAsync(new CreateInvestmentAssetCommand("ETF", "VWCE.DE", "Vanguard", null));
 
-        Assert.Null(result);
-        Assert.Null(error);
+        Assert.Equal([result!.Id], TestPricing.Drain(queue));
+    }
+
+    [Fact]
+    public async Task UpdateAsset_QueuesAPriceSync_OnlyWhenTheTickerChanges()
+    {
+        await using var db = CreateDb();
+        var asset = await SeedEtfAsync(db, ticker: "VWCE.DE");
+        var queue = TestPricing.Queue();
+        var handler = new UpdateInvestmentAssetCommandHandler(db, queue);
+
+        await handler.HandleAsync(new UpdateInvestmentAssetCommand(asset.Id, "VWCE.DE", "Renamed", null));
+        Assert.Empty(TestPricing.Drain(queue));
+
+        await handler.HandleAsync(new UpdateInvestmentAssetCommand(asset.Id, "EUNL.DE", "Renamed", null));
+        Assert.Equal([asset.Id], TestPricing.Drain(queue));
+    }
+
+    [Fact]
+    public async Task CreateLot_FirstBuy_QueuesAPriceSync_LaterOnesDoNot()
+    {
+        await using var db = CreateDb();
+        var asset = await SeedEtfAsync(db);
+        var queue = TestPricing.Queue();
+        var handler = new CreateInvestmentLotCommandHandler(db, queue);
+
+        await handler.HandleAsync(new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 1, 1), 10m, 100m, null, null));
+        Assert.Equal([asset.Id], TestPricing.Drain(queue));
+
+        db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
+        {
+            AssetId = asset.Id,
+            Date = new DateOnly(2025, 1, 2),
+            PricePerUnit = 101m,
+            Source = PriceSources.Synced,
+        });
+        await db.SaveChangesAsync();
+        await handler.HandleAsync(new CreateInvestmentLotCommand(asset.Id, new DateOnly(2025, 2, 1), 5m, 100m, null, null));
+        Assert.Empty(TestPricing.Drain(queue));
+    }
+
+    [Fact]
+    public async Task UpsertPrice_MarksThePriceAsManual()
+    {
+        await using var db = CreateDb();
+        var asset = await SeedEtfAsync(db);
+        var date = new DateOnly(2025, 6, 1);
+        db.InvestmentPriceSnapshots.Add(new InvestmentPriceSnapshot
+        {
+            AssetId = asset.Id,
+            Date = date,
+            PricePerUnit = 100m,
+            Source = PriceSources.Legacy,
+        });
+        await db.SaveChangesAsync();
+
+        var (result, _) = await new UpsertInvestmentPriceCommandHandler(db)
+            .HandleAsync(new UpsertInvestmentPriceCommand(asset.Id, date, 105m));
+
+        Assert.Equal(PriceSources.Manual, result!.Source);
+        Assert.Equal(PriceSources.Manual, (await db.InvestmentPriceSnapshots.SingleAsync()).Source);
     }
 }

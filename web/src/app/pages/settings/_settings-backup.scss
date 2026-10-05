@@ -1,0 +1,109 @@
+@use '../../../styles/mixins' as *;
+
+.setting-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// One action per row, rows split by a divider. Desktop's narrow column stacks
+// the button under its text.
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-soft);
+
+  &:first-child {
+    padding-top: 8px;
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  &__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__label {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+
+  &__hint {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+
+    strong {
+      color: var(--text-primary);
+      font-weight: 800;
+    }
+  }
+}
+
+// The outcome of the row's action: a dot in its colour, then the message.
+.settings-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+
+  &::before {
+    content: '';
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &--ok {
+    color: var(--success);
+  }
+
+  &--error {
+    color: var(--danger);
+  }
+}
+
+// Tablets: the button at the end of its row.
+@include below-desktop {
+  .setting-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+
+    &__text {
+      flex: 1 1 auto;
+    }
+
+    > button {
+      flex-shrink: 0;
+    }
+  }
+}
+
+// Phones: the button under its text, full width.
+@include phone {
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+}

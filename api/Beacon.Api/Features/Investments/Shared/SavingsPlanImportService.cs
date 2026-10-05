@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Beacon.Api.Data;
 using Beacon.Api.Models;
+using Beacon.Api.Services.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Investments.Shared;
@@ -15,7 +16,8 @@ namespace Beacon.Api.Features.Investments.Shared;
 /// holdings show up there. It is idempotent - lots are deduped by (asset, date, quantity) so a
 /// re-imported or period-overlapping statement never double-books.
 /// </summary>
-public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPlanImportService> logger)
+public partial class SavingsPlanImportService(
+    AppDbContext db, PriceSyncQueue priceSyncQueue, ILogger<SavingsPlanImportService> logger)
 {
     // ISIN: 2 country letters + 9 alphanumeric + 1 check digit (e.g. IE00BK5BQT80).
     [GeneratedRegex(@"\b([A-Z]{2}[A-Z0-9]{9}[0-9])\b")]
@@ -37,6 +39,7 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
         if (rows.Count == 0) return 0;
 
         var assetsByIsin = new Dictionary<string, InvestmentAsset>(StringComparer.Ordinal);
+        var created = new List<InvestmentAsset>();
         var seen = new HashSet<(string Isin, DateOnly Date, decimal Quantity)>();
         var imported = 0;
 
@@ -68,13 +71,14 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
                     {
                         AssetType = "ETF",
                         Isin = isin,
-                        Ticker = null, // user sets the Alpha Vantage ticker to enable pricing
+                        Ticker = null, // the price sync finds it from the ISIN
                         Name = ExtractFundName(tx.Description, isin) ?? $"ETF {isin}",
                         Notes = $"Auto-created from a Trade Republic savings plan ({isin}). " +
-                                     "Set the ETF ticker to enable price updates.",
+                                     "Its ticker is found from the ISIN; if prices don't appear, set it by hand.",
                         ImportedAt = DateTime.UtcNow,
                     };
                     db.InvestmentAssets.Add(asset);
+                    created.Add(asset);
                 }
                 assetsByIsin[isin] = asset;
             }
@@ -100,6 +104,11 @@ public partial class SavingsPlanImportService(AppDbContext db, ILogger<SavingsPl
         }
 
         if (imported > 0) await db.SaveChangesAsync(ct);
+
+        // A new holding gets its ticker and history now rather than at the next daily run.
+        foreach (var asset in created.Where(a => a.Id != 0))
+            priceSyncQueue.Enqueue(asset.Id);
+
         return imported;
     }
 
