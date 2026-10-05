@@ -1,0 +1,140 @@
+@use '../../../styles/mixins' as *;
+
+// A file on the results timeline (also the error and the meal card's outcome): its status
+// tile, what happened, the amount it carried and its action.
+.files {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  align-items: start;
+  column-gap: 14px;
+  padding: 8px 0;
+
+  // The spine, from this file's tile down to the next one's.
+  .files > &:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 17px;
+    top: 48px;
+    bottom: -8px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--chart-grid);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 36px;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__name {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  &__amount {
+    @include figures;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 36px;
+    white-space: nowrap;
+  }
+
+  &__action {
+    align-self: center;
+  }
+}
+
+// The 36 px status tile of the upload sheet's "Recent uploads".
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+
+  &[data-tone='ok'] {
+    color: var(--credit);
+  }
+
+  &[data-tone='review'],
+  &[data-tone='accent'] {
+    color: var(--primary);
+  }
+
+  &[data-tone='waiting'] {
+    color: var(--warning);
+  }
+
+  &[data-tone='error'] {
+    color: var(--danger);
+  }
+}
+
+.warnings {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--warning);
+
+  li {
+    display: flex;
+    gap: 6px;
+
+    &::before {
+      content: '';
+      flex-shrink: 0;
+      width: 7px;
+      height: 7px;
+      margin-top: 4px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+    }
+  }
+}
+
+@include phone {
+  .file {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+
+    &__action {
+      grid-column: 2 / -1;
+      justify-self: start;
+      margin-top: 8px;
+    }
+  }
+}

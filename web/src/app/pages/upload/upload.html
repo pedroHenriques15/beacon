@@ -1,86 +1,656 @@
 <div class="page-header">
   <h1>Upload</h1>
-  <p class="subtitle">
-    Import bank statements, grocery receipts, and salary slips - type is detected automatically
-  </p>
 </div>
 
-@if (state() === 'idle' || state() === 'uploading') {
-  <div
-    class="drop-zone"
-    [ngClass]="{ 'drag-over': dragOver(), busy: state() === 'uploading' }"
-    (dragover)="onDragOver($event)"
-    (dragleave)="onDragLeave()"
-    (drop)="onDrop($event)"
-  >
-    @if (state() === 'uploading') {
-      <div class="spinner"></div>
-      <p class="drop-label">Processing…</p>
-    } @else {
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="40"
-        height="40"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </svg>
-      <p class="drop-label">Drag & drop files here, or choose below</p>
-
-      <div class="upload-btns">
-        <label class="btn-upload">
-          Choose PDFs
-          <input type="file" accept=".pdf,.zip" multiple (change)="onFileSelected($event)" hidden />
-        </label>
-        <label class="btn-upload btn-upload--secondary">
-          Choose folder
-          <input
-            type="file"
-            accept=".pdf"
-            webkitdirectory
-            multiple
-            (change)="onFileSelected($event)"
-            hidden
-          />
-        </label>
-      </div>
-
-      <p class="supported">
-        Bank statements: ActivoBank · BPI · Revolut &nbsp;·&nbsp; Grocery receipts: Continente
-        &nbsp;·&nbsp; Salary slips: CentralGest · Domirest &nbsp;·&nbsp; micro1: invoice + Deel
-        withdrawal (upload both)
-      </p>
+<div class="upload">
+  <div class="upload__main">
+    @if (state() === 'idle' || state() === 'uploading') {
+      <section class="section drop-card" aria-labelledby="drop-h">
+        <div
+          class="drop"
+          [class.drop--over]="dragOver()"
+          [class.drop--busy]="state() === 'uploading'"
+          aria-live="polite"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+        >
+          @if (state() === 'uploading') {
+            <span class="spinner" aria-hidden="true"></span>
+            <h2 id="drop-h" class="drop__title">
+              Reading {{ uploadingCount() }} {{ uploadingCount() === 1 ? 'file' : 'files' }}…
+            </h2>
+            <p class="drop__text">Sorting them into statements, salary slips and receipts.</p>
+          } @else {
+            <svg
+              class="drop__icon"
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M7 3h7l5 5v13H7z" />
+              <path d="M14 3v5h5" />
+              <path d="M12 17v-6M9.5 13.5L12 11l2.5 2.5" />
+            </svg>
+            <h2 id="drop-h" class="drop__title">
+              <span class="drop__pointer">Drop PDFs here</span>
+              <span class="drop__touch">Upload PDFs</span>
+            </h2>
+            <p class="drop__text">
+              Beacon works out whether each one is a bank statement, a salary slip or a grocery
+              receipt, and files it in the right place. A ZIP of PDFs works too.
+            </p>
+            <div class="drop__actions">
+              <button type="button" class="btn-primary drop__choose" (click)="pdfInput.click()">
+                Choose PDFs
+              </button>
+              <button type="button" class="btn-secondary" (click)="folderInput.click()">
+                Choose folder
+              </button>
+            </div>
+            <input
+              #pdfInput
+              type="file"
+              accept=".pdf,.zip"
+              multiple
+              hidden
+              (change)="onFileSelected($event)"
+            />
+            <input
+              #folderInput
+              type="file"
+              accept=".pdf"
+              webkitdirectory
+              multiple
+              hidden
+              (change)="onFileSelected($event)"
+            />
+          }
+        </div>
+      </section>
     }
+
+    @if (state() === 'error') {
+      <section class="section results" role="alert">
+        <div class="file">
+          <span class="tile" data-tone="error" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
+          </span>
+          <span class="file__text">
+            <span class="file__title">Upload failed</span>
+            <span class="file__meta">{{ message() }}</span>
+          </span>
+          <button type="button" class="btn-secondary file__action" (click)="resetForm()">
+            Try again
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (state() === 'success') {
+      @let t = tally();
+      @let unknown = batchSummary()?.unknownCount ?? 0;
+      <section class="section results" aria-labelledby="results-h">
+        <div class="results__head">
+          <div class="results__heading">
+            <h2 id="results-h">This upload</h2>
+            @if (t.files > 0) {
+              <span class="results__count"
+                >{{ t.files }} {{ t.files === 1 ? 'file' : 'files' }}</span
+              >
+            }
+          </div>
+          @if (t.files > 0) {
+            <div class="results__tally">
+              @if (t.imported > 0) {
+                <span class="chip"
+                  ><span class="cat-dot" [style.--_dot]="'var(--credit)'"></span
+                  ><span class="figures">{{ t.imported }}</span> imported</span
+                >
+              }
+              @if (t.review > 0) {
+                <span class="chip"
+                  ><span class="cat-dot" [style.--_dot]="'var(--primary)'"></span
+                  ><span class="figures">{{ t.review }}</span> to review</span
+                >
+              }
+              @if (t.duplicates > 0) {
+                <span class="chip"
+                  ><span class="cat-dot" [style.--_dot]="'var(--neutral-mark)'"></span
+                  ><span class="figures">{{ t.duplicates }}</span> already in Beacon</span
+                >
+              }
+              @if (t.failed > 0) {
+                <span class="chip"
+                  ><span class="cat-dot" [style.--_dot]="'var(--danger)'"></span
+                  ><span class="figures">{{ t.failed }}</span> not imported</span
+                >
+              }
+            </div>
+          }
+        </div>
+
+        @if (unknown > 0) {
+          <a
+            class="review-row results__review"
+            routerLink="/transactions"
+            [queryParams]="{ filter: 'unknown' }"
+          >
+            <span class="review-row__rings" aria-hidden="true">
+              <span class="ring"></span><span class="ring ring--sm"></span
+              ><span class="ring ring--lg"></span>
+            </span>
+            <span class="review-row__text">
+              <strong
+                >{{ unknown }} {{ unknown === 1 ? 'transaction needs' : 'transactions need' }} a
+                category</strong
+              >
+              <span>From the statements above, without a category yet</span>
+            </span>
+            <span class="btn-accent">Review</span>
+          </a>
+        }
+
+        @for (group of groups(); track group.key) {
+          <div class="group" role="group" [attr.aria-labelledby]="'group-' + group.key">
+            <div class="group__head">
+              <h3 class="group__title" [id]="'group-' + group.key">{{ group.title }}</h3>
+              <span class="group__sum">{{ group.summary }}</span>
+            </div>
+            @if (group.note) {
+              <p class="group__note">{{ group.note }}</p>
+            }
+            <ol class="files">
+              @for (e of group.entries; track e.key) {
+                <li class="file">
+                  <span class="tile" [attr.data-tone]="e.tone" aria-hidden="true">
+                    @switch (e.tone) {
+                      @case ('ok') {
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M5 12l5 5 9-10" />
+                        </svg>
+                      }
+                      @case ('duplicate') {
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect x="9" y="9" width="11" height="11" rx="2" />
+                          <path d="M5 15V6a1 1 0 0 1 1-1h9" />
+                        </svg>
+                      }
+                      @case ('review') {
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M7 3h7l5 5v13H7z" />
+                          <path d="M14 3v5h5M10 13h6M10 17h4" />
+                        </svg>
+                      }
+                      @case ('working') {
+                        <span class="spinner spinner--sm"></span>
+                      }
+                      @case ('waiting') {
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="8" />
+                          <path d="M12 8v4l3 2" />
+                        </svg>
+                      }
+                      @default {
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                        >
+                          <path d="M7 7l10 10M17 7L7 17" />
+                        </svg>
+                      }
+                    }
+                  </span>
+                  <span class="file__text">
+                    <span class="file__title">{{ e.title }}</span>
+                    <span class="file__meta">{{ e.meta }}</span>
+                    @if (e.fileName) {
+                      <span class="file__name">{{ e.fileName }}</span>
+                    }
+                    @if (e.warnings.length > 0) {
+                      <ul class="warnings" aria-label="Warnings">
+                        @for (w of e.warnings; track $index) {
+                          <li>{{ w }}</li>
+                        }
+                      </ul>
+                    }
+                  </span>
+                  @if (e.amount !== null) {
+                    <span class="file__amount">{{ eur(e.amount) }}</span>
+                  }
+                  @if (e.slipIndex !== null) {
+                    <button type="button" class="btn-accent file__action" (click)="reviewEntry(e)">
+                      Review and save
+                    </button>
+                  }
+                </li>
+              }
+            </ol>
+          </div>
+        } @empty {
+          <p class="results__empty">Done. Nothing came back for these files.</p>
+        }
+
+        <div class="results__actions">
+          <button type="button" class="btn-primary" (click)="resetForm()">Upload more</button>
+          @if (groceryResults().length > 0) {
+            <a class="btn-secondary" routerLink="/transactions" [queryParams]="{ tab: 'groceries' }"
+              >View groceries</a
+            >
+          }
+        </div>
+      </section>
+    }
+  </div>
+
+  <aside class="upload__aside">
+    <section class="section kinds" aria-labelledby="kinds-h">
+      <h2 id="kinds-h">What Beacon reads</h2>
+      <ul class="kinds__list">
+        <li class="kind">
+          <span class="tile" data-tone="accent" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="3" />
+              <path d="M3 10h18M7 15h4" />
+            </svg>
+          </span>
+          <span class="kind__text">
+            <strong>Bank statements</strong>
+            <span>ActivoBank, BPI, Revolut</span>
+          </span>
+        </li>
+        <li class="kind">
+          <span class="tile" data-tone="accent" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="6" width="18" height="12" rx="3" />
+              <circle cx="12" cy="12" r="2.5" />
+            </svg>
+          </span>
+          <span class="kind__text">
+            <strong>Salary slips</strong>
+            <span>CentralGest, Domirest</span>
+          </span>
+        </li>
+        <li class="kind">
+          <span class="tile" data-tone="accent" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+              <path d="M9 8h6M9 12h6" />
+            </svg>
+          </span>
+          <span class="kind__text">
+            <strong>Grocery receipts</strong>
+            <span>Continente</span>
+          </span>
+        </li>
+        <li class="kind">
+          <span class="tile" data-tone="accent" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+              <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+            </svg>
+          </span>
+          <span class="kind__text">
+            <strong>micro1 paychecks</strong>
+            <span>The invoice and its Deel withdrawal, uploaded together</span>
+          </span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section meal" aria-labelledby="meal-h">
+      <h2 id="meal-h">Meal card</h2>
+
+      @switch (mealCardState()) {
+        @case ('review') {
+          <p class="meal__hint">Check the period before importing.</p>
+          <div class="field-row">
+            <div>
+              <label class="field-label" for="meal-from">Period from</label>
+              <input
+                id="meal-from"
+                class="field-input"
+                type="date"
+                [ngModel]="mealCardPeriodFrom()"
+                (ngModelChange)="mealCardPeriodFrom.set($event)"
+              />
+            </div>
+            <div>
+              <label class="field-label" for="meal-to">Period to</label>
+              <input
+                id="meal-to"
+                class="field-input"
+                type="date"
+                [ngModel]="mealCardPeriodTo()"
+                (ngModelChange)="mealCardPeriodTo.set($event)"
+              />
+            </div>
+          </div>
+          <label class="field-label" for="meal-balance"
+            >Current balance (€) <span class="optional">(optional)</span></label
+          >
+          <input
+            id="meal-balance"
+            class="field-input"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            [ngModel]="mealCardBalance()"
+            (ngModelChange)="mealCardBalance.set($event !== '' ? +$event : null)"
+          />
+          <p class="field-hint">Leave it empty to carry on from the previous import.</p>
+          <div class="meal__actions">
+            <button type="button" class="btn-secondary" (click)="mealCardState.set('idle')">
+              Back
+            </button>
+            <button type="button" class="btn-primary" (click)="importMealCard()">
+              Import transactions
+            </button>
+          </div>
+        }
+        @case ('importing') {
+          <p class="meal__status" role="status">
+            <span class="spinner spinner--sm" aria-hidden="true"></span>Importing…
+          </p>
+        }
+        @case ('success') {
+          @if (mealCardResult(); as r) {
+            <div class="file" role="status">
+              <span class="tile" data-tone="ok" aria-hidden="true">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12l5 5 9-10" />
+                </svg>
+              </span>
+              <span class="file__text">
+                <span class="file__title">Meal card imported</span>
+                <span class="file__meta"
+                  >{{ r.transactionCount }}
+                  {{ r.transactionCount === 1 ? 'transaction' : 'transactions' }}, from
+                  {{ formatPeriod(r.periodFrom) }}</span
+                >
+              </span>
+            </div>
+            @if (r.unknownCount > 0) {
+              <a
+                class="review-row meal__review"
+                routerLink="/transactions"
+                [queryParams]="{ filter: 'unknown' }"
+              >
+                <span class="review-row__rings" aria-hidden="true">
+                  <span class="ring"></span><span class="ring ring--sm"></span
+                  ><span class="ring ring--lg"></span>
+                </span>
+                <span class="review-row__text">
+                  <strong
+                    >{{ r.unknownCount }} {{ r.unknownCount === 1 ? 'needs' : 'need' }} a
+                    category</strong
+                  >
+                </span>
+                <span class="btn-accent">Review</span>
+              </a>
+            }
+            <div class="meal__actions">
+              <button type="button" class="btn-secondary" (click)="resetMealCard()">
+                Import more
+              </button>
+            </div>
+          }
+        }
+        @default {
+          <p class="meal__hint">Paste the card's transaction history, one transaction per line.</p>
+          <label class="visually-hidden" for="meal-text">Meal card transactions</label>
+          <textarea
+            id="meal-text"
+            class="field-input meal__text"
+            rows="8"
+            placeholder="23/04/2026CONTINENTE BOM DIA PORTO PT-3,54 €&#10;22/04/2026PINGO DOCE BRAGA PT-23,08 €&#10;..."
+            [ngModel]="mealCardText()"
+            (ngModelChange)="mealCardText.set($event)"
+          ></textarea>
+          @if (mealCardState() === 'error') {
+            <p class="error-text meal__error" role="alert">{{ mealCardMessage() }}</p>
+          }
+          <div class="meal__actions">
+            <button
+              type="button"
+              class="btn-primary"
+              [disabled]="!mealCardText().trim()"
+              (click)="reviewMealCard()"
+            >
+              Review
+            </button>
+          </div>
+        }
+      }
+    </section>
+  </aside>
+</div>
+
+@if (showTransferReview()) {
+  <div class="modal-overlay">
+    <div class="modal transfer-modal" role="dialog" aria-modal="true" aria-labelledby="transfer-h">
+      <div class="modal-header">
+        <h3 id="transfer-h">Possible transfers between your accounts</h3>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="dismissTransferReview()"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <p class="modal-sub">
+        These have the same amount and date but opposite directions in different accounts. Pick the
+        ones that are transfers between your own accounts to keep them out of the stats.
+      </p>
+
+      <ul class="pairs">
+        @for (c of transferCandidates(); track $index; let i = $index) {
+          <li>
+            <label class="pair" [class.pair--on]="isTransferSelected(i)">
+              <input
+                type="checkbox"
+                [checked]="isTransferSelected(i)"
+                (change)="toggleTransferCandidate(i)"
+              />
+              <span class="pair__sides">
+                <span class="side">
+                  <span class="avatar" aria-hidden="true">{{ bankInitials(c.newBank) }}</span>
+                  <span class="side__text">
+                    <span class="side__desc">{{ c.newDescription }}</span>
+                    <span class="side__bank"
+                      >{{ c.newBank }}, money {{ c.newType === 'credit' ? 'in' : 'out' }}</span
+                    >
+                  </span>
+                </span>
+                <span class="side">
+                  <span class="avatar" aria-hidden="true">{{ bankInitials(c.existingBank) }}</span>
+                  <span class="side__text">
+                    <span class="side__desc">{{ c.existingDescription }}</span>
+                    <span class="side__bank"
+                      >{{ c.existingBank }}, money
+                      {{ c.existingType === 'credit' ? 'in' : 'out' }}</span
+                    >
+                  </span>
+                </span>
+              </span>
+              <span class="pair__fig">
+                <span class="pair__amount">{{ eur(c.amount) }}</span>
+                <span class="pair__date">{{ dayLabel(c.date) }}</span>
+              </span>
+            </label>
+          </li>
+        }
+      </ul>
+
+      @if (transferError()) {
+        <p class="modal-error" role="alert">{{ transferError() }}</p>
+      }
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="transferSaving()"
+          (click)="dismissTransferReview()"
+        >
+          Skip
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="transferSaving()"
+          (click)="confirmTransfers()"
+        >
+          {{ transferSaving() ? 'Saving…' : transferActionLabel() }}
+        </button>
+      </div>
+    </div>
   </div>
 }
 
-@if (state() === 'success') {
-  @if (batchSummary(); as s) {
-    <div class="result-card" [class.success]="s.imported > 0" [class.warning]="s.imported === 0">
-      <div class="result-icon">{{ s.imported > 0 ? '✓' : '≈' }}</div>
-      <h2>{{ s.imported > 0 ? 'Bank statements imported' : 'Nothing new imported' }}</h2>
-
-      <div class="batch-stats">
-        @if (s.imported > 0) {
-          <div class="stat-pill green">{{ s.imported }} imported</div>
-        }
-        @if (s.duplicates > 0) {
-          <div class="stat-pill yellow">{{ s.duplicates }} duplicate</div>
-        }
-        @if (s.errors > 0) {
-          <div class="stat-pill red">{{ s.errors }} failed</div>
-        }
+@if (showSlipModal()) {
+  <div class="modal-overlay">
+    <div
+      class="modal slip-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="slip-h"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-header">
+        <h3 id="slip-h">Review and save slip</h3>
+        <button type="button" class="modal-close" aria-label="Close" (click)="dismissSlipModal()">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
 
-      @if (s.unknownCount > 0) {
-        <div class="unknown-notice">
+      @if (slipSourceFile()) {
+        <p class="source">
           <svg
             width="16"
             height="16"
@@ -90,439 +660,79 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            aria-hidden="true"
           >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
+            <path d="M7 3h7l5 5v13H7z" />
+            <path d="M14 3v5h5" />
           </svg>
           <span
-            ><strong>{{ s.unknownCount }}</strong> transactions have no category.</span
+            >Pre-filled from <strong>{{ slipSourceFile() }}</strong></span
           >
-        </div>
+        </p>
+        @if (hasUnmatchedLineItems()) {
+          <p class="source source--warn">Highlighted lines will create new categories.</p>
+        }
       }
-
-      <div class="file-list">
-        @for (item of s.items; track item.fileName) {
-          <div
-            class="file-row"
-            [class.file-ok]="item.success"
-            [class.file-dup]="!item.success && item.result"
-            [class.file-err]="!item.success && !item.result"
-          >
-            <span class="file-icon">{{ item.success ? '✓' : item.result ? '≈' : '✕' }}</span>
-            <span class="file-name">{{ item.fileName }}</span>
-            @if (item.success && item.result) {
-              <span class="file-detail"
-                >{{ item.result.bank }} · {{ item.result.periodFrom | date: 'MMM yyyy' }} ·
-                {{ item.result.transactionCount }} tx</span
-              >
-            } @else if (!item.success && item.result) {
-              <span class="file-detail">{{ item.result.message }}</span>
-            } @else {
-              <span class="file-detail">{{ item.error }}</span>
-            }
-            @if (item.result?.warnings?.length) {
-              <ul class="parse-warnings">
-                @for (w of item.result!.warnings!; track w) {
-                  <li>{{ w }}</li>
-                }
-              </ul>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="result-actions">
-        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-        @if (s.unknownCount > 0) {
-          <button class="btn-primary" (click)="goToCategorize()">Categorize now</button>
-        }
-      </div>
-    </div>
-  }
-
-  @if (salaryQueue().length > 0) {
-    <div class="result-card salary-queue-card">
-      <div class="result-icon salary-icon">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-      </div>
-      <h2>Salary slips detected</h2>
-      <p class="salary-queue-hint">Review and save each slip before it is recorded.</p>
-
-      <div class="upload-queue">
-        @for (item of salaryQueue(); track $index; let i = $index) {
-          <div class="queue-item" [class]="'queue-' + item.status">
-            <span class="queue-icon">
-              @if (
-                item.status === 'uploading' ||
-                item.status === 'parsing' ||
-                item.status === 'pending'
-              ) {
-                <span class="spinner-sm"></span>
-              } @else if (item.status === 'ready') {
-                <span class="icon-ok">✓</span>
-              } @else if (item.status === 'saved') {
-                <span class="icon-saved">✓</span>
-              } @else if (item.status === 'error') {
-                <span class="icon-err">✕</span>
-              }
-            </span>
-            <div class="queue-info">
-              <span class="queue-name">{{ item.fileName ?? item.file?.name }}</span>
-              <span class="queue-status">
-                @if (item.status === 'pending') {
-                  Waiting…
-                }
-                @if (item.status === 'uploading') {
-                  Uploading…
-                }
-                @if (item.status === 'parsing') {
-                  Extracting text…
-                }
-                @if (item.status === 'ready' && item.parsed) {
-                  {{ item.parsed.employer }} · {{ formatPeriod(item.parsed.period) }} ·
-                  {{ item.parsed.grossAmount | currency: 'EUR' : 'symbol' : '1.0-2' }} gross
-                }
-                @if (item.status === 'saved') {
-                  Saved
-                }
-                @if (item.status === 'error') {
-                  {{ item.error }}
-                }
-              </span>
-            </div>
-            @if (item.status === 'ready') {
-              <button class="btn-review" (click)="reviewSalaryItem(i)">Review &amp; Save</button>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="result-actions">
-        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-      </div>
-    </div>
-  }
-
-  @if (groceryResults().length > 0) {
-    <div class="result-card success grocery-results-card">
-      <div class="result-icon grocery-icon">🛒</div>
-      <h2>Grocery receipts imported</h2>
-
-      <div class="file-list">
-        @for (r of groceryResults(); track r.receiptId) {
-          <div class="file-row" [class.file-ok]="!r.wasDuplicate" [class.file-dup]="r.wasDuplicate">
-            <span class="file-icon">{{ r.wasDuplicate ? '≈' : '✓' }}</span>
-            <span class="file-name"
-              >{{ r.storeName }} · {{ r.receiptDate | date: 'dd-MM-yyyy' }}</span
-            >
-            <span class="file-detail">
-              {{ r.itemCount }} items · {{ r.total | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </span>
-            @if (r.warnings?.length) {
-              <ul class="parse-warnings">
-                @for (w of r.warnings!; track w) {
-                  <li>{{ w }}</li>
-                }
-              </ul>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="result-actions">
-        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-        <a class="btn-primary" routerLink="/transactions" [queryParams]="{ tab: 'groceries' }"
-          >View groceries</a
-        >
-      </div>
-    </div>
-  }
-
-  @if (micro1Unpaired().length > 0) {
-    <div class="result-card warning">
-      <div class="result-icon">≈</div>
-      <h2>micro1 files waiting for a match</h2>
-      <p class="backup-hint">
-        A micro1 paycheck needs both PDFs - the invoice and its Deel withdrawal - uploaded together.
-        These were recognised but not imported:
-      </p>
-
-      <div class="file-list">
-        @for (item of micro1Unpaired(); track item.fileName) {
-          <div class="file-row file-err">
-            <span class="file-icon">✕</span>
-            <span class="file-name">{{ item.fileName }}</span>
-            <span class="file-detail">{{ item.error }}</span>
-          </div>
-        }
-      </div>
-
-      <div class="result-actions">
-        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-      </div>
-    </div>
-  }
-
-  @if (
-    !batchSummary() &&
-    salaryQueue().length === 0 &&
-    groceryResults().length === 0 &&
-    micro1Unpaired().length === 0
-  ) {
-    <div class="result-card success">
-      <div class="result-icon">✓</div>
-      <h2>Done</h2>
-      <div class="result-actions">
-        <button class="btn-secondary" (click)="resetForm()">Upload more</button>
-      </div>
-    </div>
-  }
-}
-
-@if (state() === 'error') {
-  <div class="status error">{{ message() }}</div>
-  <button class="btn-secondary mt" (click)="resetForm()">Try again</button>
-}
-
-<div class="backup-section">
-  <h2 class="section-title">Meal Card Import</h2>
-  <p class="backup-hint">
-    Paste your meal card transaction history below - one transaction per line.
-  </p>
-
-  @if (mealCardState() === 'idle' || mealCardState() === 'error') {
-    <textarea
-      class="meal-card-textarea"
-      rows="8"
-      placeholder="23/04/2026CONTINENTE BOM DIA PORTO PT-3,54 €&#10;22/04/2026PINGO DOCE BRAGA PT-23,08 €&#10;..."
-      [ngModel]="mealCardText()"
-      (ngModelChange)="mealCardText.set($event)"
-    ></textarea>
-    @if (mealCardState() === 'error') {
-      <div class="status error">{{ mealCardMessage() }}</div>
-    }
-    <button class="btn-primary mt" [disabled]="!mealCardText().trim()" (click)="reviewMealCard()">
-      Review
-    </button>
-  }
-
-  @if (mealCardState() === 'review') {
-    <div class="meal-card-review">
-      <div class="field-row">
-        <div>
-          <label class="field-label">Period from</label>
-          <input
-            class="field-input"
-            type="date"
-            [ngModel]="mealCardPeriodFrom()"
-            (ngModelChange)="mealCardPeriodFrom.set($event)"
-          />
-        </div>
-        <div>
-          <label class="field-label">Period to</label>
-          <input
-            class="field-input"
-            type="date"
-            [ngModel]="mealCardPeriodTo()"
-            (ngModelChange)="mealCardPeriodTo.set($event)"
-          />
-        </div>
-        <div>
-          <label class="field-label"
-            >Current balance (€) - empty = derived from previous import</label
-          >
-          <input
-            class="field-input"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            [ngModel]="mealCardBalance()"
-            (ngModelChange)="mealCardBalance.set($event !== '' ? +$event : null)"
-          />
-        </div>
-      </div>
-      <div class="meal-card-review-actions">
-        <button class="btn-secondary" (click)="mealCardState.set('idle')">Back</button>
-        <button class="btn-primary" (click)="importMealCard()">Import transactions</button>
-      </div>
-    </div>
-  }
-
-  @if (mealCardState() === 'importing') {
-    <div class="status">Importing…</div>
-  }
-
-  @if (mealCardState() === 'success') {
-    @if (mealCardResult(); as r) {
-      <div class="result-card success">
-        <div class="result-icon">✓</div>
-        <h2>Meal card imported</h2>
-        <div class="batch-stats">
-          <div class="stat-pill green">{{ r.transactionCount }} transactions</div>
-          @if (r.unknownCount > 0) {
-            <div class="stat-pill yellow">{{ r.unknownCount }} uncategorised</div>
-          }
-        </div>
-        <p class="backup-hint">Period: {{ r.periodFrom | date: 'MMM yyyy' }}</p>
-        <div class="result-actions">
-          <button class="btn-secondary" (click)="resetMealCard()">Import more</button>
-          @if (r.unknownCount > 0) {
-            <button class="btn-primary" (click)="goToCategorize()">Categorize now</button>
-          }
-        </div>
-      </div>
-    }
-  }
-</div>
-
-@if (showTransferReview()) {
-  <div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Possible internal transfers detected</h3>
-        <button class="modal-close" (click)="dismissTransferReview()">✕</button>
-      </div>
-      <p class="modal-sub">
-        These transactions have the same amount and date but opposite directions across different
-        accounts. Select the ones that are actual transfers to hide them from stats.
-      </p>
-
-      <div class="transfer-list">
-        @for (c of transferCandidates(); track $index; let i = $index) {
-          <label class="transfer-row" [class.selected]="isTransferSelected(i)">
-            <input
-              type="checkbox"
-              [checked]="isTransferSelected(i)"
-              (change)="toggleTransferCandidate(i)"
-            />
-            <div class="transfer-info">
-              <span class="transfer-bank debit">{{ c.newBank }}</span>
-              <span class="transfer-desc">{{ c.newDescription }}</span>
-              <span class="transfer-arrow">↔</span>
-              <span class="transfer-bank credit">{{ c.existingBank }}</span>
-              <span class="transfer-desc">{{ c.existingDescription }}</span>
-            </div>
-            <span class="transfer-amount">€{{ c.amount.toFixed(2) }} · {{ c.date }}</span>
-          </label>
-        }
-      </div>
-
-      @if (transferError()) {
-        <p class="modal-error">{{ transferError() }}</p>
-      }
-      <div class="modal-actions">
-        <button
-          class="btn-secondary"
-          [disabled]="transferSaving()"
-          (click)="dismissTransferReview()"
-        >
-          Skip
-        </button>
-        <button class="btn-primary" [disabled]="transferSaving()" (click)="confirmTransfers()">
-          {{ transferSaving() ? 'Saving…' : 'Mark selected as transfers' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-@if (showSlipModal()) {
-  <div class="modal-overlay">
-    <div class="modal slip-modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h3>Review &amp; save slip</h3>
-        <button class="modal-close" (click)="dismissSlipModal()">✕</button>
-      </div>
 
       @if (slipWarnings().length) {
-        <div class="parse-warning-box">
-          @for (w of slipWarnings(); track w) {
-            <p>{{ w }}</p>
-          }
-        </div>
-      }
-
-      @if (slipSourceFile()) {
-        <div class="parsed-banner">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          Pre-filled from <strong>{{ slipSourceFile() }}</strong>
-          @if (hasUnmatchedLineItems()) {
-            &nbsp;·&nbsp;<span class="warn-text">Highlighted lines will create new categories</span>
+        <div class="notice notice--warning" role="note">
+          @for (w of slipWarnings(); track $index) {
+            <p class="notice__line">{{ w }}</p>
           }
         </div>
       }
 
       @if (slipMergeTarget(); as existing) {
-        <div class="merge-notice">
-          <p class="merge-notice-title">
+        <div class="notice notice--merge">
+          <p class="notice__line notice__title">
             A slip for <strong>{{ formatPeriod(existing.period) }}</strong> already exists ({{
-              existing.grossAmount | currency: 'EUR'
+              eur(existing.grossAmount)
             }}
             gross).
           </p>
-          <label class="merge-notice-toggle">
-            <input
-              type="checkbox"
-              [ngModel]="slipMergeConfirmed()"
-              (ngModelChange)="slipMergeConfirmed.set($event)"
-            />
-            Add to existing slip
-          </label>
+          <div class="merge__toggle">
+            <button
+              type="button"
+              id="merge-switch"
+              class="switch"
+              role="switch"
+              aria-labelledby="merge-label"
+              [attr.aria-checked]="slipMergeConfirmed()"
+              (click)="slipMergeConfirmed.set(!slipMergeConfirmed())"
+            ></button>
+            <label id="merge-label" class="merge__label" for="merge-switch"
+              >Add to the existing slip</label
+            >
+          </div>
           @if (slipMergeConfirmed()) {
-            <dl class="merge-notice-totals">
+            <dl class="merge__totals">
               <div>
                 <dt>Gross</dt>
                 <dd>
-                  {{ existing.grossAmount | currency: 'EUR' }} +
-                  {{ slipGross() ?? 0 | currency: 'EUR' }} =
-                  <strong>{{ mergedGross() | currency: 'EUR' }}</strong>
+                  {{ eur(existing.grossAmount) }} + {{ eur(slipGross() ?? 0) }} =
+                  <strong>{{ eur(mergedGross()) }}</strong>
                 </dd>
               </div>
               <div>
                 <dt>Net</dt>
                 <dd>
-                  {{ existing.netAmount | currency: 'EUR' }} +
-                  {{ slipNet() ?? 0 | currency: 'EUR' }} =
-                  <strong>{{ mergedNet() | currency: 'EUR' }}</strong>
+                  {{ eur(existing.netAmount) }} + {{ eur(slipNet() ?? 0) }} =
+                  <strong>{{ eur(mergedNet()) }}</strong>
                 </dd>
               </div>
             </dl>
-            <p class="merge-notice-hint">Line items with the same category are added together.</p>
+            <p class="notice__line merge__hint">
+              Line items with the same category are added together.
+            </p>
           }
         </div>
       }
 
-      <div class="field-row">
+      <div class="field-row field-row--stack">
         <div>
-          <label class="field-label">Profile</label>
+          <label class="field-label" for="slip-profile">Profile</label>
           <select
+            id="slip-profile"
             class="field-input"
             [ngModel]="slipProfileId()"
             (ngModelChange)="onSlipProfileChange($event)"
@@ -538,8 +748,9 @@
           </select>
         </div>
         <div>
-          <label class="field-label">Period</label>
+          <label class="field-label" for="slip-period">Period</label>
           <input
+            id="slip-period"
             class="field-input"
             type="month"
             [ngModel]="slipPeriod()"
@@ -550,8 +761,9 @@
 
       <div class="field-row">
         <div>
-          <label class="field-label">Gross amount</label>
+          <label class="field-label" for="slip-gross">Gross amount</label>
           <input
+            id="slip-gross"
             class="field-input"
             type="number"
             step="0.01"
@@ -562,8 +774,9 @@
           />
         </div>
         <div>
-          <label class="field-label">Net amount</label>
+          <label class="field-label" for="slip-net">Net amount</label>
           <input
+            id="slip-net"
             class="field-input"
             type="number"
             step="0.01"
@@ -575,8 +788,11 @@
         </div>
       </div>
 
-      <label class="field-label">Notes <span class="muted">(optional)</span></label>
+      <label class="field-label" for="slip-notes"
+        >Notes <span class="optional">(optional)</span></label
+      >
       <input
+        id="slip-notes"
         class="field-input"
         type="text"
         placeholder="e.g. includes bonus"
@@ -584,53 +800,68 @@
         (ngModelChange)="slipNotes.set($event)"
       />
 
-      <label class="field-label">PDF <span class="muted">(optional)</span></label>
+      <p class="field-label">PDF <span class="optional">(optional)</span></p>
       @if (slipSourceFile()) {
-        <div class="pdf-attached">
+        <div class="pdf">
           <svg
-            width="13"
-            height="13"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            aria-hidden="true"
           >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
+            <path d="M7 3h7l5 5v13H7z" />
+            <path d="M14 3v5h5" />
           </svg>
-          <span class="pdf-name">{{ slipSourceFile() }}</span>
+          <span class="pdf__name">{{ slipSourceFile() }}</span>
           <button
-            class="pdf-clear"
-            (click)="slipPdfPath.set(null); slipSourceFile.set(null)"
+            type="button"
+            class="btn-icon"
+            aria-label="Remove PDF"
             title="Remove PDF"
+            (click)="slipPdfPath.set(null); slipSourceFile.set(null)"
           >
-            ✕
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         </div>
       } @else {
-        <label class="btn-attach-pdf">
+        <button type="button" class="btn-secondary" (click)="slipPdfInput.click()">
           Attach PDF
-          <input type="file" accept=".pdf" style="display: none" (change)="onPdfSelected($event)" />
-        </label>
+        </button>
+        <input #slipPdfInput type="file" accept=".pdf" hidden (change)="onPdfSelected($event)" />
       }
 
-      <div class="line-items-header">
-        <span class="field-label" style="margin: 0"
-          >Line items <span class="muted">(optional)</span></span
-        >
-        <button class="btn-add-line" (click)="addLineItem()">+ Add line</button>
+      <div class="lines__head">
+        <p class="field-label">Line items <span class="optional">(optional)</span></p>
+        <button type="button" class="link-btn" (click)="addLineItem()">Add line</button>
       </div>
 
       @for (li of slipLineItems(); track $index; let i = $index) {
-        <div class="line-item-row">
-          <div class="li-cat-wrap">
+        <div class="line">
+          <div class="line__cat">
             @if (li.hint && li.salaryItemCategoryId === null) {
-              <span class="li-hint" title="Parsed from PDF as: {{ li.hint }}">{{ li.hint }}</span>
+              <span class="line__hint" title="Parsed from PDF as: {{ li.hint }}">{{
+                li.hint
+              }}</span>
             }
             <select
-              class="field-input li-cat"
+              class="field-input"
+              [attr.aria-label]="'Category of line ' + (i + 1)"
               [ngModel]="li.salaryItemCategoryId"
               [class.unmatched]="li.hint && li.salaryItemCategoryId === null"
               (ngModelChange)="
@@ -638,7 +869,7 @@
               "
             >
               <option [ngValue]="null">
-                {{ li.hint ? '➕ Create “' + li.hint + '”' : 'Category…' }}
+                {{ li.hint ? '+ Create “' + li.hint + '”' : 'Category…' }}
               </option>
               @for (type of itemTypes; track type.value) {
                 @if (catsByType(type.value).length > 0) {
@@ -652,27 +883,52 @@
             </select>
           </div>
           <input
-            class="field-input li-amount"
+            class="field-input"
             type="number"
             step="0.01"
             min="0"
             placeholder="0.00"
+            [attr.aria-label]="'Amount of line ' + (i + 1)"
             [ngModel]="li.amount"
             (ngModelChange)="updateLineItem(i, 'amount', +$event)"
           />
-          <button class="icon-btn danger li-remove" (click)="removeLineItem(i)">✕</button>
+          <button
+            type="button"
+            class="btn-icon"
+            [attr.aria-label]="'Remove line ' + (i + 1)"
+            (click)="removeLineItem(i)"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
       }
 
       @if (slipError()) {
-        <div class="form-error">{{ slipError() }}</div>
+        <p class="modal-error" role="alert">{{ slipError() }}</p>
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="dismissSlipModal()" [disabled]="slipLoading()">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="dismissSlipModal()"
+          [disabled]="slipLoading()"
+        >
           Cancel
         </button>
         <button
+          type="button"
           class="btn-primary"
           [disabled]="!slipFormValid() || slipLoading()"
           (click)="submitSlip()"
@@ -692,39 +948,80 @@
 
 @if (showMappingModal()) {
   <div class="modal-overlay">
-    <div class="modal tx-modal" (click)="$event.stopPropagation()">
+    <div
+      class="modal map-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="map-h"
+      (click)="$event.stopPropagation()"
+    >
       <div class="modal-header">
-        <h3>New receipt category: {{ currentMappingCategory() }}</h3>
-        <div class="modal-progress-row">
-          @if (groceryMappingFileTotal() > 1) {
-            <span class="modal-file-badge"
-              >Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span
-            >
-          }
-          <span class="modal-progress">{{ mappingProgress() }}</span>
-        </div>
+        <h3 id="map-h">New receipt category: {{ currentMappingCategory() }}</h3>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          [disabled]="mappingLoading()"
+          (click)="closeMappingModal()"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
 
-      <div class="mapping-tabs">
-        <button [class.active]="mappingMode() === 'new'" (click)="mappingMode.set('new')">
+      <p class="map-progress">
+        @if (groceryMappingFileTotal() > 1) {
+          <span class="chip chip--muted"
+            >Receipt {{ groceryMappingFileIdx() }} of {{ groceryMappingFileTotal() }}</span
+          >
+        }
+        <span class="chip chip--muted">Category {{ mappingProgress() }}</span>
+      </p>
+
+      <div class="tab-bar" role="group" aria-label="How to file this category">
+        <button
+          type="button"
+          class="tab-btn"
+          [class.active]="mappingMode() === 'new'"
+          [attr.aria-pressed]="mappingMode() === 'new'"
+          (click)="mappingMode.set('new')"
+        >
           Create new
         </button>
-        <button [class.active]="mappingMode() === 'existing'" (click)="mappingMode.set('existing')">
+        <button
+          type="button"
+          class="tab-btn"
+          [class.active]="mappingMode() === 'existing'"
+          [attr.aria-pressed]="mappingMode() === 'existing'"
+          (click)="mappingMode.set('existing')"
+        >
           Map to existing
         </button>
       </div>
 
       @if (mappingMode() === 'new') {
-        <label class="field-label">Category name</label>
+        <label class="field-label" for="map-name">Category name</label>
         <input
+          id="map-name"
           class="field-input"
           type="text"
           [ngModel]="newMappingName()"
           (ngModelChange)="newMappingName.set($event)"
         />
-        <label class="field-label">Color</label>
+        <label class="field-label" for="map-color">Color</label>
         <div class="color-row">
           <input
+            id="map-color"
             type="color"
             [ngModel]="newMappingColor()"
             (ngModelChange)="newMappingColor.set($event)"
@@ -734,8 +1031,9 @@
           }}</span>
         </div>
       } @else {
-        <label class="field-label">Existing category</label>
+        <label class="field-label" for="map-existing">Existing category</label>
         <select
+          id="map-existing"
           class="field-input"
           [ngModel]="selectedExistingCatId()"
           (ngModelChange)="selectedExistingCatId.set(+$event || null)"
@@ -748,10 +1046,16 @@
       }
 
       <div class="modal-actions">
-        <button class="btn-ghost" (click)="skipMapping()" [disabled]="mappingLoading()">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="skipMapping()"
+          [disabled]="mappingLoading()"
+        >
           Skip
         </button>
         <button
+          type="button"
           class="btn-primary"
           (click)="confirmMapping()"
           [disabled]="

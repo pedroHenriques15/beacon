@@ -1,9 +1,73 @@
+@use '../../../styles/mixins' as *;
 @use 'upload-drop' as *;
 @use 'upload-results' as *;
-@use 'upload-file-list' as *;
-@use 'upload-transfer-modal' as *;
-@use 'upload-salary-queue' as *;
-@use 'upload-slip-modal' as *;
-@use 'upload-slip-lines' as *;
-@use 'upload-grocery-results' as *;
-@use 'upload-warnings' as *;
+@use 'upload-files' as *;
+@use 'upload-aside' as *;
+@use 'upload-transfer' as *;
+@use 'upload-slip' as *;
+@use 'upload-mapping' as *;
+
+// Desktop: the drop zone and the results, with an aside for what Beacon reads and the meal card.
+.upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+
+  &__main {
+    flex: 999 1 560px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  &__aside {
+    flex: 1 1 340px;
+    max-width: 440px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+// Two fields side by side; --stack puts them one per line on phones.
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.optional {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.field-input[type='number'] {
+  @include figures;
+}
+
+// Phones and tablets: one column, the drop zone first.
+@include below-desktop {
+  .upload {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 16px;
+
+    &__main {
+      gap: 16px;
+    }
+
+    &__aside {
+      max-width: none;
+    }
+  }
+}
+
+@include phone {
+  .field-row--stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

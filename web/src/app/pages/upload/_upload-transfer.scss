@@ -1,0 +1,120 @@
+@use '../../../styles/mixins' as *;
+
+// The transfer picker: pairs of opposite transactions across two accounts.
+.transfer-modal {
+  --modal-width: 640px;
+}
+
+.modal-sub {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.pairs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+
+  &--on {
+    box-shadow: inset 0 0 0 1.5px var(--primary);
+  }
+
+  &__sides {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__fig {
+    @include figures;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    white-space: nowrap;
+  }
+
+  &__amount {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  &__date {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+.side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__desc {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__bank {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+// Neutral bank initials.
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+@include phone {
+  .pair {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 12px 14px;
+
+    &__fig {
+      grid-column: 2;
+      flex-direction: row;
+      align-items: baseline;
+      gap: 10px;
+    }
+  }
+}

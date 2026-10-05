@@ -1,119 +1,90 @@
-.file-list {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  text-align: left;
-  max-height: 240px;
-  overflow-y: auto;
-}
+@use '../../../styles/mixins' as *;
 
-.file-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  background: rgba(255, 255, 255, 0.03);
+// The results of an upload: a timeline of files, grouped by kind.
+.results {
+  padding: 20px 24px 24px;
 
-  &.file-ok {
-    .file-icon {
-      color: var(--success);
-    }
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 18px;
   }
-  &.file-dup {
-    .file-icon {
-      color: var(--warning);
-    }
+
+  &__heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
   }
-  &.file-err {
-    .file-icon {
-      color: var(--danger);
-    }
+
+  &__count {
+    @include figures;
+    font-size: 13px;
+    color: var(--text-secondary);
   }
-}
 
-.file-icon {
-  flex-shrink: 0;
-  font-weight: 700;
-  width: 14px;
-  text-align: center;
-}
-.file-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.file-detail {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.result-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-
-.status {
-  margin-top: 1.5rem;
-  padding: 0.875rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-
-  &.duplicate {
-    background: color-mix(in srgb, var(--warning) 10%, transparent);
-    color: var(--warning);
+  &__tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
-  &.error {
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
-    color: var(--danger);
+
+  &__review {
+    margin-bottom: 18px;
+  }
+
+  &__empty {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
   }
 }
 
-.mt {
-  margin-top: 0.75rem;
+.group {
+  & + & {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
+
+  &__title {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  &__sum,
+  &__note {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__note {
+    margin: 4px 0 0;
+    line-height: 1.45;
+  }
 }
 
-.backup-section {
-  margin-top: 3rem;
-}
-
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
-  margin: 0 0 0.5rem;
-}
-
-.backup-hint {
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  margin: 0 0 0.75rem;
-}
-
-.meal-card-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  padding: 0.75rem;
-  resize: vertical;
-  margin-top: 0.5rem;
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary);
+@include phone {
+  .results {
+    padding: 16px;
   }
 }

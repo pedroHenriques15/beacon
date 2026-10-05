@@ -6,10 +6,9 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { forkJoin, Observable, of } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
 import { FinanceService } from '../../core/services/finance.service';
@@ -28,6 +27,17 @@ import {
   UnifiedUploadItemResult,
   UploadResult,
 } from '../../core/models/statement.model';
+import { eur } from '../../core/utils/money';
+import { bankInitials } from '../../core/utils/bank';
+import {
+  dayLabel,
+  FailedFile,
+  FileEntry,
+  periodLabel,
+  SalaryQueueItem,
+  uploadGroups,
+  uploadTally,
+} from './upload-results';
 
 type UploadState = 'idle' | 'uploading' | 'success' | 'error';
 
@@ -51,15 +61,6 @@ interface LineItemDraft {
   incidenciaBase?: number | null;
 }
 
-interface SalaryQueueItem {
-  file?: File;
-  status: 'pending' | 'uploading' | 'parsing' | 'ready' | 'saved' | 'error';
-  pdfPath?: string;
-  fileName?: string;
-  parsed?: ParsedSlipResponse;
-  error?: string;
-}
-
 type PendingDialog =
   | { type: 'grocery-mapping'; receiptId: number; categories: string[] }
   | { type: 'salary-review'; queueIdx: number }
@@ -67,10 +68,19 @@ type PendingDialog =
 
 const BANK_DETECT_ERROR = 'Could not detect bank';
 
+// Stored data colours, not theme colours: the default a new grocery category starts with (as on
+// the Categories and Activity pages), and the colour a salary item category gets per item type.
+const NEW_CATEGORY_COLOR = '#a855f7';
+const ITEM_TYPE_COLORS: Record<'income' | 'deduction' | 'tax', string> = {
+  income: '#22c55e',
+  deduction: '#ef4444',
+  tax: '#f59e0b',
+};
+
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [NgClass, DatePipe, FormsModule, CurrencyPipe, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './upload.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './upload.scss',
@@ -81,11 +91,16 @@ export class UploadComponent implements OnInit {
   private groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   finance = inject(FinanceService);
-  router = inject(Router);
+
+  readonly eur = eur;
+  readonly bankInitials = bankInitials;
+  readonly dayLabel = dayLabel;
 
   state = signal<UploadState>('idle');
   dragOver = signal(false);
   message = signal('');
+  /** How many files the upload in progress sent. */
+  uploadingCount = signal(0);
 
   singleResult = signal<UploadResult | null>(null);
   batchSummary = signal<BatchSummary | null>(null);
@@ -107,17 +122,31 @@ export class UploadComponent implements OnInit {
   salaryQueue = signal<SalaryQueueItem[]>([]);
   profiles = signal<SalaryProfile[]>([]);
 
-  micro1Unpaired = signal<{ fileName: string; error: string }[]>([]);
+  micro1Unpaired = signal<FailedFile[]>([]);
+  /** Grocery receipts that failed and files of no known kind. */
+  failedFiles = signal<FailedFile[]>([]);
 
   groceryResults = signal<GroceryReceiptUploadResult[]>([]);
   pendingDialogs = signal<PendingDialog[]>([]);
+
+  /** Every file of the last upload, grouped by kind, for the results timeline. */
+  groups = computed(() =>
+    uploadGroups({
+      statements: this.batchSummary()?.items ?? [],
+      slips: this.salaryQueue(),
+      groceries: this.groceryResults(),
+      micro1: this.micro1Unpaired(),
+      failed: this.failedFiles(),
+    }),
+  );
+  tally = computed(() => uploadTally(this.groups()));
 
   mappingReceiptId = signal<number | null>(null);
   pendingMappingCategories = signal<string[]>([]);
   mappingIndex = signal(0);
   mappingMode = signal<'new' | 'existing'>('new');
   newMappingName = signal('');
-  newMappingColor = signal('#a855f7');
+  newMappingColor = signal(NEW_CATEGORY_COLOR);
   selectedExistingCatId = signal<number | null>(null);
   mappingLoading = signal(false);
   showMappingModal = signal(false);
@@ -188,6 +217,12 @@ export class UploadComponent implements OnInit {
     this.slipLineItems().some((li) => li.hint !== undefined && li.salaryItemCategoryId === null),
   );
 
+  transferActionLabel = computed(() => {
+    const n = this.selectedTransfers().size;
+    if (n === 0) return 'Continue';
+    return n === 1 ? 'Mark 1 as a transfer' : `Mark ${n} as transfers`;
+  });
+
   slipWarnings = computed(() => {
     const idx = this.slipQueueIdx();
     if (idx === null) return [];
@@ -220,10 +255,6 @@ export class UploadComponent implements OnInit {
     this.dragOver.set(false);
   }
 
-  goToCategorize(): void {
-    this.router.navigate(['/transactions'], { queryParams: { filter: 'unknown' } });
-  }
-
   resetForm(): void {
     this.state.set('idle');
     this.singleResult.set(null);
@@ -236,6 +267,7 @@ export class UploadComponent implements OnInit {
     this.transferError.set('');
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
     this.showMappingModal.set(false);
@@ -355,10 +387,12 @@ export class UploadComponent implements OnInit {
     }
 
     this.state.set('uploading');
+    this.uploadingCount.set(valid.length);
     this.singleResult.set(null);
     this.batchSummary.set(null);
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
 
@@ -442,29 +476,9 @@ export class UploadComponent implements OnInit {
         }
 
         const failedItems = [...failedGroceryItems, ...unknownItems];
-        if (failedItems.length > 0) {
-          const failedBatchItems = failedItems.map((r) => ({
-            fileName: r.fileName,
-            success: false,
-            result: null,
-            error: r.error ?? 'Import failed.',
-          }));
-          this.batchSummary.update((s) =>
-            s
-              ? {
-                  ...s,
-                  errors: s.errors + failedItems.length,
-                  items: [...s.items, ...failedBatchItems],
-                }
-              : {
-                  imported: 0,
-                  duplicates: 0,
-                  errors: failedItems.length,
-                  unknownCount: 0,
-                  items: failedBatchItems,
-                },
-          );
-        }
+        this.failedFiles.set(
+          failedItems.map((r) => ({ fileName: r.fileName, error: r.error ?? 'Import failed.' })),
+        );
 
         this.groceryMappingFileTotal.set(
           dialogs.filter((d) => d.type === 'grocery-mapping').length,
@@ -490,6 +504,11 @@ export class UploadComponent implements OnInit {
 
   private updateSalaryItem(idx: number, patch: Partial<SalaryQueueItem>): void {
     this.salaryQueue.update((q) => q.map((item, i) => (i === idx ? { ...item, ...patch } : item)));
+  }
+
+  /** "Review and save" on a slip in the results timeline. */
+  reviewEntry(entry: FileEntry): void {
+    if (entry.slipIndex !== null) this.reviewSalaryItem(entry.slipIndex);
   }
 
   reviewSalaryItem(idx: number): void {
@@ -646,9 +665,7 @@ export class UploadComponent implements OnInit {
   }
 
   private colorForItemType(type: 'income' | 'deduction' | 'tax'): string {
-    if (type === 'income') return '#22c55e';
-    if (type === 'deduction') return '#ef4444';
-    return '#f59e0b';
+    return ITEM_TYPE_COLORS[type];
   }
 
   onPdfSelected(event: Event): void {
@@ -789,11 +806,9 @@ export class UploadComponent implements OnInit {
       });
   }
 
+  /** '2026-09-01' → 'September 2026'. */
   formatPeriod(period: string): string {
-    if (!period) return '';
-    const d = new Date(period);
-    const str = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return periodLabel(period);
   }
 
   catsByType(type: string): SalaryItemCategory[] {
@@ -824,7 +839,7 @@ export class UploadComponent implements OnInit {
       this.mappingIndex.set(0);
       this.mappingMode.set('new');
       this.newMappingName.set(filtered[0]);
-      this.newMappingColor.set('#a855f7');
+      this.newMappingColor.set(NEW_CATEGORY_COLOR);
       this.selectedExistingCatId.set(null);
       this.showMappingModal.set(true);
     } else if (next.type === 'salary-review') {
@@ -876,7 +891,7 @@ export class UploadComponent implements OnInit {
       this.mappingIndex.set(next);
       this.mappingMode.set('new');
       this.newMappingName.set(this.pendingMappingCategories()[next]);
-      this.newMappingColor.set('#a855f7');
+      this.newMappingColor.set(NEW_CATEGORY_COLOR);
       this.selectedExistingCatId.set(null);
     } else {
       this.closeMappingModal();
