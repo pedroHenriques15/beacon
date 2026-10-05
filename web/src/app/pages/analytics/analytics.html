@@ -1,25 +1,71 @@
+@if (months().length > 0) {
+  <app-month-scrubber
+    class="insights-scrubber"
+    [months]="months()"
+    [selected]="shownMonth()"
+    [allowAll]="true"
+    (selectedChange)="selectMonth($event)"
+  />
+}
+
 <div class="page-header">
-  <div class="header-row">
-    <div>
-      <h1>Analytics</h1>
-      <p class="subtitle">Spending and income breakdown by category</p>
+  <h1>{{ pageTitle() }}</h1>
+  <div class="controls">
+    <div class="tab-bar" role="group" aria-label="Insight views">
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'transactions'"
+        [attr.aria-pressed]="activeTab() === 'transactions'"
+        (click)="activeTab.set('transactions')"
+      >
+        Spending
+      </button>
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'groceries'"
+        [attr.aria-pressed]="activeTab() === 'groceries'"
+        (click)="activeTab.set('groceries')"
+      >
+        Groceries
+      </button>
     </div>
-  </div>
-  <div class="tab-bar">
-    <button
-      class="tab-btn"
-      [class.active]="activeTab() === 'transactions'"
-      (click)="activeTab.set('transactions')"
-    >
-      Transactions
-    </button>
-    <button
-      class="tab-btn"
-      [class.active]="activeTab() === 'groceries'"
-      (click)="activeTab.set('groceries')"
-    >
-      Groceries
-    </button>
+    @if (activeTab() === 'transactions') {
+      <select
+        class="field-select controls__category"
+        aria-label="Category"
+        [ngModel]="selectedCategory()?.label ?? ''"
+        (ngModelChange)="onCategoryDropdownChange($event)"
+      >
+        <option value="">All categories</option>
+        @for (cat of allCategories(); track cat.label) {
+          <option [value]="cat.label">{{ cat.label }}</option>
+        }
+      </select>
+      @if (!filterMonth()) {
+        <button
+          type="button"
+          class="btn-secondary controls__average"
+          [attr.aria-pressed]="showAverages()"
+          (click)="showAverages.set(!showAverages())"
+        >
+          Monthly average
+        </button>
+      }
+    } @else {
+      <select
+        class="field-select controls__category"
+        aria-label="Grocery category"
+        [ngModel]="gSelectedCategory()?.label ?? ''"
+        (ngModelChange)="onGroceryCategoryDropdownChange($event)"
+      >
+        <option value="">All categories</option>
+        @for (cat of gAllCategories(); track cat.label) {
+          <option [value]="cat.label">{{ cat.label }}</option>
+        }
+      </select>
+    }
   </div>
 </div>
 
@@ -31,231 +77,279 @@
       <div class="warning-banner">
         <span>
           {{ finance.unknownTypeCount() }} unclassified
-          {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} excluded
-          from these charts and totals.
+          {{ finance.unknownTypeCount() === 1 ? 'transaction is' : 'transactions are' }} left out of
+          these charts and totals.
         </span>
         <a [routerLink]="['/transactions']" [queryParams]="{ type: 'unknown' }">Review</a>
       </div>
     }
-    <div class="tab-filters filters-row">
-      <select
-        class="month-filter"
-        [ngModel]="filterMonth()"
-        (ngModelChange)="filterMonth.set($event)"
-      >
-        <option value="">All time</option>
-        <option value="__averages__">Monthly Averages</option>
-        @for (m of availableMonths(); track m) {
-          <option [value]="m">{{ formatMonth(m) }}</option>
-        }
-      </select>
-      <select
-        class="category-filter"
-        [ngModel]="filterCategory()"
-        (ngModelChange)="onCategoryDropdownChange($event)"
-      >
-        <option value="">All categories</option>
-        @for (cat of allCategories(); track cat.label) {
-          <option [value]="cat.label">{{ cat.label }}</option>
-        }
-      </select>
-    </div>
 
-    <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-header">
-          <h2>Spending</h2>
-          <span class="total debit">{{
-            totalSpending() | currency: 'EUR' : 'symbol' : '1.2-2'
-          }}</span>
-        </div>
-        @if (spendingData().length === 0) {
-          <div class="empty">No spending data for this period.</div>
-        } @else {
-          <div class="chart-wrap">
-            <canvas #spendingCanvas></canvas>
-          </div>
-          <div class="legend-table">
-            @for (row of spendingData(); track row.label) {
-              <div
-                class="legend-row"
-                [class.selected]="selectedCategory()?.label === row.label"
-                (mouseenter)="highlightSlice('spending', row.label)"
-                (mouseleave)="clearHighlight('spending')"
-                (click)="selectCategory(row.label, row.color, 'debit')"
+    @let monthKey = filterMonth();
+    @let compare = compareName();
+    @let period = monthKey ? monthName(monthKey) : isAverages() ? 'Average month' : 'All months';
+
+    <div class="insights">
+      <div class="insights__row insights__row--stretch">
+        <section class="flow" aria-labelledby="flow-h">
+          <div class="block-head">
+            <h2 id="flow-h">{{ flowTitle() }}</h2>
+            <span class="key">
+              <span class="key__item"
+                ><span class="key__swatch key__swatch--in"></span>Money in, above the line</span
               >
-                <span class="legend-dot" [style.background]="row.color"></span>
-                <span class="legend-label">{{ row.label }}</span>
-                <span class="legend-pct"
-                  >{{ ((row.total / totalSpending()) * 100).toFixed(1) }}%</span
-                >
-                <span class="legend-val debit">{{
-                  row.total | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="chart-card">
-        <div class="chart-header">
-          <h2>Income</h2>
-          <span class="total credit">{{
-            totalIncome() | currency: 'EUR' : 'symbol' : '1.2-2'
-          }}</span>
-        </div>
-        @if (incomeData().length === 0) {
-          <div class="empty">No income data for this period.</div>
-        } @else {
-          <div class="chart-wrap">
-            <canvas #incomeCanvas></canvas>
-          </div>
-          <div class="legend-table">
-            @for (row of incomeData(); track row.label) {
-              <div
-                class="legend-row"
-                [class.selected]="selectedCategory()?.label === row.label"
-                (mouseenter)="highlightSlice('income', row.label)"
-                (mouseleave)="clearHighlight('income')"
-                (click)="selectCategory(row.label, row.color, 'credit')"
+              <span class="key__item"
+                ><span class="key__swatch key__swatch--out"></span>Money out, below</span
               >
-                <span class="legend-dot" [style.background]="row.color"></span>
-                <span class="legend-label">{{ row.label }}</span>
-                <span class="legend-pct"
-                  >{{ ((row.total / totalIncome()) * 100).toFixed(1) }}%</span
-                >
-                <span class="legend-val credit">{{
-                  row.total | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-            }
+            </span>
           </div>
-        }
-      </div>
-    </div>
-
-    <section class="detail-panel">
-      @if (selectedCategory(); as sel) {
-        <div class="detail-header">
-          <span class="detail-dot" [style.background]="sel.color"></span>
-          <h2>{{ sel.label }}</h2>
-          <button class="detail-dismiss" (click)="clearCategory()">×</button>
-        </div>
-
-        @if (categoryStats(); as stats) {
-          <div class="stat-row">
-            <div class="stat-item">
-              <span class="stat-label">Avg / month</span>
-              <span class="stat-value">{{
-                stats.avgMonthly | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
+          @if (flowMonths().length > 0) {
+            <div class="flow__chart">
+              <canvas #trendCanvas role="img" [attr.aria-label]="flowLabel()"></canvas>
             </div>
-            @if (filterMonth() && filterMonth() !== '__averages__') {
-              <div class="stat-item">
-                <span class="stat-label">This period</span>
-                <span class="stat-value" [class]="selectedCategory()!.dominantType">{{
-                  stats.currentTotal | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-              @if (stats.delta !== null) {
-                <div class="stat-item">
-                  <span class="stat-label">vs last month</span>
-                  <span
-                    class="stat-value"
-                    [class.debit]="
-                      selectedCategory()!.dominantType === 'debit'
-                        ? stats.delta > 0
-                        : stats.delta < 0
-                    "
-                    [class.credit]="
-                      selectedCategory()!.dominantType === 'debit'
-                        ? stats.delta < 0
-                        : stats.delta > 0
-                    "
-                    >{{ stats.delta > 0 ? '+' : ''
-                    }}{{ stats.delta | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                  >
-                </div>
+            <p class="hint">
+              The figure under each month is what you kept. Choose a month's bars to open it.
+            </p>
+          } @else {
+            <p class="empty">No months with counted money yet.</p>
+          }
+        </section>
+
+        <aside class="insights__aside">
+          <section class="hero" aria-labelledby="hero-h">
+            <h2 id="hero-h">{{ heroLabel() }}</h2>
+            <p class="hero__total">{{ eur(totalSpending()) }}</p>
+            <p class="hero__note">
+              @if (spendingNote(); as note) {
+                {{ note }}
               }
-            }
-          </div>
-        }
+              @if (totalIncome() > 0) {
+                @if (kept() >= 0) {
+                  You kept <strong class="amount-in">{{ eur(kept()) }}</strong> of the
+                  {{ eur(totalIncome()) }} that came in.
+                } @else {
+                  You spent <strong>{{ eur(kept()) }}</strong> more than the
+                  {{ eur(totalIncome()) }} that came in.
+                }
+              } @else {
+                Nothing came in.
+              }
+            </p>
+          </section>
 
-        @if (categoryTrendData().length) {
-          <div class="detail-trend-header">
-            <span class="detail-section-title">Monthly trend</span>
-            <div class="detail-trend-legend">
-              <span class="detail-trend-legend-item">
-                <span class="detail-trend-dot" style="background: #f87171"></span>Spending
-              </span>
-              <span class="detail-trend-legend-item">
-                <span class="detail-trend-dot" style="background: #34d399"></span>Income
-              </span>
+          @if (moves().length > 0) {
+            <section class="moves" aria-labelledby="moves-h">
+              <h2 id="moves-h">Biggest moves since {{ compare }}</h2>
+              <ul class="lines">
+                @for (m of moves(); track m.label) {
+                  <li>
+                    <button
+                      type="button"
+                      class="line"
+                      [attr.aria-pressed]="selectedCategory()?.label === m.label"
+                      (click)="selectCategory(m.label, m.color, 'debit')"
+                    >
+                      <span class="line__name">
+                        @if (m.label === unknownLabel) {
+                          <span class="ring"></span>
+                        } @else {
+                          <span class="cat-dot" [style.--_dot]="m.color"></span>
+                        }
+                        {{ m.label }}
+                      </span>
+                      <span class="line__value">
+                        <strong [class.amount-in]="m.change < 0">{{ signedEur(m.change) }}</strong>
+                        <span class="line__pct">{{
+                          m.changePct === null ? 'new' : signedPct(m.changePct)
+                        }}</span>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          <section class="came" aria-labelledby="came-h">
+            <h2 id="came-h">Where it came from</h2>
+            @if (incomeSplit().length > 0) {
+              <div class="split" role="img" [attr.aria-label]="incomeSplitLabel()">
+                @for (row of incomeSplit(); track row.label) {
+                  <span
+                    class="split__seg"
+                    [style.flex-grow]="row.share"
+                    [style.background]="row.color"
+                  ></span>
+                }
+              </div>
+              <ul class="lines">
+                @for (row of incomeSplit(); track row.label) {
+                  <li>
+                    <button
+                      type="button"
+                      class="line"
+                      [attr.aria-pressed]="selectedCategory()?.label === row.label"
+                      (click)="selectCategory(row.label, row.color, 'credit')"
+                    >
+                      <span class="line__name"
+                        ><span class="cat-dot" [style.--_dot]="row.color"></span
+                        >{{ row.label }}</span
+                      >
+                      <span class="line__value">
+                        <span class="line__pct">{{ row.share.toFixed(1) }}%</span>
+                        <strong class="amount-in">{{ signedEur(row.total) }}</strong>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty">Nothing came in{{ monthKey ? ' in ' + period : '' }}.</p>
+            }
+          </section>
+        </aside>
+      </div>
+
+      <div class="insights__row">
+        <section class="went" aria-labelledby="went-h">
+          <h2 id="went-h">
+            Where it went<span class="went__since">{{
+              spendingCompared() ? ', and how it moved since ' + compare : ''
+            }}</span>
+          </h2>
+          @if (spendingBars().rows.length > 0) {
+            <app-category-bars
+              [bars]="spendingBars()"
+              [selected]="selectedCategory()?.label ?? null"
+              [current]="period"
+              [previous]="spendingCompared() ? compare : null"
+              (picked)="selectCategory($event.label, $event.color, 'debit')"
+            />
+            <p class="hint">Choose a category to see its months, merchants and transactions.</p>
+          } @else {
+            <p class="empty">No spending{{ monthKey ? ' in ' + period : '' }}.</p>
+          }
+        </section>
+
+        @if (selectedCategory(); as sel) {
+          <section class="detail" #detailPanel aria-labelledby="detail-h">
+            <div class="detail__head">
+              @if (sel.label === unknownLabel) {
+                <span class="ring ring--lg"></span>
+              } @else {
+                <span class="cat-dot detail__dot" [style.--_dot]="sel.color"></span>
+              }
+              <h2 id="detail-h">{{ sel.label }}</h2>
+              <button
+                type="button"
+                class="btn-icon"
+                aria-label="Close category"
+                (click)="clearCategory()"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
             </div>
-          </div>
-          <div class="detail-trend-wrap">
-            <canvas #categoryTrendCanvas></canvas>
-          </div>
-        }
 
-        @if (categoryTopMerchants().length) {
-          <div class="detail-section-title">Top merchants (this period)</div>
-          <div class="merchant-table">
-            @for (m of categoryTopMerchants(); track m.description) {
-              <div class="merchant-row">
-                <span class="merchant-desc">{{ m.description }}</span>
-                <span
-                  class="merchant-amt"
-                  [class.debit]="m.type === 'debit'"
-                  [class.credit]="m.type === 'credit'"
-                  >{{ m.total | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                >
+            @if (categoryStats(); as stats) {
+              <div class="stats">
+                <div class="stat">
+                  <span class="stat__label">Average month</span>
+                  <span class="stat__value">{{ eur(stats.avgMonthly) }}</span>
+                </div>
+                @if (monthKey) {
+                  <div class="stat">
+                    <span class="stat__label">{{ period }}</span>
+                    <span class="stat__value" [class.amount-in]="sel.dominantType === 'credit'">{{
+                      eur(stats.currentTotal)
+                    }}</span>
+                  </div>
+                  @if (stats.delta !== null) {
+                    <div class="stat">
+                      <span class="stat__label">vs {{ compare }}</span>
+                      <span
+                        class="stat__value"
+                        [class.amount-in]="
+                          sel.dominantType === 'debit' ? stats.delta < 0 : stats.delta > 0
+                        "
+                        >{{ signedEur(stats.delta) }}</span
+                      >
+                    </div>
+                  }
+                }
               </div>
             }
-          </div>
-        }
 
-        @if (categoryPeriodTransactions().length) {
-          <div class="detail-section-title">Transactions (this period)</div>
-          <div class="detail-tx-list">
-            @for (tx of categoryPeriodTransactions(); track tx.id) {
-              <div class="detail-tx-row">
-                <span class="detail-tx-date">{{ tx.datePosting | date: 'dd-MM-yyyy' }}</span>
-                <span class="detail-tx-desc">{{ tx.description }}</span>
-                <span
-                  class="detail-tx-amt"
-                  [class.credit]="tx.type === 'credit'"
-                  [class.debit]="tx.type === 'debit'"
-                  >{{ tx.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                >
+            @if (categoryTrendData().length) {
+              <div class="detail__sub">
+                <h3>Monthly trend</h3>
+                <span class="key">
+                  <span class="key__item"
+                    ><span class="key__swatch key__swatch--out"></span>Spending</span
+                  >
+                  <span class="key__item"
+                    ><span class="key__swatch key__swatch--in"></span>Income</span
+                  >
+                </span>
+              </div>
+              <div class="detail__chart">
+                <canvas
+                  #categoryTrendCanvas
+                  role="img"
+                  [attr.aria-label]="'Spending and income in ' + sel.label + ', month by month'"
+                ></canvas>
               </div>
             }
-          </div>
-        }
 
-        <div class="detail-footer">
-          <button class="btn-show-all" (click)="navigateToCategory(sel.label, sel.dominantType)">
-            View all transactions →
-          </button>
-        </div>
-      } @else {
-        <div class="detail-header">
-          <h2>Income vs Expenses</h2>
-          <div class="detail-trend-legend">
-            <span class="detail-trend-legend-item">
-              <span class="detail-trend-dot" style="background: #34d399"></span>Income
-            </span>
-            <span class="detail-trend-legend-item">
-              <span class="detail-trend-dot" style="background: #f87171"></span>Expenses
-            </span>
-          </div>
-        </div>
-        <div class="detail-trend-wrap">
-          <canvas #trendCanvas></canvas>
-        </div>
-      }
-    </section>
+            @if (categoryTopMerchants().length) {
+              <h3 class="detail__title">Top merchants{{ periodSuffix(monthKey) }}</h3>
+              <ul class="rows">
+                @for (m of categoryTopMerchants(); track m.description) {
+                  <li class="row">
+                    <span class="row__desc">{{ m.description }}</span>
+                    <span class="row__amount" [class.amount-in]="m.type === 'credit'">{{
+                      merchantAmount(m)
+                    }}</span>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (categoryPeriodTransactions().length) {
+              <h3 class="detail__title">Transactions{{ periodSuffix(monthKey) }}</h3>
+              <ul class="rows rows--scroll">
+                @for (tx of categoryPeriodTransactions(); track tx.id) {
+                  <li class="row row--dated">
+                    <span class="row__date">{{ tx.datePosting | date: 'd MMM yyyy' }}</span>
+                    <span class="row__desc">{{ tx.description }}</span>
+                    <span class="row__amount" [class.amount-in]="tx.type === 'credit'">{{
+                      txAmount(tx)
+                    }}</span>
+                  </li>
+                }
+              </ul>
+            }
+
+            <button
+              type="button"
+              class="link-btn detail__all"
+              (click)="navigateToCategory(sel.label, sel.dominantType)"
+            >
+              View all transactions
+            </button>
+          </section>
+        }
+      </div>
+    </div>
   }
 }
 
@@ -263,155 +357,189 @@
   @if (groceriesSvc.loading()) {
     <div class="loading">Loading…</div>
   } @else {
-    <div class="tab-filters filters-row">
-      <select
-        class="month-filter"
-        [ngModel]="gFilterMonth()"
-        (ngModelChange)="gFilterMonth.set($event)"
-      >
-        <option value="">All time</option>
-        @for (m of gAvailableMonths(); track m) {
-          <option [value]="m">{{ formatMonth(m) }}</option>
-        }
-      </select>
-      <select
-        class="category-filter"
-        [ngModel]="gFilterCategory()"
-        (ngModelChange)="onGroceryCategoryDropdownChange($event)"
-      >
-        <option value="">All categories</option>
-        @for (cat of gAllCategories(); track cat.label) {
-          <option [value]="cat.label">{{ cat.label }}</option>
-        }
-      </select>
-    </div>
+    @let gKey = gFilterMonth();
+    @let gCompare = gCompareName();
+    @let gPeriod = gKey ? monthName(gKey) : 'All months';
 
-    <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-header">
-          <h2>Spending</h2>
-          <span class="total debit">{{
-            gTotalSpending() | currency: 'EUR' : 'symbol' : '1.2-2'
-          }}</span>
-        </div>
-        @if (gSpendingData().length === 0) {
-          <div class="empty">No grocery data for this period.</div>
-        } @else {
-          <div class="chart-wrap">
-            <canvas #gSpendingCanvas></canvas>
+    <div class="insights">
+      <div class="insights__row">
+        <section class="groc" aria-labelledby="groc-h">
+          <div class="groc__summary">
+            <h2 id="groc-h">{{ gKey ? 'Groceries in ' + gPeriod : 'Groceries, all months' }}</h2>
+            <p class="hero__total">{{ eur(gTotalSpending()) }}</p>
+            <p class="hero__note">{{ gNote() }}</p>
           </div>
-          <div class="legend-table">
-            @for (row of gSpendingData(); track row.label) {
-              <div
-                class="legend-row"
-                [class.selected]="gSelectedCategory()?.label === row.label"
-                (mouseenter)="highlightGrocerySlice(row.label)"
-                (mouseleave)="clearGroceryHighlight()"
-                (click)="selectGroceryCategory(row.label, row.color)"
+          @if (gStores().length > 0) {
+            <h3 class="groc__title">By store</h3>
+            <ul class="stores">
+              @for (s of gStores(); track s.store) {
+                <li class="store">
+                  <span class="store__line">
+                    <span class="store__name"
+                      >{{ s.store }}
+                      <span class="store__count"
+                        >{{ s.receipts }} {{ s.receipts === 1 ? 'receipt' : 'receipts' }}</span
+                      ></span
+                    >
+                    <span class="store__amount">{{ eur(s.total) }}</span>
+                  </span>
+                  <span class="store__track"
+                    ><span class="store__bar" [style.width.%]="s.pct"></span
+                  ></span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section class="bought" aria-labelledby="bought-h">
+          <h2 id="bought-h">Most bought</h2>
+          @if (gMostBought().length > 0) {
+            <div class="bought__table" role="table" aria-label="Most bought groceries">
+              <div class="bought__row bought__row--head" role="row">
+                <span role="columnheader">Item</span>
+                <span role="columnheader" class="bought__qty">Bought</span>
+                <span role="columnheader" class="num">Spent</span>
+              </div>
+              @for (it of gMostBought(); track it.description) {
+                <div class="bought__row" role="row">
+                  <span role="rowheader" class="bought__name"
+                    >{{ it.description }}
+                    <span class="bought__meta">{{ formatQty(it.quantity) }} bought</span></span
+                  >
+                  <span role="cell" class="bought__qty">{{ formatQty(it.quantity) }}</span>
+                  <span role="cell" class="num bought__spent">{{ eur(it.total) }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="empty">No grocery items{{ gKey ? ' in ' + gPeriod : '' }}.</p>
+          }
+        </section>
+      </div>
+
+      <div class="insights__row">
+        <section class="went" aria-labelledby="gwent-h">
+          <h2 id="gwent-h">
+            By category<span class="went__since">{{
+              gCompared() ? ', and how it moved since ' + gCompare : ''
+            }}</span>
+          </h2>
+          @if (gSpendingBars().rows.length > 0) {
+            <app-category-bars
+              [bars]="gSpendingBars()"
+              [selected]="gSelectedCategory()?.label ?? null"
+              [current]="gPeriod"
+              [previous]="gCompared() ? gCompare : null"
+              (picked)="selectGroceryCategory($event.label, $event.color)"
+            />
+            <p class="hint">Choose a category to see its months and items.</p>
+          } @else {
+            <p class="empty">No grocery data{{ gKey ? ' for ' + gPeriod : '' }}.</p>
+          }
+        </section>
+
+        @if (gSelectedCategory(); as sel) {
+          <section class="detail" #detailPanel aria-labelledby="gdetail-h">
+            <div class="detail__head">
+              @if (sel.label === unknownLabel) {
+                <span class="ring ring--lg"></span>
+              } @else {
+                <span class="cat-dot detail__dot" [style.--_dot]="sel.color"></span>
+              }
+              <h2 id="gdetail-h">{{ sel.label }}</h2>
+              <button
+                type="button"
+                class="btn-icon"
+                aria-label="Close category"
+                (click)="clearGroceryCategory()"
               >
-                <span class="legend-dot" [style.background]="row.color"></span>
-                <span class="legend-label">{{ row.label }}</span>
-                <span class="legend-pct"
-                  >{{ ((row.total / gTotalSpending()) * 100).toFixed(1) }}%</span
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
                 >
-                <span class="legend-val debit">{{
-                  row.total | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+
+            @if (gCategoryStats(); as stats) {
+              <div class="stats">
+                <div class="stat">
+                  <span class="stat__label">Average month</span>
+                  <span class="stat__value">{{ eur(stats.avgMonthly) }}</span>
+                </div>
+                @if (gKey) {
+                  <div class="stat">
+                    <span class="stat__label">{{ gPeriod }}</span>
+                    <span class="stat__value">{{ eur(stats.currentTotal) }}</span>
+                  </div>
+                  @if (stats.delta !== null) {
+                    <div class="stat">
+                      <span class="stat__label">vs {{ gCompare }}</span>
+                      <span class="stat__value" [class.amount-in]="stats.delta < 0">{{
+                        signedEur(stats.delta)
+                      }}</span>
+                    </div>
+                  }
+                }
               </div>
             }
-          </div>
+
+            @if (gCategoryTrendData().length) {
+              <div class="detail__sub">
+                <h3>Monthly trend</h3>
+              </div>
+              <div class="detail__chart">
+                <canvas
+                  #gCategoryTrendCanvas
+                  role="img"
+                  [attr.aria-label]="'Spending on ' + sel.label + ', month by month'"
+                ></canvas>
+              </div>
+            }
+
+            @if (gCategoryTopItems().length) {
+              <h3 class="detail__title">Top items{{ periodSuffix(gKey) }}</h3>
+              <ul class="rows">
+                @for (item of gCategoryTopItems(); track item.description) {
+                  <li class="row">
+                    <span class="row__desc">{{ item.description }}</span>
+                    <span class="row__amount">{{ eur(item.total) }}</span>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (gCategoryPeriodItems().length) {
+              <h3 class="detail__title">Items{{ periodSuffix(gKey) }}</h3>
+              <ul class="rows rows--scroll">
+                @for (item of gCategoryPeriodItems(); track item.id) {
+                  <li class="row row--dated">
+                    <span class="row__date">{{ item.receiptDate | date: 'd MMM yyyy' }}</span>
+                    <span class="row__desc">{{ item.description }}</span>
+                    <span class="row__amount">{{ eur(item.amount * item.quantity) }}</span>
+                  </li>
+                }
+              </ul>
+            }
+
+            <button
+              type="button"
+              class="link-btn detail__all"
+              (click)="navigateToGroceryCategory(sel.label)"
+            >
+              View all items
+            </button>
+          </section>
         }
       </div>
     </div>
-
-    <section class="detail-panel">
-      @if (gSelectedCategory(); as sel) {
-        <div class="detail-header">
-          <span class="detail-dot" [style.background]="sel.color"></span>
-          <h2>{{ sel.label }}</h2>
-          <button class="detail-dismiss" (click)="clearGroceryCategory()">×</button>
-        </div>
-
-        @if (gCategoryStats(); as stats) {
-          <div class="stat-row">
-            <div class="stat-item">
-              <span class="stat-label">Avg / month</span>
-              <span class="stat-value">{{
-                stats.avgMonthly | currency: 'EUR' : 'symbol' : '1.2-2'
-              }}</span>
-            </div>
-            @if (gFilterMonth()) {
-              <div class="stat-item">
-                <span class="stat-label">This period</span>
-                <span class="stat-value debit">{{
-                  stats.currentTotal | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-              @if (stats.delta !== null) {
-                <div class="stat-item">
-                  <span class="stat-label">vs last month</span>
-                  <span
-                    class="stat-value"
-                    [class.debit]="stats.delta > 0"
-                    [class.credit]="stats.delta < 0"
-                    >{{ stats.delta > 0 ? '+' : ''
-                    }}{{ stats.delta | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                  >
-                </div>
-              }
-            }
-          </div>
-        }
-
-        @if (gCategoryTrendData().length) {
-          <div class="detail-trend-header">
-            <span class="detail-section-title">Monthly trend</span>
-          </div>
-          <div class="detail-trend-wrap">
-            <canvas #gCategoryTrendCanvas></canvas>
-          </div>
-        }
-
-        @if (gCategoryTopItems().length) {
-          <div class="detail-section-title">Top items (this period)</div>
-          <div class="merchant-table">
-            @for (item of gCategoryTopItems(); track item.description) {
-              <div class="merchant-row">
-                <span class="merchant-desc">{{ item.description }}</span>
-                <span class="merchant-amt debit">{{
-                  item.total | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-            }
-          </div>
-        }
-
-        @if (gCategoryPeriodItems().length) {
-          <div class="detail-section-title">Items (this period)</div>
-          <div class="detail-tx-list">
-            @for (item of gCategoryPeriodItems(); track item.id) {
-              <div class="detail-tx-row">
-                <span class="detail-tx-date">{{ item.receiptDate | date: 'dd-MM-yyyy' }}</span>
-                <span class="detail-tx-desc">{{ item.description }}</span>
-                <span class="detail-tx-amt debit">{{
-                  item.amount * item.quantity | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-            }
-          </div>
-        }
-
-        <div class="detail-footer">
-          <button class="btn-show-all" (click)="navigateToGroceryCategory(sel.label)">
-            View all items →
-          </button>
-        </div>
-      } @else {
-        <div class="detail-header">
-          <h2>Monthly Grocery Spending</h2>
-        </div>
-        <p class="detail-hint">Select a category from the chart to see detailed stats.</p>
-      }
-    </section>
   }
 }

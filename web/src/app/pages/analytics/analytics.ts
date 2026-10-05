@@ -8,14 +8,16 @@ import {
   effect,
   OnDestroy,
   ChangeDetectionStrategy,
+  Injector,
+  afterNextRender,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
   Chart,
-  ArcElement,
-  PieController,
+  ChartOptions,
+  ScriptableScaleContext,
   Tooltip,
   Legend,
   BarController,
@@ -23,28 +25,85 @@ import {
   CategoryScale,
   LinearScale,
 } from 'chart.js';
-import { FinanceService } from '../../core/services/finance.service';
+import { FinanceService, EnrichedTransaction } from '../../core/services/finance.service';
 import { CategoriesService } from '../../core/services/categories.service';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
+import { GroceryItem } from '../../core/models/grocery.model';
 import { availableMonths } from '../../core/utils/date-utils';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
+import {
+  aggregateByMonth,
+  latestClosedMonth,
+  monthCells,
+  monthKeyOf,
+  monthName,
+  monthYearLabel,
+  previousMonth,
+} from '../../core/utils/month-totals';
+import { eur, eurAxis, signedEur } from '../../core/utils/money';
+import { ChartTheme, applyChartTheme, axisOptions, withAlpha } from '../../core/charts/chart-theme';
+import { CategoryBarsComponent } from './category-bars';
+import {
+  CategoryTotal,
+  biggestMoves,
+  categoryBars,
+  compareText,
+  flowWindow,
+  mostBought,
+  signedPct,
+  storeTotals,
+  sumByCategory,
+  withMonths,
+} from './insights';
 
-Chart.register(
-  ArcElement,
-  PieController,
-  Tooltip,
-  Legend,
-  BarController,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-);
+Chart.register(Tooltip, Legend, BarController, BarElement, CategoryScale, LinearScale);
+
+/** A category without a colour, in templates. Canvas charts here use the theme's series colours. */
+const FALLBACK = 'var(--category-fallback)';
+
+const MONTH_WORDS = [
+  'Months',
+  'One month',
+  'Two months',
+  'Three months',
+  'Four months',
+  'Five months',
+  'Six months',
+];
+
+function txCategory(tx: EnrichedTransaction) {
+  return {
+    label: tx.category?.name ?? CATEGORY_UNKNOWN,
+    color: tx.category?.color || FALLBACK,
+    amount: tx.amount,
+  };
+}
+
+function groceryByCategory(items: GroceryItem[]): CategoryTotal[] {
+  return sumByCategory(
+    items.map((item) => ({
+      label: item.categoryName ?? CATEGORY_UNKNOWN,
+      color: item.categoryColor || FALLBACK,
+      amount: item.amount * item.quantity,
+    })),
+  );
+}
+
+/** 'Sep 25' for a chart axis. */
+function shortMonthYear(key: string): string {
+  return `${monthName(key, 'short')} ${key.slice(2, 4)}`;
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
 
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink],
+  imports: [DatePipe, FormsModule, RouterLink, MonthScrubberComponent, CategoryBarsComponent],
   templateUrl: './analytics.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './analytics.scss',
@@ -55,20 +114,30 @@ export class AnalyticsComponent implements OnDestroy {
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   router = inject(Router);
+  private injector = inject(Injector);
+
+  readonly eur = eur;
+  readonly signedEur = signedEur;
+  readonly signedPct = signedPct;
+  readonly monthName = monthName;
+  readonly unknownLabel = CATEGORY_UNKNOWN;
+
+  private readonly nowKey = monthKeyOf(new Date());
 
   // Signal queries: effects depending on these re-run when @if branches create the
   // canvases - a synchronous decorator @ViewChild read here is undefined on the very
   // change-detection pass that creates the canvas, leaving charts blank (audit #9).
-  spendingCanvas = viewChild<ElementRef<HTMLCanvasElement>>('spendingCanvas');
-  incomeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('incomeCanvas');
   trendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('trendCanvas');
   categoryTrendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryTrendCanvas');
-  gSpendingCanvas = viewChild<ElementRef<HTMLCanvasElement>>('gSpendingCanvas');
   gCategoryTrendCanvas = viewChild<ElementRef<HTMLCanvasElement>>('gCategoryTrendCanvas');
+  private detailPanel = viewChild<ElementRef<HTMLElement>>('detailPanel');
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
 
+  /** The Spending tab's month, 'YYYY-MM'; '' means all months. */
   filterMonth = signal('');
+  /** With all months selected, show an average month instead of the totals. */
+  showAverages = signal(false);
   filterCategory = signal('');
   selectedCategory = signal<{
     label: string;
@@ -76,16 +145,31 @@ export class AnalyticsComponent implements OnDestroy {
     dominantType: 'credit' | 'debit';
   } | null>(null);
   private defaultApplied = false;
-  private readonly CHART_GRID_COLOR = 'rgba(30, 45, 66, 0.8)';
-  private readonly CHART_TICK_COLOR = '#64748b';
-  spendingChart?: Chart;
-  incomeChart?: Chart;
+  /** "Six months of flow": money in and out per month. */
   trendChart?: Chart;
   categoryTrendChart?: Chart;
 
   availableMonths = computed(() => availableMonths(this.finance.allTransactions()));
 
-  private isAverages = computed(() => this.filterMonth() === '__averages__');
+  /** The scrubber's months, oldest first: every month with money, statements or receipts. */
+  months = computed(() =>
+    withMonths(monthCells(this.finance.monthlySummaries()), [
+      ...this.availableMonths(),
+      ...this.gAvailableMonths(),
+    ]),
+  );
+
+  /** The month the active tab shows; '' for all months. */
+  shownMonth = computed(() =>
+    this.activeTab() === 'groceries' ? this.gFilterMonth() : this.filterMonth(),
+  );
+
+  pageTitle = computed(() => {
+    const month = this.shownMonth();
+    return month ? `${monthName(month)} insights` : 'Insights';
+  });
+
+  isAverages = computed(() => !this.filterMonth() && this.showAverages());
 
   private monthCount = computed(() => {
     const months = new Set(this.finance.allTransactions().map((tx) => tx.month));
@@ -95,46 +179,126 @@ export class AnalyticsComponent implements OnDestroy {
   private txFiltered = computed(() => {
     const m = this.filterMonth();
     const txs = this.finance.allTransactions();
-    if (!m || m === '__averages__') return txs;
-    return txs.filter((tx) => tx.month === m);
+    return m ? txs.filter((tx) => tx.month === m) : txs;
   });
 
-  spendingData = computed(() => {
-    const map = new Map<string, { label: string; color: string; total: number }>();
-    for (const tx of this.txFiltered().filter((tx) => tx.type === 'debit')) {
-      const key = tx.category?.name ?? CATEGORY_UNKNOWN;
-      const color = tx.category?.color ?? '#475569';
-      const cur = map.get(key) ?? { label: key, color, total: 0 };
-      map.set(key, { ...cur, total: cur.total + tx.amount });
-    }
-    const divisor = this.isAverages() ? this.monthCount() : 1;
-    return [...map.values()]
-      .map((d) => ({ ...d, total: d.total / divisor }))
-      .sort((a, b) => b.total - a.total);
-  });
+  private byCategory(
+    type: 'credit' | 'debit',
+    txs: EnrichedTransaction[],
+    divisor = 1,
+  ): CategoryTotal[] {
+    return sumByCategory(txs.filter((tx) => tx.type === type).map(txCategory)).map((d) =>
+      divisor === 1 ? d : { ...d, total: d.total / divisor },
+    );
+  }
 
-  incomeData = computed(() => {
-    const map = new Map<string, { label: string; color: string; total: number }>();
-    for (const tx of this.txFiltered().filter((tx) => tx.type === 'credit')) {
-      const key = tx.category?.name ?? CATEGORY_UNKNOWN;
-      const color = tx.category?.color ?? '#475569';
-      const cur = map.get(key) ?? { label: key, color, total: 0 };
-      map.set(key, { ...cur, total: cur.total + tx.amount });
-    }
-    const divisor = this.isAverages() ? this.monthCount() : 1;
-    return [...map.values()]
-      .map((d) => ({ ...d, total: d.total / divisor }))
-      .sort((a, b) => b.total - a.total);
-  });
+  spendingData = computed(() =>
+    this.byCategory('debit', this.txFiltered(), this.isAverages() ? this.monthCount() : 1),
+  );
+
+  incomeData = computed(() =>
+    this.byCategory('credit', this.txFiltered(), this.isAverages() ? this.monthCount() : 1),
+  );
 
   totalSpending = computed(() => this.spendingData().reduce((s, d) => s + d.total, 0));
   totalIncome = computed(() => this.incomeData().reduce((s, d) => s + d.total, 0));
+  kept = computed(() => this.totalIncome() - this.totalSpending());
+
+  /** The month the selected one is compared with; null for all months. */
+  compareMonth = computed(() => (this.filterMonth() ? previousMonth(this.filterMonth()) : null));
+  compareName = computed(() => {
+    const prev = this.compareMonth();
+    return prev ? monthName(prev) : '';
+  });
+
+  /** The previous month's spending by category; null with all months or when it had none. */
+  private prevSpendingData = computed(() => {
+    const prev = this.compareMonth();
+    if (!prev) return null;
+    const rows = this.byCategory(
+      'debit',
+      this.finance.allTransactions().filter((tx) => tx.month === prev),
+    );
+    return rows.length ? rows : null;
+  });
+
+  /** Whether "Where it went" compares with the previous month: a month is shown and it had spending. */
+  spendingCompared = computed(() => this.prevSpendingData() !== null);
+
+  /** "Where it went, and how it moved": sorted bars with the previous month's tick. */
+  spendingBars = computed(() => categoryBars(this.spendingData(), this.prevSpendingData()));
+
+  /** "Biggest moves since <previous month>"; empty with all months. */
+  moves = computed(() => {
+    const prev = this.prevSpendingData();
+    return prev ? biggestMoves(this.spendingData(), prev) : [];
+  });
+
+  heroLabel = computed(() => {
+    const month = this.filterMonth();
+    if (month) return `Out in ${monthName(month)}`;
+    return this.isAverages()
+      ? 'Out in an average month'
+      : `Out over ${plural(this.monthCount(), 'month')}`;
+  });
+
+  /** The sentence before "You kept …" under the hero figure. */
+  spendingNote = computed(() => {
+    const n = this.monthCount();
+    if (!this.filterMonth()) {
+      return this.isAverages()
+        ? `Averaged over ${plural(n, 'month')}.`
+        : `About ${eur(this.totalSpending() / n)} a month.`;
+    }
+    const prev = this.prevSpendingData();
+    const text = compareText(
+      this.totalSpending(),
+      prev ? prev.reduce((s, d) => s + d.total, 0) : null,
+      this.compareName(),
+    );
+    return text ? `${text[0].toUpperCase()}${text.slice(1)}.` : null;
+  });
+
+  /** "Where it came from": income by category with its share. */
+  incomeSplit = computed(() => {
+    const total = this.totalIncome();
+    return this.incomeData().map((d) => ({ ...d, share: total > 0 ? (d.total / total) * 100 : 0 }));
+  });
+
+  incomeSplitLabel = computed(
+    () =>
+      'Income by category: ' +
+      this.incomeSplit()
+        .map((d) => `${d.label} ${d.share.toFixed(1)}%`)
+        .join(', '),
+  );
+
+  /** Every month, all banks, newest first. */
+  private monthTotals = computed(() => aggregateByMonth(this.finance.monthlySummaries()));
+
+  /** Six months up to the selected one, or the last 18 with all months. */
+  flowMonths = computed(() =>
+    flowWindow(this.monthTotals(), this.filterMonth(), this.filterMonth() ? 6 : 18),
+  );
+
+  flowTitle = computed(() => {
+    const n = this.flowMonths().length;
+    return `${MONTH_WORDS[n] ?? `${n} months`} of flow`;
+  });
+
+  flowLabel = computed(
+    () =>
+      'Money in above the line and money out below it, by month. ' +
+      this.flowMonths()
+        .map((m) => `${monthYearLabel(m.month)}: in ${eur(m.income)}, out ${eur(m.expenses)}`)
+        .join('; '),
+  );
 
   allCategories = computed(() => {
     const map = new Map<string, string>();
     for (const tx of this.finance.allTransactions()) {
       const label = tx.category?.name ?? CATEGORY_UNKNOWN;
-      const color = tx.category?.color ?? '#475569';
+      const color = tx.category?.color || FALLBACK;
       if (!map.has(label)) map.set(label, color);
     }
     return [...map.entries()]
@@ -205,38 +369,16 @@ export class AnalyticsComponent implements OnDestroy {
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
     const currentMonth = this.filterMonth();
-    const currentTotal =
-      currentMonth && currentMonth !== '__averages__' ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevMonth =
-      currentMonth && currentMonth !== '__averages__'
-        ? (() => {
-            const [y, m] = currentMonth.split('-').map(Number);
-            const d = new Date(y, m - 2, 1);
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          })()
-        : undefined;
-    const prevTotal = prevMonth !== undefined ? (byMonth.get(prevMonth) ?? 0) : null;
+    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
+    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
     const delta = prevTotal !== null ? currentTotal - prevTotal : null;
     return { avgMonthly, currentTotal, delta };
-  });
-
-  trendData = computed(() => {
-    const map = new Map<string, { income: number; expenses: number }>();
-    for (const s of this.finance.monthlySummaries()) {
-      const cur = map.get(s.month) ?? { income: 0, expenses: 0 };
-      map.set(s.month, { income: cur.income + s.income, expenses: cur.expenses + s.expenses });
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-18)
-      .map(([month, data]) => ({ month, ...data }));
   });
 
   gFilterMonth = signal('');
   gFilterCategory = signal('');
   gSelectedCategory = signal<{ label: string; color: string } | null>(null);
   private gDefaultApplied = false;
-  gSpendingChart?: Chart;
   gCategoryTrendChart?: Chart;
   gAvailableMonths = computed(() => {
     const months = this.groceriesSvc.countedItems().map((i) => i.receiptDate.slice(0, 7));
@@ -250,24 +392,58 @@ export class AnalyticsComponent implements OnDestroy {
     return items.filter((i) => i.receiptDate.slice(0, 7) === m);
   });
 
-  gSpendingData = computed(() => {
-    const map = new Map<string, { label: string; color: string; total: number }>();
-    for (const item of this.gItemsFiltered()) {
-      const key = item.categoryName ?? CATEGORY_UNKNOWN;
-      const color = item.categoryColor ?? '#475569';
-      const cur = map.get(key) ?? { label: key, color, total: 0 };
-      map.set(key, { ...cur, total: cur.total + item.amount * item.quantity });
-    }
-    return [...map.values()].sort((a, b) => b.total - a.total);
-  });
+  gSpendingData = computed(() => groceryByCategory(this.gItemsFiltered()));
 
   gTotalSpending = computed(() => this.gSpendingData().reduce((s, d) => s + d.total, 0));
+
+  gCompareName = computed(() => {
+    const m = this.gFilterMonth();
+    return m ? monthName(previousMonth(m)) : '';
+  });
+
+  /** The previous month's groceries by category; null with all months or when it had none. */
+  private gPrevSpendingData = computed(() => {
+    const m = this.gFilterMonth();
+    if (!m) return null;
+    const prev = previousMonth(m);
+    const rows = groceryByCategory(
+      this.groceriesSvc.countedItems().filter((i) => i.receiptDate.slice(0, 7) === prev),
+    );
+    return rows.length ? rows : null;
+  });
+
+  gCompared = computed(() => this.gPrevSpendingData() !== null);
+
+  gSpendingBars = computed(() => categoryBars(this.gSpendingData(), this.gPrevSpendingData()));
+
+  gStores = computed(() => storeTotals(this.gItemsFiltered()));
+  gMostBought = computed(() => mostBought(this.gItemsFiltered()));
+
+  /** "4.8% more than August, read from 12 receipts." */
+  gNote = computed(() => {
+    const month = this.gFilterMonth();
+    const receipts = new Set(this.gItemsFiltered().map((i) => i.receiptId)).size;
+    if (receipts === 0) return month ? `No receipts in ${monthName(month)}.` : 'No receipts yet.';
+    const read = `read from ${plural(receipts, 'receipt')}`;
+    if (!month) {
+      const months = this.gAvailableMonths().length;
+      return `Over ${plural(months, 'month')}, ${read}.`;
+    }
+    const prev = this.gPrevSpendingData();
+    const text = compareText(
+      this.gTotalSpending(),
+      prev ? prev.reduce((s, d) => s + d.total, 0) : null,
+      this.gCompareName(),
+    );
+    const sentence = text ? `${text}, ${read}.` : `${read}.`;
+    return sentence[0].toUpperCase() + sentence.slice(1);
+  });
 
   gAllCategories = computed(() => {
     const map = new Map<string, string>();
     for (const item of this.groceriesSvc.countedItems()) {
       const label = item.categoryName ?? CATEGORY_UNKNOWN;
-      const color = item.categoryColor ?? '#475569';
+      const color = item.categoryColor || FALLBACK;
       if (!map.has(label)) map.set(label, color);
     }
     return [...map.entries()]
@@ -331,21 +507,30 @@ export class AnalyticsComponent implements OnDestroy {
       : 0;
     const currentMonth = this.gFilterMonth();
     const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevMonth = currentMonth
-      ? (() => {
-          const [y, m] = currentMonth.split('-').map(Number);
-          const d = new Date(y, m - 2, 1);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        })()
-      : undefined;
-    const prevTotal = prevMonth !== undefined ? (byMonth.get(prevMonth) ?? 0) : null;
+    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
     const delta = prevTotal !== null ? currentTotal - prevTotal : null;
     return { avgMonthly, currentTotal, delta };
   });
 
-  formatMonth(m: string): string {
-    const [y, mo] = m.split('-');
-    return new Date(+y, +mo - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+  /** ' in September' or ', all months', after a list's title. */
+  periodSuffix(month: string): string {
+    return month ? ` in ${monthName(month)}` : ', all months';
+  }
+
+  txAmount(tx: EnrichedTransaction): string {
+    if (tx.type === 'credit') return signedEur(tx.amount);
+    if (tx.type === 'debit') return signedEur(-tx.amount);
+    return eur(tx.amount);
+  }
+
+  merchantAmount(m: { total: number; type: 'credit' | 'debit' | 'mixed' }): string {
+    if (m.type === 'credit') return signedEur(m.total);
+    if (m.type === 'debit') return signedEur(-m.total);
+    return eur(m.total);
+  }
+
+  formatQty(quantity: number): string {
+    return Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2).replace(/0$/, '');
   }
 
   constructor() {
@@ -353,7 +538,7 @@ export class AnalyticsComponent implements OnDestroy {
       const months = this.availableMonths();
       if (months.length > 0 && !this.defaultApplied) {
         this.defaultApplied = true;
-        this.filterMonth.set(months[0]);
+        this.filterMonth.set(latestClosedMonth(months, this.nowKey));
       }
     });
 
@@ -361,20 +546,15 @@ export class AnalyticsComponent implements OnDestroy {
       const months = this.gAvailableMonths();
       if (months.length > 0 && !this.gDefaultApplied) {
         this.gDefaultApplied = true;
-        this.gFilterMonth.set(months[0]);
+        this.gFilterMonth.set(latestClosedMonth(months, this.nowKey));
       }
     });
 
     effect(() => {
       if (this.activeTab() !== 'transactions') return;
-      this.spendingCanvas();
-      this.incomeCanvas();
       this.trendCanvas();
-      const spending = this.spendingData();
-      const income = this.incomeData();
-      this.selectedCategory();
-      this.renderChart('spending', spending);
-      this.renderChart('income', income);
+      this.flowMonths();
+      this.filterMonth();
       this.renderTrendChart();
     });
 
@@ -382,55 +562,41 @@ export class AnalyticsComponent implements OnDestroy {
       if (this.activeTab() !== 'transactions') return;
       const sel = this.selectedCategory();
       const data = this.categoryTrendData();
-      if (!sel) {
-        this.categoryTrendChart?.destroy();
-        this.categoryTrendChart = undefined;
-        setTimeout(() => this.renderTrendChart(), 0);
-        return;
-      }
-      if (!data.length) {
+      const canvas = this.categoryTrendCanvas();
+      if (!sel || !data.length || !canvas) {
         this.categoryTrendChart?.destroy();
         this.categoryTrendChart = undefined;
         return;
       }
-      this.categoryTrendCanvas();
       setTimeout(() => this.renderCategoryTrendChart(), 0);
-    });
-
-    effect(() => {
-      if (this.activeTab() !== 'groceries') return;
-      this.gSpendingCanvas();
-      this.gSpendingData();
-      this.gSelectedCategory();
-      this.renderGrocerySpendingChart();
     });
 
     effect(() => {
       if (this.activeTab() !== 'groceries') return;
       const sel = this.gSelectedCategory();
       const data = this.gCategoryTrendData();
-      if (!sel) {
+      const canvas = this.gCategoryTrendCanvas();
+      if (!sel || !data.length || !canvas) {
         this.gCategoryTrendChart?.destroy();
         this.gCategoryTrendChart = undefined;
         return;
       }
-      if (!data.length) {
-        this.gCategoryTrendChart?.destroy();
-        this.gCategoryTrendChart = undefined;
-        return;
-      }
-      this.gCategoryTrendCanvas();
       setTimeout(() => this.renderGroceryCategoryTrendChart(), 0);
     });
   }
 
   ngOnDestroy(): void {
-    this.spendingChart?.destroy();
-    this.incomeChart?.destroy();
     this.trendChart?.destroy();
     this.categoryTrendChart?.destroy();
-    this.gSpendingChart?.destroy();
     this.gCategoryTrendChart?.destroy();
+  }
+
+  /** The scrubber (or a month in the flow chart) picks the month for both tabs. */
+  selectMonth(key: string): void {
+    this.defaultApplied = true;
+    this.gDefaultApplied = true;
+    this.filterMonth.set(key);
+    this.gFilterMonth.set(key);
   }
 
   selectCategory(label: string, color: string, dominantType: 'credit' | 'debit' = 'debit'): void {
@@ -440,6 +606,7 @@ export class AnalyticsComponent implements OnDestroy {
     }
     this.selectedCategory.set({ label, color, dominantType });
     this.filterCategory.set(label);
+    this.revealDetail();
   }
 
   clearCategory(): void {
@@ -460,6 +627,8 @@ export class AnalyticsComponent implements OnDestroy {
       const credits = txs.filter((tx) => tx.type === 'credit').length;
       const dominantType: 'credit' | 'debit' = credits > txs.length / 2 ? 'credit' : 'debit';
       this.selectedCategory.set({ label: cat.label, color: cat.color, dominantType });
+      this.filterCategory.set(value);
+      this.revealDetail();
     }
   }
 
@@ -468,29 +637,10 @@ export class AnalyticsComponent implements OnDestroy {
     const cat = this.catSvc.categories().find((c) => c.name === label);
     const params: Record<string, string> = {};
     if (cat) params['category'] = String(cat.id);
-    else if (label === 'Unknown') params['category'] = 'unknown';
-    if (month && month !== '__averages__') params['month'] = month;
+    else if (label === CATEGORY_UNKNOWN) params['category'] = 'unknown';
+    if (month) params['month'] = month;
     params['type'] = txType;
     this.router.navigate(['/transactions'], { queryParams: params });
-  }
-
-  highlightSlice(chartType: 'spending' | 'income', label: string): void {
-    const chart = chartType === 'spending' ? this.spendingChart : this.incomeChart;
-    if (!chart) return;
-    const data = chartType === 'spending' ? this.spendingData() : this.incomeData();
-    const idx = data.findIndex((d) => d.label === label);
-    if (idx === -1) return;
-    chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
-    chart.tooltip?.setActiveElements([{ datasetIndex: 0, index: idx }], { x: 0, y: 0 });
-    chart.update('none');
-  }
-
-  clearHighlight(chartType: 'spending' | 'income'): void {
-    const chart = chartType === 'spending' ? this.spendingChart : this.incomeChart;
-    if (!chart) return;
-    chart.setActiveElements([]);
-    chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
-    chart.update('none');
   }
 
   selectGroceryCategory(label: string, color: string): void {
@@ -500,6 +650,7 @@ export class AnalyticsComponent implements OnDestroy {
     }
     this.gSelectedCategory.set({ label, color });
     this.gFilterCategory.set(label);
+    this.revealDetail();
   }
 
   clearGroceryCategory(): void {
@@ -516,6 +667,7 @@ export class AnalyticsComponent implements OnDestroy {
     if (cat) {
       this.gSelectedCategory.set({ label: cat.label, color: cat.color });
       this.gFilterCategory.set(value);
+      this.revealDetail();
     }
   }
 
@@ -529,124 +681,58 @@ export class AnalyticsComponent implements OnDestroy {
     this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
   }
 
-  highlightGrocerySlice(label: string): void {
-    if (!this.gSpendingChart) return;
-    const idx = this.gSpendingData().findIndex((d) => d.label === label);
-    if (idx === -1) return;
-    this.gSpendingChart.setActiveElements([{ datasetIndex: 0, index: idx }]);
-    this.gSpendingChart.tooltip?.setActiveElements([{ datasetIndex: 0, index: idx }], {
-      x: 0,
-      y: 0,
-    });
-    this.gSpendingChart.update('none');
+  /** The detail panel may sit below the fold (under the list on phones): bring it into view. */
+  private revealDetail(): void {
+    afterNextRender(
+      () =>
+        this.detailPanel()?.nativeElement.scrollIntoView?.({
+          behavior: 'smooth',
+          block: 'nearest',
+        }),
+      { injector: this.injector },
+    );
   }
 
-  clearGroceryHighlight(): void {
-    if (!this.gSpendingChart) return;
-    this.gSpendingChart.setActiveElements([]);
-    this.gSpendingChart.tooltip?.setActiveElements([], { x: 0, y: 0 });
-    this.gSpendingChart.update('none');
-  }
-
-  private renderChart(
-    type: 'spending' | 'income',
-    data: { label: string; color: string; total: number }[],
-  ): void {
-    const canvas =
-      type === 'spending'
-        ? this.spendingCanvas()?.nativeElement
-        : this.incomeCanvas()?.nativeElement;
-    if (!canvas) return;
-
-    const existing = type === 'spending' ? this.spendingChart : this.incomeChart;
-    existing?.destroy();
-
-    const txType = type === 'spending' ? 'debit' : 'credit';
-    const sel = this.selectedCategory();
-
-    const chart = new Chart(canvas, {
-      type: 'pie',
-      data: {
-        labels: data.map((d) => d.label),
-        datasets: [
-          {
-            data: data.map((d) => d.total),
-            backgroundColor: data.map((d) => {
-              if (!sel || d.label === sel.label) return d.color + 'cc';
-              return d.color + '88';
-            }),
-            borderColor: data.map((d) => {
-              if (!sel || d.label === sel.label) return d.color;
-              return d.color + 'aa';
-            }),
-            borderWidth: 1.5,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        onClick: (_event, elements) => {
-          if (!elements.length) return;
-          const item = data[elements[0].index];
-          if (item) this.selectCategory(item.label, item.color, txType);
-        },
-        plugins: {
-          legend: {
-            display: false,
-          },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const val = ctx.parsed as number;
-                return ` ${ctx.label}: €${val.toFixed(2)}`;
-              },
-            },
+  /** Bar chart options shared by the trend charts: themed axes, euro ticks, no legend. */
+  private barOptions(theme: ChartTheme): ChartOptions<'bar'> {
+    const y = axisOptions(theme);
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${eur(ctx.parsed.y as number)}`,
           },
         },
       },
-      plugins: [
-        {
-          id: 'selectionIndicator',
-          afterDraw: (chart) => {
-            const selected = this.selectedCategory();
-            if (!selected) return;
-            const idx = data.findIndex((d) => d.label === selected.label);
-            if (idx === -1) return;
-            const meta = chart.getDatasetMeta(0);
-            const arc = meta.data[idx] as any;
-            if (!arc) return;
-            const { x, y, startAngle, endAngle, outerRadius } = arc;
-            const ctx = chart.ctx;
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.arc(x, y, outerRadius, startAngle, endAngle);
-            ctx.closePath();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-          },
-        },
-      ],
-    });
-
-    if (type === 'spending') this.spendingChart = chart;
-    else this.incomeChart = chart;
+      scales: {
+        x: axisOptions(theme, false),
+        y: { ...y, ticks: { ...y.ticks, maxTicksLimit: 5, callback: (v) => eurAxis(Number(v)) } },
+      },
+    };
   }
 
+  /** "Six months of flow": money in above the line, money out below, the selected month bright. */
   private renderTrendChart(): void {
     const canvas = this.trendCanvas()?.nativeElement;
-    if (!canvas) return;
-
     this.trendChart?.destroy();
+    this.trendChart = undefined;
+    const rows = this.flowMonths();
+    if (!canvas || rows.length === 0) return;
 
-    const data = this.trendData();
-    const labels = data.map((d) => {
-      const [y, m] = d.month.split('-');
-      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
-    });
+    const theme = applyChartTheme();
+    const selected = this.filterMonth();
+    const tint = (color: string, month: string) =>
+      !selected || month === selected ? color : withAlpha(color, 0.38);
+    const years = new Set(rows.map((r) => r.month.slice(0, 4))).size;
+    const labels = rows.map((r) => [
+      years > 1 ? shortMonthYear(r.month) : monthName(r.month, 'short'),
+      signedEur(r.net, true),
+    ]);
+    const base = this.barOptions(theme);
+    const y = axisOptions(theme);
 
     this.trendChart = new Chart(canvas, {
       type: 'bar',
@@ -654,45 +740,54 @@ export class AnalyticsComponent implements OnDestroy {
         labels,
         datasets: [
           {
-            label: 'Income',
-            data: data.map((d) => d.income),
-            backgroundColor: 'rgba(52, 211, 153, 0.5)',
-            borderColor: '#34d399',
-            borderWidth: 1.5,
-            borderRadius: 3,
+            label: 'Money in',
+            data: rows.map((r) => r.income),
+            backgroundColor: rows.map((r) => tint(theme.credit, r.month)),
+            borderRadius: 6,
+            barPercentage: 0.7,
           },
           {
-            label: 'Expenses',
-            data: data.map((d) => d.expenses),
-            backgroundColor: 'rgba(248, 113, 113, 0.5)',
-            borderColor: '#f87171',
-            borderWidth: 1.5,
-            borderRadius: 3,
+            label: 'Money out',
+            data: rows.map((r) => -r.expenses),
+            backgroundColor: rows.map((r) => tint(theme.debit, r.month)),
+            borderRadius: 6,
+            barPercentage: 0.7,
           },
         ],
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: true,
+        ...base,
+        onClick: (_event, elements) => {
+          const row = elements.length ? rows[elements[0].index] : undefined;
+          if (row) this.selectMonth(row.month);
+        },
+        onHover: (event, elements) => {
+          const target = event.native?.target as HTMLElement | undefined;
+          if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
+        },
         plugins: {
-          legend: { display: false },
+          ...base.plugins,
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: €${(ctx.parsed.y as number).toFixed(2)}`,
+              title: (items) => monthYearLabel(rows[items[0].dataIndex].month),
+              label: (ctx) => ` ${ctx.dataset.label}: ${eur(ctx.parsed.y as number)}`,
             },
           },
         },
         scales: {
-          x: {
-            grid: { color: this.CHART_GRID_COLOR },
-            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
-          },
+          x: { ...axisOptions(theme, false), stacked: true },
           y: {
-            grid: { color: this.CHART_GRID_COLOR },
+            ...y,
+            stacked: true,
+            grid: {
+              ...y.grid,
+              color: (c: ScriptableScaleContext) =>
+                c.tick?.value === 0 ? theme.neutral : theme.grid,
+            },
             ticks: {
-              color: this.CHART_TICK_COLOR,
-              font: { size: 11 },
-              callback: (v) => `€${(v as number).toLocaleString()}`,
+              ...y.ticks,
+              maxTicksLimit: 6,
+              callback: (v) => eurAxis(Math.abs(Number(v))),
             },
           },
         },
@@ -707,136 +802,28 @@ export class AnalyticsComponent implements OnDestroy {
     this.categoryTrendChart?.destroy();
 
     const data = this.categoryTrendData();
-    const labels = data.map((d) => {
-      const [y, m] = d.month.split('-');
-      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
-    });
+    const theme = applyChartTheme();
 
     this.categoryTrendChart = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels,
+        labels: data.map((d) => shortMonthYear(d.month)),
         datasets: [
           {
             label: 'Spending',
             data: data.map((d) => d.spending),
-            backgroundColor: 'rgba(248, 113, 113, 0.5)',
-            borderColor: '#f87171',
-            borderWidth: 1.5,
-            borderRadius: 3,
+            backgroundColor: theme.debit,
+            borderRadius: 4,
           },
           {
             label: 'Income',
             data: data.map((d) => d.income),
-            backgroundColor: 'rgba(52, 211, 153, 0.5)',
-            borderColor: '#34d399',
-            borderWidth: 1.5,
-            borderRadius: 3,
+            backgroundColor: theme.credit,
+            borderRadius: 4,
           },
         ],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: €${(ctx.parsed.y as number).toFixed(2)}`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            grid: { color: this.CHART_GRID_COLOR },
-            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
-          },
-          y: {
-            grid: { color: this.CHART_GRID_COLOR },
-            ticks: {
-              color: this.CHART_TICK_COLOR,
-              font: { size: 11 },
-              callback: (v) => `€${(v as number).toLocaleString()}`,
-            },
-          },
-        },
-      },
-    });
-  }
-
-  private renderGrocerySpendingChart(): void {
-    const canvas = this.gSpendingCanvas()?.nativeElement;
-    if (!canvas) return;
-
-    this.gSpendingChart?.destroy();
-
-    const data = this.gSpendingData();
-    const sel = this.gSelectedCategory();
-
-    this.gSpendingChart = new Chart(canvas, {
-      type: 'pie',
-      data: {
-        labels: data.map((d) => d.label),
-        datasets: [
-          {
-            data: data.map((d) => d.total),
-            backgroundColor: data.map((d) => {
-              if (!sel || d.label === sel.label) return d.color + 'cc';
-              return d.color + '88';
-            }),
-            borderColor: data.map((d) => {
-              if (!sel || d.label === sel.label) return d.color;
-              return d.color + 'aa';
-            }),
-            borderWidth: 1.5,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        onClick: (_event, elements) => {
-          if (!elements.length) return;
-          const item = data[elements[0].index];
-          if (item) this.selectGroceryCategory(item.label, item.color);
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const val = ctx.parsed as number;
-                return ` ${ctx.label}: €${val.toFixed(2)}`;
-              },
-            },
-          },
-        },
-      },
-      plugins: [
-        {
-          id: 'gSelectionIndicator',
-          afterDraw: (chart) => {
-            const selected = this.gSelectedCategory();
-            if (!selected) return;
-            const idx = data.findIndex((d) => d.label === selected.label);
-            if (idx === -1) return;
-            const meta = chart.getDatasetMeta(0);
-            const arc = meta.data[idx] as any;
-            if (!arc) return;
-            const { x, y, startAngle, endAngle, outerRadius } = arc;
-            const ctx = chart.ctx;
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.arc(x, y, outerRadius, startAngle, endAngle);
-            ctx.closePath();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-          },
-        },
-      ],
+      options: this.barOptions(theme),
     });
   }
 
@@ -847,52 +834,22 @@ export class AnalyticsComponent implements OnDestroy {
     this.gCategoryTrendChart?.destroy();
 
     const data = this.gCategoryTrendData();
-    const labels = data.map((d) => {
-      const [y, m] = d.month.split('-');
-      return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
-    });
+    const theme = applyChartTheme();
 
     this.gCategoryTrendChart = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels,
+        labels: data.map((d) => shortMonthYear(d.month)),
         datasets: [
           {
             label: 'Spending',
             data: data.map((d) => d.spending),
-            backgroundColor: 'rgba(248, 113, 113, 0.5)',
-            borderColor: '#f87171',
-            borderWidth: 1.5,
-            borderRadius: 3,
+            backgroundColor: theme.debit,
+            borderRadius: 4,
           },
         ],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => ` Spending: €${(ctx.parsed.y as number).toFixed(2)}`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            grid: { color: this.CHART_GRID_COLOR },
-            ticks: { color: this.CHART_TICK_COLOR, font: { size: 11 } },
-          },
-          y: {
-            grid: { color: this.CHART_GRID_COLOR },
-            ticks: {
-              color: this.CHART_TICK_COLOR,
-              font: { size: 11 },
-              callback: (v) => `€${(v as number).toLocaleString()}`,
-            },
-          },
-        },
-      },
+      options: this.barOptions(theme),
     });
   }
 }

@@ -1,125 +1,172 @@
 @use '../../../styles/mixins' as *;
-@use 'analytics-detail-list' as *;
 
-.detail-panel {
-  @include card;
-  margin-top: 2rem;
-  padding: 1.5rem;
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-
-  h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    flex: 1;
-  }
-}
-
-.detail-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.detail-dismiss {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  line-height: 1;
-  padding: 0.2rem 0.55rem;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: var(--text-muted);
-  }
-}
-
-.stat-row {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.stat-item {
+// The picked category: stats, its months, merchants or items, and its rows.
+.detail {
+  @include card(var(--radius-lg));
+  flex: 1 1 360px;
+  max-width: 460px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-}
+  gap: 12px;
+  padding: 20px 22px;
+  // Clear the phone's sticky top bar and bottom nav when scrolled into view.
+  scroll-margin: 80px 0 160px;
 
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.stat-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-
-  &.debit {
-    color: var(--debit);
+  h3 {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-secondary);
   }
 
-  &.credit {
-    color: var(--credit);
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      flex: 1;
+      min-width: 0;
+      font-size: 18px;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &__dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  &__sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  &__chart {
+    position: relative;
+    height: 200px;
+  }
+
+  &__title {
+    margin-top: 8px;
+  }
+
+  &__all {
+    align-self: flex-start;
   }
 }
 
-.detail-trend-header {
+.stats {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
-.detail-trend-legend {
+.stat {
+  flex: 1 1 110px;
   display: flex;
-  gap: 1.25rem;
-  font-size: 0.8rem;
-}
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
 
-.detail-trend-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-secondary);
-}
+  &__label {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
 
-.detail-trend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.detail-trend-wrap {
-  margin-bottom: 1.5rem;
-
-  canvas {
-    max-height: 200px;
+  &__value {
+    @include figures;
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
   }
 }
 
-.detail-section-title {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.6rem;
-  margin-top: 1.25rem;
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  &--scroll {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 14px;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &--dated {
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+  }
+
+  &__date {
+    @include figures;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  &__desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__amount {
+    @include figures;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+}
+
+@include below-desktop {
+  .detail {
+    max-width: none;
+  }
+}
+
+@include phone {
+  .detail {
+    padding: 18px;
+  }
+
+  .row--dated {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'desc amount'
+      'date amount';
+    gap: 2px 12px;
+    padding: 8px 0;
+
+    .row__desc {
+      grid-area: desc;
+    }
+
+    .row__date {
+      grid-area: date;
+      font-size: 12px;
+    }
+
+    .row__amount {
+      grid-area: amount;
+    }
+  }
 }

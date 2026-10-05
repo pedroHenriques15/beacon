@@ -1,0 +1,104 @@
+@use '../../../styles/mixins' as *;
+
+// One category: name, share, the bar with last month's tick, amount and change.
+.bar-row {
+  --_ground: var(--surface);
+  --_track: var(--surface-raised);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 14px 14px 0 0;
+  background: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &[aria-pressed='true'] {
+    --_ground: var(--surface-raised);
+    --_track: var(--surface);
+    background: var(--surface-raised);
+  }
+
+  &[aria-pressed='true'] {
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1.5px var(--primary);
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-weight: 700;
+  }
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__share {
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-secondary);
+    @include figures;
+  }
+
+  &__track {
+    position: relative;
+    height: 16px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 4px 0;
+      border-radius: 4px;
+      background: var(--_track);
+    }
+  }
+
+  &__bar {
+    position: absolute;
+    left: 0;
+    top: 4px;
+    height: 8px;
+    border-radius: 4px;
+  }
+
+  // The previous month's amount.
+  &__tick {
+    position: absolute;
+    top: 0;
+    width: 3px;
+    height: 16px;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: var(--text-secondary);
+    box-shadow: 0 0 0 1.5px var(--_ground);
+  }
+
+  &__amount {
+    text-align: right;
+    @include figures;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  &__change {
+    text-align: right;
+    @include figures;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-primary);
+
+    &--flat {
+      color: var(--text-secondary);
+    }
+  }
+}
