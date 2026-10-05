@@ -1,0 +1,70 @@
+@use '../../../styles/mixins' as *;
+
+// Page actions (New category, Add rule) sit in the global .page-header.
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// The Transactions | Groceries segmented control and the search.
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+
+  .tab-bar {
+    margin-top: 0;
+  }
+
+  &__search {
+    position: relative;
+    flex: 0 1 320px;
+    min-width: 0;
+
+    .field-input {
+      appearance: none;
+      padding-left: 42px;
+    }
+  }
+
+  &__search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+  }
+}
+
+@include phone {
+  .page-actions {
+    flex: 1 1 100%;
+
+    > * {
+      flex: 1 1 0;
+    }
+  }
+
+  .toolbar {
+    gap: 10px;
+    margin-bottom: 16px;
+
+    .tab-bar {
+      display: flex;
+      flex: 1 1 100%;
+    }
+
+    .tab-btn {
+      flex: 1 1 0;
+    }
+
+    &__search {
+      flex: 1 1 100%;
+    }
+  }
+}
