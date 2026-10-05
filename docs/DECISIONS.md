@@ -294,3 +294,28 @@ console and the server's existing `Logging__LogLevel__*` lines would stop workin
 with the app's own, and logs lost with the database they would explain). Costs accepted: three
 packages; the files hold statement descriptions and paths, so they live under `local/` and are
 never committed; reading scans whole files, fine at a home server's volume.
+
+## ADR-030 · The River design: midnight palette, three typefaces, phone-first navigation
+
+Since 2026-10-05 the client follows one design, "River": money organised along time. Pages
+that show money pick their month with a month scrubber, Home draws the month's spending day by
+day, and lists are timelines grouped by day. The palette is "midnight", a near-black blue
+ground (`--bg` `#03070f`) with surfaces a step lighter, a pale blue accent (`--primary`) and two
+money colours: `--credit` (mint) for money in and `--debit` (coral) for chart marks. It is dark
+only, with no theme switcher. Three typefaces each have one job: Manrope for text, Unbounded
+for headings and page titles, Bricolage Grotesque with tabular figures for every number
+(money, percentages, counts, timeline dates), so columns of amounts line up and read as
+figures at a glance. On desktop (1024 px and wider) the sections sit in a pill group in the
+header, with Settings and Upload PDF beside it. Below 1024 px a bottom nav holds the six main
+sections, a "More" sheet holds Categories and Settings, and a round Upload button floats above
+the nav on every page, one tap away. Pie and doughnut charts give way to sorted horizontal
+bars, which compare categories by length and keep their labels readable on a phone. Outflows
+in lists are neutral text with a minus sign and inflows mint with a plus: red would turn every
+ordinary payment into an alarm, so coral is kept for the chart marks and for the ring that
+says a transaction still needs a category. Below 640 px every dialog is a bottom sheet.
+Alternatives: four other design directions compared on the same screens, and River's first
+palette (purple on near-black); the previous client, a slate-and-purple admin layout with a
+sidebar, was hard to use on a phone. Costs accepted: three web fonts to load, mitigated by
+`display=swap` and the preconnects; a dark-only client; route paths keep their old names
+(`/dashboard`, `/transactions`, `/analytics`, `/investments`, `/rules`) while their labels
+change to Home, Activity, Insights, Invest and Categories.

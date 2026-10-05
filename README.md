@@ -6,21 +6,21 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ## Screenshots
 
-### Dashboard
+### Home
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Home](docs/screenshots/dashboard.png)
 
-### Transactions
+### Activity
 
-![Transactions](docs/screenshots/transactions.png)
+![Activity](docs/screenshots/transactions.png)
 
-### Analytics
+### Insights
 
-![Analytics](docs/screenshots/analytics.png)
+![Insights](docs/screenshots/analytics.png)
 
-### Rules
+### Categories
 
-![Rules](docs/screenshots/rules.png)
+![Categories](docs/screenshots/rules.png)
 
 ### Salary
 
@@ -30,9 +30,9 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ![Upload](docs/screenshots/upload.png)
 
-### Investments
+### Invest
 
-![Investments](docs/screenshots/investments.png)
+![Invest](docs/screenshots/investments.png)
 
 ### Settings
 
@@ -42,7 +42,7 @@ A self-hosted personal finance dashboard. Upload bank statement PDFs and salary 
 
 ## What it does
 
-Bank statement PDFs are uploaded through the web interface. A Python script (pdfplumber) extracts the raw text per page, and a bank-specific parser turns that into structured transaction records. From there you can set categories on transactions manually or create rules that apply categories automatically based on description patterns. Transactions and grocery items in the protected Excluded category (transfers between your own accounts, for example) are left out of every total and chart. The analytics page aggregates spending by category and month.
+Bank statement PDFs are uploaded through the web interface. A Python script (pdfplumber) extracts the raw text per page, and a bank-specific parser turns that into structured transaction records. From there you can set categories on transactions manually or create rules that apply categories automatically based on description patterns. Transactions and grocery items in the protected Excluded category (transfers between your own accounts, for example) are left out of every total and chart. The Insights page aggregates spending by category and month.
 
 Salary slip PDFs go through a similar flow - upload, parse, review the extracted numbers, then save. Salary profiles let you track multiple jobs or income sources separately. A micro1 paycheck arrives as two PDFs, a USD invoice and a Deel withdrawal confirmation: the bulk upload pairs them by amount and saves one EUR slip at Deel's real exchange rate, with the exchange fee as a deduction. A job that pays twice a month can add its second pay run to that month's slip instead of creating a second one.
 
