@@ -1,0 +1,116 @@
+@use '../../../styles/mixins' as *;
+
+.river-card {
+  @include card(var(--radius-xl));
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  &__title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    h2 {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+  }
+
+  &__total {
+    margin: 0;
+    @include figures;
+    font-weight: 600;
+    font-size: 44px;
+    letter-spacing: -0.02em;
+  }
+
+  &__note {
+    margin: 0 0 6px;
+    max-width: 300px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__line {
+    width: 18px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--debit);
+  }
+
+  &__dash {
+    width: 18px;
+    border-top: 2px dashed var(--neutral-mark);
+  }
+
+  &__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--debit);
+
+    &--hollow {
+      background: none;
+      border: 2px solid var(--debit);
+    }
+
+    &--in {
+      background: var(--credit);
+    }
+  }
+}
+
+@include phone {
+  .river-card {
+    border-radius: var(--radius-lg);
+    padding: 16px 14px 14px;
+    gap: 8px;
+
+    &__total {
+      font-size: 26px;
+    }
+
+    &__by-day,
+    .legend__item--wide {
+      display: none;
+    }
+
+    &__note {
+      max-width: 140px;
+      text-align: right;
+      font-size: 12px;
+    }
+  }
+
+  .legend {
+    gap: 6px 14px;
+    font-size: 12px;
+  }
+}

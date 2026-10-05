@@ -1,0 +1,91 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.river {
+  display: block;
+  width: 100%;
+  overflow: visible;
+
+  text {
+    font-family: var(--font-body);
+    font-size: 12px;
+  }
+
+  &__grid {
+    stroke: var(--chart-grid);
+    stroke-width: 1;
+  }
+
+  &__strip {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  &__axis,
+  &__end {
+    fill: var(--text-secondary);
+  }
+
+  &__end {
+    font-size: 13px;
+  }
+
+  &__strong,
+  &__label {
+    fill: var(--text-primary);
+    font-weight: 700;
+  }
+
+  &__last {
+    fill: none;
+    stroke: var(--neutral-mark);
+    stroke-width: 1.75;
+    stroke-dasharray: 5 5;
+    stroke-linecap: round;
+  }
+
+  &__area {
+    fill: var(--debit);
+    fill-opacity: 0.1;
+  }
+
+  &__line {
+    fill: none;
+    stroke: var(--debit);
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  &__dot {
+    fill: var(--debit);
+    stroke: var(--surface);
+    stroke-width: 2;
+
+    &--hollow {
+      fill: var(--surface);
+      stroke: var(--debit);
+      stroke-width: 2.5;
+    }
+
+    &--in {
+      fill: var(--credit);
+    }
+  }
+}
+
+.river--compact {
+  text {
+    font-size: 10px;
+  }
+
+  .river__line {
+    stroke-width: 2.5;
+  }
+
+  .river__last {
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+  }
+}

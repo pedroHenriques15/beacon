@@ -4,20 +4,56 @@ import {
   signal,
   computed,
   effect,
+  linkedSignal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService } from '../../core/services/investments.service';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
+import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import {
+  aggregateByMonth,
+  daysInMonth,
+  latestClosedMonth,
+  monthCells,
+  monthKeyOf,
+  monthName,
+  monthYearLabel,
+  previousMonth,
+} from '../../core/utils/month-totals';
+import { eur, signedEur } from '../../core/utils/money';
+import { RiverChartComponent } from './river-chart';
+import { riverSeries, sparkline } from './river';
+
+/** Initials for a bank's avatar: 'BPI', 'ActivoBank' → 'AB', 'Trade Republic' → 'TR'. */
+export function bankInitials(bank: string): string {
+  const name = bank.trim();
+  const words = name.split(/\s+/);
+  if (words.length > 1) return (words[0][0] + words[1][0]).toUpperCase();
+  if (name.length <= 3) return name.toUpperCase();
+  const capitals = name.slice(1).match(/[A-Z]/);
+  if (capitals && name !== name.toUpperCase()) return (name[0] + capitals[0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function lastDayOf(month: string): string {
+  return `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
+}
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, NgClass, ConfirmDialogComponent, RouterLink],
+  imports: [
+    DatePipe,
+    ConfirmDialogComponent,
+    RouterLink,
+    MonthScrubberComponent,
+    RiverChartComponent,
+  ],
   templateUrl: './dashboard.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.scss',
@@ -26,6 +62,14 @@ export class DashboardComponent {
   finance = inject(FinanceService);
   investments = inject(InvestmentsService);
   private router = inject(Router);
+
+  readonly eur = eur;
+  readonly signedEur = signedEur;
+  readonly monthName = monthName;
+  readonly bankInitials = bankInitials;
+
+  private readonly today = new Date();
+  private readonly todayIso = `${monthKeyOf(this.today)}-${String(this.today.getDate()).padStart(2, '0')}`;
 
   selectedBank = signal<string | null>(null);
   deleting = signal<number | null>(null);
@@ -39,6 +83,7 @@ export class DashboardComponent {
     const allStatements = this.finance.statements();
     return [...this.finance.latestPerBank().entries()].map(([bank, s]) => ({
       bank,
+      initials: bankInitials(bank),
       balance: s.closingBalance,
       periodTo: s.periodTo,
       txCount: allStatements
@@ -66,69 +111,122 @@ export class DashboardComponent {
         this.cardOrder.set(cards.map((c) => c.bank));
       }
     });
+    // A year of prices for the Investments sparkline, plus the month before for net worth.
+    const from = new Date(this.today.getFullYear() - 1, this.today.getMonth() - 1, 1);
+    this.investments.loadPriceHistory(`${monthKeyOf(from)}-01`);
   }
 
-  allStatements = computed(() =>
-    [...this.finance.statements()].sort(
-      (a, b) => a.bank.localeCompare(b.bank) || b.periodFrom.localeCompare(a.periodFrom),
+  /** Statements newest first, only the selected account's when one is picked. */
+  allStatements = computed(() => {
+    const bank = this.selectedBank();
+    return this.finance
+      .statements()
+      .filter((s) => !bank || s.bank === bank)
+      .sort((a, b) => b.periodTo.localeCompare(a.periodTo) || a.bank.localeCompare(b.bank));
+  });
+
+  showAllStatements = signal(false);
+
+  shownStatements = computed(() =>
+    this.showAllStatements() ? this.allStatements() : this.allStatements().slice(0, 6),
+  );
+
+  /** Every month with counted money, all banks, newest first. */
+  private allBankTotals = computed(() => aggregateByMonth(this.finance.monthlySummaries()));
+
+  /** The month scrubber's cells, oldest first. */
+  months = computed(() => monthCells(this.finance.monthlySummaries()));
+
+  private defaultMonth = computed(() =>
+    latestClosedMonth(
+      this.allBankTotals().map((r) => r.month),
+      monthKeyOf(this.today),
     ),
   );
 
+  /**
+   * The month the page shows; starts at the latest closed month, the scrubber changes it. A
+   * reload keeps the choice unless the default month itself moves.
+   */
+  selectedMonth = linkedSignal(() => this.defaultMonth());
+
+  /** Monthly rows for "Last six months", filtered by the selected account. */
   monthlyTotals = computed(() => {
     const selected = this.selectedBank();
     const summaries = selected
       ? this.finance.monthlySummaries().filter((s) => s.bank === selected)
       : this.finance.monthlySummaries();
-    return DashboardComponent.aggregateByMonth(summaries);
+    return aggregateByMonth(summaries);
   });
 
-  private static aggregateByMonth(
-    summaries: { month: string; income: number; expenses: number; net: number }[],
-  ): { month: string; income: number; expenses: number; net: number }[] {
-    const map = new Map<string, { income: number; expenses: number; net: number }>();
-    for (const s of summaries) {
-      const existing = map.get(s.month) ?? { income: 0, expenses: 0, net: 0 };
-      map.set(s.month, {
-        income: existing.income + s.income,
-        expenses: existing.expenses + s.expenses,
-        net: existing.net + s.net,
-      });
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([month, data]) => ({ month, ...data }));
-  }
+  sixMonths = computed(() => {
+    const key = this.selectedMonth();
+    const rows = this.monthlyTotals()
+      .filter((r) => r.month <= key)
+      .slice(0, 6);
+    const max = Math.max(1, ...rows.flatMap((r) => [r.income, r.expenses]));
+    return rows.map((r) => ({
+      ...r,
+      label: monthYearLabel(r.month),
+      short: monthName(r.month, 'short'),
+      inPct: (r.income / max) * 100,
+      outPct: (r.expenses / max) * 100,
+    }));
+  });
 
   // Net worth = cash across banks + current investment portfolio value
   cashTotal = computed(() => this.finance.totalBalance());
   investedTotal = computed(() => this.investments.totalCurrentValue());
   netWorth = computed(() => this.cashTotal() + this.investedTotal());
+  cashShare = computed(() => {
+    const total = this.netWorth();
+    return total > 0 ? Math.max(0, Math.min(100, (this.cashTotal() / total) * 100)) : 100;
+  });
 
-  // Snapshot always aggregates across all banks, unaffected by the bank-card filter
-  private allBankTotals = computed(() =>
-    DashboardComponent.aggregateByMonth(this.finance.monthlySummaries()),
-  );
+  /** Net worth's change since the end of the month before the selected one; null if unknown. */
+  netWorthChange = computed(() => {
+    const cutoff = lastDayOf(previousMonth(this.selectedMonth()));
+    const latest = new Map<string, { periodTo: string; closing: number }>();
+    for (const s of this.finance.statements()) {
+      if (s.periodTo > cutoff) continue;
+      const cur = latest.get(s.bank);
+      if (!cur || s.periodTo > cur.periodTo)
+        latest.set(s.bank, { periodTo: s.periodTo, closing: s.closingBalance });
+    }
+    if (latest.size === 0) return null;
+    const cash = [...latest.values()].reduce((sum, b) => sum + b.closing, 0);
+
+    let invested = 0;
+    if (this.investments.assets().length > 0) {
+      const history = this.investments.portfolioHistory();
+      const point = [...history].reverse().find((p) => p.date <= cutoff);
+      const heldBefore = this.investments
+        .assets()
+        .some((a) => a.lots.some((l) => l.date <= cutoff));
+      if (point) invested = point.totalValue;
+      else if (heldBefore) return null;
+    }
+    return { amount: this.netWorth() - cash - invested, since: cutoff };
+  });
 
   monthSnapshot = computed(() => {
     const totals = this.allBankTotals();
-    const nowKey = new Date().toISOString().slice(0, 7);
-    // Latest closed month: most recent month strictly before the current calendar month;
-    // fall back to the latest available month (totals is sorted descending)
-    const key = totals.find((r) => r.month < nowKey)?.month ?? totals[0]?.month ?? nowKey;
+    const key = this.selectedMonth();
     const cur = totals.find((r) => r.month === key) ?? {
       month: key,
       income: 0,
       expenses: 0,
       net: 0,
     };
-    const [y, m] = key.split('-').map(Number);
-    const prevKey = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    const prevKey = previousMonth(key);
     const prev = totals.find((r) => r.month === prevKey);
     return {
       month: key,
+      prevMonth: prevKey,
       income: cur.income,
       expenses: cur.expenses,
       net: cur.net,
+      prev: prev ?? null,
       incomeDelta:
         prev && prev.income !== 0 ? ((cur.income - prev.income) / prev.income) * 100 : null,
       expensesDelta:
@@ -137,19 +235,95 @@ export class DashboardComponent {
     };
   });
 
+  /** "Where it went": the selected month's counted spending by category, largest first. */
   topCategories = computed(() => {
-    const key = this.monthSnapshot().month;
+    const key = this.selectedMonth();
     const map = new Map<string, { label: string; color: string; total: number }>();
     for (const tx of this.finance.allTransactions()) {
       if (tx.type !== 'debit' || tx.month !== key) continue;
       const label = tx.category?.name ?? CATEGORY_UNKNOWN;
-      const color = tx.category?.color ?? '#475569';
+      const color = tx.category?.color || 'var(--category-fallback)';
       const cur = map.get(label) ?? { label, color, total: 0 };
       map.set(label, { ...cur, total: cur.total + tx.amount });
     }
-    const sorted = [...map.values()].sort((a, b) => b.total - a.total).slice(0, 5);
+    const sorted = [...map.values()].sort((a, b) => b.total - a.total);
     const max = sorted[0]?.total || 1;
-    return sorted.map((c) => ({ ...c, pct: (c.total / max) * 100 }));
+    const sum = sorted.reduce((s, c) => s + c.total, 0) || 1;
+    return sorted.map((c) => ({
+      ...c,
+      pct: (c.total / max) * 100,
+      share: Math.round((c.total / sum) * 100),
+    }));
+  });
+
+  river = computed(() =>
+    riverSeries(this.finance.allTransactions(), this.selectedMonth(), this.todayIso),
+  );
+
+  /** How the selected month compares with the previous one by month end. */
+  riverNote = computed(() => {
+    const s = this.river();
+    if (s.lastTotal === 0) return null;
+    const diff = s.total - s.lastTotal;
+    const pct = Math.abs((diff / s.lastTotal) * 100).toFixed(1);
+    const prev = monthName(s.previous);
+    if (Math.abs(diff) < 0.005) return `Level with ${prev}.`;
+    return diff < 0
+      ? `${eur(diff)} less than ${prev}, a ${pct}% drop.`
+      : `${eur(diff)} more than ${prev}, ${pct}% up.`;
+  });
+
+  /** Counted rows of the selected month that have no category yet. */
+  uncategorised = computed(() => {
+    const key = this.selectedMonth();
+    const rows = this.finance
+      .allTransactions()
+      .filter((tx) => tx.month === key && tx.categoryId === null && tx.type !== 'unknown');
+    return { count: rows.length, amount: rows.reduce((sum, tx) => sum + tx.amount, 0) };
+  });
+
+  /** The last five days with counted activity up to the end of the selected month. */
+  latestDays = computed(() => {
+    const end = lastDayOf(this.selectedMonth());
+    const days: { date: string; rows: ReturnType<FinanceService['allTransactions']> }[] = [];
+    for (const tx of this.finance.allTransactions()) {
+      if (tx.datePosting > end) continue;
+      const last = days[days.length - 1];
+      if (last?.date === tx.datePosting) last.rows.push(tx);
+      else if (days.length < 5) days.push({ date: tx.datePosting, rows: [tx] });
+      else break;
+    }
+    return days.map((d) => ({ ...d, shown: d.rows.slice(0, 3), more: d.rows.length - 3 }));
+  });
+
+  latestPriceDate = computed(() =>
+    this.investments
+      .assetMetrics()
+      .map((m) => m.latestPriceDate)
+      .filter((d): d is string => d != null)
+      .sort()
+      .pop(),
+  );
+
+  /** Portfolio value over the last 12 months, about one point a week. */
+  investSpark = computed(() => {
+    const since = new Date(
+      this.today.getFullYear() - 1,
+      this.today.getMonth(),
+      this.today.getDate(),
+    );
+    const from = `${monthKeyOf(since)}-${String(since.getDate()).padStart(2, '0')}`;
+    const points = this.investments.portfolioHistory().filter((p) => p.date >= from);
+    const step = Math.max(1, Math.floor(points.length / 52));
+    const values = points.filter((_, i) => i % step === 0 || i === points.length - 1);
+    const path = sparkline(
+      values.map((p) => p.totalValue),
+      112,
+      48,
+    );
+    return (
+      path && { ...path, first: values[0].totalValue, last: values[values.length - 1].totalValue }
+    );
   });
 
   formatSignedPct(val: number | null): string {
@@ -157,15 +331,15 @@ export class DashboardComponent {
     return (val >= 0 ? '+' : '') + val.toFixed(1) + '%';
   }
 
-  navigateToInvestments(): void {
-    this.router.navigate(['/investments']);
-  }
-
-  navigateToMonth(month: string): void {
+  monthQuery(month: string): Record<string, string> {
     const queryParams: Record<string, string> = { month };
     const bank = this.selectedBank();
     if (bank) queryParams['bank'] = bank;
-    this.router.navigate(['/transactions'], { queryParams });
+    return queryParams;
+  }
+
+  navigateToMonth(month: string): void {
+    this.router.navigate(['/transactions'], { queryParams: this.monthQuery(month) });
   }
 
   toggleBank(bank: string): void {
@@ -173,18 +347,7 @@ export class DashboardComponent {
   }
 
   formatMonth(month: string): string {
-    const [year, m] = month.split('-');
-    return new Date(+year, +m - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-  }
-
-  bankColor(bank: string): string {
-    const colors: Record<string, string> = {
-      ACTIVOBANK: '#00b4d8',
-      REVOLUT: '#6c63ff',
-      BPI: '#fb923c',
-      'TRADE REPUBLIC': '#14b8a6',
-    };
-    return colors[bank] ?? '#94a3b8';
+    return monthYearLabel(month);
   }
 
   deleteStatement(id: number, event: MouseEvent): void {
@@ -216,11 +379,11 @@ export class DashboardComponent {
     });
   }
 
-  private static readonly periodPipe = new DatePipe('en-US');
+  private static readonly periodPipe = new DatePipe('en-GB');
 
   formatPeriod(from: string, to: string): string {
     const f = DashboardComponent.periodPipe;
-    return `${f.transform(from, 'dd MMM')} – ${f.transform(to, 'dd MMM yyyy')}`;
+    return `${f.transform(from, 'd MMM')} – ${f.transform(to, 'd MMM yyyy')}`;
   }
 
   onDragStart(bank: string): void {
