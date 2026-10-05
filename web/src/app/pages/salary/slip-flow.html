@@ -1,0 +1,81 @@
+@let l = layout();
+<div class="flow" [class.flow--compact]="l.compact" [style.height.px]="l.height">
+  <svg
+    class="flow__svg"
+    [attr.viewBox]="'0 0 ' + l.width + ' ' + l.height"
+    role="img"
+    [attr.aria-label]="summary()"
+  >
+    @for (n of l.inputs; track $index) {
+      <path class="flow__ribbon flow__ribbon--in" [attr.d]="n.ribbon" />
+    }
+    @for (n of l.outputs; track $index) {
+      <path class="flow__ribbon" [class]="'flow__ribbon--' + n.kind" [attr.d]="n.ribbon" />
+    }
+    @for (n of l.inputs; track $index) {
+      <rect
+        class="flow__node flow__node--in"
+        [attr.x]="n.x"
+        [attr.y]="n.y"
+        [attr.width]="l.nodeWidth"
+        [attr.height]="n.h < 2 ? 2 : n.h"
+        rx="3"
+      />
+    }
+    <rect
+      class="flow__node flow__node--gross"
+      [attr.x]="l.gross.x"
+      [attr.y]="l.gross.y"
+      [attr.width]="l.nodeWidth"
+      [attr.height]="l.gross.h"
+      rx="5"
+    />
+    @for (n of l.outputs; track $index) {
+      <rect
+        class="flow__node"
+        [class]="'flow__node--' + n.kind"
+        [attr.x]="n.x"
+        [attr.y]="n.y"
+        [attr.width]="l.nodeWidth"
+        [attr.height]="n.h < 2 ? 2 : n.h"
+        rx="3"
+      />
+    }
+  </svg>
+
+  <span
+    class="flow__label flow__gross"
+    [class]="'flow__gross--' + l.gross.place"
+    [style.left.px]="l.gross.place === 'beside' ? null : l.gross.labelX"
+    [style.right.px]="l.gross.place === 'beside' ? l.width - l.gross.labelX : null"
+    [style.top.px]="l.gross.labelY"
+    aria-hidden="true"
+  >
+    <span class="flow__name">Gross</span>
+    <span class="flow__value">{{ l.gross.value }}</span>
+  </span>
+  @for (n of l.inputs; track $index) {
+    <span
+      class="flow__label flow__label--end"
+      [style.right.px]="l.width - n.labelX"
+      [style.top.px]="n.mid"
+      [style.max-width.px]="l.labelWidth"
+      aria-hidden="true"
+    >
+      <span class="flow__name">{{ n.name }}</span>
+      <span class="flow__value">{{ n.value }}</span>
+    </span>
+  }
+  @for (n of l.outputs; track $index) {
+    <span
+      class="flow__label"
+      [style.left.px]="n.labelX"
+      [style.top.px]="n.mid"
+      [style.max-width.px]="l.labelWidth"
+      aria-hidden="true"
+    >
+      <span class="flow__name">{{ n.name }}</span>
+      <span class="flow__value">{{ n.value }}</span>
+    </span>
+  }
+</div>
