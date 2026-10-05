@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   afterNextRender,
   computed,
+  inject,
   input,
   output,
   signal,
@@ -12,8 +14,14 @@ import {
 import { MonthCell, monthKeyOf, monthName } from '../../utils/month-totals';
 import { eur, signedEur } from '../../utils/money';
 
-/** Months shown on desktop before "Earlier" is pressed. */
+/** Months shown on desktop before "Earlier" is pressed, at most. */
 const PAGE = 6;
+
+/** How many month cells fit beside "Earlier" (and "All months"): cells are at least 150 px. */
+export function monthsThatFit(width: number, allowAll: boolean): number {
+  const room = width - 96 - (allowAll ? 150 : 0);
+  return Math.max(3, Math.min(PAGE, Math.floor((room + 8) / 158)));
+}
 
 export interface ScrubberCell {
   key: string;
@@ -74,11 +82,13 @@ export class MonthScrubberComponent {
 
   private readonly track = viewChild<ElementRef<HTMLElement>>('track');
   private readonly pages = signal(1);
+  private readonly width = signal(1376);
+  private readonly perPage = computed(() => monthsThatFit(this.width(), this.allowAll()));
 
   /** Index of the oldest month shown on desktop; the selected month is always shown. */
   readonly firstShown = computed(() => {
     const months = this.months();
-    const byPage = Math.max(0, months.length - PAGE * this.pages());
+    const byPage = Math.max(0, months.length - this.perPage() * this.pages());
     const selectedAt = months.findIndex((m) => m.key === this.selected());
     return selectedAt === -1 ? byPage : Math.min(byPage, selectedAt);
   });
@@ -88,10 +98,21 @@ export class MonthScrubberComponent {
   );
 
   constructor() {
-    // Phones scroll the chips sideways; start at the newest month.
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
+      // Phones scroll the chips sideways; start at the newest month.
       const el = this.track()?.nativeElement;
       if (el) el.scrollLeft = el.scrollWidth;
+      // Desktop shows as many months as fit.
+      const measure = () => {
+        if (host.clientWidth > 0) this.width.set(host.clientWidth);
+      };
+      measure();
+      if (typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(measure);
+      observer.observe(host);
+      destroyRef.onDestroy(() => observer.disconnect());
     });
   }
 

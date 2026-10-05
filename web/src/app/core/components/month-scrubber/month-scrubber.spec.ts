@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { MonthScrubberComponent, scrubberCells } from './month-scrubber';
+import { MonthScrubberComponent, monthsThatFit, scrubberCells } from './month-scrubber';
 
 describe('scrubberCells', () => {
   it('labels each month with what was kept, and the current month as in progress', () => {
@@ -32,6 +32,15 @@ describe('scrubberCells', () => {
     expect(cells[1].inShare).toBe(1);
     expect(cells[1].outShare).toBe(0.25);
     expect(cells[2].outShare).toBe(0.75);
+  });
+});
+
+describe('monthsThatFit', () => {
+  it('shows six months on a wide screen and fewer on a narrow desktop', () => {
+    expect(monthsThatFit(1376, true)).toBe(6);
+    expect(monthsThatFit(1036, true)).toBe(5);
+    expect(monthsThatFit(1036, false)).toBe(6);
+    expect(monthsThatFit(500, true)).toBe(3);
   });
 });
 

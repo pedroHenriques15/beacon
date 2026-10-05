@@ -402,8 +402,8 @@ describe('DashboardComponent', () => {
       expect(component.formatSignedPct(1.55)).toBe('+1.6%');
     });
 
-    it('keeps the minus sign for negative values', () => {
-      expect(component.formatSignedPct(-2.34)).toBe('-2.3%');
+    it('writes negative values with a true minus sign', () => {
+      expect(component.formatSignedPct(-2.34)).toBe('−2.3%');
     });
   });
 });

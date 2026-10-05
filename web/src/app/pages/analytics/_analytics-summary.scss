@@ -3,7 +3,9 @@
 // "Six months of flow": chart.js sizes itself to this box.
 .flow__chart {
   position: relative;
-  height: 300px;
+  // Grows to match the aside beside it.
+  flex: 1 1 300px;
+  min-height: 300px;
 }
 
 .flow .hint {
@@ -148,7 +150,9 @@
 
 @include below-desktop {
   .flow__chart {
+    flex: none;
     height: 220px;
+    min-height: 0;
   }
 
   .hero,

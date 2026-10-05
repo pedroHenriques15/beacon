@@ -1,3 +1,5 @@
+@use 'mixins' as *;
+
 .field-label {
   display: block;
   font-size: 0.8rem;
@@ -127,7 +129,6 @@ select.field-input,
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
-  margin-top: 1rem;
   border-radius: 26px;
   background: var(--surface);
 }
@@ -151,6 +152,11 @@ select.field-input,
 
   &:hover:not(.active) {
     color: var(--text-primary);
+  }
+
+  // Full-size touch targets on phones and tablets.
+  @include below-desktop {
+    min-height: 44px;
   }
 }
 

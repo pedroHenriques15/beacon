@@ -316,9 +316,10 @@ export class DashboardComponent {
     );
   });
 
+  /** '+1.6%', '−2.3%' (a true minus sign), or '—' when unknown. */
   formatSignedPct(val: number | null): string {
     if (val === null) return '—';
-    return (val >= 0 ? '+' : '') + val.toFixed(1) + '%';
+    return (val >= 0 ? '+' : '−') + Math.abs(val).toFixed(1) + '%';
   }
 
   monthQuery(month: string): Record<string, string> {
