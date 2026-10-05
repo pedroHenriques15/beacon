@@ -1,447 +1,197 @@
+<app-confirm-dialog
+  [open]="pendingDelete() !== null"
+  [title]="pendingDelete()?.title ?? 'Delete'"
+  [message]="pendingDelete()?.message ?? ''"
+  (confirmed)="confirmPendingDelete()"
+  (cancelled)="pendingDelete.set(null)"
+/>
+
 <div class="page-header">
-  <div class="page-header__row">
-    <div>
-      <h1>Investments</h1>
-      <p class="subtitle">ETFs and physical gold positions</p>
-    </div>
-    <div class="page-header__actions">
-      @if (pricesAsOf(); as asOf) {
-        <span class="inv-prices-as-of" [class.inv-prices-as-of--stale]="stalePrices()">
-          Prices as of {{ formatDate(asOf) }}
-          @if (syncEnabled() === false) {
-            <span title="This server doesn't sync prices (Prices__Enabled=false)">· sync off</span>
-          }
-        </span>
-      }
-      @if (syncEnabled()) {
-        <button
-          class="btn-secondary"
-          [disabled]="!!error() || syncing()"
-          (click)="syncPrices()"
-          title="Fetch the latest daily closes for every held asset"
-        >
-          {{ syncing() && syncingAssetId() == null ? 'Syncing…' : '⟳ Sync prices' }}
-        </button>
-      }
-      <button class="btn-secondary" [disabled]="!!error()" (click)="openCreateAsset('ETF')">
-        + Add ETF
+  <div>
+    <h1>Investments</h1>
+    @if (pricesAsOfLabel(); as asOf) {
+      <p class="subtitle">
+        Prices of <span class="figures">{{ asOf }}</span
+        >.
+        @if (syncEnabled() === true) {
+          They update once a day.
+        }
+        @if (syncEnabled() === false) {
+          <span title="Prices__Enabled=false">This server doesn't sync prices.</span>
+        }
+        @if (stalePrices()) {
+          <strong class="stale-note">Some are out of date.</strong>
+        }
+      </p>
+    }
+  </div>
+  <div class="header-actions">
+    @if (syncEnabled()) {
+      <button
+        type="button"
+        class="btn-secondary header-actions__sync"
+        [disabled]="!!error() || syncing()"
+        (click)="syncPrices()"
+        title="Fetch the latest daily closes for every held asset"
+      >
+        {{ syncing() && syncingAssetId() == null ? 'Syncing…' : 'Sync prices' }}
       </button>
-      <button class="btn-secondary" [disabled]="!!error()" (click)="openCreateAsset('Gold')">
-        + Add Gold
-      </button>
-    </div>
+    }
+    <button
+      type="button"
+      class="btn-secondary"
+      [disabled]="!!error()"
+      (click)="openCreateAsset('ETF')"
+    >
+      Add ETF
+    </button>
+    <button
+      type="button"
+      class="btn-secondary"
+      [disabled]="!!error()"
+      (click)="openCreateAsset('Gold')"
+    >
+      Add gold
+    </button>
   </div>
 </div>
 
 @if (loading()) {
   <div class="loading">Loading investments…</div>
 } @else if (error()) {
-  <div class="inv-error-card">
+  <section class="block load-error">
     <p>{{ error() }}</p>
-    <button class="btn-secondary btn--sm" (click)="svc.load()">Retry</button>
-  </div>
+    <button type="button" class="btn-secondary" (click)="svc.load()">Retry</button>
+  </section>
 } @else {
-  <!-- Stats strip -->
-  <div class="inv-stats">
-    <div class="inv-stat">
-      <span class="inv-stat__label">Total Value</span>
-      <span class="inv-stat__value">{{ totalValue() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">Cost Basis</span>
-      <span class="inv-stat__value">{{ totalCost() | currency: 'EUR' : 'symbol' : '1.2-2' }}</span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">Unrealised P&amp;L</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(totalPnl())">
-        {{ totalPnl() >= 0 ? '+' : '' }}{{ totalPnl() | currency: 'EUR' : 'symbol' : '1.2-2' }}
-      </span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">Realised P&amp;L</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(totalRealized())">
-        {{ totalRealized() >= 0 ? '+' : ''
-        }}{{ totalRealized() | currency: 'EUR' : 'symbol' : '1.2-2' }}
-      </span>
-    </div>
-  </div>
-
-  <div class="inv-stats inv-stats--changes">
-    <div class="inv-stat">
-      <span class="inv-stat__label">1 day</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(change1d())">
-        @if (change1d() != null) {
-          {{ change1d()! >= 0 ? '+' : '' }}{{ change1d() | number: '1.2-2' }}%
-        } @else {
-          –
-        }
-      </span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">1 Week</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(change1w())">
-        @if (change1w() != null) {
-          {{ change1w()! >= 0 ? '+' : '' }}{{ change1w() | number: '1.2-2' }}%
-        } @else {
-          –
-        }
-      </span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">1 Month</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(change1m())">
-        @if (change1m() != null) {
-          {{ change1m()! >= 0 ? '+' : '' }}{{ change1m() | number: '1.2-2' }}%
-        } @else {
-          –
-        }
-      </span>
-    </div>
-    <div class="inv-stat">
-      <span class="inv-stat__label">Since Purchase</span>
-      <span class="inv-stat__value" [ngClass]="pnlClass(totalPct())">
-        @if (totalPct() != null) {
-          {{ totalPct()! >= 0 ? '+' : '' }}{{ totalPct() | number: '1.2-2' }}%
-        } @else {
-          –
-        }
-      </span>
-    </div>
-  </div>
-
   @if (actionError()) {
-    <div class="inv-fetch-error">{{ actionError() }}</div>
+    <div class="error-banner" role="alert">
+      <span>{{ actionError() }}</span>
+      <button
+        type="button"
+        class="banner-dismiss"
+        aria-label="Dismiss"
+        (click)="actionError.set(null)"
+      >
+        ✕
+      </button>
+    </div>
   }
   @if (syncNotice()) {
-    <div class="inv-sync-notice">{{ syncNotice() }}</div>
+    <div class="warning-banner sync-notice" role="status">
+      <span>{{ syncNotice() }}</span>
+      <button
+        type="button"
+        class="banner-dismiss"
+        aria-label="Dismiss"
+        (click)="syncNotice.set(null)"
+      >
+        ✕
+      </button>
+    </div>
   }
 
-  <!-- Tab bar -->
-  <div class="tab-bar">
-    <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">
+  <div class="tab-bar tabs" role="group" aria-label="Holdings to show">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'all'"
+      [attr.aria-pressed]="activeTab() === 'all'"
+      (click)="activeTab.set('all')"
+    >
       All
     </button>
-    <button class="tab-btn" [class.active]="activeTab() === 'ETF'" (click)="activeTab.set('ETF')">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'ETF'"
+      [attr.aria-pressed]="activeTab() === 'ETF'"
+      (click)="activeTab.set('ETF')"
+    >
       ETFs
     </button>
-    <button class="tab-btn" [class.active]="activeTab() === 'Gold'" (click)="activeTab.set('Gold')">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'Gold'"
+      [attr.aria-pressed]="activeTab() === 'Gold'"
+      (click)="activeTab.set('Gold')"
+    >
       Gold
     </button>
   </div>
 
-  <!-- Asset list -->
-  <div class="inv-asset-list">
-    @for (m of filteredMetrics(); track m.asset.id) {
-      <div class="inv-asset-row">
-        <!-- Asset header row -->
-        <div class="inv-asset-header" (click)="toggleExpand(m.asset.id)">
-          <span class="inv-asset-expand">{{ expandedAssetId() === m.asset.id ? '▼' : '▶' }}</span>
-
-          <div class="inv-asset-identity">
-            <span class="inv-asset-ticker">{{ m.asset.ticker ?? m.asset.name }}</span>
-            @if (m.asset.ticker) {
-              <span class="inv-asset-name">{{ m.asset.name }}</span>
-            }
-            <span
-              class="inv-asset-type-badge"
-              [ngClass]="m.asset.assetType === 'Gold' ? 'badge--gold' : 'badge--etf'"
-            >
-              {{ m.asset.assetType }}
+  @let s = summary();
+  <div class="invest">
+    <div class="top">
+      <div class="top__aside">
+        <section class="value-card" aria-labelledby="value-h">
+          <h2 id="value-h">{{ valueLabel() }}</h2>
+          <p class="value-card__total">{{ eur(s.value) }}</p>
+          <p class="value-card__gain">
+            <span class="delta" [class.delta--down]="s.unrealised < 0"
+              >{{ signedEur(s.unrealised) }}
+              @if (s.unrealisedPct !== null) {
+                ({{ signedPct(s.unrealisedPct, 1) }})
+              }
             </span>
-            @if (m.pricesStale) {
-              <span class="inv-stale-badge" [title]="staleTitle(m)">Stale</span>
-            }
-          </div>
+            unrealised
+          </p>
+        </section>
 
-          <div class="inv-asset-metrics">
-            <div class="inv-metric">
-              <span class="inv-metric__label">Qty</span>
-              <span class="inv-metric__value">{{
-                formatQty(m.totalQuantity, m.asset.assetType)
-              }}</span>
-            </div>
-            <div class="inv-metric">
-              <span class="inv-metric__label">Price</span>
-              <span class="inv-metric__value">
-                {{
-                  m.currentPrice != null
-                    ? (m.currentPrice | currency: 'EUR' : 'symbol' : '1.2-4')
-                    : '–'
-                }}
-              </span>
-            </div>
-            <div class="inv-metric">
-              <span class="inv-metric__label">Value</span>
-              <span class="inv-metric__value">
-                {{
-                  m.currentValue != null
-                    ? (m.currentValue | currency: 'EUR' : 'symbol' : '1.2-2')
-                    : '–'
-                }}
-              </span>
-            </div>
-            <div class="inv-metric">
-              <span class="inv-metric__label">P&amp;L</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.unrealizedPnl)">
-                @if (m.unrealizedPnl != null) {
-                  {{ m.unrealizedPnl >= 0 ? '+' : ''
-                  }}{{ m.unrealizedPnl | currency: 'EUR' : 'symbol' : '1.2-2' }}
-                  @if (m.unrealizedPct != null) {
-                    ({{ m.unrealizedPct >= 0 ? '+' : '' }}{{ m.unrealizedPct | number: '1.1-1' }}%)
-                  }
-                } @else {
-                  –
-                }
-              </span>
-            </div>
-            <div class="inv-metric inv-metric--change">
-              <span class="inv-metric__label">1 day</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1d)">
-                @if (m.change1d != null) {
-                  {{ m.change1d >= 0 ? '+' : '' }}{{ m.change1d | number: '1.1-1' }}%
-                } @else {
-                  –
-                }
-              </span>
-            </div>
-            <div class="inv-metric inv-metric--change">
-              <span class="inv-metric__label">1W</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1w)">
-                @if (m.change1w != null) {
-                  {{ m.change1w >= 0 ? '+' : '' }}{{ m.change1w | number: '1.1-1' }}%
-                } @else {
-                  –
-                }
-              </span>
-            </div>
-            <div class="inv-metric inv-metric--change">
-              <span class="inv-metric__label">1M</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.change1m)">
-                @if (m.change1m != null) {
-                  {{ m.change1m >= 0 ? '+' : '' }}{{ m.change1m | number: '1.1-1' }}%
-                } @else {
-                  –
-                }
-              </span>
-            </div>
-            <div class="inv-metric inv-metric--change">
-              <span class="inv-metric__label">Since Buy</span>
-              <span class="inv-metric__value" [ngClass]="pnlClass(m.changeSincePurchase)">
-                @if (m.changeSincePurchase != null) {
-                  {{ m.changeSincePurchase >= 0 ? '+' : ''
-                  }}{{ m.changeSincePurchase | number: '1.1-1' }}%
-                } @else {
-                  –
-                }
-              </span>
-            </div>
+        <div class="tiles">
+          <div class="tile">
+            <span class="tile__label">Cost basis</span>
+            <span class="tile__value">{{ eur(s.cost) }}</span>
           </div>
-
-          <div class="inv-asset-actions" (click)="$event.stopPropagation()">
-            @if (syncEnabled()) {
-              <button
-                class="btn-secondary btn--sm"
-                [disabled]="syncing()"
-                (click)="syncPrices(m.asset)"
-                title="Sync this asset's daily closes"
-              >
-                {{ syncingAssetId() === m.asset.id ? '…' : '⟳' }}
-              </button>
-            }
-            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'buy')">
-              Buy
-            </button>
-            <button class="btn-secondary btn--sm" (click)="openCreateLot(m.asset.id, 'sell')">
-              Sell
-            </button>
-            <button class="btn-secondary btn--sm" (click)="openPriceModal(m.asset.id)">
-              Price
-            </button>
-            <button class="btn-secondary btn--sm" (click)="openEditAsset(m.asset)">Edit</button>
-            <button class="btn-danger btn--sm" (click)="deleteAsset(m.asset)">Delete</button>
+          <div class="tile">
+            <span class="tile__label">Realised</span>
+            <span class="tile__value" [class.amount-in]="s.realised > 0">{{
+              signedEur(s.realised)
+            }}</span>
           </div>
         </div>
 
-        <!-- Expanded body -->
-        @if (expandedAssetId() === m.asset.id) {
-          <div class="inv-asset-body">
-            @if (m.pricesStale) {
-              <div class="inv-stale-hint">
-                <span>
-                  @if (m.asset.priceSyncError) {
-                    Prices could not be synced: {{ m.asset.priceSyncError }}
-                  } @else if (m.latestPriceDate) {
-                    The latest price is from {{ formatDate(m.latestPriceDate) }}.
-                  } @else {
-                    No price yet.
-                  }
-                </span>
-                @if (syncEnabled()) {
-                  <button
-                    class="btn-secondary btn--sm"
-                    [disabled]="syncing()"
-                    (click)="syncPrices(m.asset)"
-                  >
-                    {{ syncingAssetId() === m.asset.id ? 'Syncing…' : 'Sync now' }}
-                  </button>
-                }
-              </div>
-            } @else if (m.latestPriceDate) {
-              <p class="inv-close-date">
-                Valued at the close of {{ formatDate(m.latestPriceDate) }}.
-              </p>
-            }
+        <section class="changes" aria-labelledby="changes-h">
+          <h2 id="changes-h">Change</h2>
+          <dl class="changes__list">
+            <div class="changes__item">
+              <dt>1 day</dt>
+              <dd [class.amount-in]="(s.change1d ?? 0) > 0">{{ signedPct(s.change1d) }}</dd>
+            </div>
+            <div class="changes__item">
+              <dt>1 week</dt>
+              <dd [class.amount-in]="(s.change1w ?? 0) > 0">{{ signedPct(s.change1w) }}</dd>
+            </div>
+            <div class="changes__item">
+              <dt>1 month</dt>
+              <dd [class.amount-in]="(s.change1m ?? 0) > 0">{{ signedPct(s.change1m) }}</dd>
+            </div>
+            <div class="changes__item">
+              <dt>Since buying</dt>
+              <dd [class.amount-in]="(s.unrealisedPct ?? 0) > 0">
+                {{ signedPct(s.unrealisedPct) }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
 
-            <!-- Lots table -->
-            <h4 class="inv-section-title">Entries</h4>
-            @if (m.asset.lots.length === 0) {
-              <p class="inv-empty">No entries yet.</p>
-            } @else {
-              <table class="inv-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Qty</th>
-                    <th>Price/Unit</th>
-                    <th>Fees</th>
-                    <th>Notes</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (lot of m.asset.lots; track lot.id) {
-                    <tr>
-                      <td>{{ formatDate(lot.date) }}</td>
-                      <td>
-                        <span
-                          class="inv-lot-badge"
-                          [ngClass]="lot.quantity > 0 ? 'badge--buy' : 'badge--sell'"
-                        >
-                          {{ lot.quantity > 0 ? 'Buy' : 'Sell' }}
-                        </span>
-                      </td>
-                      <td>{{ formatQty(Math.abs(lot.quantity), m.asset.assetType) }}</td>
-                      <td>{{ lot.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
-                      <td>
-                        {{
-                          lot.fees != null ? (lot.fees | currency: 'EUR' : 'symbol' : '1.2-2') : '–'
-                        }}
-                      </td>
-                      <td class="inv-table__notes">{{ lot.notes ?? '–' }}</td>
-                      <td class="inv-table__actions">
-                        <button
-                          class="btn-secondary btn--xs"
-                          (click)="openEditLot(lot, m.asset.id)"
-                        >
-                          Edit
-                        </button>
-                        <button class="btn-danger btn--xs" (click)="deleteLot(lot)">Del</button>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            }
-
-            <!-- Price snapshots table -->
-            <button
-              type="button"
-              class="inv-section-title inv-section-title--toggle"
-              [attr.aria-expanded]="priceHistoryOpen()"
-              (click)="togglePriceHistory()"
-            >
-              <span class="inv-section-toggle__chevron" [class.open]="priceHistoryOpen()">▸</span>
-              Price History ({{ m.asset.priceCount }})
-            </button>
-            <app-asset-history-chart
-              [snapshots]="expandedPrices() ?? m.asset.priceSnapshots"
-              [range]="historyRange()"
-            />
-            @if (priceHistoryOpen()) {
-              @if (m.asset.priceCount === 0) {
-                <p class="inv-empty">No prices recorded yet.</p>
-              } @else if (expandedPrices() == null) {
-                <p class="inv-empty">Loading prices…</p>
-              } @else {
-                <table class="inv-table inv-table--compact">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Price/Unit</th>
-                      <th>Source</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (snap of expandedPrices()!.slice(0, priceRowsShown()); track snap.id) {
-                      <tr>
-                        <td>{{ formatDate(snap.date) }}</td>
-                        <td>{{ snap.pricePerUnit | currency: 'EUR' : 'symbol' : '1.2-4' }}</td>
-                        <td>
-                          @switch (snap.source) {
-                            @case ('Manual') {
-                              <span
-                                class="inv-source-badge"
-                                title="Entered by hand: a sync never replaces it"
-                                >Manual</span
-                              >
-                            }
-                            @case ('Legacy') {
-                              <span
-                                class="inv-source-muted"
-                                title="Stored before price sources were recorded: an older fetched quote or a price entered by hand. A sync replaces it with that day's close, when there is one."
-                                >Earlier</span
-                              >
-                            }
-                            @default {
-                              <span class="inv-source-muted">Close</span>
-                            }
-                          }
-                        </td>
-                        <td class="inv-table__actions">
-                          <button class="btn-danger btn--xs" (click)="deletePrice(snap)">
-                            Del
-                          </button>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-                @if (expandedPrices()!.length > priceRowsShown()) {
-                  <button type="button" class="btn-secondary btn--sm" (click)="showMorePrices()">
-                    Show older prices
-                  </button>
-                }
-              }
+      <section class="chart-card" aria-labelledby="chart-h">
+        <div class="chart-card__head">
+          <div class="chart-card__title">
+            <h2 id="chart-h">{{ historyCaption()?.title ?? 'Value over time' }}</h2>
+            @if (historyCaption(); as caption) {
+              <p class="chart-card__detail">{{ caption.detail }}</p>
             }
           </div>
-        }
-      </div>
-    }
-
-    @if (filteredMetrics().length === 0) {
-      <p class="inv-empty-state">
-        No investments yet. Use the buttons above to add your first ETF or gold position.
-      </p>
-    }
-  </div>
-
-  <!-- Charts -->
-  @if (assets().length > 0) {
-    <div class="inv-charts">
-      <div class="inv-chart-card">
-        <h3 class="inv-chart-title">Allocation</h3>
-        <div class="inv-chart-body"><canvas #allocationCanvas></canvas></div>
-      </div>
-      <div class="inv-chart-card">
-        <div class="inv-chart-card__head">
-          <h3 class="inv-chart-title">Portfolio Value</h3>
-          <div class="inv-chart-timeframe">
+          <div class="tab-bar range" role="group" aria-label="Chart range">
             @for (r of historyRanges; track r) {
               <button
-                class="inv-range-btn"
+                type="button"
+                class="tab-btn"
                 [class.active]="historyRange() === r"
+                [attr.aria-pressed]="historyRange() === r"
                 (click)="setHistoryRange(r)"
               >
                 {{ r }}
@@ -450,13 +200,524 @@
           </div>
         </div>
         @if (tabHistory().length < 2) {
-          <p class="inv-chart-placeholder">Add price snapshots to see the historical chart.</p>
+          <p class="chart-card__placeholder">Add price snapshots to see the historical chart.</p>
+        } @else if (filteredHistory().length < 2) {
+          <p class="chart-card__placeholder">Not enough prices in this range. Pick a longer one.</p>
         } @else {
-          <div class="inv-chart-body"><canvas #historyCanvas></canvas></div>
+          <div class="chart-card__canvas">
+            <canvas #historyCanvas role="img" [attr.aria-label]="historyLabel()"></canvas>
+          </div>
+          <div class="legend">
+            <span class="legend__item"><span class="legend__line"></span>Value</span>
+            <span class="legend__item"
+              ><span class="legend__dash"></span>Money put in, steps up with each buy</span
+            >
+          </div>
+        }
+      </section>
+    </div>
+
+    <section class="holdings" aria-labelledby="hold-h">
+      <h2 id="hold-h">Holdings</h2>
+      @if (filteredMetrics().length === 0) {
+        <p class="block empty-state">
+          @switch (activeTab()) {
+            @case ('ETF') {
+              No ETFs yet. Use Add ETF to add one.
+            }
+            @case ('Gold') {
+              No gold yet. Use Add gold to add some.
+            }
+            @default {
+              No investments yet. Use Add ETF or Add gold to add your first position.
+            }
+          }
+        </p>
+      } @else {
+        <div class="holdings__panel">
+          <div class="holdings__head" aria-hidden="true">
+            <span>Holding</span>
+            <span class="num">Quantity</span>
+            <span class="num">Price</span>
+            <span class="num">Cost</span>
+            <span class="num">Value</span>
+            <span class="num">Gain</span>
+            <span class="num">1D</span>
+            <span class="num">1W</span>
+            <span class="num">1M</span>
+            <span></span>
+          </div>
+          <ul class="holdings__list">
+            @for (m of filteredMetrics(); track m.asset.id) {
+              @let open = expandedAssetId() === m.asset.id;
+              @let name = label(m.asset);
+              <li class="holding" [class.holding--open]="open">
+                <button
+                  type="button"
+                  class="holding__id"
+                  [attr.aria-expanded]="open"
+                  [attr.aria-controls]="open ? 'holding-' + m.asset.id : null"
+                  (click)="toggleExpand(m.asset.id)"
+                >
+                  <span class="cat-dot" [style.--_dot]="colorOf(m.asset.id)"></span>
+                  <span class="holding__names">
+                    <span class="holding__line">
+                      <span class="holding__ticker">{{ name }}</span>
+                      <span class="chip chip--muted holding__chip">{{ m.asset.assetType }}</span>
+                      @if (m.pricesStale) {
+                        <span
+                          class="chip holding__chip holding__chip--stale"
+                          [title]="staleTitle(m)"
+                          >Stale</span
+                        >
+                      }
+                    </span>
+                    @if (m.asset.ticker) {
+                      <span class="holding__name">{{ m.asset.name }}</span>
+                    }
+                  </span>
+                  <svg
+                    class="holding__chevron"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+
+                <div class="holding__position">
+                  <span class="cell"
+                    ><span class="cell__label">Quantity</span
+                    ><span class="cell__num">{{
+                      formatQty(m.totalQuantity, m.asset.assetType)
+                    }}</span></span
+                  >
+                  <span class="cell"
+                    ><span class="cell__label">Price</span
+                    ><span class="cell__num">{{
+                      m.currentPrice != null ? eurPrice(m.currentPrice) : '—'
+                    }}</span></span
+                  >
+                  <span class="cell cell--muted"
+                    ><span class="cell__label">Cost</span
+                    ><span class="cell__num">{{ eur(m.netCostBasis) }}</span></span
+                  >
+                </div>
+                <span class="cell holding__value"
+                  ><span class="visually-hidden">Value</span
+                  ><span class="cell__num">{{
+                    m.currentValue != null ? eur(m.currentValue) : '—'
+                  }}</span></span
+                >
+                <span class="cell holding__gain" [class.amount-in]="(m.unrealizedPnl ?? 0) > 0">
+                  <span class="visually-hidden">Gain</span>
+                  @if (m.unrealizedPnl != null) {
+                    <span class="cell__num">{{ signedEur(m.unrealizedPnl) }}</span>
+                    @if (m.unrealizedPct != null) {
+                      <span class="cell__pct">{{ signedPct(m.unrealizedPct, 1) }}</span>
+                    }
+                  } @else {
+                    <span class="cell__num">—</span>
+                  }
+                </span>
+                <div class="holding__changes">
+                  <span class="cell"
+                    ><span class="cell__label">1D</span
+                    ><span class="cell__num" [class.amount-in]="(m.change1d ?? 0) > 0">{{
+                      signedPct(m.change1d, 1)
+                    }}</span></span
+                  >
+                  <span class="cell"
+                    ><span class="cell__label">1W</span
+                    ><span class="cell__num" [class.amount-in]="(m.change1w ?? 0) > 0">{{
+                      signedPct(m.change1w, 1)
+                    }}</span></span
+                  >
+                  <span class="cell"
+                    ><span class="cell__label">1M</span
+                    ><span class="cell__num" [class.amount-in]="(m.change1m ?? 0) > 0">{{
+                      signedPct(m.change1m, 1)
+                    }}</span></span
+                  >
+                </div>
+
+                <div class="holding__actions">
+                  <button
+                    type="button"
+                    class="btn-primary"
+                    [attr.aria-label]="'Buy ' + name"
+                    (click)="openCreateLot(m.asset.id, 'buy')"
+                  >
+                    Buy
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    [attr.aria-label]="'Sell ' + name"
+                    (click)="openCreateLot(m.asset.id, 'sell')"
+                  >
+                    Sell
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    [attr.aria-label]="'Update price of ' + name"
+                    (click)="openPriceModal(m.asset.id)"
+                  >
+                    Update price
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-secondary holding__icon-btn"
+                    [attr.aria-label]="'Edit ' + name"
+                    (click)="openEditAsset(m.asset)"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+                    </svg>
+                    <span class="holding__btn-text">Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-secondary holding__icon-btn"
+                    [attr.aria-label]="'Delete ' + name"
+                    (click)="deleteAsset(m.asset)"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
+                    </svg>
+                    <span class="holding__btn-text">Delete</span>
+                  </button>
+                </div>
+
+                @if (open) {
+                  <div class="detail" [id]="'holding-' + m.asset.id">
+                    <div class="detail__head">
+                      <p class="detail__fresh" [class.detail__fresh--stale]="m.pricesStale">
+                        @if (m.pricesStale) {
+                          @if (m.asset.priceSyncError) {
+                            Prices could not be synced: {{ m.asset.priceSyncError }}
+                          } @else if (m.latestPriceDate) {
+                            The latest price is from {{ formatDate(m.latestPriceDate) }}.
+                          } @else {
+                            No price yet.
+                          }
+                        } @else if (m.latestPriceDate) {
+                          Valued at the close of {{ formatDate(m.latestPriceDate) }}.
+                        }
+                      </p>
+                      <span class="detail__since"
+                        ><span class="detail__since-label">Since buying</span>
+                        <strong [class.amount-in]="(m.changeSincePurchase ?? 0) > 0">{{
+                          signedPct(m.changeSincePurchase, 1)
+                        }}</strong></span
+                      >
+                      @if (syncEnabled()) {
+                        <button
+                          type="button"
+                          class="btn-secondary"
+                          [disabled]="syncing()"
+                          (click)="syncPrices(m.asset)"
+                          title="Sync this asset's daily closes"
+                        >
+                          {{ syncingAssetId() === m.asset.id ? 'Syncing…' : 'Sync prices' }}
+                        </button>
+                      }
+                    </div>
+
+                    <div class="detail__cols">
+                      <div class="detail__part">
+                        <h3>Entries</h3>
+                        @if (m.asset.lots.length === 0) {
+                          <p class="detail__empty">No entries yet.</p>
+                        } @else {
+                          <ul class="lots">
+                            @for (lot of m.asset.lots; track lot.id) {
+                              <li class="lot">
+                                <span class="lot__date">{{ formatDate(lot.date) }}</span>
+                                <span
+                                  class="chip lot__kind"
+                                  [class.lot__kind--buy]="lot.quantity > 0"
+                                  >{{ lot.quantity > 0 ? 'Buy' : 'Sell' }}</span
+                                >
+                                <span class="lot__text">
+                                  <span class="lot__main"
+                                    >{{ formatQty(Math.abs(lot.quantity), m.asset.assetType) }} at
+                                    {{ eurPrice(lot.pricePerUnit) }}</span
+                                  >
+                                  @if (lot.fees != null || lot.notes) {
+                                    <span class="lot__meta">
+                                      @if (lot.fees != null) {
+                                        Fees {{ eur(lot.fees) }}
+                                      }
+                                      @if (lot.fees != null && lot.notes) {
+                                        ·
+                                      }
+                                      {{ lot.notes ?? '' }}</span
+                                    >
+                                  }
+                                </span>
+                                <span class="lot__actions">
+                                  <button
+                                    type="button"
+                                    class="btn-icon"
+                                    [attr.aria-label]="'Edit the entry of ' + formatDate(lot.date)"
+                                    (click)="openEditLot(lot, m.asset.id)"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      stroke-width="2"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path
+                                        d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"
+                                      />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="btn-icon"
+                                    [attr.aria-label]="
+                                      'Delete the entry of ' + formatDate(lot.date)
+                                    "
+                                    (click)="deleteLot(lot)"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      stroke-width="2"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path
+                                        d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"
+                                      />
+                                    </svg>
+                                  </button>
+                                </span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </div>
+
+                      <div class="detail__part">
+                        <h3>Price</h3>
+                        <app-asset-history-chart
+                          [snapshots]="expandedPrices() ?? m.asset.priceSnapshots"
+                          [range]="historyRange()"
+                        />
+                        <button
+                          type="button"
+                          class="link-btn detail__toggle"
+                          [attr.aria-expanded]="priceHistoryOpen()"
+                          (click)="togglePriceHistory()"
+                        >
+                          <svg
+                            class="detail__chevron"
+                            [class.open]="priceHistoryOpen()"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                          Price history (<span class="figures">{{ m.asset.priceCount }}</span
+                          >)
+                        </button>
+                        @if (priceHistoryOpen()) {
+                          @if (m.asset.priceCount === 0) {
+                            <p class="detail__empty">No prices recorded yet.</p>
+                          } @else if (expandedPrices() == null) {
+                            <p class="detail__empty">Loading prices…</p>
+                          } @else {
+                            <ul class="prices">
+                              @for (
+                                snap of expandedPrices()!.slice(0, priceRowsShown());
+                                track snap.id
+                              ) {
+                                <li class="price-row">
+                                  <span class="price-row__date">{{ formatDate(snap.date) }}</span>
+                                  <span class="price-row__value">{{
+                                    eurPrice(snap.pricePerUnit)
+                                  }}</span>
+                                  @switch (snap.source) {
+                                    @case ('Manual') {
+                                      <span
+                                        class="chip price-row__manual"
+                                        title="Entered by hand: a sync never replaces it"
+                                        >Manual</span
+                                      >
+                                    }
+                                    @case ('Legacy') {
+                                      <span
+                                        class="price-row__source"
+                                        title="Stored before price sources were recorded: an older fetched quote or a price entered by hand. A sync replaces it with that day's close, when there is one."
+                                        >Earlier</span
+                                      >
+                                    }
+                                    @default {
+                                      <span class="price-row__source">Close</span>
+                                    }
+                                  }
+                                  <button
+                                    type="button"
+                                    class="btn-icon"
+                                    [attr.aria-label]="
+                                      'Delete the price of ' + formatDate(snap.date)
+                                    "
+                                    (click)="deletePrice(snap)"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      stroke-width="2"
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path
+                                        d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"
+                                      />
+                                    </svg>
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                            @if (expandedPrices()!.length > priceRowsShown()) {
+                              <button
+                                type="button"
+                                class="btn-secondary detail__more"
+                                (click)="showMorePrices()"
+                              >
+                                Show older prices
+                              </button>
+                            }
+                          }
+                        }
+                      </div>
+                    </div>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </section>
+
+    @if (allocation().length > 0 || activity().length > 0) {
+      <div class="pair">
+        @if (allocation().length > 0) {
+          <section class="block alloc" aria-labelledby="alloc-h">
+            <h2 id="alloc-h">Allocation</h2>
+            <div class="alloc__bar" role="img" [attr.aria-label]="allocationLabel()">
+              @for (slice of allocation(); track $index) {
+                <span [style.flex-grow]="slice.value" [style.background]="slice.color"></span>
+              }
+            </div>
+            <ul class="alloc__legend">
+              @for (slice of allocation(); track $index) {
+                <li class="alloc__item">
+                  <span class="alloc__name"
+                    ><span class="cat-dot" [style.--_dot]="slice.color"></span
+                    >{{ slice.label }}</span
+                  >
+                  <span class="alloc__pct">{{ slice.pct.toFixed(1) }}%</span>
+                  <span class="alloc__value">{{ eur(slice.value) }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (activity().length > 0) {
+          <section class="block activity" aria-labelledby="act-h">
+            <h2 id="act-h">Recent activity</h2>
+            <ol class="activity__list">
+              @for (a of activity(); track a.lot.id) {
+                <li class="activity__item">
+                  <span
+                    class="activity__node"
+                    aria-hidden="true"
+                    [style.--_dot]="colorOf(a.asset.id)"
+                  ></span>
+                  <span class="activity__text">
+                    <span class="activity__title"
+                      >{{ a.kind === 'buy' ? 'Bought' : 'Sold' }}
+                      {{ formatQty(Math.abs(a.lot.quantity), a.asset.assetType) }}
+                      {{ label(a.asset) }}</span
+                    >
+                    <span class="activity__meta"
+                      ><span class="figures">{{ formatDate(a.lot.date) }}</span
+                      >, at {{ eurPrice(a.lot.pricePerUnit)
+                      }}{{ a.asset.assetType === 'Gold' ? ' a gram' : '' }}</span
+                    >
+                  </span>
+                  <span
+                    class="activity__amount"
+                    [class.amount-in]="a.kind === 'sell' && a.amount > 0"
+                  >
+                    @if (a.kind === 'buy') {
+                      {{ eur(a.amount) }}
+                    } @else {
+                      {{ signedEur(a.amount) }} <span class="activity__realised">realised</span>
+                    }
+                  </span>
+                </li>
+              }
+            </ol>
+          </section>
         }
       </div>
-    </div>
-  }
+    }
+  </div>
 }
 
 <!-- Asset modal -->
@@ -465,15 +726,23 @@
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>{{ assetModalMode() === 'create' ? 'Add ' + modalAssetType() : 'Edit Asset' }}</h3>
-        <button class="modal-close" (click)="showAssetModal.set(false)">✕</button>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="showAssetModal.set(false)"
+        >
+          ✕
+        </button>
       </div>
 
       @if (assetModalMode() === 'create') {
-        <label class="field-label">Asset Type</label>
-        <div class="inv-radio-group">
-          <label class="inv-radio"
+        <span class="field-label" id="asset-type-label">Asset Type</span>
+        <div class="tab-bar type-choice" role="radiogroup" aria-labelledby="asset-type-label">
+          <label class="tab-btn" [class.active]="modalAssetType() === 'ETF'"
             ><input
               type="radio"
+              class="visually-hidden"
               name="assetType"
               value="ETF"
               [(ngModel)]="modalAssetType"
@@ -482,9 +751,10 @@
             />
             ETF</label
           >
-          <label class="inv-radio"
+          <label class="tab-btn" [class.active]="modalAssetType() === 'Gold'"
             ><input
               type="radio"
+              class="visually-hidden"
               name="assetType"
               value="Gold"
               [(ngModel)]="modalAssetType"
@@ -497,8 +767,9 @@
       }
 
       @if (modalAssetType() === 'ETF') {
-        <label class="field-label">Ticker Symbol</label>
+        <label class="field-label" for="asset-ticker">Ticker Symbol</label>
         <input
+          id="asset-ticker"
           class="field-input"
           type="text"
           placeholder="e.g. VWCE.DE"
@@ -510,8 +781,9 @@
         </p>
       }
 
-      <label class="field-label">Name</label>
+      <label class="field-label" for="asset-name">Name</label>
       <input
+        id="asset-name"
         class="field-input"
         type="text"
         placeholder="e.g. Vanguard FTSE All-World ETF"
@@ -519,8 +791,9 @@
         (input)="modalAssetName.set($any($event.target).value)"
       />
 
-      <label class="field-label">Notes (optional)</label>
+      <label class="field-label" for="asset-notes">Notes (optional)</label>
       <input
+        id="asset-notes"
         class="field-input"
         type="text"
         [value]="modalAssetNotes()"
@@ -528,12 +801,19 @@
       />
 
       @if (assetError()) {
-        <p class="inv-modal-error">{{ assetError() }}</p>
+        <p class="modal-error">{{ assetError() }}</p>
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showAssetModal.set(false)">Cancel</button>
-        <button class="btn-primary" [disabled]="assetSaving()" (click)="submitAsset()">
+        <button type="button" class="btn-secondary" (click)="showAssetModal.set(false)">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="assetSaving()"
+          (click)="submitAsset()"
+        >
           {{ assetSaving() ? 'Saving…' : 'Save' }}
         </button>
       </div>
@@ -547,19 +827,28 @@
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>{{ lotModalTitle() }}</h3>
-        <button class="modal-close" (click)="showLotModal.set(false)">✕</button>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="showLotModal.set(false)"
+        >
+          ✕
+        </button>
       </div>
 
-      <label class="field-label">Date</label>
+      <label class="field-label" for="lot-date">Date</label>
       <input
+        id="lot-date"
         class="field-input"
         type="date"
         [value]="lotDate()"
         (input)="lotDate.set($any($event.target).value)"
       />
 
-      <label class="field-label">{{ lotUnitLabel() }}</label>
+      <label class="field-label" for="lot-quantity">{{ lotUnitLabel() }}</label>
       <input
+        id="lot-quantity"
         class="field-input"
         type="text"
         inputmode="decimal"
@@ -568,10 +857,11 @@
         (input)="lotQuantity.set($any($event.target).value)"
       />
 
-      <label class="field-label"
+      <label class="field-label" for="lot-price"
         >Price per {{ lotAssetType() === 'Gold' ? 'Gram' : 'Share' }} (€)</label
       >
       <input
+        id="lot-price"
         class="field-input"
         type="text"
         inputmode="decimal"
@@ -580,8 +870,9 @@
         (input)="lotPrice.set($any($event.target).value)"
       />
 
-      <label class="field-label">Fees (€, optional)</label>
+      <label class="field-label" for="lot-fees">Fees (€, optional)</label>
       <input
+        id="lot-fees"
         class="field-input"
         type="text"
         inputmode="decimal"
@@ -590,8 +881,9 @@
         (input)="lotFees.set($any($event.target).value)"
       />
 
-      <label class="field-label">Notes (optional)</label>
+      <label class="field-label" for="lot-notes">Notes (optional)</label>
       <input
+        id="lot-notes"
         class="field-input"
         type="text"
         [value]="lotNotes()"
@@ -599,12 +891,14 @@
       />
 
       @if (lotError()) {
-        <p class="inv-modal-error">{{ lotError() }}</p>
+        <p class="modal-error">{{ lotError() }}</p>
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showLotModal.set(false)">Cancel</button>
-        <button class="btn-primary" [disabled]="lotSaving()" (click)="submitLot()">
+        <button type="button" class="btn-secondary" (click)="showLotModal.set(false)">
+          Cancel
+        </button>
+        <button type="button" class="btn-primary" [disabled]="lotSaving()" (click)="submitLot()">
           {{ lotSaving() ? 'Saving…' : 'Save' }}
         </button>
       </div>
@@ -618,19 +912,28 @@
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>Update Price - {{ priceAssetLabel() }}</h3>
-        <button class="modal-close" (click)="showPriceModal.set(false)">✕</button>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="showPriceModal.set(false)"
+        >
+          ✕
+        </button>
       </div>
 
-      <label class="field-label">Date</label>
+      <label class="field-label" for="price-date">Date</label>
       <input
+        id="price-date"
         class="field-input"
         type="date"
         [value]="priceDate()"
         (input)="priceDate.set($any($event.target).value)"
       />
 
-      <label class="field-label">Current Price (€)</label>
+      <label class="field-label" for="price-value">Current Price (€)</label>
       <input
+        id="price-value"
         class="field-input"
         type="text"
         inputmode="decimal"
@@ -640,12 +943,19 @@
       />
 
       @if (priceError()) {
-        <p class="inv-modal-error">{{ priceError() }}</p>
+        <p class="modal-error">{{ priceError() }}</p>
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showPriceModal.set(false)">Cancel</button>
-        <button class="btn-primary" [disabled]="priceSaving()" (click)="submitPrice()">
+        <button type="button" class="btn-secondary" (click)="showPriceModal.set(false)">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="priceSaving()"
+          (click)="submitPrice()"
+        >
           {{ priceSaving() ? 'Saving…' : 'Save' }}
         </button>
       </div>

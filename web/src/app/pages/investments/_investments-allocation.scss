@@ -1,0 +1,101 @@
+@use '../../../styles/mixins' as *;
+@use 'investments-base' as *;
+
+// Allocation as a stacked bar with a legend, in the allocation colours of the holdings.
+
+.alloc {
+  &__bar {
+    display: flex;
+    gap: 3px;
+    height: 36px;
+    border-radius: 18px;
+    overflow: hidden;
+
+    span {
+      flex: 1 1 0;
+      min-width: 3px;
+    }
+  }
+
+  &__legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 10px;
+  }
+
+  &__item {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__pct {
+    @extend %figures;
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  &__value {
+    @extend %figures;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+// Phones and tablets: on the page ground, a thinner bar and an inline legend.
+@include below-desktop {
+  .block.alloc {
+    gap: 10px;
+    padding: 0;
+    background: none;
+  }
+
+  .alloc {
+    &__bar {
+      gap: 2px;
+      height: 22px;
+      border-radius: 11px;
+    }
+
+    &__legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+    }
+
+    &__item {
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+    }
+
+    &__name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    &__pct {
+      font-size: 13px;
+    }
+
+    &__value {
+      display: none;
+    }
+  }
+}

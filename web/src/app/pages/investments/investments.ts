@@ -9,12 +9,9 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { CurrencyPipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   Chart,
-  ArcElement,
-  DoughnutController,
   LineController,
   LineElement,
   PointElement,
@@ -23,7 +20,6 @@ import {
   Tooltip,
   Legend,
   Filler,
-  type Plugin,
 } from 'chart.js';
 import { InvestmentsService } from '../../core/services/investments.service';
 import {
@@ -32,19 +28,39 @@ import {
   InvestmentPriceSnapshot,
   SyncPriceHistoryResponse,
 } from '../../core/models/statement.model';
+import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
+import { applyChartTheme, axisOptions, withAlpha } from '../../core/charts/chart-theme';
+import { eur, signedEur } from '../../core/utils/money';
 import {
   AssetHistoryChart,
   HISTORY_RANGES,
   HistoryRange,
   rangeCutoff,
 } from './asset-history-chart';
+import {
+  allocationShares,
+  assetColors,
+  dayValue,
+  timeTick,
+  eurPrice,
+  eurTick,
+  historyCaption,
+  portfolioSummary,
+  recentActivity,
+  shortDate,
+  signedPct,
+  spanDays,
+  weekdayDate,
+} from './investments-view';
 
-/** Price history rows shown at a time: years of daily closes would make a very long table. */
+/** Price history rows shown at a time: years of daily closes would make a very long list. */
 const PRICE_ROWS_STEP = 30;
 
+/** Buys and sells shown under "Recent activity"; every entry stays in its holding's details. */
+const ACTIVITY_SHOWN = 6;
+
+// Legend is registered for its defaults, which applyChartTheme() sets; the legend stays hidden.
 Chart.register(
-  ArcElement,
-  DoughnutController,
   LineController,
   LineElement,
   PointElement,
@@ -55,10 +71,16 @@ Chart.register(
   Filler,
 );
 
+interface PendingDelete {
+  title: string;
+  message: string;
+  run: () => void;
+}
+
 @Component({
   selector: 'app-investments',
   standalone: true,
-  imports: [CurrencyPipe, DecimalPipe, NgClass, FormsModule, AssetHistoryChart],
+  imports: [FormsModule, AssetHistoryChart, ConfirmDialogComponent],
   templateUrl: './investments.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './investments.scss',
@@ -70,16 +92,12 @@ export class InvestmentsComponent implements OnDestroy {
   loading = this.svc.loading;
   error = this.svc.error;
   assetMetrics = this.svc.assetMetrics;
-  totalValue = this.svc.totalCurrentValue;
-  totalCost = this.svc.totalCostBasis;
-  totalPnl = this.svc.totalUnrealizedPnl;
-  totalPct = this.svc.totalUnrealizedPct;
-  totalRealized = this.svc.totalRealizedPnl;
-  change1d = this.svc.portfolioChange1d;
-  change1w = this.svc.portfolioChange1w;
-  change1m = this.svc.portfolioChange1m;
 
   readonly Math = Math;
+  readonly eur = eur;
+  readonly signedEur = signedEur;
+  readonly signedPct = signedPct;
+  readonly eurPrice = eurPrice;
 
   activeTab = signal<'all' | 'ETF' | 'Gold'>('all');
   expandedAssetId = signal<number | null>(null);
@@ -91,6 +109,8 @@ export class InvestmentsComponent implements OnDestroy {
   priceRowsShown = signal(PRICE_ROWS_STEP);
   /** Every price of the expanded asset, newest first, loaded when it opens. */
   expandedPrices = signal<InvestmentPriceSnapshot[] | null>(null);
+  /** A delete waiting for its confirmation. */
+  pendingDelete = signal<PendingDelete | null>(null);
 
   /** The oldest latest price among held assets: every held position is valued at least this recently. */
   pricesAsOf = computed(() => {
@@ -99,6 +119,10 @@ export class InvestmentsComponent implements OnDestroy {
       .map((m) => m.latestPriceDate!)
       .sort();
     return dates[0] ?? null;
+  });
+  pricesAsOfLabel = computed(() => {
+    const asOf = this.pricesAsOf();
+    return asOf ? weekdayDate(asOf, this.svc.today()) : null;
   });
   stalePrices = computed(() => this.assetMetrics().some((m) => m.pricesStale));
   /** Sync controls show only where the server syncs prices (not in the demo). */
@@ -110,8 +134,29 @@ export class InvestmentsComponent implements OnDestroy {
     return tab === 'all' ? metrics : metrics.filter((m) => m.asset.assetType === tab);
   });
 
+  /** The figures at the top follow the tab, like the charts and the holdings below them. */
+  summary = computed(() => portfolioSummary(this.filteredMetrics()));
+  valueLabel = computed(() => {
+    const tab = this.activeTab();
+    return tab === 'all' ? 'Portfolio value' : tab === 'ETF' ? 'ETF value' : 'Gold value';
+  });
+
   // Charts follow the active tab: allocation from the tab's metrics, history from the tab's assets.
   tabAllocation = computed(() => this.svc.allocationDataFor(this.filteredMetrics()));
+  allocation = computed(() => allocationShares(this.tabAllocation()));
+  allocationLabel = computed(() =>
+    this.allocation()
+      .map((s) => `${s.label} ${s.pct.toFixed(1)} percent`)
+      .join(', '),
+  );
+  /** Each asset's allocation colour, the same on every tab. */
+  colors = computed(() => assetColors(this.assetMetrics(), this.svc.allocationData()));
+  activity = computed(() =>
+    recentActivity(
+      this.filteredMetrics().map((m) => m.asset),
+      ACTIVITY_SHOWN,
+    ),
+  );
   tabHistory = computed(() => {
     const tab = this.activeTab();
     const assets = this.assets();
@@ -170,12 +215,10 @@ export class InvestmentsComponent implements OnDestroy {
     return a?.ticker ?? a?.name ?? '';
   });
 
-  // ---- Charts ----
-  allocationCanvas = viewChild<ElementRef<HTMLCanvasElement>>('allocationCanvas');
+  // ---- Value chart ----
   historyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('historyCanvas');
   historyRange = signal<HistoryRange>('1Y');
   readonly historyRanges = HISTORY_RANGES;
-  private allocationChart?: Chart;
   private historyChart?: Chart;
 
   filteredHistory = computed(() => {
@@ -183,15 +226,20 @@ export class InvestmentsComponent implements OnDestroy {
     const cutoff = rangeCutoff(this.historyRange());
     return cutoff == null ? points : points.filter((p) => p.date >= cutoff);
   });
+  historyCaption = computed(() => historyCaption(this.filteredHistory()));
+  historyLabel = computed(() => {
+    const points = this.filteredHistory();
+    if (points.length < 2) return '';
+    const last = points[points.length - 1];
+    return (
+      `Value against money put in, ${shortDate(points[0].date)} to ${shortDate(last.date)}, ` +
+      `ending at ${eur(last.totalValue)}`
+    );
+  });
 
   constructor() {
     this.svc.loadPriceSyncStatus();
     this.svc.loadPriceHistory(rangeCutoff(this.historyRange()));
-    effect(() => {
-      this.allocationCanvas();
-      this.tabAllocation();
-      this.renderAllocationChart();
-    });
     effect(() => {
       this.historyCanvas();
       this.filteredHistory();
@@ -200,7 +248,6 @@ export class InvestmentsComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.allocationChart?.destroy();
     this.historyChart?.destroy();
   }
 
@@ -275,10 +322,14 @@ export class InvestmentsComponent implements OnDestroy {
   }
 
   deleteAsset(asset: InvestmentAsset): void {
-    if (!confirm(`Delete "${asset.name}" and all its data?`)) return;
-    this.svc.deleteAsset(asset.id).subscribe({
-      next: () => this.reload(),
-      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete asset.'),
+    this.pendingDelete.set({
+      title: 'Delete holding',
+      message: `Delete "${asset.name}" and all its data?`,
+      run: () =>
+        this.svc.deleteAsset(asset.id).subscribe({
+          next: () => this.reload(),
+          error: (err) => this.actionError.set(err?.error ?? 'Failed to delete asset.'),
+        }),
     });
   }
 
@@ -386,10 +437,14 @@ export class InvestmentsComponent implements OnDestroy {
   }
 
   deleteLot(lot: InvestmentLot): void {
-    if (!confirm('Delete this entry?')) return;
-    this.svc.deleteLot(lot.id).subscribe({
-      next: () => this.reload(),
-      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete entry.'),
+    this.pendingDelete.set({
+      title: 'Delete entry',
+      message: 'Delete this entry?',
+      run: () =>
+        this.svc.deleteLot(lot.id).subscribe({
+          next: () => this.reload(),
+          error: (err) => this.actionError.set(err?.error ?? 'Failed to delete entry.'),
+        }),
     });
   }
 
@@ -426,11 +481,21 @@ export class InvestmentsComponent implements OnDestroy {
   }
 
   deletePrice(snap: InvestmentPriceSnapshot): void {
-    if (!confirm('Delete this price snapshot?')) return;
-    this.svc.deletePrice(snap.id).subscribe({
-      next: () => this.reload(),
-      error: (err) => this.actionError.set(err?.error ?? 'Failed to delete price snapshot.'),
+    this.pendingDelete.set({
+      title: 'Delete price',
+      message: 'Delete this price snapshot?',
+      run: () =>
+        this.svc.deletePrice(snap.id).subscribe({
+          next: () => this.reload(),
+          error: (err) => this.actionError.set(err?.error ?? 'Failed to delete price snapshot.'),
+        }),
     });
+  }
+
+  confirmPendingDelete(): void {
+    const pending = this.pendingDelete();
+    this.pendingDelete.set(null);
+    pending?.run();
   }
 
   // ---- Price sync ----
@@ -524,120 +589,71 @@ export class InvestmentsComponent implements OnDestroy {
     return Number.isFinite(value) ? value : null;
   }
 
-  pnlClass(v: number | null): string {
-    if (v == null) return '';
-    return v >= 0 ? 'positive' : 'negative';
+  /** The name a holding goes by: its ticker, or its name when it has none. */
+  label(asset: InvestmentAsset): string {
+    return asset.ticker ?? asset.name;
   }
 
+  colorOf(assetId: number): string | null {
+    return this.colors().get(assetId) ?? null;
+  }
+
+  /** '24.5310' shares, '28.00g' of gold. */
   formatQty(qty: number, assetType: string): string {
     return assetType === 'Gold' ? qty.toFixed(2) + 'g' : qty.toFixed(4);
   }
 
   formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return shortDate(d);
   }
 
-  // ---- Charts ----
-  private renderAllocationChart(): void {
-    this.allocationChart?.destroy();
-    const data = this.tabAllocation();
-    const canvas = this.allocationCanvas()?.nativeElement;
-    if (data.length === 0 || !canvas) return;
-
-    const total = data.reduce((s, d) => s + d.value, 0);
-    const pct = (v: number) => ((v / total) * 100).toFixed(1);
-    const centerTotal: Plugin<'doughnut'> = {
-      id: 'centerTotal',
-      afterDraw(chart) {
-        const { left, right, top, bottom } = chart.chartArea;
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#e2e8f0';
-        ctx.font = `600 1rem ${getComputedStyle(document.documentElement).getPropertyValue('--font-figures')}`;
-        ctx.fillText(
-          `€${total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-          (left + right) / 2,
-          (top + bottom) / 2,
-        );
-        ctx.restore();
-      },
-    };
-
-    this.allocationChart = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        labels: data.map((d) => `${d.label} · ${pct(d.value)}%`),
-        datasets: [
-          {
-            data: data.map((d) => d.value),
-            backgroundColor: data.map((d) => d.color),
-            borderWidth: 2,
-            borderColor: '#111827',
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '62%',
-        plugins: {
-          legend: {
-            position: 'right',
-            labels: { color: '#94a3b8', padding: 14, font: { size: 11 } },
-          },
-          tooltip: {
-            callbacks: {
-              label: (ctx) =>
-                ` €${(ctx.parsed as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${pct(ctx.parsed as number)}%)`,
-            },
-          },
-        },
-      },
-      plugins: [centerTotal],
-    });
-  }
-
+  // ---- Value chart ----
   private renderHistoryChart(): void {
     this.historyChart?.destroy();
     const points = this.filteredHistory();
     const canvas = this.historyCanvas()?.nativeElement;
     if (points.length === 0 || !canvas) return;
 
-    const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient.addColorStop(0, 'rgba(99,102,241,0.35)');
-    gradient.addColorStop(1, 'rgba(99,102,241,0.0)');
+    const theme = applyChartTheme();
+    const axis = axisOptions(theme);
+    const xAxis = axisOptions(theme, false);
+    const longSpan = spanDays(points) > 120;
+    const lastIndex = points.length - 1;
 
     this.historyChart = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: points.map((p) => this.formatDate(p.date)),
         datasets: [
           {
             label: 'Value',
-            data: points.map((p) => p.totalValue),
-            borderColor: '#6366f1',
-            backgroundColor: gradient,
+            data: points.map((p) => ({ x: dayValue(p.date), y: p.totalValue })),
+            borderColor: theme.credit,
+            borderWidth: 3,
+            borderCapStyle: 'round',
+            backgroundColor: (ctx) => {
+              const area = ctx.chart.chartArea;
+              if (!area) return withAlpha(theme.credit, 0.1);
+              const gradient = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+              gradient.addColorStop(0, withAlpha(theme.credit, 0.25));
+              gradient.addColorStop(1, withAlpha(theme.credit, 0));
+              return gradient;
+            },
             fill: true,
             tension: 0.35,
-            pointRadius: points.length > 60 ? 0 : 3,
+            pointRadius: points.map((_, i) => (i === lastIndex ? 5 : 0)),
             pointHoverRadius: 5,
-            pointBackgroundColor: '#6366f1',
+            pointBackgroundColor: theme.credit,
+            pointBorderColor: theme.surface,
+            pointBorderWidth: 2,
           },
           {
-            label: 'Invested',
-            data: points.map((p) => p.invested),
-            borderColor: '#64748b',
-            borderDash: [6, 4],
-            borderWidth: 1.5,
+            label: 'Money put in',
+            data: points.map((p) => ({ x: dayValue(p.date), y: p.invested })),
+            borderColor: theme.neutral,
+            borderDash: [5, 5],
+            borderWidth: 2,
             fill: false,
-            tension: 0,
+            stepped: 'after',
             pointRadius: 0,
             pointHoverRadius: 0,
           },
@@ -651,22 +667,31 @@ export class InvestmentsComponent implements OnDestroy {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (ctx) =>
-                ` ${ctx.dataset.label}: €${(ctx.parsed.y as number).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              title: (items) => shortDate(points[items[0].dataIndex].date),
+              label: (ctx) => ` ${ctx.dataset.label}: ${eur(ctx.parsed.y as number)}`,
             },
           },
         },
         scales: {
+          // Time-proportional: daily closes and sparse early prices keep their spacing.
           x: {
-            grid: { color: 'rgba(30,45,66,0.8)' },
-            ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 8 },
+            ...xAxis,
+            type: 'linear',
+            min: dayValue(points[0].date),
+            max: dayValue(points[points.length - 1].date),
+            ticks: {
+              ...xAxis.ticks,
+              maxTicksLimit: 6,
+              maxRotation: 0,
+              callback: (_value, index, ticks) => timeTick(ticks, index, longSpan),
+            },
           },
           y: {
-            grid: { color: 'rgba(30,45,66,0.8)' },
+            ...axis,
             ticks: {
-              color: '#64748b',
-              font: { size: 11 },
-              callback: (v) => `€${(v as number).toLocaleString()}`,
+              ...axis.ticks,
+              maxTicksLimit: 6,
+              callback: (value) => eurTick(Number(value)),
             },
           },
         },
