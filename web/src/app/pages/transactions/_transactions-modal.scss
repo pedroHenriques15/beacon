@@ -24,7 +24,7 @@
 }
 
 .tx-modal {
-  width: min(560px, 95vw);
+  --modal-width: 560px;
 }
 
 .field-row {

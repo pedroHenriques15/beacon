@@ -85,7 +85,7 @@
 }
 
 .pattern {
-  font-family: 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--primary-light);
 }
@@ -132,7 +132,7 @@
 }
 
 .modal {
-  width: min(440px, 92vw);
+  --modal-width: 440px;
 }
 
 .modal-header {

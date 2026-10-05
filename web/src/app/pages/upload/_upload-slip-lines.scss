@@ -1,5 +1,5 @@
 .slip-modal {
-  width: min(680px, 94vw);
+  --modal-width: 680px;
   max-height: 90vh;
   overflow-y: auto;
 }

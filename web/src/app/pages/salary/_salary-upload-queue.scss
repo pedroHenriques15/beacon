@@ -1,7 +1,7 @@
 @use 'salary-base' as *;
 
 .upload-dialog {
-  width: min(520px, 95vw);
+  --modal-width: 520px;
 }
 
 .upload-dialog-btns {

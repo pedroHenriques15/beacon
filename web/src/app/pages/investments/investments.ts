@@ -559,7 +559,7 @@ export class InvestmentsComponent implements OnDestroy {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = "600 1rem 'Inter', sans-serif";
+        ctx.font = `600 1rem ${getComputedStyle(document.documentElement).getPropertyValue('--font-figures')}`;
         ctx.fillText(
           `€${total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           (left + right) / 2,

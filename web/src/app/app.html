@@ -1,252 +1,209 @@
-<div class="layout">
-  @if (sidebarOpen()) {
-    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
-  }
-
-  <nav class="sidebar" [class.sidebar--mobile-open]="sidebarOpen()">
-    <div class="sidebar__logo">
-      <a class="sidebar__logo-text" routerLink="/dashboard" (click)="closeSidebar()">Beacon</a>
-    </div>
-
-    <a
-      class="sidebar__link"
-      routerLink="/dashboard"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" routerLink="/dashboard" aria-label="Beacon, home">
       <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
+        class="brand__icon"
+        width="24"
+        height="24"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="2"
+        stroke-width="1.8"
         stroke-linecap="round"
-        stroke-linejoin="round"
+        aria-hidden="true"
       >
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
+        <circle cx="12" cy="12" r="2.6" fill="currentColor" />
+        <path d="M6.6 6.6a7.6 7.6 0 0 0 0 10.8M17.4 6.6a7.6 7.6 0 0 1 0 10.8" />
       </svg>
-      Dashboard
+      <span class="brand__name">Beacon</span>
     </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/transactions"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
+    <p class="topbar__title">
       <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
+        width="22"
+        height="22"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="2"
+        stroke-width="1.8"
         stroke-linecap="round"
-        stroke-linejoin="round"
+        aria-hidden="true"
       >
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <line x1="3" y1="6" x2="3.01" y2="6" />
-        <line x1="3" y1="12" x2="3.01" y2="12" />
-        <line x1="3" y1="18" x2="3.01" y2="18" />
+        <circle cx="12" cy="12" r="2.6" fill="currentColor" />
+        <path d="M6.6 6.6a7.6 7.6 0 0 0 0 10.8M17.4 6.6a7.6 7.6 0 0 1 0 10.8" />
       </svg>
-      Transactions
-    </a>
+      {{ pageLabel() }}
+    </p>
 
-    <a
-      class="sidebar__link"
-      routerLink="/analytics"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+    <nav class="pill-nav" aria-label="Sections">
+      @for (item of desktopNav; track item.path) {
+        <a
+          class="pill-nav__link"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          >{{ item.label }}</a
+        >
+      }
+    </nav>
+
+    <div class="topbar__actions">
+      <a
+        class="btn-icon topbar__settings"
+        routerLink="/settings"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+        aria-label="Settings"
       >
-        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-        <path d="M22 12A10 10 0 0 0 12 2v10z" />
-      </svg>
-      Analytics
-    </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/calendar"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-      Calendar
-    </a>
-
-    <a class="sidebar__link" routerLink="/rules" routerLinkActive="active" (click)="closeSidebar()">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-      </svg>
-      Categories
-    </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/investments"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-        <polyline points="16 7 22 7 22 13" />
-      </svg>
-      Investments
-    </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/salary"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <line x1="12" y1="1" x2="12" y2="23" />
-        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-      </svg>
-      Salary
-    </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/upload"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </svg>
-      Upload
-    </a>
-
-    <a
-      class="sidebar__link"
-      routerLink="/settings"
-      routerLinkActive="active"
-      (click)="closeSidebar()"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="12" cy="12" r="3" />
-        <path
-          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-        />
-      </svg>
-      Settings
-    </a>
-  </nav>
-
-  <div class="content-wrapper">
-    <header class="mobile-header">
-      <a class="mobile-header__brand" routerLink="/dashboard">Beacon</a>
-      <button class="mobile-header__toggle" (click)="toggleSidebar()" aria-label="Open navigation">
         <svg
-          xmlns="http://www.w3.org/2000/svg"
           width="20"
           height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path [attr.d]="icons.settings" />
+        </svg>
+      </a>
+      <a class="btn-primary topbar__upload" routerLink="/upload">
+        <svg
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
+          aria-hidden="true"
         >
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
+          <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+        </svg>
+        Upload PDF
+      </a>
+      <button
+        type="button"
+        class="btn-icon topbar__more"
+        aria-label="More"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="moreOpen()"
+        (click)="toggleMore()"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h.01M12 12h.01M19 12h.01" />
         </svg>
       </button>
-    </header>
-    <main class="content">
-      <div class="page-inner">
-        <router-outlet />
-      </div>
-    </main>
+    </div>
   </div>
-</div>
+</header>
+
+<main class="content">
+  <router-outlet />
+</main>
+
+@if (!onUploadPage()) {
+  <a class="fab" routerLink="/upload" aria-label="Upload PDF">
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+    </svg>
+  </a>
+}
+
+<nav class="bottom-nav" aria-label="Sections">
+  @for (item of mainNav; track item.path) {
+    <a
+      class="bottom-nav__link"
+      [routerLink]="item.path"
+      routerLinkActive="active"
+      ariaCurrentWhenActive="page"
+    >
+      <span class="bottom-nav__icon">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path [attr.d]="item.icon" />
+        </svg>
+      </span>
+      {{ item.label }}
+    </a>
+  }
+</nav>
+
+@if (moreOpen()) {
+  <div class="modal-overlay more-overlay" (click)="closeMore()">
+    <div
+      class="modal more-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="more-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-header">
+        <h3 id="more-title">More</h3>
+        <button type="button" class="modal-close" aria-label="Close" (click)="closeMore()">
+          ✕
+        </button>
+      </div>
+      <ul class="more-list">
+        @for (item of moreNav; track item.path) {
+          <li>
+            <a
+              class="more-list__link"
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              ariaCurrentWhenActive="page"
+              (click)="closeMore()"
+            >
+              <span class="more-list__icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path [attr.d]="item.icon" />
+                </svg>
+              </span>
+              {{ item.label }}
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}

@@ -1,0 +1,153 @@
+.loading,
+.error {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--text-secondary);
+}
+
+.warning-banner,
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 52px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+
+  &::before {
+    content: '';
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--_ring, var(--warning));
+  }
+
+  a {
+    color: var(--primary);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .banner-dismiss {
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+}
+
+.error-banner {
+  --_ring: var(--danger);
+}
+
+.error-text {
+  color: var(--danger) !important;
+}
+
+.modal-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--danger);
+}
+
+// River's review row: hollow coral rings, a short message, a .btn-accent action.
+.review-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px 14px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  color: var(--text-primary);
+  text-decoration: none;
+
+  &__rings {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+
+    span {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.ring {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--debit);
+
+  &--sm {
+    width: 8px;
+    height: 8px;
+  }
+
+  &--lg {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+// Category chip: coloured dot plus name; a hollow ring when it needs a category.
+.cat-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--_dot, var(--category-fallback));
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--needs {
+    border-style: dashed;
+    border-color: var(--border);
+  }
+
+  &--muted {
+    color: var(--text-secondary);
+  }
+}

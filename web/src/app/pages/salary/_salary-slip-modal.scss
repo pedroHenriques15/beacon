@@ -6,7 +6,7 @@
 }
 
 .slip-modal {
-  width: min(600px, 95vw);
+  --modal-width: 600px;
 }
 
 .field-label {

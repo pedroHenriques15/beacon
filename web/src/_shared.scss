@@ -1,294 +1,80 @@
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-  padding: 0.55rem 1.2rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s;
+// Global classes, emitted once through styles.scss. A component that needs a mixin
+// uses 'styles/mixins' instead, so these rules are not copied into its styles.
+@forward 'styles/mixins';
+@forward 'styles/buttons';
+@forward 'styles/forms';
+@forward 'styles/modals';
+@forward 'styles/feedback';
+@use 'styles/mixins' as *;
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  &:hover:not(:disabled) {
-    opacity: 0.85;
-  }
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn-secondary {
-  background: var(--surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: #fff;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: rgba(0, 0, 0, 0.6);
+.page-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-}
-
-.modal {
-  background: #1a2536;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.75rem 2rem;
-  width: min(480px, 92vw);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-.modal-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 
-  h3 {
+  h1 {
     margin: 0;
-    font-size: 1.05rem;
-  }
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  padding: 0 0.25rem;
-  line-height: 1;
-
-  &:hover {
-    color: var(--text-primary);
-  }
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.field-label {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  margin: 1rem 0 0.35rem;
-}
-
-.field-input,
-.field-select {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  padding: 0.55rem 0.85rem;
-  font-size: 0.9rem;
-  outline: none;
-  box-sizing: border-box;
-
-  &:focus {
-    border-color: var(--focus);
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+  .subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
   }
 
-  option,
-  optgroup {
-    background: var(--surface);
-  }
+  // On phones the shell's top bar shows the page title.
+  @include below-desktop {
+    margin-bottom: 1rem;
 
-  &[type='number'] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-    &::-webkit-outer-spin-button,
-    &::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      appearance: none;
-      margin: 0;
+    h1 {
+      @include visually-hidden;
     }
   }
 }
 
-.field-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
+// A River section: a rounded block on --surface.
+.section {
+  @include card(var(--radius-lg));
+  padding: 18px 20px;
 
-.color-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.25rem;
-
-  input[type='color'] {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    background: none;
-    padding: 0;
-  }
-}
-
-.color-preview {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.match-count {
-  margin: 0.75rem 0 0;
-  font-size: 0.82rem;
-  color: var(--success);
-  padding: 0.4rem 0.75rem;
-  background: color-mix(in srgb, var(--success) 8%, transparent);
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
-
-  &--none {
-    color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.03);
-    border-color: var(--border);
-  }
-}
-
-.page-header {
-  margin-bottom: 1.5rem;
-
-  h1 {
-    margin: 0 0 0.25rem;
-    font-size: 1.75rem;
-    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  &__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
   }
 
-  .subtitle {
+  h2,
+  &__title {
     margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.95rem;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 500;
   }
 }
 
-.loading,
-.error {
-  text-align: center;
-  padding: 4rem;
-  color: var(--text-secondary);
+.figures {
+  @include figures;
 }
 
-.tab-bar {
-  display: flex;
-  gap: 0.25rem;
-  margin-top: 1rem;
+.amount-in {
+  color: var(--credit);
 }
 
-.tab-btn {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.4rem 0.75rem;
-
-  &.active {
-    color: var(--text-primary);
-    border-bottom-color: var(--primary);
-    font-weight: 600;
-  }
-
-  &:hover:not(.active) {
-    color: var(--text-secondary);
-  }
-}
-
-@mixin card($radius: 12px) {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: $radius;
-}
-
-.warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  border-left: 3px solid var(--warning);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-  font-size: 0.82rem;
-  color: var(--warning);
-
-  a {
-    color: inherit;
-    text-decoration: underline;
-    font-weight: 600;
-  }
+.visually-hidden {
+  @include visually-hidden;
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
-}
-
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  border-left: 3px solid var(--danger);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-  font-size: 0.82rem;
-  color: var(--danger);
-
-  .banner-dismiss {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-}
-
-.error-text {
-  color: var(--danger) !important;
-}
-
-.modal-error {
-  margin: 0.5rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--danger);
 }
