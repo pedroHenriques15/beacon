@@ -21,7 +21,8 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-Nothing is lined up; the next item comes from "Later".
+- Redesign the client: a darker theme, pages organised along time with a month picker, and
+  navigation built for phones, with Upload one tap away.
 
 ## Later
 
