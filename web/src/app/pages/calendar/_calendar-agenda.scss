@@ -1,0 +1,134 @@
+@use '../../../styles/mixins' as *;
+
+// Phones and tablets: "Coming up", one node per day on a timeline spine. The entry file
+// shows it below 1024 px.
+.agenda {
+  flex-direction: column;
+  gap: 10px;
+
+  &__empty {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: var(--surface);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  &__days {
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 10px;
+      bottom: 10px;
+      width: 2px;
+      border-radius: 1px;
+      background: var(--chart-grid);
+    }
+  }
+
+  &__day {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__node {
+    position: absolute;
+    left: -23px;
+    top: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--neutral-mark);
+  }
+
+  &__day--today &__node {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  &__label {
+    @include figures;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+}
+
+.agenda-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+
+  &__mark {
+    flex-shrink: 0;
+    width: 10px;
+    height: 34px;
+    border-radius: 5px;
+    background: var(--ev, var(--primary));
+  }
+
+  &--task &__mark {
+    background: none;
+    border: 1.5px solid var(--text-secondary);
+  }
+
+  &--empty {
+    cursor: default;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  &--empty &__mark {
+    background: var(--border);
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &--done &__title {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+}

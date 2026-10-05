@@ -1,5 +1,103 @@
+@use '../../../styles/mixins' as *;
 @use 'calendar-header' as *;
 @use 'calendar-grid' as *;
 @use 'calendar-task-chips' as *;
+@use 'calendar-mini' as *;
+@use 'calendar-legend' as *;
+@use 'calendar-agenda' as *;
 @use 'calendar-tasks' as *;
 @use 'calendar-toast' as *;
+
+h2 {
+  font-size: 16px;
+}
+
+.cal-error {
+  margin: 0 0 16px;
+}
+
+// Desktop: the month beside Tasks; Tasks drops below once the row is too narrow.
+.cal-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.cal-month {
+  flex: 999 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tasks {
+  flex: 1 1 320px;
+  max-width: 420px;
+  min-width: 0;
+}
+
+.cal-mini,
+.agenda {
+  display: none;
+}
+
+// Phones and tablets: one column in the order the phone mockup reads: month, the two
+// New buttons, what is coming up, then Tasks.
+@include below-desktop {
+  .cal {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .cal-head,
+  .cal-layout {
+    display: contents;
+  }
+
+  .cal-head__nav {
+    order: 1;
+  }
+
+  .cal-error,
+  .cal-not-connected,
+  .loading {
+    order: 2;
+    margin: 0;
+  }
+
+  .cal-month {
+    order: 3;
+    flex: none;
+    gap: 8px;
+  }
+
+  .cal-head__actions {
+    order: 4;
+  }
+
+  .agenda {
+    order: 5;
+    display: flex;
+  }
+
+  .tasks {
+    order: 6;
+    flex: none;
+    max-width: none;
+  }
+
+  .cal-grid-wrap {
+    display: none;
+  }
+
+  .cal-mini {
+    display: block;
+  }
+
+  h2 {
+    font-size: 15px;
+  }
+}

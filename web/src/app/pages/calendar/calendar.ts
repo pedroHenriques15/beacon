@@ -11,59 +11,30 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { DatePipe, SlicePipe } from '@angular/common';
-import { CalendarService, CalendarInfo } from '../../core/services/calendar.service';
+import { CalendarService } from '../../core/services/calendar.service';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { CalendarEvent, CalendarEventFormData } from '../../core/models/calendar-event';
 import { Task, TaskFormData } from '../../core/models/task';
-import { GOOGLE_CALENDAR_COLORS } from '../../core/constants/calendar-colors';
 import { EventModalComponent } from './event-modal';
 import { TaskModalComponent } from './task-modal';
-
-interface CalendarDay {
-  date: Date;
-  dateStr: string;
-  isCurrentMonth: boolean;
-  isToday: boolean;
-  events: CalendarEvent[];
-  tasks: Task[];
-}
-
-interface SpanLayout {
-  event: CalendarEvent;
-  startCol: number;
-  endCol: number;
-  row: number;
-  isStart: boolean;
-  isEnd: boolean;
-}
-
-interface WeekRow {
-  days: CalendarDay[];
-  spans: SpanLayout[];
-  maxSpanRow: number;
-}
-
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
+import {
+  AgendaItem,
+  MONTH_NAMES,
+  WeekRow,
+  agendaGroups,
+  agendaRange,
+  agendaTitle as agendaTitleFor,
+  buildWeeks,
+  dayLabel,
+  newEventDate,
+  toDateStr,
+} from './calendar-layout';
 
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [EventModalComponent, TaskModalComponent, RouterLink, SlicePipe, DatePipe],
+  imports: [EventModalComponent, TaskModalComponent, RouterLink],
   templateUrl: './calendar.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './calendar.scss',
@@ -75,6 +46,7 @@ export class CalendarPage implements OnInit {
   private destroyRef = inject(DestroyRef);
 
   readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  readonly dayLabel = dayLabel;
 
   year = signal(new Date().getFullYear());
   month = signal(new Date().getMonth());
@@ -114,6 +86,7 @@ export class CalendarPage implements OnInit {
   });
 
   monthLabel = computed(() => `${MONTH_NAMES[this.month()]} ${this.year()}`);
+  connected = computed(() => this.googleAuth.status()?.connected === true);
 
   availableCalendars = this.calendarService.calendarList;
 
@@ -141,65 +114,37 @@ export class CalendarPage implements OnInit {
     () => new Map(this.tasksService.taskLists().map((l) => [l.id, l.title])),
   );
 
-  calendarWeeks = computed<WeekRow[]>(() => {
-    const y = this.year();
-    const m = this.month();
-    const events = this.calendarService.events();
-    const hidden = this.hiddenCalendarIds();
-    const tasks = this.tasksWithDue();
-    const todayStr = toDateStr(new Date());
+  /** Calendar id to the colour the legend shows, so chips and legend agree. */
+  private calendarColors = computed(
+    () => new Map(this.calendarService.calendarList().map((c) => [c.id, c.color])),
+  );
 
-    const firstDay = new Date(y, m, 1);
-    let startDow = firstDay.getDay();
-    startDow = startDow === 0 ? 6 : startDow - 1;
+  calendarWeeks = computed<WeekRow[]>(() =>
+    buildWeeks({
+      year: this.year(),
+      month: this.month(),
+      events: this.calendarService.events(),
+      tasks: this.tasksWithDue(),
+      hidden: this.hiddenCalendarIds(),
+      today: toDateStr(new Date()),
+      colors: this.calendarColors(),
+    }),
+  );
 
-    const allDays: CalendarDay[] = Array.from({ length: 42 }, (_, i) => {
-      const date = new Date(y, m, 1 - startDow + i);
-      const dateStr = toDateStr(date);
-      return {
-        date,
-        dateStr,
-        isCurrentMonth: date.getMonth() === m,
-        isToday: dateStr === todayStr,
-        events: events.filter(
-          (e) => !hidden.has(e.calendarId) && !isMultiDay(e) && eventFallsOnDate(e, dateStr),
-        ),
-        tasks: tasks.filter((t) => t.due === dateStr),
-      };
+  /** Phone: what is left of the shown month, day by day. */
+  agenda = computed(() => {
+    const today = toDateStr(new Date());
+    return agendaGroups({
+      ...agendaRange(this.year(), this.month(), today),
+      events: this.calendarService.events(),
+      tasks: this.tasksWithDue(),
+      hidden: this.hiddenCalendarIds(),
+      today,
+      listTitles: this.taskListTitleMap(),
+      colors: this.calendarColors(),
     });
-
-    const spanningEvents = events.filter((e) => !hidden.has(e.calendarId) && isMultiDay(e));
-
-    const weeks: WeekRow[] = [];
-    for (let w = 0; w < 6; w++) {
-      const days = allDays.slice(w * 7, w * 7 + 7);
-      const weekStart = days[0].dateStr;
-      const weekEnd = days[6].dateStr;
-
-      const weekSpans: SpanLayout[] = [];
-      for (const event of spanningEvents) {
-        const eventStartDate = event.start.substring(0, 10);
-        const eventEndDate = event.end.substring(0, 10);
-        if (eventStartDate > weekEnd || eventEndDate < weekStart) continue;
-        const clampedStart = eventStartDate < weekStart ? weekStart : eventStartDate;
-        const clampedEnd = eventEndDate > weekEnd ? weekEnd : eventEndDate;
-        const startIdx = days.findIndex((d) => d.dateStr === clampedStart);
-        const endIdx = days.findIndex((d) => d.dateStr === clampedEnd);
-        weekSpans.push({
-          event,
-          startCol: startIdx + 1,
-          endCol: endIdx + 1,
-          row: 0,
-          isStart: event.start >= weekStart,
-          isEnd: event.end <= weekEnd,
-        });
-      }
-      assignSpanRows(weekSpans);
-      const maxSpanRow = weekSpans.length > 0 ? Math.max(...weekSpans.map((s) => s.row)) : 0;
-      weeks.push({ days, spans: weekSpans, maxSpanRow });
-    }
-    return weeks;
   });
+  agendaTitle = computed(() => agendaTitleFor(this.year(), this.month(), new Date()));
 
   ngOnInit(): void {
     this.googleAuth.loadStatus();
@@ -252,8 +197,13 @@ export class CalendarPage implements OnInit {
     this.modalOpen.set(true);
   }
 
-  openEditModal(event: CalendarEvent, domEvent: MouseEvent): void {
-    domEvent.stopPropagation();
+  /** The header's New event: today in the current month, else the shown month's 1st. */
+  openNewEvent(): void {
+    this.openCreateModal(newEventDate(this.year(), this.month(), new Date()));
+  }
+
+  openEditModal(event: CalendarEvent, domEvent?: MouseEvent): void {
+    domEvent?.stopPropagation();
     this.editingEvent.set(event);
     this.prefilledDate.set('');
     this.modalOpen.set(true);
@@ -289,36 +239,6 @@ export class CalendarPage implements OnInit {
     });
   }
 
-  chipStyle(event: CalendarEvent): Record<string, string> {
-    const color = event.colorId ? GOOGLE_CALENDAR_COLORS[event.colorId]?.hex : event.calendarColor;
-    if (!color) return {};
-    return {
-      background: `color-mix(in srgb, ${color} 20%, transparent)`,
-      'border-left-color': color,
-    };
-  }
-
-  spanStyle(span: SpanLayout): Record<string, string> {
-    const leftPct = ((span.startCol - 1) / 7) * 100;
-    const widthPct = ((span.endCol - span.startCol + 1) / 7) * 100;
-    const topRem = 2.2 + (span.row - 1) * 1.6;
-    const leftInset = span.isStart ? 2 : 0;
-    const rightInset = span.isEnd ? 2 : 0;
-    const styles: Record<string, string> = {
-      left: `calc(${leftPct}% + ${leftInset}px)`,
-      top: `${topRem}rem`,
-      width: `calc(${widthPct}% - ${leftInset + rightInset}px)`,
-    };
-    const color = span.event.colorId
-      ? GOOGLE_CALENDAR_COLORS[span.event.colorId]?.hex
-      : span.event.calendarColor;
-    if (color) {
-      styles['background'] = `color-mix(in srgb, ${color} 20%, transparent)`;
-      if (span.isStart) styles['border-left-color'] = color;
-    }
-    return styles;
-  }
-
   onDelete(id: string): void {
     this.saving.set(true);
     this.saveError.set(null);
@@ -338,6 +258,14 @@ export class CalendarPage implements OnInit {
           this.saveError.set('Failed to delete event. Please try again.');
         },
       });
+  }
+
+  openAgendaItem(item: AgendaItem): void {
+    if (item.event) {
+      this.openEditModal(item.event);
+    } else if (item.task) {
+      this.openTaskModal(item.task);
+    }
   }
 
   openTaskModal(task?: Task, domEvent?: MouseEvent): void {
@@ -530,40 +458,5 @@ export class CalendarPage implements OnInit {
     if (this._toastTimer) clearTimeout(this._toastTimer);
     this.successToast.set(msg);
     this._toastTimer = setTimeout(() => this.successToast.set(null), 2500);
-  }
-}
-
-function toDateStr(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function eventFallsOnDate(event: CalendarEvent, dateStr: string): boolean {
-  if (event.isAllDay) {
-    return dateStr >= event.start && dateStr <= event.end;
-  }
-  return event.start.substring(0, 10) === dateStr;
-}
-
-function isMultiDay(event: CalendarEvent): boolean {
-  return event.start.substring(0, 10) !== event.end.substring(0, 10);
-}
-
-function assignSpanRows(spans: SpanLayout[]): void {
-  spans.sort((a, b) => a.startCol - b.startCol || a.event.start.localeCompare(b.event.start));
-  const occupied: boolean[][] = [];
-  for (const span of spans) {
-    let r = 0;
-    while (true) {
-      if (!occupied[r]) occupied[r] = Array(7).fill(false);
-      if (!occupied[r].slice(span.startCol - 1, span.endCol).some(Boolean)) {
-        for (let c = span.startCol - 1; c < span.endCol; c++) occupied[r][c] = true;
-        span.row = r + 1;
-        break;
-      }
-      r++;
-    }
   }
 }

@@ -1,0 +1,58 @@
+// The calendars as toggles (pressed means shown) and the "Task due" key.
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+
+  &__item,
+  &__key {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 22px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  &__item {
+    border: 1px solid var(--border-soft);
+    background: none;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--surface-raised);
+      color: var(--text-primary);
+    }
+
+    &[aria-pressed='false'] {
+      color: var(--text-muted);
+      text-decoration: line-through;
+
+      .cal-legend__dot {
+        background: transparent;
+        box-shadow: inset 0 0 0 1.5px var(--ev, var(--primary));
+      }
+    }
+  }
+
+  &__dot,
+  &__task {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+  }
+
+  &__dot {
+    border-radius: 50%;
+    background: var(--ev, var(--primary));
+  }
+
+  &__task {
+    border-radius: 3px;
+    border: 1.5px solid var(--text-secondary);
+  }
+}

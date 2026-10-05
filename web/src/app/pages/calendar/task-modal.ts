@@ -16,7 +16,7 @@ import { Task, TaskFormData, TaskList } from '../../core/models/task';
   imports: [FormsModule],
   templateUrl: './task-modal.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrl: './_task-modal.scss',
+  styleUrl: './_calendar-task-modal.scss',
 })
 export class TaskModalComponent implements OnChanges {
   @Input() open = false;
