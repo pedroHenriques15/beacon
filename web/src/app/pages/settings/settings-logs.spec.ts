@@ -41,6 +41,18 @@ describe('SettingsLogsComponent', () => {
     return fixture.nativeElement.textContent;
   }
 
+  function levelButtons(): HTMLButtonElement[] {
+    return Array.from(
+      fixture.nativeElement.querySelectorAll('[aria-label="Level"] button'),
+    ) as HTMLButtonElement[];
+  }
+
+  function levelButton(label: string): HTMLButtonElement {
+    const match = levelButtons().find((b) => b.textContent?.trim() === label);
+    if (!match) throw new Error(`No "${label}" level.`);
+    return match;
+  }
+
   it('asks for the last 24 hours at every level when it opens', () => {
     const req = http.expectOne((r) => r.url === '/api/logs');
     expect(req.request.params.get('minLevel')).toBe('Information');
@@ -51,12 +63,14 @@ describe('SettingsLogsComponent', () => {
     req.flush({ enabled: true, entries: [], more: false });
   });
 
-  it('shows the window it asked for in its filters', () => {
+  it('shows the level and the window it asked for in its filters', () => {
     answer({ enabled: true, entries: [], more: false });
 
-    const [level, window] = fixture.nativeElement.querySelectorAll('select');
-    expect(level.selectedOptions[0].textContent.trim()).toBe('All levels');
-    expect(window.selectedOptions[0].textContent.trim()).toBe('Last 24 hours');
+    const pressed = levelButtons().filter((b) => b.getAttribute('aria-pressed') === 'true');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0].textContent?.trim()).toBe('All levels');
+    const timeWindow: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect(timeWindow.selectedOptions[0].textContent?.trim()).toBe('Last 24 hours');
   });
 
   it('lists entries newest first, with errors highlighted and their details', () => {
@@ -87,12 +101,13 @@ describe('SettingsLogsComponent', () => {
   it('asks again when the level or the search changes', () => {
     answer({ enabled: true, entries: [], more: false });
 
-    const level: HTMLSelectElement = fixture.nativeElement.querySelector('select');
-    level.value = 'Error';
-    level.dispatchEvent(new Event('change'));
+    levelButton('Errors only').click();
     const byLevel = http.expectOne((r) => r.url === '/api/logs');
     expect(byLevel.request.params.get('minLevel')).toBe('Error');
     byLevel.flush({ enabled: true, entries: [], more: false });
+    fixture.detectChanges();
+    expect(levelButton('Errors only').getAttribute('aria-pressed')).toBe('true');
+    expect(levelButton('All levels').getAttribute('aria-pressed')).toBe('false');
 
     const search: HTMLInputElement = fixture.nativeElement.querySelector('input');
     search.value = 'google';

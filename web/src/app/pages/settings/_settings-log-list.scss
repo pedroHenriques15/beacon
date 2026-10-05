@@ -1,0 +1,124 @@
+@use '../../../styles/mixins' as *;
+
+// The entries, newest first, scrolling inside their own box.
+.log-list {
+  @include card(var(--radius-lg));
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 32rem;
+  overflow-y: auto;
+  transition: opacity 0.15s;
+
+  &--stale {
+    opacity: 0.6;
+  }
+}
+
+.log-entry {
+  --_level: var(--neutral-mark);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &--warning {
+    --_level: var(--warning);
+  }
+
+  &--error {
+    --_level: var(--danger);
+    background: color-mix(in srgb, var(--danger) 7%, transparent);
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__level {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--text-primary);
+
+    &::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--_level);
+    }
+  }
+
+  &--warning &__level,
+  &--error &__level {
+    color: var(--_level);
+  }
+
+  &__source {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+
+  &__message {
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-body);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__details {
+    summary {
+      width: fit-content;
+      padding: 12px 0;
+      line-height: 20px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      cursor: pointer;
+    }
+
+    // Long stack lines wrap; a long trace scrolls inside its own box.
+    pre {
+      margin: 0 0 4px;
+      padding: 10px 12px;
+      max-height: 18rem;
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  }
+}
+
+@include phone {
+  .log-list {
+    max-height: 28rem;
+  }
+
+  .log-entry {
+    padding: 10px 16px;
+  }
+}

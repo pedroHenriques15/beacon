@@ -1,143 +1,69 @@
-.settings-section {
-  margin-bottom: 2rem;
+@use '../../../styles/mixins' as *;
+@use 'settings-google' as *;
+@use 'settings-backup' as *;
 
-  &__title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-bottom: 1rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+// Desktop: Google and the backup in a column on the left, the logs beside them.
+.settings {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'google logs'
+    'backup logs';
+  gap: 24px;
+  align-items: start;
 }
 
-.settings-error {
-  font-size: 0.875rem;
-  color: var(--danger);
-  margin-bottom: 1rem;
+.google {
+  grid-area: google;
 }
 
-.google-card {
+.backup {
+  grid-area: backup;
+}
+
+.logs {
+  grid-area: logs;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  flex-direction: column;
+  gap: 14px;
 
-  &--connected {
-    border-color: var(--success);
-  }
-
-  &--expired {
-    border-color: var(--warning);
-  }
-
-  &--loading {
-    justify-content: center;
-    min-height: 72px;
-  }
-
-  &__icon {
-    color: var(--success);
-    flex-shrink: 0;
-
-    &--muted {
-      color: var(--text-muted);
-    }
-
-    &--warning {
-      color: var(--warning);
-    }
-  }
-
-  &__info {
-    flex: 1;
-  }
-
-  &__label {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.2rem;
-  }
-
-  &__detail {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin: 0;
-
-    &--warning {
-      color: var(--warning);
-      margin-top: 0.35rem;
-    }
-  }
-
-  &__actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-shrink: 0;
+  h2 {
+    font-size: 18px;
   }
 }
 
-.backup-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+.section {
+  padding: 20px 22px;
+}
 
-  &__info {
-    flex: 1;
+.section-hint {
+  margin: -4px 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+// Phones and tablets: one column, in reading order.
+@include below-desktop {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      'google'
+      'backup'
+      'logs';
+    gap: 18px;
   }
 
-  &__label {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.2rem;
-  }
-
-  &__detail {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin: 0;
-  }
-
-  &__actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-shrink: 0;
+  .logs h2 {
+    font-size: 15px;
   }
 }
 
-.settings-status {
-  font-size: 0.875rem;
-  margin-top: 0.75rem;
-
-  &--ok {
-    color: var(--success);
-  }
-  &--error {
-    color: var(--danger);
-  }
-}
-
-@media (max-width: 640px) {
-  .backup-card,
-  .google-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  .backup-card__actions,
-  .google-card__actions {
-    flex-direction: column;
-
-    button {
-      width: 100%;
-    }
+@include phone {
+  .section {
+    padding: 18px 16px;
   }
 }
