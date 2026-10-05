@@ -1,0 +1,99 @@
+@use '../../../styles/mixins' as *;
+@use 'salary-base' as *;
+
+// "Take-home over time": one bar per slip, the selected slip's in full colour.
+
+.history {
+  min-width: 0;
+
+  h2 {
+    @extend %block-title;
+  }
+
+  &__card {
+    @include card(var(--radius-lg));
+    padding: 20px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__bars {
+    display: flex;
+    gap: 6px;
+    height: 176px;
+  }
+
+  &__col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__track {
+    flex: 1;
+    width: 100%;
+    max-width: 30px;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  &__bar {
+    width: 100%;
+    min-height: 3px;
+    border-radius: 6px 6px 3px 3px;
+    background: color-mix(in srgb, var(--credit) 40%, transparent);
+  }
+
+  &__month {
+    @extend %meta;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  &__year {
+    @include figures;
+    min-height: 12px;
+    font-size: 10px;
+    line-height: 1.2;
+    color: var(--text-secondary);
+  }
+
+  &__note {
+    @extend %meta;
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+.history__col--selected {
+  .history__bar {
+    background: var(--credit);
+  }
+
+  .history__month {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+}
+
+@include phone {
+  .history {
+    &__card {
+      padding: 16px 14px 12px;
+    }
+
+    &__bars {
+      gap: 4px;
+      height: 132px;
+    }
+
+    &__month {
+      font-size: 10px;
+    }
+  }
+}

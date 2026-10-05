@@ -1,0 +1,156 @@
+@use 'transactions-picker-sheet' as *;
+
+// Clicks pass through this layer on desktop; on phones it holds the sheet's backdrop.
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+}
+
+.backdrop {
+  display: none;
+}
+
+.picker {
+  position: absolute;
+  top: var(--_top);
+  left: var(--_left);
+  width: 300px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  pointer-events: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px var(--overlay);
+}
+
+.picker__head,
+.picker__row {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+:host(.review) {
+  .picker__head,
+  .picker__row {
+    display: flex;
+  }
+}
+
+.picker__heading,
+.picker__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.picker__title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.picker__progress,
+.picker__meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.picker__row {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.picker__desc {
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker__amount {
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.picker__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  background: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface);
+  }
+
+  &[aria-pressed='true'] {
+    border-color: var(--primary);
+    background: var(--primary-tint);
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.picker__empty {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.picker__row,
+.picker__search,
+.picker__foot {
+  flex-shrink: 0;
+}
+
+.picker__search {
+  appearance: none;
+}
+
+.picker__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px;
+}
+
+.picker__none {
+  color: var(--text-secondary);
+}
+
+@include picker-sheet;

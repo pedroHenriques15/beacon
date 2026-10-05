@@ -1,0 +1,122 @@
+@use '../../../styles/mixins' as *;
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.flow {
+  position: relative;
+  width: 100%;
+
+  &__svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__ribbon {
+    &--in {
+      fill: var(--text-primary);
+      fill-opacity: 0.14;
+    }
+
+    &--net {
+      fill: var(--credit);
+      fill-opacity: 0.3;
+    }
+
+    &--out {
+      fill: var(--debit);
+      fill-opacity: 0.32;
+    }
+  }
+
+  &__node {
+    &--in {
+      fill: var(--text-body);
+    }
+
+    &--gross {
+      fill: var(--text-primary);
+    }
+
+    &--net {
+      fill: var(--credit);
+    }
+
+    &--out {
+      fill: var(--debit);
+    }
+  }
+
+  &__label {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.2;
+    transform: translateY(-50%);
+
+    &--end {
+      align-items: flex-end;
+      text-align: right;
+    }
+  }
+
+  &__name {
+    max-width: 100%;
+    font-size: 13px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__value {
+    @include figures;
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  &--compact {
+    .flow__name {
+      font-size: 12px;
+    }
+
+    .flow__value {
+      font-size: 14px;
+    }
+  }
+
+  // After --compact, so the corner label keeps its smaller type.
+  &__gross--above {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    transform: translate(-50%, -100%);
+  }
+
+  &__gross--beside {
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  &__gross--corner {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    transform: none;
+
+    .flow__name {
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .flow__value {
+      font-size: 12px;
+    }
+  }
+}

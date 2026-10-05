@@ -1,97 +1,132 @@
-.tasks-panel {
-  margin-top: 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-}
+@use '../../../styles/mixins' as *;
 
-.tasks-panel__header {
+// Tasks grouped by list. On desktop pending rows drag to reorder or onto a list title.
+.tasks {
+  @include card(var(--radius-lg));
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px;
 
-  h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    flex: 1;
+  h2 {
+    margin: 0 0 4px;
   }
 
-  select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
+  .error-banner {
+    margin: 4px 0;
+  }
 
-    &:focus {
-      outline: none;
-      border-color: var(--primary);
+  &__empty {
+    margin: 8px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__list-title {
+    margin: 10px 0 2px;
+    padding: 4px 0;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+
+    &--drag-over {
+      padding-left: 8px;
+      background: var(--primary-tint);
+      color: var(--primary);
     }
   }
-}
 
-.tasks-panel__empty {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin: 0.5rem 0;
-}
-
-.tasks-panel__toggle-error {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-  border-radius: 6px;
-  color: var(--danger);
-  font-size: 0.85rem;
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0.75rem;
-}
-
-.tasks-panel__toggle {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
-  padding: 0.25rem 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  transition: color 0.12s;
-
-  &:hover {
-    color: var(--text-secondary);
+  &__toggle {
+    align-self: flex-start;
+    font-size: 13px;
   }
 }
 
 .task-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas: 'check text side';
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border);
+  column-gap: 6px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--border-soft);
   cursor: grab;
 
-  &:last-of-type {
+  &:last-child {
     border-bottom: none;
   }
 
-  input[type='checkbox'] {
-    --_check-color: var(--success);
-    width: 0.9rem;
-    height: 0.9rem;
-    margin-top: 0.15rem;
-    cursor: default;
+  // A 44 px target around the round checkbox, which lines up with the list title.
+  &__check {
+    grid-area: check;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 44px;
+    cursor: pointer;
+
+    input {
+      width: 20px;
+      height: 20px;
+      margin: 0;
+    }
+  }
+
+  &__text {
+    grid-area: text;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--primary);
+    }
+  }
+
+  &__notes {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__side {
+    grid-area: side;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+
+    &--due {
+      @include figures;
+    }
+  }
+
+  &__due-word {
+    display: none;
   }
 
   &--done {
-    opacity: 0.45;
+    cursor: default;
 
     .task-row__title {
+      font-weight: 600;
+      color: var(--text-muted);
       text-decoration: line-through;
     }
   }
@@ -101,60 +136,41 @@
   }
 
   &--drag-over {
-    border-top: 2px solid var(--primary);
+    box-shadow: inset 0 2px 0 var(--primary);
   }
 }
 
-.task-row__title {
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.9rem;
-  flex: 1;
-
-  &:hover {
-    color: var(--primary);
+// Phones and tablets: no card; the due date goes under the title.
+@include below-desktop {
+  .tasks {
+    padding: 0;
+    background: none;
   }
-}
 
-.task-row__due {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  flex-shrink: 0;
-}
+  .task-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-areas:
+      'check text'
+      'check side';
+    align-content: center;
+    min-height: 52px;
+    cursor: default;
 
-.tasks-panel__category {
-  margin-bottom: 0.25rem;
-}
+    &__check input {
+      width: 22px;
+      height: 22px;
+    }
 
-.tasks-panel__category-title {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.6rem 0 0.2rem;
-  border-radius: 4px;
-  transition: color 0.12s;
+    &__text {
+      padding: 8px 0 2px;
+    }
 
-  &--drag-over {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    padding-left: 0.3rem;
+    &__side {
+      padding-bottom: 8px;
+    }
+
+    &__due-word {
+      display: inline;
+    }
   }
-}
-
-.task-row__list {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  flex-shrink: 0;
-}
-
-.task-row__notes {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 18rem;
 }

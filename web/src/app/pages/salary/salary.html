@@ -9,21 +9,79 @@
 @if (loading()) {
   <div class="loading">Loading salary data…</div>
 } @else {
-  @if (view() === 'overview') {
-    <div class="page-header">
-      <div class="header-row">
-        <div>
-          <h1>Salary</h1>
-          <p class="subtitle">Track wages and deductions across all income sources</p>
+  <div class="page-header salary-header">
+    <div class="salary-header__lead">
+      <h1>Salary</h1>
+      @if (profiles().length > 0) {
+        <div class="tab-bar profile-tabs" role="group" aria-label="Profiles">
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="view() === 'overview'"
+            [attr.aria-pressed]="view() === 'overview'"
+            (click)="showOverview()"
+          >
+            All profiles
+          </button>
+          @for (p of profiles(); track p.id) {
+            <button
+              type="button"
+              class="tab-btn"
+              [class.active]="activeProfileId() === p.id"
+              [attr.aria-pressed]="activeProfileId() === p.id"
+              (click)="enterProfile(p.id)"
+            >
+              {{ p.name }}
+            </button>
+          }
         </div>
-        @if (profiles().length > 0) {
-          <button class="btn-primary" (click)="openProfileCreate()">+ New profile</button>
-        }
-      </div>
+      }
     </div>
+    @if (profiles().length > 0) {
+      <div class="salary-header__actions">
+        <button type="button" class="btn-secondary" (click)="openProfileCreate()">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New profile
+        </button>
+        @if (selectedProfile(); as profile) {
+          <button type="button" class="btn-secondary" (click)="openProfileEdit(profile)">
+            Edit profile
+          </button>
+        }
+        <a class="btn-primary salary-header__upload" routerLink="/upload">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+          </svg>
+          Upload slip
+        </a>
+      </div>
+    }
+  </div>
 
-    @if (profiles().length === 0) {
-      <div class="empty-state salary-empty-state">
+  @switch (view()) {
+    @case ('empty') {
+      <section class="empty-card" aria-labelledby="empty-h">
         <svg
           width="40"
           height="40"
@@ -33,380 +91,335 @@
           stroke-width="1.5"
           stroke-linecap="round"
           stroke-linejoin="round"
-          class="empty-state-icon"
+          aria-hidden="true"
         >
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
+          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
         </svg>
-        <p class="empty-state-title">No salary profiles yet</p>
-        <p class="empty-state-desc">
-          Create a profile for each employer, then upload pay slips to track your earnings.
-        </p>
-        <button class="btn-primary" (click)="openProfileCreate()">+ New profile</button>
-      </div>
-    } @else {
-      <div class="profile-overview-grid">
-        @for (profile of profiles(); track profile.id) {
-          @let latestSlip = latestSlipPerProfile().get(profile.id);
-          <div class="profile-overview-card" (click)="enterProfile(profile.id)">
-            <div class="poc-header">
-              <div class="poc-title">{{ profile.name }}</div>
-              <div class="poc-badge-actions" (click)="$event.stopPropagation()">
-                <button
-                  class="icon-btn show"
-                  title="Edit profile"
-                  (click)="openProfileEdit(profile)"
+        <h2 id="empty-h">No salary profiles yet</h2>
+        <p>Create a profile for each employer, then upload pay slips to track your earnings.</p>
+        <button type="button" class="btn-primary" (click)="openProfileCreate()">New profile</button>
+      </section>
+    }
+
+    @case ('overview') {
+      <section class="overview" aria-label="Profile overview">
+        @for (card of overviewCards(); track card.profile.id) {
+          <article class="profile-card">
+            <button
+              type="button"
+              class="profile-card__open"
+              (click)="enterProfile(card.profile.id)"
+            >
+              <span class="profile-card__name">{{ card.profile.name }}</span>
+              @if (card.profile.description) {
+                <span class="profile-card__desc">{{ card.profile.description }}</span>
+              }
+              @if (card.slip; as latest) {
+                <span class="profile-card__period">{{ formatPeriod(latest.period) }} payslip</span>
+                <span class="profile-card__net">{{ eur(card.net) }}</span>
+                <span class="profile-card__gross"
+                  >take-home from {{ eur(latest.grossAmount) }} gross</span
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            @if (latestSlip) {
-              <div class="poc-period">{{ formatPeriod(latestSlip.period) }}</div>
-              <div class="poc-amounts">
-                <span class="poc-gross">{{
-                  latestSlip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-                <span class="poc-arrow">→</span>
-                <span class="poc-net">{{
-                  netFromLineItems(latestSlip) | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-              <div class="poc-chart">
-                <app-salary-pie-chart [slip]="latestSlip" [showLegend]="false" />
-              </div>
-            } @else {
-              <div class="poc-no-slips">No slips yet - click to view</div>
-            }
-
-            <div class="poc-footer">
-              {{ profile.slipCount }} slip{{ profile.slipCount !== 1 ? 's' : '' }} &nbsp;›
-            </div>
-          </div>
-        }
-      </div>
-    }
-  }
-
-  @if (view() === 'profile') {
-    <div class="page-header">
-      <div class="header-row">
-        <div class="header-back-group">
-          <button class="btn-back" (click)="exitProfile()">‹ All profiles</button>
-          <div>
-            <h1>{{ selectedProfile()?.name }}</h1>
-            @if (selectedProfile()?.description) {
-              <p class="subtitle">{{ selectedProfile()!.description }}</p>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-
-    @if (profileSlips().length === 0) {
-      <div class="empty-state">
-        <p>
-          No salary slips yet. Go to <a class="link" routerLink="/upload">Upload</a> to import a pay
-          slip PDF.
-        </p>
-      </div>
-    } @else {
-      <div class="slip-list">
-        @for (slip of profileSlips(); track slip.id) {
-          <div class="slip-card slip-card-row" (click)="viewSlip(slip.id)">
-            <div class="slip-row-left">
-              <span class="slip-period">{{ formatPeriod(slip.period) }}</span>
-              @if (slip.sourceFile) {
-                <span class="slip-source" title="{{ slip.sourceFile }}">
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  {{ slip.sourceFile }}
+                <span class="split" aria-hidden="true">
+                  <span class="split__net" [style.width.%]="card.netPct"></span>
+                  <span class="split__out" [style.width.%]="100 - card.netPct"></span>
                 </span>
+                <span class="split-legend">
+                  <span>Take-home {{ card.netPct }}%</span>
+                  <span>Deductions and tax {{ 100 - card.netPct }}%</span>
+                </span>
+              } @else {
+                <span class="profile-card__none">No slips yet</span>
               }
-            </div>
-            <div class="slip-mini-chart" (click)="$event.stopPropagation()">
-              <app-salary-pie-chart [slip]="slip" [showLegend]="false" />
-            </div>
-            <div class="slip-row-right">
-              <div class="slip-amounts">
-                <span class="gross-amt">{{
-                  slip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-                <span class="arrow-sep">→</span>
-                <span class="net-amt">{{
-                  netFromLineItems(slip) | currency: 'EUR' : 'symbol' : '1.2-2'
-                }}</span>
-              </div>
-              <div class="slip-actions" (click)="$event.stopPropagation()">
-                <button class="icon-btn" title="Edit" (click)="openSlipEdit(slip)">
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-                <button class="icon-btn danger" title="Delete" (click)="deleteSlip(slip)">
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
+              <span class="profile-card__count"
+                >{{ card.profile.slipCount }} slip{{
+                  card.profile.slipCount !== 1 ? 's' : ''
+                }}
+                ›</span
+              >
+            </button>
+            <button
+              type="button"
+              class="btn-icon profile-card__edit"
+              [attr.aria-label]="'Edit profile ' + card.profile.name"
+              (click)="openProfileEdit(card.profile)"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </article>
+        }
+      </section>
+    }
+
+    @case ('profile') {
+      @let profile = selectedProfile()!;
+      @if (profile.description) {
+        <p class="profile-note">{{ profile.description }}</p>
+      }
+
+      @if (selectedSlip(); as slip) {
+        @let key = periodKey(slip.period);
+        @let net = netOf(slip);
+
+        <nav class="picker" aria-label="Slips">
+          <div class="picker__track" #slipTrack>
+            @if (chipFirstShown() > 0) {
+              <button type="button" class="picker__earlier" (click)="showEarlierSlips()">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+                Earlier
+              </button>
+            }
+            @for (chip of chips(); track chip.id) {
+              <button
+                type="button"
+                class="slip-chip"
+                [class.slip-chip--older]="chip.older"
+                [attr.aria-pressed]="chip.selected"
+                [attr.aria-label]="chip.label"
+                (click)="viewSlip(chip.id)"
+              >
+                <span class="slip-chip__month"
+                  >{{ chip.month }}
+                  @if (chip.year) {
+                    <span class="slip-chip__year">{{ chip.year }}</span>
+                  }
+                </span>
+                <span class="slip-chip__net">{{ chip.net }}</span>
+              </button>
+            }
+          </div>
+        </nav>
+
+        <div class="slip">
+          <div class="slip__top">
+            <section class="flow-card" aria-labelledby="flow-h">
+              <h2 id="flow-h">Where {{ monthName(key) }}’s pay went</h2>
+              <app-slip-flow [slip]="slip" />
+            </section>
+
+            <div class="slip__aside">
+              <section class="hero" aria-labelledby="hero-h">
+                <h2 id="hero-h">{{ profile.name }}, {{ monthYearLabel(key) }} payslip</h2>
+                <p class="hero__net">{{ eur(net) }}</p>
+                <p class="hero__gross">
+                  take-home from <strong>{{ eur(slip.grossAmount) }}</strong> gross
+                </p>
+                @if (slip.sourceFile) {
+                  <p class="hero__file" [title]="slip.sourceFile">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6" />
+                    </svg>
+                    <span>{{ slip.sourceFile }}</span>
+                  </p>
+                }
+              </section>
+
+              <section class="tiles" aria-label="Rates and hours">
+                @for (t of tiles(); track t.label) {
+                  <div class="tile">
+                    <span class="tile__label">{{ t.label }}</span>
+                    <span class="tile__value">{{ t.value }}</span>
+                    <span class="tile__note">{{ t.note }}</span>
+                  </div>
+                }
+              </section>
             </div>
           </div>
-        }
-      </div>
-    }
-  }
 
-  @if (view() === 'slip' && selectedSlip()) {
-    @let slip = selectedSlip()!;
-    <div class="page-header">
-      <div class="header-row">
-        <div class="header-back-group">
-          <button class="btn-back" (click)="exitSlip()">‹ {{ selectedProfile()?.name }}</button>
-          <div>
-            <h1>{{ formatPeriod(slip.period) }}</h1>
-            @if (slip.sourceFile) {
-              <p class="subtitle">{{ slip.sourceFile }}</p>
+          <div class="slip__bottom">
+            <section class="lines" aria-labelledby="lines-h">
+              <div class="block-head">
+                <h2 id="lines-h">On the slip</h2>
+                <div class="block-head__actions">
+                  <button type="button" class="btn-secondary" (click)="openSlipEdit(slip)">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit slip
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon lines__delete"
+                    [attr.aria-label]="'Delete the ' + monthYearLabel(key) + ' slip'"
+                    (click)="deleteSlip(slip)"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="lines__card">
+                @if (slip.lineItems.length > 0) {
+                  <ul class="lines__list">
+                    @for (line of lines().incomes; track line.id) {
+                      <li class="line">
+                        <span class="cat-dot" [style.--_dot]="line.color"></span>
+                        <span class="line__text">
+                          <span class="line__name">{{ line.name }}</span>
+                          <span class="line__detail">{{ line.detail }}</span>
+                        </span>
+                        <span class="line__amount" [class.amount-in]="line.inflow">{{
+                          line.amount
+                        }}</span>
+                      </li>
+                    }
+                    <li class="line line--sub">
+                      <span class="line__text">
+                        <span class="line__name">Gross</span>
+                        <span class="line__detail">Ilíquido</span>
+                      </span>
+                      <span class="line__amount">{{ eur(slip.grossAmount) }}</span>
+                    </li>
+                    @for (line of lines().outgoings; track line.id) {
+                      <li class="line">
+                        <span class="cat-dot" [style.--_dot]="line.color"></span>
+                        <span class="line__text">
+                          <span class="line__name">{{ line.name }}</span>
+                          <span class="line__detail">{{ line.detail }}</span>
+                        </span>
+                        <span class="line__amount" [class.amount-in]="line.inflow">{{
+                          line.amount
+                        }}</span>
+                      </li>
+                    }
+                    <li class="line line--total">
+                      <span class="line__text">
+                        <span class="line__name">Take-home</span>
+                        <span class="line__detail">A ganhar</span>
+                      </span>
+                      <span class="line__amount amount-in">{{ eur(net) }}</span>
+                    </li>
+                  </ul>
+                } @else {
+                  <p class="lines__empty">No line items recorded for this slip.</p>
+                }
+                @if (slip.notes) {
+                  <div class="notes">
+                    <span class="notes__label">Notes</span>
+                    <p class="notes__text">{{ slip.notes }}</p>
+                  </div>
+                }
+              </div>
+            </section>
+
+            @if (history(); as h) {
+              <section class="history" aria-labelledby="hist-h">
+                <div class="block-head">
+                  <h2 id="hist-h">Take-home over time</h2>
+                  <span class="block-head__aside">{{ h.from }} – {{ h.to }}</span>
+                </div>
+                <div class="history__card">
+                  <div class="history__bars" role="img" [attr.aria-label]="h.label">
+                    @for (b of h.bars; track b.id) {
+                      <div
+                        class="history__col"
+                        [class.history__col--selected]="b.selected"
+                        [title]="b.title"
+                      >
+                        <span class="history__track">
+                          <span class="history__bar" [style.height.%]="b.pct"></span>
+                        </span>
+                        <span class="history__month">{{ b.month }}</span>
+                        <span class="history__year">{{ b.year ?? '' }}</span>
+                      </div>
+                    }
+                  </div>
+                  <p class="history__note">{{ h.summary }}</p>
+                </div>
+              </section>
             }
           </div>
         </div>
-        <div class="slip-detail-header-actions">
-          <button
-            class="btn-secondary"
-            (click)="openSlipEdit(slip)"
-            style="display: inline-flex; align-items: center; gap: 0.4rem"
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-            Edit
-          </button>
-          <button
-            class="btn-danger"
-            (click)="deleteSlip(slip)"
-            style="display: inline-flex; align-items: center; gap: 0.4rem"
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6" />
-              <path d="M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="stat-grid stat-grid-4">
-      <div class="stat-card">
-        <div class="stat-label">Gross (Ilíquido)</div>
-        <div class="stat-value">{{ slip.grossAmount | currency: 'EUR' : 'symbol' : '1.2-2' }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Net (A Ganhar)</div>
-        <div class="stat-value net">
-          {{ netFromLineItems(slip) | currency: 'EUR' : 'symbol' : '1.2-2' }}
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Deductions + Tax</div>
-        <div class="stat-value tax">
-          {{ slip.grossAmount - netFromLineItems(slip) | currency: 'EUR' : 'symbol' : '1.2-2' }}
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Effective rate</div>
-        <div class="stat-value">
-          {{
-            slip.grossAmount > 0
-              ? (((slip.grossAmount - netFromLineItems(slip)) / slip.grossAmount) * 100
-                | number: '1.1-1')
-              : '-'
-          }}%
-        </div>
-      </div>
-    </div>
-
-    @if (slip.baseAmount || slip.hoursWorked || slip.hourlyRate || slip.totalEspecie) {
-      <div class="stat-grid stat-grid-secondary">
-        @if (slip.baseAmount) {
-          <div class="stat-card secondary">
-            <div class="stat-label">Base Salary</div>
-            <div class="stat-value">
-              {{ slip.baseAmount | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </div>
-          </div>
-        }
-        @if (slip.hoursWorked) {
-          <div class="stat-card secondary">
-            <div class="stat-label">{{ hoursWorkedLabel(slip) }}</div>
-            <div class="stat-value">{{ slip.hoursWorked | number: '1.0-2' }}</div>
-          </div>
-        }
-        @if (slip.hourlyRate) {
-          <div class="stat-card secondary">
-            <div class="stat-label">Hourly Rate</div>
-            <div class="stat-value">
-              {{ slip.hourlyRate | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </div>
-          </div>
-        }
-        @if (hasTrueHourlyRate(slip)) {
-          <div class="stat-card secondary">
-            <div class="stat-label">True Hourly Rate</div>
-            <div class="stat-value true-hourly">
-              {{ trueHourlyRate(slip) | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </div>
-          </div>
-        }
-        @if (slip.totalEspecie) {
-          <div class="stat-card secondary">
-            <div class="stat-label">Non-Cash Benefits</div>
-            <div class="stat-value">
-              {{ slip.totalEspecie | currency: 'EUR' : 'symbol' : '1.2-2' }}
-            </div>
-          </div>
-        }
-      </div>
+      } @else {
+        <section class="empty-card" aria-labelledby="no-slips-h">
+          <h2 id="no-slips-h">No salary slips yet</h2>
+          <p>Upload a pay slip PDF and Beacon files it under its profile.</p>
+          <a class="btn-primary" routerLink="/upload">Upload slip</a>
+        </section>
+      }
     }
-
-    <div class="slip-detail-body">
-      <div class="slip-chart-section">
-        <app-salary-pie-chart [slip]="slip" legendPosition="bottom" />
-      </div>
-
-      <div class="slip-items-section">
-        <div class="section-title">Line items</div>
-        @if (slip.lineItems.length > 0) {
-          <table class="line-table">
-            <tbody>
-              @for (li of slip.lineItems; track li.id) {
-                <tr>
-                  <td>
-                    <span class="cat-dot" [style.background]="li.categoryColor"></span>
-                    <div class="line-item-name-col">
-                      <span>{{ li.categoryName }}</span>
-                      @if (li.quantity && li.unitValue) {
-                        <span class="line-detail"
-                          >{{ li.quantity | number: '1.0-2' }} ×
-                          {{ li.unitValue | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                        >
-                      }
-                      @if (li.percentage && li.incidenciaBase) {
-                        <span class="line-detail"
-                          >{{ li.percentage | number: '1.1-1' }}% of
-                          {{ li.incidenciaBase | currency: 'EUR' : 'symbol' : '1.2-2' }}</span
-                        >
-                      }
-                    </div>
-                  </td>
-                  <td class="type-badge-cell">
-                    <span class="type-badge" [class]="li.categoryItemType">{{
-                      li.categoryItemType
-                    }}</span>
-                  </td>
-                  <td class="num">
-                    <span [class]="li.categoryItemType === 'income' ? 'credit' : 'debit'">
-                      {{ li.categoryItemType === 'income' ? '+' : '-'
-                      }}{{ li.amount | currency: 'EUR' : 'symbol' : '1.2-2' }}
-                    </span>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        } @else {
-          <p class="muted-text">No line items recorded for this slip.</p>
-        }
-        @if (slip.notes) {
-          <div class="slip-notes-block">
-            <span class="field-label" style="margin-top: 1.25rem">Notes</span>
-            <p class="slip-notes-text">{{ slip.notes }}</p>
-          </div>
-        }
-      </div>
-    </div>
   }
 }
 
 @if (showSlipModal()) {
   <div class="modal-overlay">
-    <div class="modal slip-modal" (click)="$event.stopPropagation()">
+    <div class="modal slip-modal" role="dialog" aria-modal="true" aria-labelledby="slip-modal-h">
       <div class="modal-header">
-        <h3>Edit salary slip</h3>
-        <button class="modal-close" (click)="showSlipModal.set(false)">✕</button>
+        <h3 id="slip-modal-h">Edit salary slip</h3>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="showSlipModal.set(false)"
+        >
+          ✕
+        </button>
       </div>
 
       <div class="field-row">
         <div>
-          <label class="field-label">Period</label>
+          <label class="field-label" for="slip-period">Period</label>
           <input
+            id="slip-period"
             class="field-input"
             type="month"
             [ngModel]="slipPeriod()"
@@ -414,8 +427,9 @@
           />
         </div>
         <div>
-          <label class="field-label">Gross amount</label>
+          <label class="field-label" for="slip-gross">Gross amount</label>
           <input
+            id="slip-gross"
             class="field-input"
             type="number"
             step="0.01"
@@ -429,8 +443,9 @@
 
       <div class="field-row">
         <div>
-          <label class="field-label">Net amount</label>
+          <label class="field-label" for="slip-net">Net amount</label>
           <input
+            id="slip-net"
             class="field-input"
             type="number"
             step="0.01"
@@ -441,8 +456,11 @@
           />
         </div>
         <div>
-          <label class="field-label">Notes <span class="muted">(optional)</span></label>
+          <label class="field-label" for="slip-notes"
+            >Notes <span class="muted">(optional)</span></label
+          >
           <input
+            id="slip-notes"
             class="field-input"
             type="text"
             placeholder="e.g. includes bonus"
@@ -452,87 +470,105 @@
         </div>
       </div>
 
-      <label class="field-label">PDF <span class="muted">(optional)</span></label>
+      <span class="field-label">PDF <span class="muted">(optional)</span></span>
       @if (slipSourceFile()) {
         <div class="pdf-attached">
           <svg
-            width="13"
-            height="13"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            aria-hidden="true"
           >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
+            <path d="M14 2v6h6" />
           </svg>
-          <span class="pdf-name">{{ slipSourceFile() }}</span>
+          <span class="pdf-attached__name">{{ slipSourceFile() }}</span>
           <button
-            class="pdf-clear"
-            (click)="slipPdfPath.set(null); slipSourceFile.set(null)"
-            title="Remove PDF"
+            type="button"
+            class="btn-icon pdf-attached__clear"
+            aria-label="Remove PDF"
+            (click)="removePdf()"
           >
             ✕
           </button>
         </div>
       } @else {
-        <label class="btn-attach-pdf">
+        <label class="btn-secondary attach-pdf">
           Attach PDF
-          <input type="file" accept=".pdf" style="display: none" (change)="onPdfSelected($event)" />
+          <input
+            type="file"
+            accept=".pdf"
+            class="visually-hidden"
+            (change)="onPdfSelected($event)"
+          />
         </label>
       }
 
-      <div class="line-items-header">
-        <span class="field-label" style="margin: 0"
-          >Line items <span class="muted">(optional)</span></span
-        >
-        <button class="btn-add-line" (click)="addLineItem()">+ Add line</button>
+      <div class="line-items-head">
+        <span class="field-label">Line items <span class="muted">(optional)</span></span>
+        <button type="button" class="btn-secondary" (click)="addLineItem()">+ Add line</button>
       </div>
 
       @for (li of slipLineItems(); track $index; let i = $index) {
-        <div class="line-item-row">
-          <div class="li-cat-wrap">
-            <select
-              class="field-input li-cat"
-              [ngModel]="li.salaryItemCategoryId"
-              (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', $event)"
-            >
-              <option [ngValue]="null">Category…</option>
-              @for (type of itemTypes; track type.value) {
-                @if (catsByType(type.value).length > 0) {
-                  <optgroup [label]="type.label">
-                    @for (c of catsByType(type.value); track c.id) {
-                      <option [ngValue]="c.id">{{ c.name }}</option>
-                    }
-                  </optgroup>
-                }
+        <div class="line-edit">
+          <select
+            class="field-input line-edit__cat"
+            [attr.aria-label]="'Category of line ' + (i + 1)"
+            [ngModel]="li.salaryItemCategoryId"
+            (ngModelChange)="updateLineItem(i, 'salaryItemCategoryId', $event)"
+          >
+            <option [ngValue]="null">Category…</option>
+            @for (type of itemTypes; track type.value) {
+              @if (catsByType(type.value).length > 0) {
+                <optgroup [label]="type.label">
+                  @for (c of catsByType(type.value); track c.id) {
+                    <option [ngValue]="c.id">{{ c.name }}</option>
+                  }
+                </optgroup>
               }
-            </select>
-          </div>
+            }
+          </select>
           <input
-            class="field-input li-amount"
+            class="field-input line-edit__amount"
             type="number"
             step="0.01"
             min="0"
             placeholder="0.00"
+            [attr.aria-label]="'Amount of line ' + (i + 1)"
             [ngModel]="li.amount"
             (ngModelChange)="updateLineItem(i, 'amount', +$event)"
           />
-          <button class="icon-btn danger li-remove" (click)="removeLineItem(i)">✕</button>
+          <button
+            type="button"
+            class="btn-icon line-edit__remove"
+            [attr.aria-label]="'Remove line ' + (i + 1)"
+            (click)="removeLineItem(i)"
+          >
+            ✕
+          </button>
         </div>
       }
 
       @if (slipError()) {
-        <div class="form-error">{{ slipError() }}</div>
+        <p class="modal-error" role="alert">{{ slipError() }}</p>
       }
 
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showSlipModal.set(false)" [disabled]="slipLoading()">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="showSlipModal.set(false)"
+          [disabled]="slipLoading()"
+        >
           Cancel
         </button>
         <button
+          type="button"
           class="btn-primary"
           [disabled]="!slipFormValid() || slipLoading()"
           (click)="submitSlip()"
@@ -546,29 +582,43 @@
 
 @if (showProfileModal()) {
   <div class="modal-overlay">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-h">
       <div class="modal-header">
-        <h3>{{ profileModalMode() === 'create' ? 'New profile' : 'Edit profile' }}</h3>
-        <button class="modal-close" (click)="showProfileModal.set(false)">✕</button>
+        <h3 id="profile-modal-h">
+          {{ profileModalMode() === 'create' ? 'New profile' : 'Edit profile' }}
+        </h3>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          (click)="showProfileModal.set(false)"
+        >
+          ✕
+        </button>
       </div>
-      <label class="field-label">Name</label>
+      <label class="field-label" for="profile-name">Name</label>
       <input
+        id="profile-name"
         class="field-input"
         type="text"
         placeholder="e.g. Acme Corp"
         [ngModel]="profileName()"
         (ngModelChange)="profileName.set($event)"
       />
-      <label class="field-label">Description <span class="muted">(optional)</span></label>
+      <label class="field-label" for="profile-desc"
+        >Description <span class="muted">(optional)</span></label
+      >
       <input
+        id="profile-desc"
         class="field-input"
         type="text"
         placeholder="e.g. Full-time employment"
         [ngModel]="profileDesc()"
         (ngModelChange)="profileDesc.set($event)"
       />
-      <label class="field-label">True hourly rate formula</label>
+      <label class="field-label" for="profile-formula">True hourly rate formula</label>
       <select
+        id="profile-formula"
         class="field-input"
         [ngModel]="profileFormula()"
         (ngModelChange)="profileFormula.set($event)"
@@ -578,8 +628,11 @@
         <option value="workdays">Net ÷ (weekdays in month × 8h)</option>
       </select>
       <div class="modal-actions">
-        <button class="btn-secondary" (click)="showProfileModal.set(false)">Cancel</button>
+        <button type="button" class="btn-secondary" (click)="showProfileModal.set(false)">
+          Cancel
+        </button>
         <button
+          type="button"
           class="btn-primary"
           [disabled]="!profileName().trim() || profileLoading()"
           (click)="submitProfile()"

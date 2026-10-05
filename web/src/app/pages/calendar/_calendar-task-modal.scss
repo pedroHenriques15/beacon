@@ -1,0 +1,37 @@
+@use '../../../styles/mixins' as *;
+
+// The task modal (TaskModalComponent's styles).
+.task-modal {
+  --modal-width: 480px;
+}
+
+.task-completed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin-top: 1rem;
+  cursor: pointer;
+
+  .field-label {
+    margin: 0;
+  }
+
+  input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+}
+
+.task-actions-right {
+  display: flex;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+@include phone {
+  .task-actions-right > * {
+    flex: 1;
+  }
+}

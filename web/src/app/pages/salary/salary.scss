@@ -1,10 +1,91 @@
-@use 'salary-base' as *;
-@use 'salary-tabs' as *;
-@use 'salary-stats' as *;
-@use 'salary-slip-table' as *;
-@use 'salary-slip-list' as *;
-@use 'salary-slip-detail' as *;
-@use 'salary-profile-overview' as *;
-@use 'salary-categories' as *;
-@use 'salary-slip-modal' as *;
-@use 'salary-upload-queue' as *;
+@use '../../../styles/mixins' as *;
+@use 'salary-header' as *;
+@use 'salary-slip' as *;
+@use 'salary-lines' as *;
+@use 'salary-history' as *;
+@use 'salary-overview' as *;
+@use 'salary-modal' as *;
+
+.block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+
+  &__aside {
+    @include figures;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+// Desktop: the flow beside the hero and tiles, then the lines beside the history.
+.slip {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  &__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+    gap: 24px;
+  }
+
+  &__aside {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  &__bottom {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 24px;
+  }
+}
+
+// Phones and tablets: one column, in the order the phone mockup reads.
+@include below-desktop {
+  .slip {
+    gap: 20px;
+
+    &__top,
+    &__aside {
+      display: contents;
+    }
+
+    &__bottom {
+      order: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 20px;
+    }
+  }
+
+  .hero {
+    order: 1;
+  }
+
+  .flow-card {
+    order: 2;
+  }
+
+  .tiles {
+    order: 3;
+  }
+
+  .flow-card h2,
+  .block-head h2 {
+    font-size: 15px;
+  }
+}

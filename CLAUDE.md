@@ -43,7 +43,9 @@ api/Beacon.Api/     ASP.NET Core 10 API: Controllers/, Features/ (one folder per
                     Services/ (uploads, storage, Google, pricing, logging), Services/Parsing/ (parsers),
                     Models/, Data/ (AppDbContext), Migrations/, Program.cs (DI + startup)
 api/Beacon.Tests/   xUnit tests, each on its own in-memory SQLite database
-web/src/app/        Angular 22 client: core/ (services, models, interceptors), pages/ (routes)
+web/src/            styles.scss (tokens), _shared.scss + styles/ (global classes, mixins)
+web/src/app/        Angular 22 client: app.* (shell), core/ (services, models, components,
+                    charts, utils), pages/ (routes)
 scripts/            pdfExtractor.py (run by the API), reset-db, run-backend/-frontend, setup
                     (enables the git hooks), seed-demo and SeedRunner/ (demo database)
 .githooks/          commit-msg and pre-push: the "Git workflow" rules, enforced locally
@@ -109,25 +111,42 @@ Frontend:
 
 SCSS:
 
+- The design is River (ADR-030; ARCHITECTURE.md, "Design system"). Dark only.
 - File size limits: page entry file at most 200 lines (split into partials beyond that);
   `_shared.scss` at most 300 lines; a partial at most 200 lines.
 - Partials are split by UI concern, `_{page}-{concern}.scss`, next to the component's main
   `.scss`; the entry file imports them with `@use '{partial}' as *;`.
 - `@extend` does not cross `@use` boundaries in Dart Sass: a partial that extends a
   placeholder must `@use` the file defining it.
+- Global classes live in `_shared.scss` and the partials it forwards from `web/src/styles/`
+  (`_buttons`, `_forms`, `_modals`, `_feedback`); `styles.scss` emits them once. A component
+  never `@use`s `_shared`: for a mixin it uses `styles/mixins` (`@use '../../../styles/mixins'
+  as *;` from a page), which emits no CSS.
 - Where a class goes: one component only, that component's SCSS or partials; two or more
-  components, `_shared.scss`; layout (sidebar, nav, content wrapper), `app/app.scss`; CSS
-  custom properties, `:root` in `styles.scss`.
+  components, `_shared.scss` or a partial in `web/src/styles/`; the shell (header, navs),
+  `app/app.scss`; CSS custom properties, `:root` in `styles.scss`.
 - Never hard-code a color that has a CSS variable; check `:root` first. A new color used in
   more than two places becomes a variable named for its meaning (`--danger`, not `--red`).
-  Current variables: `--bg`, `--surface`, `--border`, `--text-muted`, `--text-secondary`,
-  `--text-primary`, `--text-heading`, `--text-body`, `--primary`, `--primary-light`,
-  `--success`, `--warning`, `--danger`, `--credit`, `--debit`, `--surface-raised`, `--focus`.
+  Current variables: `--bg`, `--surface`, `--surface-raised`, `--border`, `--border-soft`,
+  `--chart-grid`, `--text-heading`, `--text-primary`, `--text-body`, `--text-secondary`,
+  `--text-muted`, `--neutral-mark`, `--primary`, `--primary-light`, `--primary-tint`,
+  `--on-primary`, `--success`, `--credit`, `--debit`, `--warning`, `--danger`, `--focus`,
+  `--overlay`, `--category-fallback`; fonts `--font-body`, `--font-display`,
+  `--font-figures`, `--font-mono`; radii `--radius-md`, `--radius-lg`, `--radius-xl`.
+- Text on `--primary` or a light fill uses `--on-primary`. Outflows show in `--text-primary`
+  with a minus sign, inflows in `--credit` with a plus; `--debit` is for chart marks and the
+  "needs a category" ring only.
+- Figures (money, percentages, counts in stats and tables, timeline dates) use
+  `@include figures` (`--font-figures` with tabular figures); headings use `--font-display`.
+- Breakpoints: `@include below-desktop` (under 1024 px) and `@include phone` (under 640 px).
+  A dialog sets `--modal-width`, never `width`; below 640 px it becomes a bottom sheet.
 - `%placeholder` rules live in a `_{page}-base.scss` partial, not the entry file.
 - `@keyframes spin` is defined once in `_shared.scss`; `.page-header` is defined in
   `_shared.scss`. Don't redeclare either.
-- Use `@mixin card($radius: 12px)` instead of repeating background, border and radius.
+- Use `@mixin card($radius: 24px)` instead of repeating background and radius.
 - Always `@use`, never `@import`.
+- Chart.js charts call `applyChartTheme()` (`core/charts/chart-theme.ts`); no hex colour in
+  chart code except data colours.
 
 ## Tasks
 

@@ -1,0 +1,59 @@
+@let g = geometry();
+<svg
+  class="river"
+  [class.river--compact]="compact()"
+  [attr.viewBox]="'0 0 ' + g.w + ' ' + g.h"
+  [attr.height]="g.h"
+  role="img"
+  [attr.aria-label]="summary()"
+>
+  @for (line of g.grid; track line.y) {
+    <path class="river__grid" [attr.d]="'M' + g.left + ' ' + line.y + 'H' + g.right" />
+    <text class="river__axis" [attr.x]="g.left - 10" [attr.y]="line.y + 4" text-anchor="end">
+      {{ line.label }}
+    </text>
+  }
+  @for (t of g.ticks; track t.label) {
+    <text class="river__axis" [attr.x]="t.x" [attr.y]="g.axis" [attr.text-anchor]="t.anchor">
+      {{ t.label }}
+    </text>
+  }
+
+  <path class="river__last" [attr.d]="g.lastLine" />
+  <path class="river__area" [attr.d]="g.area" />
+  <path class="river__line" [attr.d]="g.line" />
+
+  @for (e of g.endLabels; track e.y) {
+    <text class="river__end" [attr.x]="g.right + 12" [attr.y]="e.y">
+      {{ e.name }}
+      <tspan class="river__strong">{{ e.value }}</tspan>
+    </text>
+  }
+
+  <path class="river__strip" [attr.d]="'M' + g.left + ' ' + g.strip + 'H' + g.right" />
+  <text class="river__axis" [attr.x]="g.left - 10" [attr.y]="g.strip + 4" text-anchor="end">
+    In
+  </text>
+
+  @for (d of g.outDots; track d.id) {
+    <circle
+      class="river__dot"
+      [class.river__dot--hollow]="d.hollow"
+      [attr.cx]="d.cx"
+      [attr.cy]="d.cy"
+      [attr.r]="d.r"
+    >
+      <title>{{ d.tip }}</title>
+    </circle>
+  }
+  @for (d of g.inDots; track d.id) {
+    <circle class="river__dot river__dot--in" [attr.cx]="d.cx" [attr.cy]="d.cy" [attr.r]="d.r">
+      <title>{{ d.tip }}</title>
+    </circle>
+  }
+  @for (l of g.labels; track $index) {
+    <text class="river__label" [attr.x]="l.x" [attr.y]="l.y" [attr.text-anchor]="l.anchor">
+      {{ l.text }}
+    </text>
+  }
+</svg>

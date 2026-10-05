@@ -1,49 +1,159 @@
-@use '../../../_shared' as *;
-@use 'investments-stats' as *;
-@use 'investments-table' as *;
-@use 'investments-charts' as *;
-@use 'investments-prices' as *;
+@use '../../../styles/mixins' as *;
+@use 'investments-summary' as *;
+@use 'investments-chart' as *;
+@use 'investments-holdings' as *;
+@use 'investments-rows' as *;
+@use 'investments-cards' as *;
+@use 'investments-detail' as *;
+@use 'investments-entries' as *;
+@use 'investments-allocation' as *;
+@use 'investments-activity' as *;
 
-.page-header__row {
+h2 {
+  font-size: 18px;
+}
+
+.stale-note {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.header-actions {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .btn-secondary {
+    background: var(--surface);
+
+    &:hover:not(:disabled) {
+      background: var(--surface-raised);
+    }
+  }
+}
+
+.sync-notice {
+  --_ring: var(--credit);
+}
+
+.tabs {
+  margin: 0 0 20px;
+}
+
+.invest {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+// A River section: a rounded block on --surface.
+.block {
+  @include card(var(--radius-lg));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+}
+
+// The value chart beside the figures; on phones the figures come first.
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  grid-template-areas: 'chart aside';
+  gap: 24px;
+
+  &__aside {
+    grid-area: aside;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+
+.pair {
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 24px;
+
+  > * {
+    flex: 1 1 420px;
+    min-width: 0;
+  }
+}
+
+.load-error {
+  flex-direction: row;
   flex-wrap: wrap;
-}
-
-.page-header__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.inv-radio-group {
-  display: flex;
-  gap: 1.5rem;
-  margin-top: 0.5rem;
-}
-
-.inv-radio {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  color: var(--text-body);
-  cursor: pointer;
-}
-
-.inv-error-card {
-  @include card(12px);
-  padding: 1.5rem;
-  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  color: var(--debit);
 
   p {
     margin: 0;
+    color: var(--danger);
+  }
+}
+
+.empty-state {
+  margin: 0;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+// Asset modal: ETF or gold as the shared segmented pill group, with radios inside.
+.type-choice {
+  margin-top: 0;
+  background: var(--bg);
+
+  .tab-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+
+    &:has(input:focus-visible) {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+  }
+}
+
+@include below-desktop {
+  h2 {
+    font-size: 15px;
+  }
+
+  .invest,
+  .pair {
+    gap: 20px;
+  }
+
+  .top {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'aside'
+      'chart';
+    gap: 20px;
+  }
+}
+
+@include phone {
+  .header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+
+    &__sync {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .tabs {
+    display: flex;
+
+    .tab-btn {
+      flex: 1;
+    }
   }
 }

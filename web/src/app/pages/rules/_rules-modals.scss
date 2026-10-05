@@ -1,0 +1,21 @@
+@use '../../../styles/mixins' as *;
+
+// The category and rule editors. Below 640 px the global styles turn them into bottom sheets.
+.modal {
+  --modal-width: 460px;
+}
+
+.field-optional {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+// Patterns are raw text from statements and receipts; amounts are figures.
+.pattern-input {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.amount-input {
+  @include figures;
+}

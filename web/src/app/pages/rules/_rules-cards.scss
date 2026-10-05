@@ -1,0 +1,150 @@
+@use '../../../styles/mixins' as *;
+
+// One section per category, flowing down up to three columns (one on phones).
+.cat-grid {
+  columns: 3 340px;
+  column-gap: 16px;
+}
+
+.cat-card {
+  @include card(var(--radius-lg));
+  break-inside: avoid;
+  margin: 0 0 16px;
+  padding: 14px 12px 6px 20px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+  }
+
+  &__dot {
+    width: 12px;
+    height: 12px;
+    margin-right: 4px;
+  }
+
+  &__title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__name {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__count {
+    @include figures;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__delete {
+    color: var(--text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--danger);
+    }
+  }
+
+  &__foot {
+    padding: 2px 0;
+  }
+
+  &__add {
+    gap: 6px;
+  }
+}
+
+// A category's rules: rows split by soft dividers.
+.rule-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  border-top: 1px solid var(--border-soft);
+
+  &__match {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 8px 0;
+  }
+
+  &__key {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  &__pattern {
+    min-width: 0;
+    padding: 3px 9px;
+    border-radius: 8px;
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__amount {
+    @include figures;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  &__actions {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  // Quiet icon buttons: still 44 px, without the outline, so a long list stays calm.
+  &__btn {
+    border-color: transparent;
+    color: var(--text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--text-primary);
+    }
+
+    &--delete:hover:not(:disabled) {
+      color: var(--danger);
+    }
+  }
+}
+
+@include phone {
+  .cat-grid {
+    columns: 1;
+  }
+
+  .cat-card {
+    margin-bottom: 12px;
+    padding: 12px 6px 4px 16px;
+  }
+}

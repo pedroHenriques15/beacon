@@ -8,6 +8,17 @@ import { Category, CategoryRule } from '../../core/models/statement.model';
 import { GroceryCategory, GroceryCategoryRule } from '../../core/models/grocery.model';
 import { matchesRule } from '../../core/utils/rule-match';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
+import {
+  filterByName,
+  groupByCategory,
+  plural,
+  ruleAmount,
+  ruleCountLabel,
+  ruleSummary,
+} from './rules-view';
+
+type AnyCategory = Category | GroceryCategory;
+type AnyRule = CategoryRule | GroceryCategoryRule;
 
 @Component({
   selector: 'app-rules',
@@ -24,6 +35,35 @@ export class RulesComponent {
   groceriesSvc = inject(GroceriesService);
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
+
+  readonly plural = plural;
+  readonly ruleAmount = ruleAmount;
+  readonly ruleCountLabel = ruleCountLabel;
+  readonly ruleSummary = ruleSummary;
+
+  isTx = computed(() => this.activeTab() === 'transactions');
+
+  /** The active set's categories (transactions or groceries), before the search. */
+  allCategories = computed<AnyCategory[]>(() =>
+    this.isTx() ? this.catSvc.categories() : this.gCatSvc.categories(),
+  );
+
+  /** The active set's search term; each set keeps its own. */
+  search = computed(() => (this.isTx() ? this.catSearch() : this.gCatSearch()));
+
+  /** The active set's categories that match its search. */
+  shownCategories = computed<AnyCategory[]>(() =>
+    this.isTx()
+      ? filterByName(this.catSvc.categories(), this.catSearch())
+      : filterByName(this.gCatSvc.categories(), this.gCatSearch()),
+  );
+
+  /** The active set's rules. */
+  activeRules = computed<AnyRule[]>(() =>
+    this.isTx() ? this.catSvc.rules() : this.gCatSvc.rules(),
+  );
+
+  rulesByCategory = computed(() => groupByCategory(this.activeRules()));
 
   confirmPending = signal<{ message: string; action: () => void } | null>(null);
 
@@ -359,6 +399,49 @@ export class RulesComponent {
           error: () => this.actionError.set('Could not delete the category. Please try again.'),
         }),
     });
+  }
+
+  // The page shows one set at a time; these route an action to the active set's editor.
+
+  setSearch(term: string): void {
+    if (this.isTx()) this.catSearch.set(term);
+    else this.gCatSearch.set(term);
+  }
+
+  newCategory(): void {
+    if (this.isTx()) this.openCreateCat();
+    else this.gOpenCreateCat();
+  }
+
+  /** Opens the add-rule editor; with a category id, that category is already chosen. */
+  openAddRule(categoryId?: number): void {
+    if (this.isTx()) {
+      if (categoryId !== undefined) this.newCategoryId.set(categoryId);
+      this.showAddRule.set(true);
+    } else {
+      if (categoryId !== undefined) this.gNewCategoryId.set(categoryId);
+      this.gShowAddRule.set(true);
+    }
+  }
+
+  editCategory(cat: AnyCategory): void {
+    if (this.isTx()) this.openEdit(cat as Category);
+    else this.gOpenEdit(cat as GroceryCategory);
+  }
+
+  removeCategory(cat: AnyCategory): void {
+    if (this.isTx()) this.deleteCategory(cat as Category);
+    else this.gDeleteCategory(cat as GroceryCategory);
+  }
+
+  editRule(rule: AnyRule): void {
+    if (this.isTx()) this.openEditRule(rule as CategoryRule);
+    else this.gOpenEditRule(rule as GroceryCategoryRule);
+  }
+
+  removeRule(id: number): void {
+    if (this.isTx()) this.deleteRule(id);
+    else this.gDeleteRule(id);
   }
 
   private reloadGroceries(): void {

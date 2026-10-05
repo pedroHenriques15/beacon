@@ -1,16 +1,42 @@
+@use '../../../styles/mixins' as *;
+
 .cal-toast {
   position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  background: color-mix(in srgb, var(--success) 14%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
-  border-radius: 8px;
-  color: var(--success);
-  font-size: 0.85rem;
-  padding: 0.55rem 1rem;
-  pointer-events: none;
+  right: 32px;
+  bottom: 32px;
   z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px var(--overlay);
+  pointer-events: none;
   animation: cal-toast-in 0.18s ease;
+
+  &::before {
+    content: '';
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+}
+
+// Above the bottom nav and the floating Upload button.
+@include below-desktop {
+  .cal-toast {
+    left: 20px;
+    right: 20px;
+    bottom: calc(66px + 86px + env(safe-area-inset-bottom));
+    justify-content: center;
+  }
 }
 
 @keyframes cal-toast-in {

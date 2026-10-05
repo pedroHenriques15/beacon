@@ -1,9 +1,17 @@
 @if (open) {
   <div class="modal-overlay" (click)="onCancel()">
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div
+      class="modal ev-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ev-modal-title"
+      (click)="$event.stopPropagation()"
+    >
       <div class="modal-header">
-        <h3>{{ event ? 'Edit Event' : 'New Event' }}</h3>
-        <button class="modal-close" (click)="onCancel()" type="button">&#x2715;</button>
+        <h3 id="ev-modal-title">{{ event ? 'Edit Event' : 'New Event' }}</h3>
+        <button class="modal-close" (click)="onCancel()" type="button" aria-label="Close">
+          &#x2715;
+        </button>
       </div>
 
       <label class="field-label" for="ev-title">Title</label>
@@ -16,11 +24,12 @@
         name="title"
       />
 
-      <label class="field-label">Color</label>
-      <div class="ev-color-grid">
+      <span class="field-label" id="ev-color-label">Color</span>
+      <div class="ev-color-grid" role="group" aria-labelledby="ev-color-label">
         <button
           class="ev-color-option"
           [class.ev-color-option--active]="!form.colorId"
+          [attr.aria-pressed]="!form.colorId"
           (click)="form.colorId = undefined"
           type="button"
         >
@@ -31,6 +40,7 @@
           <button
             class="ev-color-option"
             [class.ev-color-option--active]="form.colorId === entry[0]"
+            [attr.aria-pressed]="form.colorId === entry[0]"
             (click)="form.colorId = entry[0]"
             type="button"
           >
@@ -42,19 +52,17 @@
 
       <div class="ev-start-header">
         <label class="field-label" for="ev-start">Start</label>
-        <label class="ev-toggle" for="ev-allday">
-          <input
+        <span class="ev-allday">
+          <label for="ev-allday">All day</label>
+          <button
             id="ev-allday"
-            type="checkbox"
-            [checked]="form.isAllDay"
-            (change)="onAllDayToggle()"
-            name="isAllDay"
-          />
-          <span class="ev-toggle__track">
-            <span class="ev-toggle__thumb"></span>
-          </span>
-          <span class="ev-toggle__label">All day</span>
-        </label>
+            class="switch"
+            type="button"
+            role="switch"
+            [attr.aria-checked]="form.isAllDay"
+            (click)="onAllDayToggle()"
+          ></button>
+        </span>
       </div>
       @if (form.isAllDay) {
         <input
@@ -100,7 +108,7 @@
       <label class="field-label" for="ev-desc">Description</label>
       <textarea
         id="ev-desc"
-        class="field-input ev-textarea"
+        class="field-input"
         placeholder="Optional description"
         [(ngModel)]="form.description"
         name="description"

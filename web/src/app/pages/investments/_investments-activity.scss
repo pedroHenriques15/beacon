@@ -1,0 +1,118 @@
+@use '../../../styles/mixins' as *;
+@use 'investments-base' as *;
+
+// Recent activity: the latest buys and sells on a timeline.
+
+.activity {
+  --_ring: var(--surface);
+
+  &__list {
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 9px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      border-radius: 1px;
+      background: var(--chart-grid);
+    }
+  }
+
+  &__item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  &__node {
+    position: absolute;
+    left: -27px;
+    top: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--_dot, var(--category-fallback));
+    box-shadow: 0 0 0 3px var(--_ring);
+  }
+
+  &__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  &__meta {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  &__amount {
+    @extend %figures;
+    font-size: 15px;
+    font-weight: 800;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  &__realised {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+// Phones and tablets: on the page ground, a smaller timeline.
+@include below-desktop {
+  .block.activity {
+    gap: 10px;
+    padding: 0;
+    background: none;
+  }
+
+  .activity {
+    --_ring: var(--bg);
+
+    &__list {
+      gap: 14px;
+      padding-left: 26px;
+
+      &::before {
+        left: 8px;
+      }
+    }
+
+    &__node {
+      left: -23px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      box-shadow: 0 0 0 2px var(--_ring);
+    }
+
+    &__title,
+    &__amount {
+      font-size: 14px;
+    }
+
+    &__meta {
+      font-size: 12px;
+    }
+  }
+}

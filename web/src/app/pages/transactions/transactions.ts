@@ -8,8 +8,10 @@ import {
   OnDestroy,
   effect,
   ChangeDetectionStrategy,
+  ElementRef,
+  viewChild,
 } from '@angular/core';
-import { CurrencyPipe, DatePipe, NgClass } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -22,6 +24,28 @@ import { GroceryItem, GroceryReceiptSummary } from '../../core/models/grocery.mo
 import { matchesRule } from '../../core/utils/rule-match';
 import { availableMonths } from '../../core/utils/date-utils';
 import { CATEGORY_EXCLUDED } from '../../core/constants/categories';
+import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
+import { monthCells, monthYearLabel } from '../../core/utils/month-totals';
+import { eur, signedEur } from '../../core/utils/money';
+import { bankInitials } from '../../core/utils/bank';
+import { CategoryPickerComponent, PICKER_SIZE } from './category-picker';
+import {
+  ItemFilter,
+  TxFilter,
+  countedAmount,
+  dayGroups,
+  flowTotals,
+  isExcludedItem,
+  isExcludedTx,
+  matchesItemFilter,
+  matchesTxFilter,
+  mostBought,
+  popoverPosition,
+  storeTotals,
+  totalsByBank,
+  txAmountText,
+  withMonths,
+} from './activity';
 
 interface PendingChange {
   tx: EnrichedTransaction;
@@ -53,10 +77,41 @@ interface GPendingRuleCreate {
 
 type GrocerySortCol = 'date' | 'store' | 'description' | 'category' | 'amount' | 'quantity';
 
+/** The sort control's choices, as 'column-direction'. */
+const TX_SORTS: { key: `${SortCol}-${'asc' | 'desc'}`; label: string }[] = [
+  { key: 'date-desc', label: 'Newest first' },
+  { key: 'date-asc', label: 'Oldest first' },
+  { key: 'amount-desc', label: 'Largest first' },
+  { key: 'amount-asc', label: 'Smallest first' },
+  { key: 'description-asc', label: 'Description, A to Z' },
+  { key: 'category-asc', label: 'Category, A to Z' },
+  { key: 'bank-asc', label: 'Bank, A to Z' },
+  { key: 'balance-desc', label: 'Balance, highest first' },
+];
+
+const ITEM_SORTS: { key: `${GrocerySortCol}-${'asc' | 'desc'}`; label: string }[] = [
+  { key: 'date-desc', label: 'Newest first' },
+  { key: 'date-asc', label: 'Oldest first' },
+  { key: 'amount-desc', label: 'Largest first' },
+  { key: 'amount-asc', label: 'Smallest first' },
+  { key: 'description-asc', label: 'Description, A to Z' },
+  { key: 'category-asc', label: 'Category, A to Z' },
+  { key: 'store-asc', label: 'Store, A to Z' },
+  { key: 'quantity-desc', label: 'Quantity, most first' },
+];
+
+/** The row actions menu, for placing it next to its button. */
+const MENU_SIZE = { width: 230, height: 5 * 44 + 14 };
+
+interface Popover {
+  top: number;
+  left: number;
+}
+
 @Component({
   selector: 'app-transactions',
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, NgClass, FormsModule],
+  imports: [DatePipe, FormsModule, MonthScrubberComponent, CategoryPickerComponent],
   templateUrl: './transactions.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './transactions.scss',
@@ -67,6 +122,17 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   catSvc = inject(CategoriesService);
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
+
+  private static readonly dates = new DatePipe('en-US');
+
+  readonly eur = eur;
+  readonly signedEur = signedEur;
+  readonly bankInitials = bankInitials;
+  readonly txAmountText = txAmountText;
+  readonly isExcludedTx = isExcludedTx;
+  readonly isExcludedItem = isExcludedItem;
+  readonly txSorts = TX_SORTS;
+  readonly itemSorts = ITEM_SORTS;
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
 
@@ -81,8 +147,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   loadedItems = signal<EnrichedTransaction[]>([]);
   totalCount = signal(0);
-  totalCreditAll = signal(0);
-  totalDebitAll = signal(0);
   pageLoading = signal(false);
   fetchError = signal('');
   gFetchError = signal('');
@@ -93,18 +157,31 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   private _filtersReady = false;
   private _currentSub?: Subscription;
 
-  openDropdownId = signal<number | null>(null);
-  dropdownPos = signal<{ top: number; left: number } | null>(null);
-  catSearch = signal('');
+  /** The category picker, row actions menu and review open at the moment (one at a time). */
+  txPicker = signal<({ tx: EnrichedTransaction } & Popover) | null>(null);
+  itemPicker = signal<({ item: GroceryItem } & Popover) | null>(null);
+  txMenu = signal<({ tx: EnrichedTransaction } & Popover) | null>(null);
+  itemMenu = signal<({ item: GroceryItem } & Popover) | null>(null);
+  reviewing = signal<'tx' | 'item' | null>(null);
+  private reviewed = signal<ReadonlySet<number>>(new Set());
+  private reviewTotal = signal(0);
+  private reviewAnchor: Popover = { top: 0, left: 0 };
+  /** The button that opened the picker or menu, focused again when Escape closes it. */
+  private lastTrigger: HTMLElement | null = null;
+  private readonly rowMenu = viewChild<ElementRef<HTMLElement>>('rowMenu');
+  reviewProgress = computed(() => {
+    const total = this.reviewTotal();
+    return `${Math.min(this.reviewed().size + 1, total)} of ${total}`;
+  });
+
   // Excluding is its own action (it also sets isExcluded), so the Excluded category is never
   // offered as a plain category pick.
   assignableCats = computed(() =>
     this.catSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
   );
-  filteredCats = computed(() => {
-    const q = this.catSearch().toLowerCase();
-    return this.assignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
-  });
+  excludedCategoryId = computed(
+    () => this.catSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED)?.id ?? null,
+  );
   pendingChange = signal<PendingChange | null>(null);
 
   pendingRuleCreate = signal<PendingRuleCreate | null>(null);
@@ -160,6 +237,8 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   confirmDeleteTx = signal<EnrichedTransaction | null>(null);
 
+  /** Select mode shows a checkbox on every row and the bulk actions. */
+  selectMode = signal(false);
   selectedIds = signal<Set<number>>(new Set());
   hasSelection = computed(() => this.selectedIds().size > 0);
   allSelected = computed(
@@ -224,16 +303,112 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     });
   });
 
-  totalCredit = this.totalCreditAll;
-  totalDebit = this.totalDebitAll;
-
   hasMore = computed(() => this.loadedItems().length < this.totalCount());
 
-  unknownCount = computed(
-    () => this.finance.allTransactions().filter((t) => t.categoryId === null).length,
+  sortKey = computed(() => `${this.sortCol()}-${this.sortDir()}`);
+  sortLabel = computed(
+    () => TX_SORTS.find((s) => s.key === this.sortKey())?.label.toLowerCase() ?? '',
   );
 
+  /** The loaded rows as a timeline: by day when sorted by date, else one undated run. */
+  txDays = computed(() =>
+    dayGroups(this.filtered(), this.sortCol() === 'date', (tx) => tx.datePosting, countedAmount),
+  );
+
+  private txFilter = computed<TxFilter>(() => ({
+    bank: this.filterBank(),
+    month: this.filterMonth(),
+    type: this.filterType(),
+    category: this.filterCategory(),
+    search: this.search(),
+  }));
+
+  /** Every counted row (never an excluded one) that matches the filters, loaded or not. */
+  private txScope = computed(() => {
+    const f = this.txFilter();
+    return this.finance.allTransactions().filter((tx) => matchesTxFilter(tx, f));
+  });
+
+  /** In, Out and Kept for the filters (invariant 4: counted rows only). */
+  txTotals = computed(() => flowTotals(this.txScope()));
+  bankTotals = computed(() => totalsByBank(this.txScope()));
+
+  /** The filters' rows, whatever category is picked, that have none: the review queue. */
+  txNeedsCategory = computed(() => {
+    const f = { ...this.txFilter(), category: '' };
+    return this.finance
+      .allTransactions()
+      .filter((tx) => tx.categoryId === null && matchesTxFilter(tx, f));
+  });
+
+  /**
+   * The rows In, Out and Kept leave out, to list them: excluded rows (which only
+   * allTransactionsRaw holds) and rows of an unclassified type. None is added to any total.
+   */
+  txLeftOut = computed(() => {
+    const f = this.txFilter();
+    const excluded = this.finance
+      .allTransactionsRaw()
+      .filter((tx) => isExcludedTx(tx) && matchesTxFilter(tx, f));
+    const unclassified = this.txScope().filter((tx) => tx.type === 'unknown');
+    const rows = [...excluded, ...unclassified].sort((a, b) =>
+      b.datePosting.localeCompare(a.datePosting),
+    );
+    return {
+      excluded: excluded.length,
+      unclassified: unclassified.length,
+      rows: rows.slice(0, 4),
+      more: Math.max(0, rows.length - 4),
+    };
+  });
+
+  txLeftOutNote = computed(() => {
+    const { excluded, unclassified } = this.txLeftOut();
+    const parts: string[] = [];
+    if (excluded > 0) parts.push(`${excluded} excluded`);
+    if (unclassified > 0) parts.push(`${unclassified} of an unclassified type`);
+    const them = excluded + unclassified === 1 ? 'it' : 'them';
+    return `${parts.join(' and ')}: In, Out and Kept leave ${them} out.`;
+  });
+
   availableMonths = computed(() => availableMonths(this.finance.allTransactionsRaw()));
+
+  /** The month the active tab shows, '' for all months. */
+  activeMonth = computed(() =>
+    this.activeTab() === 'transactions' ? this.filterMonth() : this.gFilterMonth(),
+  );
+
+  /** The scrubber's months, plus any month the active tab has rows in. */
+  scrubberMonths = computed(() => {
+    const extra =
+      this.activeTab() === 'transactions' ? this.availableMonths() : this.gAvailableMonths();
+    const selected = this.activeMonth();
+    return withMonths(
+      monthCells(this.finance.monthlySummaries()),
+      selected ? [...extra, selected] : extra,
+    );
+  });
+
+  heading = computed(() => {
+    const month = this.activeMonth();
+    return month ? `${monthYearLabel(month)} activity` : 'Activity';
+  });
+
+  /** Dates in the timeline carry the year when it spans every month. */
+  dayFormat = computed(() => (this.activeMonth() ? 'd MMM' : 'd MMM y'));
+
+  /** What the totals cover: 'September 2026, BPI, filtered'. */
+  scopeLabel = computed(() => {
+    const onTx = this.activeTab() === 'transactions';
+    const month = this.activeMonth();
+    const where = onTx ? this.filterBank() : this.gFilterStore();
+    const narrowed = onTx
+      ? !!(this.filterType() || this.filterCategory() || this.search())
+      : !!(this.gFilterCategory() || this.gSearch());
+    return [month ? monthYearLabel(month) : 'All months', where, narrowed ? 'filtered' : '']
+      .filter(Boolean)
+      .join(', ');
+  });
 
   gFilterStore = signal('');
   gFilterMonth = signal('');
@@ -245,7 +420,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   gLoadedItems = signal<GroceryItem[]>([]);
   gTotalCount = signal(0);
-  gTotalAmount = signal(0);
   gPageLoading = signal(false);
   private _gSkip = 0;
   private _gVisibleTarget = 20;
@@ -253,17 +427,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   private _gCurrentSub?: Subscription;
   private _paramsSub?: Subscription;
 
-  gOpenDropdownId = signal<number | null>(null);
-  gDropdownPos = signal<{ top: number; left: number } | null>(null);
-  gCatSearch = signal('');
   // Same as assignableCats: excluding an item is its own action, not a category pick.
   gAssignableCats = computed(() =>
     this.groceryCatSvc.categories().filter((c) => c.name !== CATEGORY_EXCLUDED),
   );
-  gFilteredCats = computed(() => {
-    const q = this.gCatSearch().toLowerCase();
-    return this.gAssignableCats().filter((c) => !q || c.name.toLowerCase().includes(q));
-  });
+  gExcludedCategoryId = computed(
+    () => this.groceryCatSvc.categories().find((c) => c.name === CATEGORY_EXCLUDED)?.id ?? null,
+  );
 
   gPendingChange = signal<GPendingChange | null>(null);
 
@@ -332,9 +502,51 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     return [...new Set(months)].sort().reverse();
   });
 
-  gUnknownCount = computed(
-    () => this.groceriesSvc.countedItems().filter((item) => item.categoryId === null).length,
+  gSortKey = computed(() => `${this.gSortCol()}-${this.gSortDir()}`);
+  gSortLabel = computed(
+    () => ITEM_SORTS.find((s) => s.key === this.gSortKey())?.label.toLowerCase() ?? '',
   );
+
+  private gFilter = computed<ItemFilter>(() => ({
+    store: this.gFilterStore(),
+    month: this.gFilterMonth(),
+    category: this.gFilterCategory(),
+    search: this.gSearch(),
+  }));
+
+  /** Every counted item (invariant 4: never an excluded one) that matches the filters. */
+  private gScope = computed(() => {
+    const f = this.gFilter();
+    return this.groceriesSvc.countedItems().filter((item) => matchesItemFilter(item, f));
+  });
+
+  gSummary = computed(() => {
+    const items = this.gScope();
+    return {
+      amount: items.reduce((sum, item) => sum + item.amount, 0),
+      items: items.length,
+      receipts: new Set(items.map((item) => item.receiptId)).size,
+    };
+  });
+  gStores = computed(() => storeTotals(this.gScope()));
+  gTopItems = computed(() => mostBought(this.gScope()));
+
+  /** The filters' items, whatever category is picked, that have none: the review queue. */
+  gNeedsCategory = computed(() => {
+    const f = { ...this.gFilter(), category: '' };
+    return this.groceriesSvc
+      .countedItems()
+      .filter((item) => item.categoryId === null && matchesItemFilter(item, f));
+  });
+
+  /** The excluded items the total leaves out, to list them (allItems holds them); never summed. */
+  gLeftOut = computed(() => {
+    const f = this.gFilter();
+    const rows = this.groceriesSvc
+      .allItems()
+      .filter((item) => isExcludedItem(item) && matchesItemFilter(item, f));
+    return { count: rows.length, rows: rows.slice(0, 4) };
+  });
 
   gFiltered = computed<GroceryItem[]>(() => {
     let items = this.gLoadedItems();
@@ -371,14 +583,188 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   gHasMore = computed(() => this.gLoadedItems().length < this.gTotalCount());
 
+  gDays = computed(() =>
+    dayGroups(
+      this.gFiltered(),
+      this.gSortCol() === 'date',
+      (item) => item.receiptDate,
+      (item) => (isExcludedItem(item) ? null : item.amount),
+    ),
+  );
+
   @HostListener('document:click')
   onDocumentClick(): void {
-    this.openDropdownId.set(null);
-    this.dropdownPos.set(null);
-    this.catSearch.set('');
-    this.gOpenDropdownId.set(null);
-    this.gDropdownPos.set(null);
-    this.gCatSearch.set('');
+    this.closePopovers();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    const open = this.txPicker() || this.itemPicker() || this.txMenu() || this.itemMenu();
+    this.closePopovers();
+    if (open) this.lastTrigger?.focus();
+  }
+
+  /** Closes the category picker and the actions menu, and ends a review. */
+  closePopovers(): void {
+    this.txPicker.set(null);
+    this.itemPicker.set(null);
+    this.txMenu.set(null);
+    this.itemMenu.set(null);
+    this.reviewing.set(null);
+  }
+
+  private anchorFor(e: Event, size: { width: number; height: number }, alignRight = false) {
+    const el = e.currentTarget as HTMLElement;
+    // From the menu, focus goes back to the row's menu button, not to the menu that closes.
+    if (!el.closest('.row-menu')) this.lastTrigger = el;
+    const rect = el.getBoundingClientRect();
+    return popoverPosition(
+      rect,
+      size,
+      { width: window.innerWidth, height: window.innerHeight },
+      alignRight,
+    );
+  }
+
+  openTxPicker(tx: EnrichedTransaction, e: MouseEvent): void {
+    e.stopPropagation();
+    const isOpen = this.txPicker()?.tx.id === tx.id && !this.reviewing();
+    this.closePopovers();
+    if (!isOpen) this.txPicker.set({ tx, ...this.anchorFor(e, PICKER_SIZE) });
+  }
+
+  openItemPicker(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    const isOpen = this.itemPicker()?.item.id === item.id && !this.reviewing();
+    this.closePopovers();
+    if (!isOpen) this.itemPicker.set({ item, ...this.anchorFor(e, PICKER_SIZE) });
+  }
+
+  openTxMenu(tx: EnrichedTransaction, e: MouseEvent): void {
+    e.stopPropagation();
+    const isOpen = this.txMenu()?.tx.id === tx.id;
+    this.closePopovers();
+    if (!isOpen) this.txMenu.set({ tx, ...this.anchorFor(e, MENU_SIZE, true) });
+  }
+
+  openItemMenu(item: GroceryItem, e: MouseEvent): void {
+    e.stopPropagation();
+    const isOpen = this.itemMenu()?.item.id === item.id;
+    this.closePopovers();
+    if (!isOpen) this.itemMenu.set({ item, ...this.anchorFor(e, MENU_SIZE, true) });
+  }
+
+  /** Steps through the rows without a category, newest first, one picker at a time. */
+  startReview(kind: 'tx' | 'item', e: MouseEvent): void {
+    e.stopPropagation();
+    this.closePopovers();
+    const total = kind === 'tx' ? this.txNeedsCategory().length : this.gNeedsCategory().length;
+    if (total === 0) return;
+    this.reviewAnchor = this.anchorFor(e, PICKER_SIZE);
+    this.reviewed.set(new Set());
+    this.reviewTotal.set(total);
+    this.reviewing.set(kind);
+    this.nextReview();
+  }
+
+  skipReview(): void {
+    const id = this.txPicker()?.tx.id ?? this.itemPicker()?.item.id;
+    this.txPicker.set(null);
+    this.itemPicker.set(null);
+    if (id !== undefined) this.reviewedRow(id);
+  }
+
+  /** During a review, marks a row done (categorised or skipped) and opens the next one. */
+  private reviewedRow(id: number): void {
+    if (!this.reviewing()) return;
+    this.reviewed.update((done) => new Set(done).add(id));
+    this.nextReview();
+  }
+
+  private nextReview(): void {
+    const done = this.reviewed();
+    if (this.reviewing() === 'tx') {
+      const tx = this.txNeedsCategory().find((t) => !done.has(t.id));
+      if (tx) {
+        this.txPicker.set({ tx, ...this.reviewAnchor });
+        return;
+      }
+    } else if (this.reviewing() === 'item') {
+      const item = this.gNeedsCategory().find((i) => !done.has(i.id));
+      if (item) {
+        this.itemPicker.set({ item, ...this.reviewAnchor });
+        return;
+      }
+    }
+    this.reviewing.set(null);
+  }
+
+  setTab(tab: 'transactions' | 'groceries'): void {
+    this.closePopovers();
+    this.activeTab.set(tab);
+  }
+
+  /** The scrubber sets the month of whichever tab is showing. */
+  setMonth(month: string): void {
+    if (this.activeTab() === 'transactions') this.filterMonth.set(month);
+    else this.gFilterMonth.set(month);
+  }
+
+  setSort(key: string): void {
+    const sort = TX_SORTS.find((s) => s.key === key);
+    if (!sort) return;
+    const [col, dir] = sort.key.split('-') as [SortCol, 'asc' | 'desc'];
+    this.sortCol.set(col);
+    this.sortDir.set(dir);
+  }
+
+  gSetSort(key: string): void {
+    const sort = ITEM_SORTS.find((s) => s.key === key);
+    if (!sort) return;
+    const [col, dir] = sort.key.split('-') as [GrocerySortCol, 'asc' | 'desc'];
+    this.gSortCol.set(col);
+    this.gSortDir.set(dir);
+  }
+
+  toggleSelectMode(): void {
+    this.selectMode.update((on) => !on);
+    if (!this.selectMode()) this.clearSelection();
+  }
+
+  toggleNeedsFilter(): void {
+    this.filterCategory.set(this.filterCategory() === 'unknown' ? '' : 'unknown');
+  }
+
+  gToggleNeedsFilter(): void {
+    this.gFilterCategory.set(this.gFilterCategory() === 'unknown' ? '' : 'unknown');
+  }
+
+  toggleBank(bank: string): void {
+    this.filterBank.set(this.filterBank() === bank ? '' : bank);
+  }
+
+  showExcluded(): void {
+    const id = this.excludedCategoryId();
+    if (id !== null) this.filterCategory.set(String(id));
+  }
+
+  gShowExcluded(): void {
+    const id = this.gExcludedCategoryId();
+    if (id !== null) this.gFilterCategory.set(String(id));
+  }
+
+  /** 'Wed 30 Sep, BPI' */
+  rowMeta(date: string, where: string): string {
+    return `${TransactionsComponent.dates.transform(date, 'EEE d MMM')}, ${where}`;
+  }
+
+  balanceText(balance: number): string {
+    return (balance < 0 ? '−' : '') + eur(balance);
+  }
+
+  /** Grocery amounts are prices, shown without a sign; a discount line keeps its minus. */
+  itemAmountText(amount: number): string {
+    return amount < 0 ? signedEur(amount) : eur(amount);
   }
 
   constructor() {
@@ -395,6 +781,9 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       if (!this._filtersReady) return;
       this._resetAndLoad();
     });
+
+    // Keyboard users land on the first action when a row's menu opens.
+    effect(() => this.rowMenu()?.nativeElement.querySelector('button')?.focus());
 
     effect(() => {
       void (
@@ -460,8 +849,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this._currentSub?.unsubscribe();
     this.loadedItems.set([]);
     this.totalCount.set(0);
-    this.totalCreditAll.set(0);
-    this.totalDebitAll.set(0);
     this.selectedIds.set(new Set());
     this._skip = 0;
     this._fetchPage(0, this._visibleTarget);
@@ -488,10 +875,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           this.fetchError.set('');
           this.loadedItems.update((items) => [...items, ...res.items]);
           this.totalCount.set(res.totalCount);
-          if (skip === 0) {
-            this.totalCreditAll.set(res.totalCredit);
-            this.totalDebitAll.set(res.totalDebit);
-          }
           this._skip = this.loadedItems().length;
           this.pageLoading.set(false);
         },
@@ -502,49 +885,13 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       });
   }
 
-  formatMonth(m: string): string {
-    const [y, mo] = m.split('-');
-    return new Date(+y, +mo - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-  }
-
-  sort(col: SortCol): void {
-    if (this.sortCol() === col) {
-      this.sortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      this.sortCol.set(col);
-      this.sortDir.set('asc');
+  /** A pick from the category picker; during a review, picking the same category skips. */
+  selectCategory(tx: EnrichedTransaction, categoryId: number | null): void {
+    this.txPicker.set(null);
+    if (categoryId === tx.categoryId) {
+      this.reviewedRow(tx.id);
+      return;
     }
-  }
-
-  sortIcon(col: SortCol): string {
-    if (this.sortCol() !== col) return '';
-    return this.sortDir() === 'asc' ? ' ↑' : ' ↓';
-  }
-
-  toggleDropdown(txId: number, e: MouseEvent): void {
-    e.stopPropagation();
-    const willClose = this.openDropdownId() === txId;
-    if (willClose) {
-      this.openDropdownId.set(null);
-      this.dropdownPos.set(null);
-      this.catSearch.set('');
-    } else {
-      const btn = e.currentTarget as HTMLElement;
-      const rect = btn.getBoundingClientRect();
-      const estimatedHeight = 360;
-      const top =
-        window.innerHeight - rect.bottom >= estimatedHeight
-          ? rect.bottom + 4
-          : rect.top - estimatedHeight - 4;
-      this.dropdownPos.set({ top, left: rect.left });
-      this.openDropdownId.set(txId);
-    }
-  }
-
-  selectCategory(tx: EnrichedTransaction, categoryId: number | null, e: MouseEvent): void {
-    e.stopPropagation();
-    this.openDropdownId.set(null);
-    if (categoryId === tx.categoryId) return;
     const wasAutoAssigned = !tx.categorySetManually && tx.categoryRuleId != null;
     if (wasAutoAssigned) {
       const rule = this.catSvc.rules().find((r) => r.id === tx.categoryRuleId);
@@ -573,6 +920,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   cancelRuleCreate(): void {
     this.pendingRuleCreate.set(null);
+    this.reviewing.set(null);
   }
 
   confirmRuleCreate(createRule: boolean): void {
@@ -584,6 +932,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       this.actionError.set('');
       const ruleFailed = () => {
         this.ruleCreateLoading.set(false);
+        this.reviewing.set(null);
         this.actionError.set('Could not create the rule. Please try again.');
       };
       this.catSvc
@@ -601,6 +950,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
                 });
                 this.finance.reload();
                 this._resetAndLoad();
+                this.reviewedRow(p.tx.id);
               },
               error: ruleFailed,
             });
@@ -612,9 +962,8 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     }
   }
 
-  openCreate(tx: EnrichedTransaction, e: MouseEvent): void {
-    e.stopPropagation();
-    this.openDropdownId.set(null);
+  openCreate(tx: EnrichedTransaction): void {
+    this.closePopovers();
     this.createTx.set(tx);
     this.createName.set('');
     this.createColor.set('#a855f7');
@@ -941,49 +1290,22 @@ export class TransactionsComponent implements OnInit, OnDestroy {
           : null;
         this.finance.updateTransactionLocally(txId, { categoryId, category });
         this._resetAndLoad();
+        this.reviewedRow(txId);
       },
-      error: () => this.actionError.set('Could not change the category. Please try again.'),
+      error: () => {
+        this.reviewing.set(null);
+        this.actionError.set('Could not change the category. Please try again.');
+      },
     });
   }
 
-  gSort(col: GrocerySortCol): void {
-    if (this.gSortCol() === col) {
-      this.gSortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      this.gSortCol.set(col);
-      this.gSortDir.set('asc');
+  /** A pick from the category picker; during a review, picking the same category skips. */
+  gSelectCategory(item: GroceryItem, categoryId: number | null): void {
+    this.itemPicker.set(null);
+    if (categoryId === item.categoryId) {
+      this.reviewedRow(item.id);
+      return;
     }
-  }
-
-  gSortIcon(col: GrocerySortCol): string {
-    if (this.gSortCol() !== col) return '';
-    return this.gSortDir() === 'asc' ? ' ↑' : ' ↓';
-  }
-
-  gToggleDropdown(itemId: number, e: MouseEvent): void {
-    e.stopPropagation();
-    const willClose = this.gOpenDropdownId() === itemId;
-    if (willClose) {
-      this.gOpenDropdownId.set(null);
-      this.gDropdownPos.set(null);
-      this.gCatSearch.set('');
-    } else {
-      const btn = e.currentTarget as HTMLElement;
-      const rect = btn.getBoundingClientRect();
-      const estimatedHeight = 360;
-      const top =
-        window.innerHeight - rect.bottom >= estimatedHeight
-          ? rect.bottom + 4
-          : rect.top - estimatedHeight - 4;
-      this.gDropdownPos.set({ top, left: rect.left });
-      this.gOpenDropdownId.set(itemId);
-    }
-  }
-
-  gSelectCategory(item: GroceryItem, categoryId: number | null, e: MouseEvent): void {
-    e.stopPropagation();
-    this.gOpenDropdownId.set(null);
-    if (categoryId === item.categoryId) return;
     const wasAutoAssigned = !item.categorySetManually && item.categoryId !== null;
     const ruleForItem = wasAutoAssigned
       ? this.groceryCatSvc
@@ -1017,6 +1339,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   gCancelRuleCreate(): void {
     this.gPendingRuleCreate.set(null);
+    this.reviewing.set(null);
   }
 
   gConfirmRuleCreate(createRule: boolean): void {
@@ -1028,6 +1351,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       this.actionError.set('');
       const gRuleFailed = () => {
         this.gRuleCreateLoading.set(false);
+        this.reviewing.set(null);
         this.actionError.set('Could not create the rule. Please try again.');
       };
       this.groceryCatSvc
@@ -1039,6 +1363,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
                 this.gRuleCreateLoading.set(false);
                 this.groceriesSvc.loadAllItems();
                 this._gResetAndLoad();
+                this.reviewedRow(p.item.id);
               },
               error: gRuleFailed,
             });
@@ -1050,9 +1375,8 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     }
   }
 
-  gOpenCreate(item: GroceryItem, e: MouseEvent): void {
-    e.stopPropagation();
-    this.gOpenDropdownId.set(null);
+  gOpenCreate(item: GroceryItem): void {
+    this.closePopovers();
     this.gCreateItem.set(item);
     this.gCreateName.set('');
     this.gCreateColor.set('#a855f7');
@@ -1212,8 +1536,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       next: () => {
         this.groceriesSvc.loadAllItems();
         this._gResetAndLoad();
+        this.reviewedRow(itemId);
       },
-      error: () => this.actionError.set('Could not change the category. Please try again.'),
+      error: () => {
+        this.reviewing.set(null);
+        this.actionError.set('Could not change the category. Please try again.');
+      },
     });
   }
 
@@ -1233,7 +1561,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this._gCurrentSub?.unsubscribe();
     this.gLoadedItems.set([]);
     this.gTotalCount.set(0);
-    this.gTotalAmount.set(0);
     this._gSkip = 0;
     this._gFetchPage(0, this._gVisibleTarget);
   }
@@ -1254,9 +1581,6 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.gFetchError.set('');
         this.gLoadedItems.update((items) => [...items, ...res.items]);
         this.gTotalCount.set(res.totalCount);
-        if (skip === 0) {
-          this.gTotalAmount.set(res.totalAmount);
-        }
         this._gSkip = this.gLoadedItems().length;
         this.gPageLoading.set(false);
       },

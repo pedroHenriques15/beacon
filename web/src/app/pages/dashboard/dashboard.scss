@@ -1,39 +1,126 @@
-@use 'dashboard-cards' as *;
-@use 'dashboard-table' as *;
-@use 'dashboard-stats' as *;
+@use '../../../styles/mixins' as *;
+@use 'dashboard-river' as *;
+@use 'dashboard-timeline' as *;
+@use 'dashboard-months' as *;
+@use 'dashboard-worth' as *;
+@use 'dashboard-accounts' as *;
 
-.page-header {
-  margin-bottom: 2rem;
+.home-scrubber {
+  margin-bottom: 16px;
 }
 
-.net-worth-card {
-  width: fit-content;
-  background: linear-gradient(135deg, #1e2a4a 0%, #162032 100%);
-  border: 1px solid #2d4a7a;
-  border-radius: 16px;
-  padding: 2rem 2.5rem;
-  margin-bottom: 2.5rem;
+.home {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
 
-  .label {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    letter-spacing: 0.03em;
+  &__main {
+    flex: 999 1 600px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
   }
 
-  .amount {
-    font-size: 2.75rem;
-    font-weight: 700;
-    color: var(--text-heading);
-    letter-spacing: -0.02em;
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  &__aside {
+    flex: 1 1 340px;
+    max-width: 440px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+h2 {
+  font-size: 18px;
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  &__aside {
+    font-size: 13px;
+    color: var(--text-secondary);
+    @include figures;
+  }
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.num {
+  text-align: right;
+}
+
+.empty {
+  margin: 0;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+// Phones and tablets: one column, in the order the phone mockup reads.
+@include below-desktop {
+  .home {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 18px;
+
+    &__main,
+    &__aside {
+      display: contents;
+    }
   }
 
-  .breakdown {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
+  .worth {
+    order: 1;
+  }
+  .review-row {
+    order: 2;
+  }
+  .river-card {
+    order: 3;
+  }
+  .tiles {
+    order: 4;
+  }
+  .invest-row {
+    order: 5;
+  }
+  .accounts {
+    order: 6;
+  }
+  .cats {
+    order: 7;
+  }
+  .six {
+    order: 8;
+  }
+  .latest {
+    order: 9;
+  }
+  .statements {
+    order: 10;
+  }
+
+  h2 {
+    font-size: 15px;
   }
 }

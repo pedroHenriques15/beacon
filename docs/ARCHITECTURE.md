@@ -72,27 +72,32 @@ beacon/
 │       ├── Services/             # Service-level tests
 │       └── Validation/           # Validator tests
 ├── web/
-│   └── src/app/
-│       ├── core/
-│       │   ├── components/       # Shared components
-│       │   ├── constants/        # Shared constants (e.g. category colours)
-│       │   ├── interceptors/     # apiKeyInterceptor (adds X-Api-Key header)
-│       │   ├── models/           # TypeScript interfaces
-│       │   ├── services/         # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
-│       │   └── utils/            # date-utils, http-params, rule-match
-│       ├── pages/                # Lazy-loaded routed components
-│       │   ├── analytics/
-│       │   ├── calendar/         # incl. event-modal + task-modal components
-│       │   ├── dashboard/
-│       │   ├── investments/
-│       │   ├── rules/
-│       │   ├── salary/
-│       │   ├── settings/
-│       │   ├── transactions/
-│       │   └── upload/
-│       ├── app.ts                # Root component + navigation
-│       ├── app.routes.ts         # Route definitions
-│       └── app.config.ts         # Angular bootstrap config
+│   └── src/
+│       ├── styles.scss           # :root design tokens, fonts, base elements
+│       ├── _shared.scss          # Global classes; forwards the partials in styles/
+│       ├── styles/               # _mixins (no CSS output), _buttons, _forms, _modals, _feedback
+│       └── app/
+│           ├── core/
+│           │   ├── charts/       # chart-theme (chart.js defaults from the CSS variables)
+│           │   ├── components/   # confirm-dialog, month-scrubber
+│           │   ├── constants/    # Shared constants (e.g. category colours)
+│           │   ├── interceptors/ # apiKeyInterceptor (adds X-Api-Key header)
+│           │   ├── models/       # TypeScript interfaces
+│           │   ├── services/     # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
+│           │   └── utils/        # bank, date-utils, http-params, money, month-totals, rule-match
+│           ├── pages/            # Lazy-loaded routed components
+│           │   ├── analytics/
+│           │   ├── calendar/     # incl. event-modal + task-modal components
+│           │   ├── dashboard/    # Home, incl. the River chart (river.ts computes it)
+│           │   ├── investments/
+│           │   ├── rules/
+│           │   ├── salary/
+│           │   ├── settings/
+│           │   ├── transactions/
+│           │   └── upload/
+│           ├── app.ts            # Root component: the shell (top nav, bottom nav, Upload button)
+│           ├── app.routes.ts     # Route definitions
+│           └── app.config.ts     # Angular bootstrap config
 ├── scripts/
 │   ├── pdfExtractor.py           # PDF → JSON page text (run by PdfExtractorService)
 │   ├── requirements.txt          # pdfplumber
@@ -172,10 +177,13 @@ The frontend mirrors this defensively: `finance.service.ts` and `groceries.servi
 treat a row as excluded when `isExcluded` **or** its category is named `Excluded`, so a
 stale row can never be counted. On the grocery side the raw `allItems` signal keeps
 everything (the item list shows excluded rows) and **`countedItems` is the one to use for any
-total or chart**, mirroring `allTransactionsRaw` vs `allTransactions`. The Excluded category
-is never offered as a plain category pick (`assignableCats` / `gAssignableCats` on the
-transactions page), since excluding is its own action, but it stays in *filter* dropdowns so
-excluded rows remain findable. Rules *may* target it; both rule services set the flag when
+total or chart**, mirroring `allTransactionsRaw` vs `allTransactions`. The Activity page
+(`pages/transactions/`) lists excluded rows dimmed, with an "Excluded" chip, and under "Left
+out of totals"; its In, Out and Kept come from `allTransactions` and `countedItems` with every
+filter applied, so those rows never reach a figure. The Excluded category is never offered as
+a plain category pick (`assignableCats` / `gAssignableCats` on the Activity page), since
+excluding is its own action, but it stays in *filter* dropdowns so excluded rows remain
+findable. Rules *may* target it; both rule services set the flag when
 they match.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
@@ -606,6 +614,54 @@ Angular 22 made OnPush the default change detection and `fetch` the default HTTP
 upgrade kept the earlier behaviour: every component declares
 `changeDetection: ChangeDetectionStrategy.Eager`, and `app.config.ts` passes `withXhr()` to
 `provideHttpClient`. A component without the line gets OnPush.
+
+### Design system
+
+The client follows the River design (ADR-030). Everything below lives in `web/src/`.
+
+- Tokens: `styles.scss` declares every colour, font and radius as a CSS variable on `:root`
+  (`--bg`, `--surface`, `--surface-raised`, `--border`, `--border-soft`, `--chart-grid`, the
+  text greys, `--primary` and `--primary-tint`, `--on-primary` for text on light fills,
+  `--credit`, `--debit`, `--warning`, `--danger`, `--overlay`, `--category-fallback`,
+  `--font-body` / `--font-display` / `--font-figures` / `--font-mono`, `--radius-md` / `-lg` /
+  `-xl`). Components use the variables, never colour literals; chart code keeps only data
+  colours (a category's stored colour).
+- Fonts: Manrope (text), Unbounded (headings, page titles), Bricolage Grotesque (figures, with
+  `font-variant-numeric: tabular-nums` through the `figures` mixin), one Google Fonts `<link>`
+  in `index.html`.
+- Shared styles: `_shared.scss` holds the global classes (`.page-header`, `.section`,
+  `.figures`) and forwards the partials in `styles/`: `_buttons` (`.btn-primary` light fill
+  for the main action, `.btn-accent`, `.btn-secondary`, `.btn-danger`, `.btn-icon` and its
+  quiet variant for rows, `.link-btn`), `_forms` (fields, the segmented `.tab-bar`, `.switch`), `_modals`, `_feedback`
+  (banners, the `.review-row` with hollow `.ring`s, `.cat-dot`, `.chip`). `styles.scss` emits
+  them once. A component that needs a mixin uses `styles/_mixins.scss` (`card`, `figures`,
+  `below-desktop`, `phone`, `visually-hidden`), which emits no CSS, so the global classes are
+  never copied into a component's styles.
+- Shell and breakpoints (`app.html|ts|scss`): from 1024 px a header with the brand, the
+  sections as a pill group (Home, Activity, Insights, Invest, Salary, Calendar, Categories),
+  a Settings icon button and Upload PDF; content capped at 1376 px. Below 1024 px a sticky top
+  bar with the page title (route `data.label`) and a "More" button whose sheet holds Categories
+  and Settings, a fixed bottom nav with the six main sections, and a round Upload button above
+  it on every page but Upload. The phone layouts start below 640 px.
+- Modals: every dialog uses `.modal-overlay > .modal` and sets its width with `--modal-width`;
+  below 640 px the same markup becomes a bottom sheet with a handle.
+- Month scrubber (`core/components/month-scrubber/`): one button per month with its money in
+  and out as two small bars (`aria-pressed`, an `aria-label` that reads both), scaled to the
+  months shown. On desktop it shows as many months as its width holds (up to six) and
+  "Earlier" reveals older ones; on phones the months are a sideways-scrolling row of chips. An
+  "All months" choice comes last where a page allows it. Its months come from `monthCells()`
+  (`core/utils/month-totals.ts`) over `FinanceService.monthlySummaries`. Home, Activity and
+  Insights use it.
+- Charts: `core/charts/chart-theme.ts` reads the tokens with `getComputedStyle` and sets
+  chart.js defaults (`applyChartTheme()`: tick and legend text, gridlines, tooltip), plus
+  `axisOptions()`, `withAlpha()` and `categoryColor()`, which falls back to
+  `--category-fallback`. Small charts are hand-drawn SVG: Home's River chart
+  (`pages/dashboard/river-chart.ts`, its series computed by the pure, tested `river.ts`) and
+  the Investments sparkline. Sorted horizontal bars replace pies.
+- Money is formatted by `core/utils/money.ts`: outflows in neutral text with a true minus
+  sign, inflows in `--credit` with a plus.
+- The scrubber and the River chart are OnPush components driven by signal inputs; the pages
+  keep `ChangeDetectionStrategy.Eager`.
 
 ### HTTP authentication
 

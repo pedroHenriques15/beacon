@@ -1,0 +1,56 @@
+<nav class="scrubber" aria-label="Months">
+  <div class="scrubber__track" #track>
+    @if (firstShown() > 0) {
+      <button type="button" class="scrubber__earlier" (click)="showEarlier()">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+        Earlier
+      </button>
+    }
+    @for (cell of cells(); track cell.key; let i = $index) {
+      <button
+        type="button"
+        class="month"
+        [class.month--older]="i < firstShown()"
+        [class.month--progress]="cell.inProgress"
+        [attr.aria-pressed]="selected() === cell.key"
+        [attr.aria-label]="cell.ariaLabel"
+        (click)="select(cell.key)"
+      >
+        <span class="month__text">
+          <span class="month__name">{{ cell.label }}</span>
+          <span class="month__short">{{ cell.shortLabel }}</span>
+          <span class="month__kept">{{ cell.kept }}</span>
+        </span>
+        <span class="month__bars" aria-hidden="true">
+          <span class="month__in" [style.--share]="cell.inShare"></span>
+          <span class="month__out" [style.--share]="cell.outShare"></span>
+        </span>
+      </button>
+    }
+    @if (allowAll()) {
+      <button
+        type="button"
+        class="month month--all"
+        [attr.aria-pressed]="selected() === ''"
+        (click)="select('')"
+      >
+        <span class="month__text">
+          <span class="month__name">All months</span>
+          <span class="month__short">All</span>
+          <span class="month__kept">{{ cells().length }} months</span>
+        </span>
+      </button>
+    }
+  </div>
+</nav>

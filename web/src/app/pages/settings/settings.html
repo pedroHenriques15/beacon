@@ -1,174 +1,221 @@
 <div class="page-header">
   <h1>Settings</h1>
-  <p class="subtitle">Configure your account and integrations</p>
 </div>
 
-<div class="settings-section">
-  <h2 class="settings-section__title">Google Account</h2>
+<div class="settings">
+  <section class="section google" aria-labelledby="google-h">
+    <div class="section__head">
+      <h2 id="google-h" class="section__title">Google account</h2>
+    </div>
 
-  @if (errorMessage(); as msg) {
-    <p class="settings-error">{{ msg }}</p>
-  }
+    @if (errorMessage(); as msg) {
+      <p class="error-banner" role="alert">{{ msg }}</p>
+    }
 
-  @if (googleAuth.status(); as status) {
-    @if (status.connected) {
-      <div class="google-card google-card--connected">
-        <div class="google-card__icon">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
+    @if (googleAuth.status(); as status) {
+      @if (status.connected) {
+        <div class="google-card google-card--connected">
+          <span class="google-card__icon google-card__icon--ok" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </span>
+          <div class="google-card__info">
+            <p class="google-card__label">Connected</p>
+            @if (status.connectedAt) {
+              <p class="google-card__detail">
+                Since <span class="figures">{{ status.connectedAt | date: 'd MMM yyyy' }}</span>
+              </p>
+            }
+            @if (status.state === 'unreachable') {
+              <p class="google-card__warning">
+                Google is not responding right now, so Calendar and Tasks may not load.
+              </p>
+            }
+          </div>
+          <div class="google-card__actions">
+            <button type="button" class="btn-danger" (click)="disconnectGoogle()">
+              Disconnect
+            </button>
+          </div>
         </div>
-        <div class="google-card__info">
-          <p class="google-card__label">Connected</p>
-          <p class="google-card__detail">Since {{ status.connectedAt | date: 'dd MMM yyyy' }}</p>
-          @if (status.state === 'unreachable') {
-            <p class="google-card__detail google-card__detail--warning">
-              Google is not responding right now, so Calendar and Tasks may not load.
+      } @else if (status.state === 'reconnectRequired') {
+        <div class="google-card google-card--expired">
+          <span class="google-card__icon google-card__icon--warning" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <div class="google-card__info">
+            <p class="google-card__label">Connection expired</p>
+            <p class="google-card__detail">
+              Google no longer accepts Beacon's access. Reconnect to sync Calendar and Tasks again.
             </p>
-          }
+          </div>
+          <div class="google-card__actions">
+            <button type="button" class="btn-primary" (click)="connectGoogle()">Reconnect</button>
+            <button type="button" class="btn-secondary" (click)="disconnectGoogle()">
+              Disconnect
+            </button>
+          </div>
         </div>
-        <button class="btn-danger" (click)="disconnectGoogle()">Disconnect</button>
-      </div>
-    } @else if (status.state === 'reconnectRequired') {
-      <div class="google-card google-card--expired">
-        <div class="google-card__icon google-card__icon--warning">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-            />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
+      } @else {
+        <div class="google-card">
+          <span class="google-card__icon" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </span>
+          <div class="google-card__info">
+            <p class="google-card__label">Not connected</p>
+            <p class="google-card__detail">Connect to enable Calendar and Tasks sync</p>
+          </div>
+          <div class="google-card__actions">
+            <button type="button" class="btn-primary" (click)="connectGoogle()">
+              Connect Google
+            </button>
+          </div>
         </div>
-        <div class="google-card__info">
-          <p class="google-card__label">Connection expired</p>
-          <p class="google-card__detail">
-            Google no longer accepts Beacon's access. Reconnect to sync Calendar and Tasks again.
-          </p>
-        </div>
-        <div class="google-card__actions">
-          <button class="btn-primary" (click)="connectGoogle()">Reconnect</button>
-          <button class="btn-secondary" (click)="disconnectGoogle()">Disconnect</button>
-        </div>
-      </div>
+      }
     } @else {
-      <div class="google-card">
-        <div class="google-card__icon google-card__icon--muted">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-        </div>
-        <div class="google-card__info">
-          <p class="google-card__label">Not connected</p>
-          <p class="google-card__detail">Connect to enable Calendar and Tasks sync</p>
-        </div>
-        <button class="btn-primary" (click)="connectGoogle()">Connect Google</button>
+      <div class="google-card google-card--loading">
+        <p class="google-card__detail">Loading…</p>
       </div>
     }
-  } @else {
-    <div class="google-card google-card--loading">
-      <span class="text-muted">Loading…</span>
-    </div>
-  }
-</div>
+  </section>
 
-<div class="settings-section">
-  <h2 class="settings-section__title">Database Backup</h2>
-  <div class="backup-card">
-    <div class="backup-card__info">
-      <p class="backup-card__label">Backup &amp; Restore</p>
-      <p class="backup-card__detail">
-        Creates a full backup of the current database (any previous backup is replaced). Restoring
-        overwrites ALL current data with the backup's contents.
-      </p>
+  <section class="section backup" aria-labelledby="backup-h">
+    <div class="section__head">
+      <h2 id="backup-h" class="section__title">Database backup</h2>
     </div>
-    <div class="backup-card__actions">
-      <button
-        class="btn-secondary"
-        [disabled]="backupState() === 'running'"
-        (click)="createBackup()"
-      >
-        @if (backupState() === 'running') {
-          Backing up…
-        } @else {
-          Backup now
-        }
-      </button>
-      <button
-        class="btn-secondary"
-        [disabled]="downloadState() === 'running'"
-        (click)="downloadBackup()"
-      >
-        @if (downloadState() === 'running') {
-          Preparing…
-        } @else {
-          Download backup
-        }
-      </button>
-      <button
-        class="btn-danger"
-        [disabled]="restoreState() === 'running'"
-        (click)="restoreBackup()"
-      >
-        @if (restoreState() === 'running') {
-          Restoring…
-        } @else {
-          Restore backup
-        }
-      </button>
-    </div>
-  </div>
-  @if (backupState() === 'done') {
-    <p class="settings-status settings-status--ok">Backup saved to: {{ backupMessage() }}</p>
-  }
-  @if (backupState() === 'error') {
-    <p class="settings-status settings-status--error">{{ backupMessage() }}</p>
-  }
-  @if (restoreState() === 'done') {
-    <p class="settings-status settings-status--ok">{{ restoreMessage() }}</p>
-  }
-  @if (restoreState() === 'error') {
-    <p class="settings-status settings-status--error">{{ restoreMessage() }}</p>
-  }
-  @if (downloadState() === 'error') {
-    <p class="settings-status settings-status--error">{{ downloadMessage() }}</p>
-  }
-</div>
+    <p class="section-hint">The server keeps one backup file: a new backup replaces it.</p>
 
-<div class="settings-section">
-  <h2 class="settings-section__title">Logs</h2>
-  <app-settings-logs />
+    <ul class="setting-list">
+      <li class="setting-row">
+        <div class="setting-row__text">
+          <span class="setting-row__label">Back up the database</span>
+          <span class="setting-row__hint"
+            >Saves a full copy of the current data on the server.</span
+          >
+          <div aria-live="polite">
+            @if (backupState() === 'done') {
+              <p class="settings-status settings-status--ok">
+                Backup saved to: {{ backupMessage() }}
+              </p>
+            }
+            @if (backupState() === 'error') {
+              <p class="settings-status settings-status--error">{{ backupMessage() }}</p>
+            }
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="backupState() === 'running'"
+          (click)="createBackup()"
+        >
+          @if (backupState() === 'running') {
+            Backing up…
+          } @else {
+            Backup now
+          }
+        </button>
+      </li>
+
+      <li class="setting-row">
+        <div class="setting-row__text">
+          <span class="setting-row__label">Download the backup</span>
+          <span class="setting-row__hint">Saves the latest backup file to this device.</span>
+          <div aria-live="polite">
+            @if (downloadState() === 'error') {
+              <p class="settings-status settings-status--error">{{ downloadMessage() }}</p>
+            }
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="downloadState() === 'running'"
+          (click)="downloadBackup()"
+        >
+          @if (downloadState() === 'running') {
+            Preparing…
+          } @else {
+            Download backup
+          }
+        </button>
+      </li>
+
+      <li class="setting-row">
+        <div class="setting-row__text">
+          <span class="setting-row__label">Restore the backup</span>
+          <span class="setting-row__hint"
+            >Overwrites <strong>all</strong> current data with the backup's contents.</span
+          >
+          <div aria-live="polite">
+            @if (restoreState() === 'done') {
+              <p class="settings-status settings-status--ok">{{ restoreMessage() }}</p>
+            }
+            @if (restoreState() === 'error') {
+              <p class="settings-status settings-status--error">{{ restoreMessage() }}</p>
+            }
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn-danger"
+          [disabled]="restoreState() === 'running'"
+          (click)="restoreBackup()"
+        >
+          @if (restoreState() === 'running') {
+            Restoring…
+          } @else {
+            Restore backup
+          }
+        </button>
+      </li>
+    </ul>
+  </section>
+
+  <section class="logs" aria-labelledby="logs-h">
+    <h2 id="logs-h">Logs</h2>
+    <app-settings-logs />
+  </section>
 </div>

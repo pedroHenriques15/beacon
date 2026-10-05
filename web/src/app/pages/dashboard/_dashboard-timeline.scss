@@ -1,0 +1,132 @@
+@use '../../../styles/mixins' as *;
+
+.latest,
+.six,
+.statements {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timeline {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--chart-grid);
+  }
+
+  &__day {
+    position: relative;
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  &__node {
+    position: absolute;
+    left: -29px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--neutral-mark);
+  }
+
+  &__date {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    @include figures;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  &__weekday {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__more {
+    align-self: flex-start;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    text-decoration: none;
+    padding: 4px 16px;
+  }
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+
+  .cat-dot,
+  .ring {
+    width: 12px;
+    height: 12px;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__desc {
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__amount {
+    @include figures;
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+}
+
+@include phone {
+  .timeline__day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}

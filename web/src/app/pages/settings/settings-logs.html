@@ -1,23 +1,4 @@
 <div class="logs-filters">
-  <select class="field-select" aria-label="Level" (change)="setLevel($any($event.target).value)">
-    @for (level of levels; track level.value) {
-      <option [value]="level.value" [selected]="level.value === minLevel()">
-        {{ level.label }}
-      </option>
-    }
-  </select>
-  <select
-    class="field-select"
-    aria-label="Time window"
-    (change)="setWindow($any($event.target).value)"
-  >
-    @for (window of windows; track window.label) {
-      <!-- [selected] per option: a [value] on the select is set before the options exist. -->
-      <option [value]="window.hours ?? ''" [selected]="window.hours === windowHours()">
-        {{ window.label }}
-      </option>
-    }
-  </select>
   <input
     class="field-input logs-filters__search"
     type="search"
@@ -27,9 +8,36 @@
     (keyup.enter)="setSearch($any($event.target).value)"
     (search)="setSearch($any($event.target).value)"
   />
-  <button class="btn-secondary" [disabled]="loading()" (click)="load()">
-    {{ loading() ? 'Loading…' : 'Refresh' }}
-  </button>
+  <div class="tab-bar logs-filters__levels" role="group" aria-label="Level">
+    @for (level of levels; track level.value) {
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="level.value === minLevel()"
+        [attr.aria-pressed]="level.value === minLevel()"
+        (click)="setLevel(level.value)"
+      >
+        {{ level.label }}
+      </button>
+    }
+  </div>
+  <div class="logs-filters__when">
+    <select
+      class="field-select"
+      aria-label="Time window"
+      (change)="setWindow($any($event.target).value)"
+    >
+      @for (window of windows; track window.label) {
+        <!-- [selected] per option: a [value] on the select is set before the options exist. -->
+        <option [value]="window.hours ?? ''" [selected]="window.hours === windowHours()">
+          {{ window.label }}
+        </option>
+      }
+    </select>
+    <button type="button" class="btn-secondary" [disabled]="loading()" (click)="load()">
+      {{ loading() ? 'Loading…' : 'Refresh' }}
+    </button>
+  </div>
 </div>
 
 @if (error(); as message) {
@@ -42,14 +50,18 @@
   } @else if (p.entries.length === 0) {
     <p class="logs-empty">No entries match.</p>
   } @else {
-    <ul class="log-list">
+    <p class="logs-note">
+      <span class="figures">{{ p.entries.length }}</span>
+      {{ p.entries.length === 1 ? 'entry' : 'entries' }}, newest first
+    </p>
+    <ul class="log-list" [class.log-list--stale]="loading()" [attr.aria-busy]="loading()">
       @for (entry of p.entries; track $index) {
         <li class="log-entry" [class]="levelClass(entry)">
           <div class="log-entry__meta">
+            <span class="log-entry__level">{{ entry.level }}</span>
             <time [attr.datetime]="entry.timestamp">{{
               entry.timestamp | date: 'dd MMM HH:mm:ss'
             }}</time>
-            <span class="log-entry__level">{{ entry.level }}</span>
             @if (entry.source) {
               <span class="log-entry__source" [title]="entry.source">{{ shortSource(entry) }}</span>
             }
@@ -65,9 +77,11 @@
       }
     </ul>
     @if (p.more) {
-      <p class="logs-empty">
+      <p class="logs-note">
         Showing the newest {{ limit }} entries; narrow the filters to see older ones.
       </p>
     }
   }
+} @else if (loading()) {
+  <p class="logs-empty">Loading…</p>
 }

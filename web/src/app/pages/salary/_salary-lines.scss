@@ -1,0 +1,131 @@
+@use '../../../styles/mixins' as *;
+@use 'salary-base' as *;
+
+// "On the slip": income lines, the gross, deductions and tax, then the take-home.
+
+.lines {
+  min-width: 0;
+
+  h2 {
+    @extend %block-title;
+  }
+
+  &__card {
+    @include card(var(--radius-lg));
+    padding: 6px 20px;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__empty {
+    margin: 0;
+    padding: 18px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  &__delete {
+    color: var(--text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--danger);
+    }
+  }
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+
+  &:first-child {
+    border-top: none;
+  }
+
+  .cat-dot {
+    grid-column: 1;
+  }
+
+  &__text {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  &__detail {
+    @extend %meta;
+  }
+
+  &__amount {
+    @extend %figure;
+    grid-column: 3;
+    font-size: 15px;
+    text-align: right;
+  }
+
+  &--sub {
+    border-top-color: var(--border);
+  }
+
+  &--total {
+    margin: 6px -12px 8px;
+    padding: 8px 12px;
+    border-top: none;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--credit) 10%, transparent);
+  }
+
+  &--sub,
+  &--total {
+    .line__name,
+    .line__amount {
+      font-weight: 800;
+    }
+  }
+}
+
+.notes {
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--border-soft);
+
+  &__label {
+    @extend %meta;
+    font-weight: 600;
+  }
+
+  &__text {
+    margin: 4px 0 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-body);
+  }
+}
+
+// Phones and tablets: rows straight on the page, as in the phone mockup.
+@include below-desktop {
+  .lines__card {
+    padding: 0;
+    background: none;
+  }
+
+  .line--total {
+    margin-inline: 0;
+    padding-inline: 14px;
+  }
+}

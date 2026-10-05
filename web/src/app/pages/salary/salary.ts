@@ -1,25 +1,40 @@
 import {
+  ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  OnInit,
+  afterRenderEffect,
+  computed,
   inject,
   signal,
-  computed,
-  OnInit,
-  ChangeDetectionStrategy,
+  viewChild,
 } from '@angular/core';
-import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { SalaryService } from '../../core/services/salary.service';
 import {
-  SalaryItemCategory,
-  SalaryLineItem,
   HourlyRateFormula,
+  SalaryItemCategory,
   SalaryProfile,
   SalarySlip,
 } from '../../core/models/statement.model';
-import { SalaryPieChartComponent } from './salary-pie-chart';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
+import { eur } from '../../core/utils/money';
+import { monthName, monthYearLabel } from '../../core/utils/month-totals';
+import { SlipFlowComponent } from './slip-flow';
+import {
+  defaultProfileId,
+  firstShownIndex,
+  periodKey,
+  slipChips,
+  slipLines,
+  slipNet,
+  slipTiles,
+  takeHomeHistory,
+} from './salary-figures';
 
-type View = 'overview' | 'profile' | 'slip';
+/** Slips shown in the desktop picker before "Earlier" is pressed. */
+const SLIP_PAGE = 12;
 
 interface LineItemDraft {
   salaryItemCategoryId: number | null;
@@ -31,16 +46,17 @@ interface LineItemDraft {
   incidenciaBase?: number | null;
 }
 
+/** Scrolls the picker so the selected slip's chip sits in the middle. */
+function centreSelectedChip(track: HTMLElement): void {
+  const chip = track.querySelector<HTMLElement>('[aria-pressed="true"]');
+  if (!chip) return;
+  track.scrollLeft = chip.offsetLeft - (track.clientWidth - chip.offsetWidth) / 2;
+}
+
 @Component({
   selector: 'app-salary',
   standalone: true,
-  imports: [
-    CurrencyPipe,
-    DecimalPipe,
-    FormsModule,
-    SalaryPieChartComponent,
-    ConfirmDialogComponent,
-  ],
+  imports: [FormsModule, RouterLink, ConfirmDialogComponent, SlipFlowComponent],
   templateUrl: './salary.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './salary.scss',
@@ -48,9 +64,11 @@ interface LineItemDraft {
 export class SalaryComponent implements OnInit {
   private svc = inject(SalaryService);
 
-  view = signal<View>('overview');
-  selectedProfileId = signal<number | null>(null);
-  selectedSlipId = signal<number | null>(null);
+  readonly eur = eur;
+  readonly monthName = monthName;
+  readonly monthYearLabel = monthYearLabel;
+  readonly periodKey = periodKey;
+  readonly netOf = slipNet;
 
   profiles = signal<SalaryProfile[]>([]);
   itemCategories = signal<SalaryItemCategory[]>([]);
@@ -59,16 +77,48 @@ export class SalaryComponent implements OnInit {
 
   confirmPending = signal<{ message: string; action: () => void } | null>(null);
 
+  /** The segmented control's choice: a profile, 'all' for the overview, or null for the default. */
+  private profileChoice = signal<number | 'all' | null>(null);
+  /** The slip picked in the picker; null shows the profile's latest. */
+  selectedSlipId = signal<number | null>(null);
+  private slipPages = signal(1);
+  /** The profile whose item categories are loaded or loading. */
+  private categoriesFor: number | null = null;
+
+  /** The profile shown, or null for the overview of every profile. */
+  activeProfileId = computed<number | null>(() => {
+    const choice = this.profileChoice();
+    if (choice === 'all') return null;
+    if (choice !== null && this.profiles().some((p) => p.id === choice)) return choice;
+    return defaultProfileId(this.profiles(), this.slips());
+  });
+
+  view = computed<'empty' | 'overview' | 'profile'>(() => {
+    if (this.profiles().length === 0) return 'empty';
+    return this.activeProfileId() === null ? 'overview' : 'profile';
+  });
+
   selectedProfile = computed(
-    () => this.profiles().find((p) => p.id === this.selectedProfileId()) ?? null,
+    () => this.profiles().find((p) => p.id === this.activeProfileId()) ?? null,
   );
 
-  selectedSlip = computed(() => this.slips().find((s) => s.id === this.selectedSlipId()) ?? null);
-
+  /** The shown profile's slips, newest first. */
   profileSlips = computed(() =>
-    [...this.slips().filter((s) => s.salaryProfileId === this.selectedProfileId())].sort((a, b) =>
-      b.period.localeCompare(a.period),
-    ),
+    this.slips()
+      .filter((s) => s.salaryProfileId === this.activeProfileId())
+      .sort((a, b) => b.period.localeCompare(a.period)),
+  );
+
+  /** The same slips, oldest first, as the picker and the history read them. */
+  slipTimeline = computed(() => [...this.profileSlips()].reverse());
+
+  selectedSlip = computed(() => {
+    const slips = this.profileSlips();
+    return slips.find((s) => s.id === this.selectedSlipId()) ?? slips[0] ?? null;
+  });
+
+  private profileFormulaMap = computed(
+    () => new Map(this.profiles().map((p) => [p.id, p.hourlyRateFormula])),
   );
 
   latestSlipPerProfile = computed(() => {
@@ -79,6 +129,42 @@ export class SalaryComponent implements OnInit {
     }
     return m;
   });
+
+  /** One card per profile on the overview: its latest slip and how that slip split. */
+  overviewCards = computed(() => {
+    const latest = this.latestSlipPerProfile();
+    return this.profiles().map((profile) => {
+      const slip = latest.get(profile.id) ?? null;
+      const net = slip ? slipNet(slip) : 0;
+      const whole = slip ? Math.max(slip.grossAmount, net) : 0;
+      const netPct = whole > 0 ? Math.round(Math.max(0, Math.min(1, net / whole)) * 100) : 0;
+      return { profile, slip, net, netPct };
+    });
+  });
+
+  chipFirstShown = computed(() => {
+    const timeline = this.slipTimeline();
+    const selectedId = this.selectedSlip()?.id;
+    const at = timeline.findIndex((s) => s.id === selectedId);
+    return firstShownIndex(timeline.length, at, this.slipPages(), SLIP_PAGE);
+  });
+
+  chips = computed(() =>
+    slipChips(this.slipTimeline(), this.selectedSlip()?.id ?? null, this.chipFirstShown()),
+  );
+
+  tiles = computed(() => {
+    const slip = this.selectedSlip();
+    if (!slip) return [];
+    const timeline = this.slipTimeline();
+    return slipTiles(slip, this.formulaFor(slip), timeline.length, timeline[0]?.period ?? null);
+  });
+
+  lines = computed(() => slipLines(this.selectedSlip() ?? { lineItems: [] }));
+
+  history = computed(() => takeHomeHistory(this.slipTimeline(), this.selectedSlip()?.id ?? null));
+
+  private readonly slipTrack = viewChild<ElementRef<HTMLElement>>('slipTrack');
 
   showSlipModal = signal(false);
   editingSlipId = signal<number | null>(null);
@@ -112,6 +198,7 @@ export class SalaryComponent implements OnInit {
   editingProfileId = signal<number | null>(null);
   profileName = signal('');
   profileDesc = signal('');
+  profileFormula = signal<HourlyRateFormula>('days');
   profileLoading = signal(false);
 
   readonly itemTypes: Array<{ value: 'income' | 'deduction' | 'tax'; label: string }> = [
@@ -119,6 +206,15 @@ export class SalaryComponent implements OnInit {
     { value: 'deduction', label: 'Deduction' },
     { value: 'tax', label: 'Tax' },
   ];
+
+  constructor() {
+    // A profile's picker opens on its selected slip, the newest, which sits at the right end.
+    afterRenderEffect(() => {
+      this.activeProfileId();
+      const track = this.slipTrack()?.nativeElement;
+      if (track) centreSelectedChip(track);
+    });
+  }
 
   ngOnInit(): void {
     this.loadAll();
@@ -146,40 +242,58 @@ export class SalaryComponent implements OnInit {
     });
   }
 
-  enterProfile(profileId: number): void {
-    this.selectedProfileId.set(profileId);
-    this.view.set('profile');
-    this.svc.getItemCategories(profileId).subscribe((cats) => this.itemCategories.set(cats));
+  showOverview(): void {
+    this.profileChoice.set('all');
+    this.selectedSlipId.set(null);
   }
 
-  exitProfile(): void {
-    this.view.set('overview');
-    this.selectedProfileId.set(null);
-    this.itemCategories.set([]);
+  enterProfile(profileId: number): void {
+    if (this.activeProfileId() !== profileId) {
+      this.selectedSlipId.set(null);
+      this.slipPages.set(1);
+    }
+    this.profileChoice.set(profileId);
   }
 
   viewSlip(slipId: number): void {
     this.selectedSlipId.set(slipId);
-    this.view.set('slip');
   }
 
-  exitSlip(): void {
-    this.selectedSlipId.set(null);
-    this.view.set('profile');
+  showEarlierSlips(): void {
+    this.slipPages.update((p) => p + 1);
   }
 
   formatPeriod(period: string): string {
-    if (!period) return '';
-    const d = new Date(period);
-    const str = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return period ? monthYearLabel(periodKey(period)) : '';
   }
 
+  /** A slip's item categories of one type; only the slip's own profile's (ADR-009). */
   catsByType(type: string): SalaryItemCategory[] {
-    return this.itemCategories().filter((c) => c.itemType === type);
+    return this.slipCategories().filter((c) => c.itemType === type);
+  }
+
+  private slipCategories(): SalaryItemCategory[] {
+    const profileId = this.slipProfileId();
+    return this.itemCategories().filter((c) => c.profileId === profileId);
+  }
+
+  private loadItemCategories(profileId: number): void {
+    if (this.categoriesFor === profileId) return;
+    this.categoriesFor = profileId;
+    this.itemCategories.set([]);
+    this.svc.getItemCategories(profileId).subscribe({
+      next: (cats) => {
+        // A late answer for another profile must not fill this slip's category lists.
+        if (this.categoriesFor === profileId) this.itemCategories.set(cats);
+      },
+      error: () => {
+        if (this.categoriesFor === profileId) this.categoriesFor = null;
+      },
+    });
   }
 
   openSlipEdit(slip: SalarySlip): void {
+    this.loadItemCategories(slip.salaryProfileId);
     this.editingSlipId.set(slip.id);
     this.slipProfileId.set(slip.salaryProfileId);
     this.slipPeriod.set(slip.period.slice(0, 7));
@@ -221,6 +335,11 @@ export class SalaryComponent implements OnInit {
     });
   }
 
+  removePdf(): void {
+    this.slipPdfPath.set(null);
+    this.slipSourceFile.set(null);
+  }
+
   addLineItem(): void {
     const items = this.slipLineItems();
     this.slipLineItems.set([
@@ -243,9 +362,6 @@ export class SalaryComponent implements OnInit {
 
   submitSlip(): void {
     if (!this.slipFormValid()) return;
-    this.slipLoading.set(true);
-    this.slipError.set('');
-    const period = this.slipPeriod() + '-01';
     const lineItems = this.slipLineItems()
       .filter((li) => li.salaryItemCategoryId != null && li.amount != null)
       .map((li, i) => ({
@@ -257,8 +373,17 @@ export class SalaryComponent implements OnInit {
         percentage: li.percentage ?? undefined,
         incidenciaBase: li.incidenciaBase ?? undefined,
       }));
+    // Salary item categories belong to one profile (ADR-009): once this profile's are loaded,
+    // refuse a line that points elsewhere. The API checks the same.
+    const allowed = new Set(this.slipCategories().map((c) => c.id));
+    if (allowed.size > 0 && lineItems.some((li) => !allowed.has(li.salaryItemCategoryId))) {
+      this.slipError.set('Every line item needs a category of this slip’s profile.');
+      return;
+    }
+    this.slipLoading.set(true);
+    this.slipError.set('');
     const body = {
-      period,
+      period: this.slipPeriod() + '-01',
       grossAmount: this.slipGross()!,
       netAmount: this.slipNet()!,
       notes: this.slipNotes() || undefined,
@@ -279,7 +404,7 @@ export class SalaryComponent implements OnInit {
       },
       error: (err) => {
         this.slipLoading.set(false);
-        this.slipError.set(err.error ?? 'Save failed.');
+        this.slipError.set(typeof err.error === 'string' && err.error ? err.error : 'Save failed.');
       },
     });
   }
@@ -291,12 +416,10 @@ export class SalaryComponent implements OnInit {
         this.svc.deleteSlip(slip.id).subscribe(() => {
           this.slips.update((s) => s.filter((x) => x.id !== slip.id));
           this.svc.getProfiles().subscribe((v) => this.profiles.set(v));
-          if (this.view() === 'slip') this.exitSlip();
+          if (this.selectedSlipId() === slip.id) this.selectedSlipId.set(null);
         }),
     });
   }
-
-  profileFormula = signal<HourlyRateFormula>('days');
 
   openProfileCreate(): void {
     this.profileModalMode.set('create');
@@ -342,7 +465,7 @@ export class SalaryComponent implements OnInit {
         this.svc.deleteProfile(p.id).subscribe(() => {
           this.profiles.update((list) => list.filter((x) => x.id !== p.id));
           this.slips.update((list) => list.filter((x) => x.salaryProfileId !== p.id));
-          if (this.selectedProfileId() === p.id) this.exitProfile();
+          if (this.activeProfileId() === p.id) this.profileChoice.set(null);
         }),
     });
   }
@@ -353,73 +476,7 @@ export class SalaryComponent implements OnInit {
     pending?.action();
   }
 
-  lineItemCatName(id: number | null): string {
-    return this.itemCategories().find((c) => c.id === id)?.name ?? '-';
-  }
-
-  netForLineItems(items: SalaryLineItem[]): number {
-    return items.reduce((sum, li) => {
-      const t = li.categoryItemType;
-      return sum + (t === 'income' ? li.amount : -li.amount);
-    }, 0);
-  }
-
-  netFromLineItems(slip: SalarySlip): number {
-    if (!slip.lineItems?.length) return slip.netAmount;
-    return slip.lineItems.reduce((sum, li) => {
-      return sum + (li.categoryItemType === 'income' ? li.amount : -li.amount);
-    }, 0);
-  }
-
-  private profileFormulaMap = computed(
-    () => new Map(this.profiles().map((p) => [p.id, p.hourlyRateFormula])),
-  );
-
   private formulaFor(slip: SalarySlip): HourlyRateFormula {
     return this.profileFormulaMap().get(slip.salaryProfileId) ?? 'days';
-  }
-
-  hoursWorkedLabel(slip: SalarySlip): string {
-    return this.formulaFor(slip) === 'hours' ? 'Hours Worked' : 'Days Worked';
-  }
-
-  private readonly workdaysCache = new Map<string, number>();
-
-  workdaysInMonth(period: string): number {
-    const cached = this.workdaysCache.get(period);
-    if (cached !== undefined) return cached;
-    const result = this.computeWorkdaysInMonth(period);
-    this.workdaysCache.set(period, result);
-    return result;
-  }
-
-  private computeWorkdaysInMonth(period: string): number {
-    const d = new Date(period);
-    const year = d.getFullYear();
-    const month = d.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    let count = 0;
-    for (let day = 1; day <= daysInMonth; day++) {
-      const weekday = new Date(year, month, day).getDay();
-      if (weekday !== 0 && weekday !== 6) count++;
-    }
-    return count;
-  }
-
-  hasTrueHourlyRate(slip: SalarySlip): boolean {
-    if (this.formulaFor(slip) === 'workdays') return true;
-    return !!slip.hoursWorked && slip.hoursWorked > 0;
-  }
-
-  trueHourlyRate(slip: SalarySlip): number {
-    const net = this.netFromLineItems(slip);
-    switch (this.formulaFor(slip)) {
-      case 'hours':
-        return net / slip.hoursWorked!;
-      case 'workdays':
-        return net / (this.workdaysInMonth(slip.period) * 8);
-      default:
-        return net / (slip.hoursWorked! * 8);
-    }
   }
 }

@@ -1,0 +1,133 @@
+@use '../../../styles/mixins' as *;
+@use 'salary-base' as *;
+
+// The selected slip: its flow, the take-home hero and the rate and hours tiles.
+
+.flow-card {
+  @include card(var(--radius-xl));
+  min-width: 0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  h2 {
+    @extend %block-title;
+  }
+
+  // The card stretches to the aside beside it; keep the flow in its middle.
+  app-slip-flow {
+    margin-block: auto;
+  }
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+
+  h2 {
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  &__net {
+    margin: 0;
+    @include figures;
+    font-size: 38px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  &__gross {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+
+    strong {
+      @extend %figure;
+      color: var(--text-primary);
+    }
+  }
+
+  &__file {
+    @extend %meta;
+    margin: 4px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+
+  &__label,
+  &__note {
+    @extend %meta;
+  }
+
+  &__note {
+    font-size: 11px;
+  }
+
+  &__value {
+    @extend %figure;
+    font-size: 18px;
+  }
+}
+
+@include below-desktop {
+  .hero {
+    padding: 0;
+    background: none;
+
+    &__net {
+      font-size: 34px;
+    }
+  }
+}
+
+@include phone {
+  .flow-card {
+    padding: 16px 14px 12px;
+    border-radius: var(--radius-lg);
+  }
+
+  .tile {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+
+    &__value {
+      font-size: 17px;
+    }
+  }
+}

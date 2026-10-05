@@ -1,0 +1,157 @@
+@use '../../../styles/mixins' as *;
+
+// Search and selects; on phones the selects scroll sideways as chips.
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 22px;
+
+  &__chips {
+    display: contents;
+  }
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+
+  &--search {
+    flex: 1 1 260px;
+
+    input {
+      appearance: none;
+    }
+  }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+
+  &__count {
+    margin: 0 auto 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+}
+
+.list-empty {
+  margin: 0;
+  padding: 40px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.bulk-bar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 10px 8px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 24px var(--overlay);
+
+  &__all {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  &__count {
+    margin-right: auto;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+}
+
+.more-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+
+  &__hint {
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+}
+
+@include below-desktop {
+  // Clear the sticky top bar.
+  .bulk-bar {
+    top: 66px;
+  }
+}
+
+@include phone {
+  .filters {
+    flex-direction: column;
+    // A wrapping column would size its line to the chips' full width.
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 16px;
+
+    &__chips {
+      // Holds the visually hidden labels, which would otherwise widen the page.
+      position: relative;
+      display: flex;
+      gap: 8px;
+      margin: 0 -20px;
+      padding: 0 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+  }
+
+  .filter {
+    flex: 0 0 auto;
+    min-width: 0;
+
+    &--search {
+      flex: none;
+    }
+
+    label {
+      @include visually-hidden;
+    }
+
+    select {
+      width: auto;
+      font-size: 13px;
+      font-weight: 600;
+    }
+  }
+}

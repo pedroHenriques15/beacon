@@ -1,0 +1,120 @@
+@use '../../../styles/mixins' as *;
+
+// The slip and profile dialogs. Their frame, header and actions are global.
+
+.slip-modal {
+  --modal-width: 600px;
+}
+
+.muted {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.pdf-attached {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 4px 4px 16px;
+  border-radius: 26px;
+  background: var(--surface-raised);
+  font-size: 14px;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  &__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-body);
+  }
+
+  &__clear {
+    border: none;
+    color: var(--text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--danger);
+    }
+  }
+}
+
+// A label styled as a button, around a visually hidden file input.
+.attach-pdf {
+  border-style: dashed;
+
+  &:focus-within {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+.line-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 8px;
+
+  .field-label {
+    margin: 0;
+  }
+}
+
+.line-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  &__cat {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__amount {
+    flex: 0 0 120px;
+    width: 120px;
+  }
+
+  &__remove {
+    color: var(--text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--danger);
+    }
+  }
+}
+
+@include phone {
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .line-edit {
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-soft);
+
+    &__cat {
+      flex-basis: 100%;
+    }
+
+    &__amount {
+      flex: 1 1 auto;
+      width: auto;
+    }
+  }
+}

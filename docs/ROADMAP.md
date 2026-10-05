@@ -21,8 +21,7 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-- Redesign the client: a darker theme, pages organised along time with a month picker, and
-  navigation built for phones, with Upload one tap away.
+Nothing is queued; the next items come from "Later".
 
 ## Later
 

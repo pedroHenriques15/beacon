@@ -1,0 +1,81 @@
+@use '../../../styles/mixins' as *;
+
+// Holdings as rows of a table, from 1300 px, where every column fits. The header row and
+// each holding are grids with the same columns: holding, quantity, price, cost, value, gain,
+// 1D, 1W, 1M, actions.
+
+@media (min-width: 1300px) {
+  .holdings__panel {
+    @include card(var(--radius-lg));
+  }
+
+  .holdings__head,
+  .holding {
+    grid-template-columns:
+      minmax(180px, 2fr) minmax(84px, 0.8fr) minmax(96px, 0.9fr) minmax(92px, 0.9fr)
+      minmax(96px, 0.9fr) minmax(104px, 1fr) repeat(3, minmax(58px, 0.5fr)) 372px;
+  }
+
+  .holdings__head {
+    display: grid;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+
+    > span {
+      padding: 16px 8px;
+    }
+
+    > span:first-child {
+      padding-left: 20px;
+    }
+  }
+
+  .num {
+    text-align: right;
+  }
+
+  .holding {
+    border-top: 1px solid var(--border-soft);
+
+    &__id {
+      margin: 8px 0 8px 10px;
+    }
+
+    &__position,
+    &__changes {
+      display: contents;
+    }
+
+    &__actions {
+      justify-content: flex-end;
+      padding: 8px 20px 8px 8px;
+
+      > button {
+        padding: 0 14px;
+      }
+
+      > .holding__icon-btn {
+        width: 44px;
+        padding: 0;
+        border-radius: 50%;
+      }
+    }
+  }
+
+  .holding__btn-text,
+  .cell__label {
+    @include visually-hidden;
+  }
+
+  .cell {
+    padding: 14px 8px;
+    text-align: right;
+    font-size: 14px;
+
+    &__pct {
+      display: block;
+      font-size: 12px;
+    }
+  }
+}

@@ -1,14 +1,11 @@
 .modal {
-  h3 {
-    margin: 0 0 0.75rem;
-    font-size: 1.1rem;
-  }
   p {
     margin: 0 0 0.75rem;
     color: var(--text-secondary);
     font-size: 0.9rem;
     line-height: 1.5;
   }
+
   strong {
     color: var(--text-primary);
   }
@@ -17,83 +14,56 @@
 .field-label {
   .muted {
     font-weight: 400;
-    text-transform: none;
-    letter-spacing: 0;
     color: var(--text-muted);
   }
 }
 
 .tx-modal {
-  width: min(560px, 95vw);
+  --modal-width: 560px;
 }
 
 .field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
-
-  .field-input {
-    width: 100%;
-    box-sizing: border-box;
-  }
 }
 
-.unlink-row {
+// A row's actions: a small menu next to its button.
+.row-menu {
+  position: fixed;
+  z-index: 150;
+  width: 230px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.65rem 0.85rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 8px;
-}
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px var(--overlay);
 
-.toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
+  button {
+    min-height: 44px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 14px;
+    background: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
 
-.show-more-row {
-  display: flex;
-  justify-content: center;
-  padding: 1.25rem 0 0.5rem;
-}
+    &:hover:not(:disabled) {
+      background: var(--surface);
+    }
 
-.btn-show-more {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s;
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
 
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary-light);
+    &.danger {
+      color: var(--danger);
+    }
   }
-}
-
-.show-more-hint {
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.loading-inline {
-  color: var(--text-muted);
-  font-size: 0.875rem;
 }
