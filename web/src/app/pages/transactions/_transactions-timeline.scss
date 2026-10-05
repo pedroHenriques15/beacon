@@ -1,0 +1,116 @@
+@use '../../../styles/mixins' as *;
+
+// Days on a spine; a list not sorted by date drops the spine and the day labels.
+.timeline {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--chart-grid);
+  }
+
+  &--flat {
+    padding-left: 0;
+
+    &::before {
+      display: none;
+    }
+  }
+}
+
+.day {
+  position: relative;
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+
+  &--flat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &__node {
+    position: absolute;
+    left: -29px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--neutral-mark);
+  }
+
+  &__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__date {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  &__weekday,
+  &__total {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@include phone {
+  .timeline {
+    padding-left: 26px;
+    gap: 16px;
+
+    &::before {
+      left: 8px;
+    }
+  }
+
+  .day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+
+    &__node {
+      left: -23px;
+      width: 12px;
+      height: 12px;
+    }
+
+    &__head {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    &__date {
+      font-size: 13px;
+    }
+
+    &__total {
+      margin-left: auto;
+    }
+  }
+}

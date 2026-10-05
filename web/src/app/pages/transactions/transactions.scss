@@ -1,168 +1,87 @@
 @use '../../../styles/mixins' as *;
-@use 'transactions-table' as *;
-@use 'transactions-category' as *;
-@use 'transactions-transfer' as *;
+@use 'transactions-filters' as *;
+@use 'transactions-timeline' as *;
+@use 'transactions-rows' as *;
+@use 'transactions-totals' as *;
+@use 'transactions-aside' as *;
 @use 'transactions-modal' as *;
 
-.page-header {
-  .header-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-}
-
-.tab-bar {
-  margin-bottom: 1.5rem;
-}
-
-.tab-content-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+.months {
+  margin-bottom: 18px;
 }
 
 .header-actions {
   display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-.unknown-hint {
-  color: var(--warning);
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
-  &.active {
-    text-decoration: underline;
-    font-weight: 600;
-  }
-}
-
-.filters {
-  display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-
-  input,
-  select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 0.5rem 0.85rem;
-    font-size: 0.875rem;
-    outline: none;
-    transition: border-color 0.15s;
-    &:focus {
-      border-color: var(--focus);
-    }
-    option {
-      background: var(--surface);
-    }
-  }
-
-  .search {
-    flex: 1;
-    min-width: 200px;
-  }
+  align-items: center;
+  gap: 12px;
 }
 
-.summary-bar {
-  display: flex;
-  gap: 2rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem 1.5rem;
-  margin-bottom: 1.5rem;
+.header-actions .tab-bar {
+  margin-top: 0;
+}
 
-  .summary-item {
+// Main column and a sticky aside; the aside scrolls on its own when taller than the screen.
+.activity {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+
+  &__main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  &__aside {
+    flex: 0 1 30%;
+    min-width: 300px;
+    max-width: 400px;
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    scrollbar-width: thin;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 16px;
+  }
+}
 
-    span:last-child {
-      white-space: nowrap;
+// Phones and tablets: one column, totals and the review first, the list, then the rest.
+@include below-desktop {
+  .activity {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+
+    &__main,
+    &__aside {
+      display: contents;
     }
   }
-  .label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
+
+  .totals {
+    order: 1;
   }
-  .credit {
-    color: var(--credit);
-    font-size: 1.1rem;
-    font-weight: 600;
+  .review-row {
+    order: 2;
   }
-  .debit {
-    color: var(--debit);
-    font-size: 1.1rem;
-    font-weight: 600;
+  .list {
+    order: 3;
   }
-  .amount-total {
-    color: var(--debit);
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-  .count-total {
-    color: var(--text-primary);
-    font-size: 1.1rem;
-    font-weight: 600;
+  .side {
+    order: 4;
   }
 }
 
-.store-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  white-space: nowrap;
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
-  color: color-mix(in srgb, var(--primary) 60%, white);
-}
+@include phone {
+  .header-actions {
+    width: 100%;
+  }
 
-.qty-cell {
-  text-align: right;
-}
-
-.qty-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.15rem 0.45rem;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-}
-
-.qty-one {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.bulk-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
-
-  span {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    margin-right: 0.25rem;
+  .header-actions .tab-bar {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
