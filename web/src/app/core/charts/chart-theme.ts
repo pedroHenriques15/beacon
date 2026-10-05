@@ -79,12 +79,16 @@ export function applyChartTheme(): ChartTheme {
   Chart.defaults.font.family = theme.fontBody;
   Chart.defaults.font.size = 12;
 
-  const legend = Chart.defaults.plugins.legend.labels;
-  legend.color = theme.text;
-  legend.usePointStyle = true;
-  legend.boxWidth = 8;
+  // A plugin's defaults exist only once a chart has registered it.
+  const legend = Chart.defaults.plugins.legend?.labels;
+  if (legend) {
+    legend.color = theme.text;
+    legend.usePointStyle = true;
+    legend.boxWidth = 8;
+  }
 
   const tooltip = Chart.defaults.plugins.tooltip;
+  if (!tooltip) return theme;
   tooltip.backgroundColor = theme.raised;
   tooltip.titleColor = theme.textPrimary;
   tooltip.bodyColor = theme.textPrimary;
