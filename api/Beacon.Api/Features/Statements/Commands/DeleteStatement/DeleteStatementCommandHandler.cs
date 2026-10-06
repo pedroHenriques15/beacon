@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -80,8 +81,9 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
                 if (predecessor is not null)
                 {
                     var rules = await db.CategoryRules.ToListAsync(ct);
+                    var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
                     await StatementUploadService.RecomputeNextPprSyntheticAsync(
-                        db, rules, predecessor.PeriodFrom, predecessor.PprBalance!.Value);
+                        db, rules, excludedCategoryId, predecessor.PeriodFrom, predecessor.PprBalance!.Value);
                 }
                 else
                 {

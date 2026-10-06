@@ -1,5 +1,6 @@
 using Beacon.Api.Data;
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,8 +35,9 @@ public class CreateGroceryReceiptCategoryMappingCommandHandler(AppDbContext db, 
             .Where(i => i.ReceiptCategory == cmd.ReceiptCategoryName && !i.CategorySetManually && i.CategoryId == null)
             .ToListAsync(ct);
 
+        var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db, ct);
         foreach (var item in unassigned)
-            item.CategoryId = cmd.GroceryCategoryId;
+            ExcludedCategory.ApplyCategory(item, cmd.GroceryCategoryId, excludedCategoryId);
 
         if (unassigned.Count > 0)
             await db.SaveChangesAsync(ct);

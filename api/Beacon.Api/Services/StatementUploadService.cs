@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Shared;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services.Parsing;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,7 @@ public class StatementUploadService(
                     0, 0, "Statement already exists for this bank and period.");
 
             var rules = await db.CategoryRules.ToListAsync();
+            var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
 
             file.OpenReadStream().Seek(0, SeekOrigin.Begin);
             savedPath = await fileStorage.SaveAsync(file);
@@ -73,7 +75,7 @@ public class StatementUploadService(
                 var isSavingsPlan = parsed.Bank == "TRADE REPUBLIC"
                     && tx.Description.Contains("Savings plan execution", StringComparison.Ordinal);
 
-                return new Transaction
+                var transaction = new Transaction
                 {
                     DatePosting = tx.DatePosting,
                     DateValue = tx.DateValue,
@@ -81,11 +83,12 @@ public class StatementUploadService(
                     Amount = tx.Amount,
                     Type = tx.Type,
                     Balance = tx.Balance,
-                    CategoryId = matchedRule?.CategoryId,
                     CategoryRuleId = matchedRule?.Id,
                     CategorySetManually = false,
                     IsExcluded = isSavingsPlan
                 };
+                ExcludedCategory.ApplyCategory(transaction, matchedRule?.CategoryId, excludedCategoryId);
+                return transaction;
             }).ToList();
 
             var unknownCount = transactions.Count(t => t.CategoryId is null);
@@ -106,7 +109,7 @@ public class StatementUploadService(
                             .OrderBy(r => r.Id)
                             .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
 
-                        transactions.Add(new Transaction
+                        var synthetic = new Transaction
                         {
                             DatePosting = parsed.PeriodTo,
                             DateValue = parsed.PeriodTo,
@@ -114,10 +117,11 @@ public class StatementUploadService(
                             Amount = Math.Abs(delta),
                             Type = delta >= 0 ? "credit" : "debit",
                             Balance = parsed.PprBalance.Value,
-                            CategoryId = matchedRule?.CategoryId,
                             CategoryRuleId = matchedRule?.Id,
                             CategorySetManually = false
-                        });
+                        };
+                        ExcludedCategory.ApplyCategory(synthetic, matchedRule?.CategoryId, excludedCategoryId);
+                        transactions.Add(synthetic);
                     }
                 }
             }
@@ -206,7 +210,7 @@ public class StatementUploadService(
                 try
                 {
                     var recomputed = await RecomputeNextPprSyntheticAsync(
-                        db, rules, parsed.PeriodFrom, parsed.PprBalance.Value);
+                        db, rules, excludedCategoryId, parsed.PeriodFrom, parsed.PprBalance.Value);
                     if (recomputed is not null)
                         logger.LogInformation(
                             "Recomputed synthetic PPR transaction for BPI {Period} after backfill of {NewPeriod}",
@@ -245,6 +249,7 @@ public class StatementUploadService(
     internal static async Task<DateOnly?> RecomputeNextPprSyntheticAsync(
         AppDbContext db,
         IReadOnlyList<CategoryRule> rules,
+        int? excludedCategoryId,
         DateOnly uploadedPeriodFrom,
         decimal uploadedPprBalance)
     {
@@ -281,7 +286,7 @@ public class StatementUploadService(
                 .OrderBy(r => r.Id)
                 .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
 
-            nextStatement.Transactions.Add(new Transaction
+            var created = new Transaction
             {
                 DatePosting = nextStatement.PeriodTo,
                 DateValue = nextStatement.PeriodTo,
@@ -289,10 +294,11 @@ public class StatementUploadService(
                 Amount = Math.Abs(newDelta),
                 Type = newDelta >= 0 ? "credit" : "debit",
                 Balance = nextStatement.PprBalance.Value,
-                CategoryId = matchedRule?.CategoryId,
                 CategoryRuleId = matchedRule?.Id,
                 CategorySetManually = false
-            });
+            };
+            ExcludedCategory.ApplyCategory(created, matchedRule?.CategoryId, excludedCategoryId);
+            nextStatement.Transactions.Add(created);
         }
         else
         {

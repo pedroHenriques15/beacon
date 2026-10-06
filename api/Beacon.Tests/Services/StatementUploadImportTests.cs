@@ -1,6 +1,8 @@
 using System.Text;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Shared;
+using Beacon.Api.Features.Shared;
+using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
 using Microsoft.AspNetCore.Http;
@@ -93,6 +95,71 @@ public class StatementUploadImportTests : IDisposable
         Assert.NotNull(stmt.PdfPath);
         Assert.Equal(Path.GetFileName(stmt.PdfPath), stmt.PdfPath);
         Assert.True(File.Exists(_fileStorage.GetFullPath(stmt.PdfPath)));
+    }
+
+    private static async Task<Category> SeedExcludedRuleAsync(AppDbContext db, string pattern)
+    {
+        var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        db.Categories.Add(excluded);
+        await db.SaveChangesAsync();
+        db.CategoryRules.Add(new CategoryRule { CategoryId = excluded.Id, Pattern = pattern });
+        await db.SaveChangesAsync();
+        return excluded;
+    }
+
+    [Fact]
+    public async Task Import_RuleToExcludedCategory_StoresTheRowExcluded()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var excluded = await SeedExcludedRuleAsync(db, "TRANSFERENCIA RECEBIDA");
+        var service = MakeService(db, [ActivoBankPage()]);
+
+        var result = await service.ImportAsync(MakeFormFile("activo-excluded-rule"));
+
+        Assert.True(result.Imported);
+        await using var freshDb = new AppDbContext(DbOptions());
+        var txs = await freshDb.Transactions.ToListAsync();
+        var transfer = txs.Single(t => t.Description.Contains("TRANSFERENCIA RECEBIDA"));
+        Assert.Equal(excluded.Id, transfer.CategoryId);
+        Assert.True(transfer.IsExcluded);
+        Assert.False(txs.Single(t => t.Description.Contains("PAGAMENTO SERVICOS")).IsExcluded);
+    }
+
+    private static string BpiPageWithPpr() => """
+        EXTRACTO INTEGRADO
+        IBAN: PT50 0000 0000 0000 0000 0000 0
+        Período De 01/02/2026 a 28/02/2026
+        SALDO ANTERIOR CONTABILISTICO 1 000,00
+        SALDO ACTUAL CONTABILISTICO 1 000,00
+        ACTIVOS 2 100,00
+        DEPÓSITOS À ORDEM
+        PLANOS DE POUPANÇA
+        """;
+
+    [Fact]
+    public async Task Import_BpiPprRowMatchedToExcluded_StoresItExcluded()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var excluded = await SeedExcludedRuleAsync(db, "BPI Reforma");
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "BPI",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            PprBalance = 1000m,
+        });
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [BpiPageWithPpr()]);
+
+        var result = await service.ImportAsync(MakeFormFile("bpi-ppr-file"));
+
+        Assert.True(result.Imported);
+        await using var freshDb = new AppDbContext(DbOptions());
+        var synthetic = await freshDb.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
+        Assert.Equal(100m, synthetic.Amount);
+        Assert.Equal(excluded.Id, synthetic.CategoryId);
+        Assert.True(synthetic.IsExcluded);
     }
 
     [Fact]
