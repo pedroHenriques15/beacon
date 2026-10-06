@@ -482,6 +482,7 @@ public class StatementUploadImportTests : IDisposable
         var result = await ImportCsvAsync(db, August);
 
         Assert.Equal(0, result.UnknownCount);
+        Assert.Equal(2, result.LotsAdded);
         await using var freshDb = new AppDbContext(DbOptions());
         var txs = await freshDb.Transactions.ToListAsync();
         var buys = txs.Where(t => t.Description.Contains(TradeRepublicCsv.Isin)).ToList();
@@ -553,6 +554,7 @@ public class StatementUploadImportTests : IDisposable
         var result = await ImportCsvAsync(db, August);
 
         Assert.True(result.Imported);
+        Assert.Equal(0, result.LotsAdded);
         await using var freshDb = new AppDbContext(DbOptions());
         Assert.Equal(2, await freshDb.InvestmentLots.CountAsync());
     }

@@ -33,4 +33,5 @@ public record UnifiedUploadItemResult(
     UploadResult? StatementResult,
     GroceryReceiptUploadResult? GroceryResult,
     UnifiedSalaryResult? SalaryResult,
-    UnifiedMercorResult? MercorResult = null);
+    UnifiedMercorResult? MercorResult = null,
+    TradesUploadResult? TradesResult = null);

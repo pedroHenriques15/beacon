@@ -122,6 +122,7 @@ builder.Services.AddSingleton<SalarySlipParserFactory>();
 builder.Services.AddSingleton<Micro1InvoiceParser>();
 builder.Services.AddSingleton<DeelWithdrawalParser>();
 builder.Services.AddSingleton<MercorStatementParser>();
+builder.Services.AddSingleton<XtbExportParser>();
 
 builder.Services.AddSingleton<FileStorageService>();
 builder.Services.AddMemoryCache();
@@ -149,6 +150,7 @@ builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<IPdfExtractor, PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
+builder.Services.AddScoped<XtbUploadService>();
 builder.Services.AddScoped<OrphanedPdfCleanup>();
 
 builder.Services.AddScoped<DownloadBackupQueryHandler>();

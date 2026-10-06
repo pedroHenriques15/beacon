@@ -2,6 +2,7 @@ import {
   Component,
   computed,
   inject,
+  Injector,
   OnInit,
   signal,
   ChangeDetectionStrategy,
@@ -15,6 +16,7 @@ import { FinanceService } from '../../core/services/finance.service';
 import { SalaryService } from '../../core/services/salary.service';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
+import { InvestmentsService } from '../../core/services/investments.service';
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import {
   BatchUploadItemResult,
@@ -96,6 +98,7 @@ export class UploadComponent implements OnInit {
   private groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   finance = inject(FinanceService);
+  private injector = inject(Injector);
 
   readonly eur = eur;
   readonly usd = usd;
@@ -129,6 +132,8 @@ export class UploadComponent implements OnInit {
   profiles = signal<SalaryProfile[]>([]);
 
   micro1Unpaired = signal<FailedFile[]>([]);
+  /** Broker exports (XTB) of the last upload, read or refused. */
+  tradeFiles = signal<UnifiedUploadItemResult[]>([]);
   /** Grocery receipts that failed and files of no known kind. */
   failedFiles = signal<FailedFile[]>([]);
 
@@ -139,6 +144,7 @@ export class UploadComponent implements OnInit {
   groups = computed(() =>
     uploadGroups({
       statements: this.batchSummary()?.items ?? [],
+      trades: this.tradeFiles(),
       slips: this.salaryQueue(),
       groceries: this.groceryResults(),
       micro1: this.micro1Unpaired(),
@@ -287,6 +293,7 @@ export class UploadComponent implements OnInit {
     this.transferError.set('');
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.tradeFiles.set([]);
     this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
@@ -398,11 +405,11 @@ export class UploadComponent implements OnInit {
   }
 
   private uploadFiles(files: File[]): void {
-    const valid = files.filter((f) => /\.(pdf|csv|zip)$/i.test(f.name));
+    const valid = files.filter((f) => /\.(pdf|csv|xlsx|zip)$/i.test(f.name));
 
     if (valid.length === 0) {
       this.state.set('error');
-      this.message.set('Only PDF and CSV files, or ZIP archives of them, are supported.');
+      this.message.set('Only PDF, CSV and XLSX files, or ZIP archives of them, are supported.');
       return;
     }
 
@@ -412,6 +419,7 @@ export class UploadComponent implements OnInit {
     this.batchSummary.set(null);
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.tradeFiles.set([]);
     this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
@@ -426,6 +434,7 @@ export class UploadComponent implements OnInit {
         );
         const unknownItems = results.filter((r) => r.documentType === 'Unknown');
         const micro1Items = results.filter((r) => r.documentType === 'Micro1Unpaired');
+        const tradeItems = results.filter((r) => r.documentType === 'BrokerExport');
 
         const dialogs: PendingDialog[] = [];
 
@@ -508,6 +517,14 @@ export class UploadComponent implements OnInit {
             })),
           );
         }
+
+        this.tradeFiles.set(tradeItems);
+        // Invest and the dashboard keep the assets for the session: show them the new lots, from
+        // a statement's buys or a broker's export.
+        const lotsAdded =
+          bankItems.some((r) => (r.statementResult?.lotsAdded ?? 0) > 0) ||
+          tradeItems.some((r) => (r.tradesResult?.added ?? 0) > 0);
+        if (lotsAdded) this.injector.get(InvestmentsService).load();
 
         const failedItems = [...failedGroceryItems, ...unknownItems];
         this.failedFiles.set(

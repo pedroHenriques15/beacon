@@ -83,6 +83,8 @@ export interface UploadResult {
   message: string | null;
   transferCandidates?: TransferCandidate[];
   warnings?: string[] | null;
+  /** Investment lots the statement's buys added (Trade Republic). */
+  lotsAdded?: number;
 }
 
 export interface BatchUploadItemResult {
@@ -186,6 +188,19 @@ export interface UnifiedMercorResult {
   payouts: MercorPayout[];
 }
 
+/** What a broker's export (XTB's XLSX) added to Invest: lots only, no statement. */
+export interface TradesUploadResult {
+  broker: string;
+  periodFrom: string;
+  periodTo: string;
+  /** The buys and sells in the file. */
+  tradeCount: number;
+  /** The lots created; the other trades were imported before or typed by hand. */
+  added: number;
+  /** Holdings that differ from the broker's own list. */
+  warnings: string[];
+}
+
 export interface UnifiedUploadItemResult {
   fileName: string;
   documentType:
@@ -194,7 +209,8 @@ export interface UnifiedUploadItemResult {
     | 'SalarySlip'
     | 'Unknown'
     | 'Micro1Unpaired'
-    | 'MercorNeedsEur';
+    | 'MercorNeedsEur'
+    | 'BrokerExport';
   success: boolean;
   wasDuplicate: boolean;
   error: string | null;
@@ -202,6 +218,7 @@ export interface UnifiedUploadItemResult {
   groceryResult: GroceryReceiptUploadResult | null;
   salaryResult: UnifiedSalaryResult | null;
   mercorResult?: UnifiedMercorResult | null;
+  tradesResult?: TradesUploadResult | null;
 }
 
 export interface InvestmentLot {

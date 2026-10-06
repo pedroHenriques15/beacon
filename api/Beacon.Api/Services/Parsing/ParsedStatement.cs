@@ -52,13 +52,22 @@ public record ParsedTransaction(
     ParsedTrade? Trade = null
 );
 
-/// <summary>An investment buy found on a statement row.</summary>
-/// <param name="AssetName">The name a new asset gets when the ISIN is not known yet.</param>
+/// <summary>
+/// An investment trade found on a statement row or in a broker's export: a buy, or a sell with a
+/// negative <see cref="Quantity"/>.
+/// </summary>
+/// <param name="Isin">Matches the asset, for a source that names it by ISIN (Trade Republic).</param>
+/// <param name="Ticker">
+/// Matches the asset when the source names it by ticker instead (XTB): an asset with that ticker,
+/// or else with that symbol for its prices.
+/// </param>
+/// <param name="AssetName">The name a new asset gets when the ISIN or ticker is not known yet.</param>
 /// <param name="Fees">Fees and taxes paid on top of <c>Quantity × PricePerUnit</c>, positive.</param>
 /// <param name="ExternalId">The source's id of the trade, so a second import never books it twice.</param>
 /// <param name="Note">Stored on the lot, saying where it came from.</param>
 public record ParsedTrade(
-    string Isin,
+    string? Isin,
+    string? Ticker,
     string AssetName,
     DateOnly Date,
     decimal Quantity,

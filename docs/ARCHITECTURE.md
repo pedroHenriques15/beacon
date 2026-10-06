@@ -13,14 +13,16 @@ over Tailscale (ADR-001).
 A request goes from the Angular client to `/api/*` with the `X-Api-Key` header, through
 `ApiKeyMiddleware` and `ExceptionHandlingMiddleware`, to a controller that calls one feature
 handler, which works on SQLite through EF Core. For an upload, `PdfExtractorService` runs
-`scripts/pdfExtractor.py` (pdfplumber) to get the page text (a CSV export is its own text), a
-parser turns it into domain objects, and `ParseVerifier` checks the result before it is saved.
+`scripts/pdfExtractor.py` (pdfplumber) to get the page text (a CSV export is its own text, and
+an XLSX export is read in .NET), a parser turns it into domain objects, and `ParseVerifier`
+checks the result before it is saved.
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | PDF extraction | Python 3 + `pdfplumber` |
+| XLSX reading | Open XML SDK (`DocumentFormat.OpenXml`, ADR-034) |
 | Backend API | ASP.NET Core 10 (.NET 10) |
 | Database | SQLite + EF Core 10 (code-first) |
 | Frontend | Angular 22 (standalone components, signals) |
@@ -58,7 +60,7 @@ beacon/
 │   │   ├── Models/               # Domain entities
 │   │   ├── Services/             # Upload services, storage, Google, PDF extractor
 │   │   │   ├── Logging/          # Log files (Serilog), level defaults, client-error rate limit
-│   │   │   ├── Parsing/          # Bank, salary & grocery parsers; CsvText; MealCardTextParser; ParseVerifier
+│   │   │   ├── Parsing/          # Bank, salary, grocery & XTB parsers; CsvText; XlsxWorkbook; MealCardTextParser; ParseVerifier
 │   │   │   └── Pricing/          # Price source (Yahoo, OpenFIGI), daily sync, queue, Xetra calendar
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
@@ -68,7 +70,7 @@ beacon/
 │       ├── Data/                 # SQLite behaviour
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
-│       ├── Parsing/              # Parser tests (bank, salary slip, grocery)
+│       ├── Parsing/              # Parser tests (bank, salary slip, grocery, XTB) and synthetic file builders
 │       ├── Services/             # Service-level tests
 │       └── Validation/           # Validator tests
 ├── web/
@@ -237,7 +239,8 @@ Three things a parser can hand the upload beside its rows:
   the same `PeriodFrom`), so a re-export of a month, or a month a PDF statement covered from
   another first day, is refused as already imported.
 - **Trades.** A row that buys an investment carries a `ParsedTrade` (ISIN, asset name, date,
-  quantity, price, fees, the source's trade id). `StatementUploadService` stores the row as
+  quantity, price, fees, the source's trade id; a broker's export names the asset by ticker
+  instead, see "Supported brokers"). `StatementUploadService` stores the row as
   an excluded debit with no category and no rule match, since it is cash moved into an
   investment, not spending, and after saving the statement hands the trades to
   `TradeImportService` (see "Investments"). The row's own amount includes the fees.
@@ -457,7 +460,8 @@ receipt total). Called from `StatementUploadService`, `ParseSalarySlipCommandHan
 `Storage__Path` (default `statements/` next to the binaries), as `<guid>.pdf` or
 `<guid>.csv`: `SaveAsync` keeps an upload's extension when it is one of those two, and stores
 anything else as `.pdf`. `GetFile` serves each with its content type (`application/pdf`,
-`text/csv`). The column keeps the name `PdfPath`.
+`text/csv`). The column keeps the name `PdfPath`. An XLSX export (XTB, ADR-034) is not stored:
+its trades become lots, and no row would reference the file.
 
 - `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) holds only the file name
   (ADR-023). `SaveAsync` writes the file and returns its name, which the upload flows store and
@@ -489,9 +493,10 @@ anything else as `.pdf`. `GetFile` serves each with its content type (`applicati
 ### Investments
 
 Entities: `InvestmentAsset` (`AssetType` is `ETF` or `Gold`; optional `Isin` with a unique
-index, used to match auto-imported holdings), `InvestmentLot` (signed `Quantity`
-`decimal(18,6)`: positive = buy, negative = sell; optional `ExternalId` with a unique index,
-the source's id of an imported trade), `InvestmentPriceSnapshot` (one price per
+index; an imported trade finds its asset by `Isin`, or by `Ticker` and then `PricesSymbol`),
+`InvestmentLot` (signed `Quantity` `decimal(18,6)`: positive = buy, negative = sell; optional
+`ExternalId` with a unique index, the source's id of an imported trade, `XTB:<id>` for XTB's),
+`InvestmentPriceSnapshot` (one price per
 asset per day, unique `(AssetId, Date)` index; `Source` is `Manual`, `Synced` or `Legacy`).
 Endpoints live in `Controllers/InvestmentsController.cs` under `/api/investments`; handlers
 follow the tuple-result pattern `(Result?, Error?)` where `(null, null)` maps to 404.
@@ -509,16 +514,36 @@ Conventions:
 - P&L uses **average cost basis** (ADR-013), computed client-side in `investments.service.ts`
   (`assetMetrics`): buys update the weighted average (fees included), sells book realised
   P&L against it.
-- **Trade import** (ADR-031): `TradeImportService` (`Features/Investments/Shared/`, scoped)
-  runs after `StatementUploadService` persists a statement whose parser found buys (today the
-  Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are
-  already excluded from spending). Each `ParsedTrade` becomes an `InvestmentLot` with the
-  source's quantity, price per unit and fees (fee plus tax), its id in `ExternalId` and a note
-  saying where it came from. The ETF asset is created on first sight, matched by `Isin`, named
-  from the source, with `Ticker` left null and queued for a price sync, which finds the ticker
-  from the ISIN (e.g. `VWCE.DE` for `IE00BK5BQT80`). Idempotent: a trade whose id a lot
-  already holds is skipped, and one without an id dedups by `(AssetId, Date, Quantity)`. Its
+- **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
+  scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
+  Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already
+  excluded from spending), and for each XTB export (see "Broker exports" below). Each
+  `ParsedTrade` becomes an `InvestmentLot` with the source's quantity (negative for a sell),
+  price per unit and fees (Trade Republic's fee plus tax), its id in `ExternalId` and a note
+  saying where it came from. Lots from several sources share one asset. A trade with an ISIN
+  finds its asset by `Isin`; one with a ticker by `Ticker` (any case), then by `PricesSymbol`,
+  so XTB's `VWCE.DE` finds the ETF that Trade Republic's buys created from its ISIN once its
+  prices have synced. An asset not found is created as an ETF, named from the source and
+  queued for a price sync: from an ISIN with `Ticker` left null, which the sync finds (e.g.
+  `VWCE.DE` for `IE00BK5BQT80`); from a ticker with that ticker. An asset created from a ticker
+  is not found later by an ISIN. Idempotent: a trade whose id a lot already holds is skipped; a
+  trade with a new id that matches a lot without one by `(AssetId, Date, Quantity)` (a lot typed
+  by hand) gives that lot its id instead of adding a twin; a trade without an id dedups by
+  `(AssetId, Date, Quantity)`. A sell is checked against the asset's holdings, its lots so far
+  plus the import's earlier trades, as a manual sell is; one beyond them throws, and nothing of
+  the import is saved. After a statement, the lots added are returned as `LotsAdded`, and its
   failures are caught, logged and returned as a warning, so they never fail the upload.
+- **Broker exports** (ADR-034): an XTB export is uploaded through the batch like any file, and
+  `XtbUploadService` (`Services/`, scoped) hands its trades to `TradeImportService`. XTB is no
+  account in Beacon: no statement, no transactions, and the file is not stored. The batch holds
+  every XTB export until all its files are read, then applies them oldest period first (a
+  second download of a month after the first), each all or nothing, so a June sell never comes
+  before May's buy; a refused file is that file's error and the others still import. Then
+  `CheckHoldingsAsync` compares the newest imported export's Open Positions with Beacon: per
+  asset, the lots from XTB (`ExternalId` starting `XTB:`) and those typed by hand, never another
+  source's, against the quantity XTB lists for its tickers. A difference is a warning on that
+  file. XTB lists the holdings when the file is generated, not at the period's end, so when an
+  XTB lot in Beacon is dated after the export's period, nothing is compared.
 
 Pricing (ADR-028): daily closes are stored, not fetched on demand.
 
@@ -689,8 +714,8 @@ still deploys.
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser`, `MercorStatementParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `TradeImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser`, `MercorStatementParser`, `XtbExportParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `XtbUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `TradeImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
 | `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
 | `MealCardTextParser`, `ParseVerifier`, `CsvText`, `Micro1Reconciler`, `MercorReconciler` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
@@ -706,6 +731,12 @@ still deploys.
 - Computed signals: `banks`, `latestPerBank`, `totalBalance`, `allTransactions`,
   `allTransactionsRaw`, `monthlySummaries`.
 - Call `reload()` after any mutation to refresh state.
+
+`InvestmentsService` holds the investment assets the same way, loaded once when first used
+(the Invest page or the dashboard); its `load()` refreshes them. The Invest page calls it after
+its own changes, and the Upload page after an upload that added lots: a statement's buys
+(`lotsAdded` on its result) or a broker's export (`tradesResult.added`). It gets the service
+from the injector only then, so opening the Upload page loads no investments.
 
 All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModules.
 
@@ -834,10 +865,11 @@ All endpoints require the `X-Api-Key` header, except `/swagger` in development,
 `GET /api/auth/google/callback` (ADR-017) and `GET /api/health` (ADR-026). Use Swagger
 (`http://localhost:5098/swagger`) or read `Controllers/` for the full surface.
 
-`POST /api/upload/batch` takes every kind of document at once (PDFs, CSV exports, ZIPs of
-them) and answers one result per file, by `documentType`: `BankStatement`, `GroceryReceipt`,
-`SalarySlip` (parsed, saved only after review), `Micro1Unpaired`, `MercorNeedsEur` or
-`Unknown`. A Mercor statement then goes through `POST /api/salary/parse-mercor` with the EUR
+`POST /api/upload/batch` takes every kind of document at once (PDFs, CSV and XLSX exports,
+ZIPs of them) and answers one result per file, by `documentType`: `BankStatement`,
+`GroceryReceipt`, `SalarySlip` (parsed, saved only after review), `Micro1Unpaired`,
+`MercorNeedsEur`, `BrokerExport` (an XTB export: its trades added as lots, counted in
+`tradesResult`, with the holdings check's warnings) or `Unknown`. A Mercor statement then goes through `POST /api/salary/parse-mercor` with the EUR
 received (see "Mercor" above).
 
 `GET /api/health` is for deploy scripts and monitors. It answers 200 with `status: "ok"` when
@@ -892,6 +924,34 @@ row (`symbol` is the ISIN) carries its trade, with fees the absolute `fee + tax`
 Meal-card statements have no PDF parser: they are imported as pasted text (see "Bank
 statement parsers") and stored under bank name `MEAL CARD`.
 
+## Supported brokers
+
+A broker is no account in Beacon: its export's trades become investment lots, with no
+statement and no transactions (ADR-034; see "Investments", "Broker exports").
+
+| Broker | Export | Detection signal |
+|---|---|---|
+| XTB | Monthly account export (XLSX), `EUR_<account>_<from>_<to>.xlsx` | Sheets "Cash Operations", "Closed Positions" and "Open Positions", each opening with "Account number" |
+
+`XtbExportParser` reads the workbook through `XlsxWorkbook` (`Services/Parsing/`), which gives
+each sheet's rows as cell text: shared strings resolved, numbers as stored, dates as Excel
+serial numbers. Times are UTC, and a trade is dated by its day in Lisbon; the period is the
+Cash Operations sheet's "Date from (UTC)" to "Date to (UTC)", Lisbon's first and last day of
+the month. From Cash Operations, a `Stock purchase` is a buy and a `Stock sell` a sell, matched
+by `Ticker` and named by `Instrument`. Quantity and price come from the comment
+(`OPEN BUY 0.5 @ 600.00`; a split fill, `OPEN BUY 2/2.5 @ 100.00`, is the fill's 2, and a
+sell reads `CLOSE BUY ...`), the operation's `ID` becomes `XTB:<ID>`, and there are no fees.
+`Deposit` and `Subaccount transfer` rows (the bank transfer in, and cash moved between the "My
+Trades" and "Investment Plans" subaccounts) are skipped. It refuses the file, naming the row,
+for any other type, a category other than `ETF`, a comment it can't read, and an amount that
+is not the quantity at the price, give or take a cent plus the price times 0.0001, the
+rounding of the quantity's fourth decimal (more would be a commission or a currency
+conversion, not seen yet). It also refuses an account not in EUR, by the file name's prefix or
+the currencies in Open Positions (ADR-005). From Open Positions it reads "Data as of report
+generated" and the bought positions summed by ticker, skipping each instrument's total row,
+and refuses a position of another type (a short). Closed Positions is only part of the
+detection.
+
 ## Environment variables
 
 | Variable | Description |
@@ -939,14 +999,18 @@ sums, order and refusals, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
 `UnifiedUploadBatch` pairing/unpaired/ambiguous cases, the Mercor statement's sums, hours and
 refusals with `MercorReconciler`, the batch's EUR suggestion (that month's Mercor credits,
-from any bank, in the same batch too) and `ParseMercorStatement`, and CSV files skipping the
-extractor),
+from any bank, in the same batch too) and `ParseMercorStatement`, CSV files skipping the
+extractor, and XTB exports applied oldest first, again, over lots typed by hand, refused, with
+the holdings warning on the newest only, and an XLSX that is not XTB's), `XtbExportParser`
+(purchases, split fills, sells, skipped rows, Lisbon dates, holdings and refusals, on synthetic
+workbooks written with the Open XML SDK) and `XlsxWorkbook`,
 `ParseVerifier`, `ApiKeyMiddleware`, `ExceptionHandlingMiddleware` (incl. a body over its
 limit), `RequestLoggingMiddleware`, the log files (missing or unwritable folder, retention,
 level defaults and overrides, JSON lines read back), `ApplyRuleService` (incl.
 Excluded-category rules setting `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup`
 (relative, foreign and absolute stored paths, stored CSVs), `TradeImportService` (fees, dedup
-by trade id), `StatementUploadService` (PPR recompute helper, Trade Republic balance chaining,
+by trade id, tickers and prices symbols, a lot typed by hand, sells within and beyond the
+holdings), `XtbUploadService` (the holdings check), `StatementUploadService` (PPR recompute helper, Trade Republic balance chaining,
 overlap and buys), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
 responses, EUR check, retries, an unavailable source), `PriceHistorySyncService` (schedule,
 queue, turned off), `XetraCalendar` and stale prices, the price-source migration, CQRS handlers

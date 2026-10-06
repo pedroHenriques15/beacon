@@ -15,11 +15,13 @@ public record TransferCandidate(
     int ExistingTxId, string ExistingDescription, string ExistingType, string ExistingBank,
     DateOnly Date, decimal Amount);
 
+/// <param name="LotsAdded">Investment lots the statement's buys added, so the client refreshes Invest.</param>
 public record UploadResult(
     bool Imported, string Bank, DateOnly PeriodFrom,
     int TransactionCount, int UnknownCount, string? Message,
     List<TransferCandidate>? TransferCandidates = null,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null,
+    int LotsAdded = 0);
 
 public class StatementUploadService(
     AppDbContext db,
@@ -174,13 +176,14 @@ public class StatementUploadService(
 
             // The statement is committed: a lot that fails to import must not fail the upload.
             var trades = parsed.Transactions.Where(t => t.Trade is not null).Select(t => t.Trade!).ToList();
+            var lotsAdded = 0;
             if (trades.Count > 0)
             {
                 try
                 {
-                    var lots = await tradeImport.ImportAsync(trades, ct);
+                    lotsAdded = await tradeImport.ImportAsync(trades, ct);
                     logger.LogInformation("Imported {Count} of {Trades} investment buy(s) as lots for {Bank} {Period}",
-                        lots, trades.Count, parsed.Bank, parsed.PeriodFrom);
+                        lotsAdded, trades.Count, parsed.Bank, parsed.PeriodFrom);
                 }
                 catch (Exception ex)
                 {
@@ -255,7 +258,8 @@ public class StatementUploadService(
             return new UploadResult(true, parsed.Bank, parsed.PeriodFrom,
                 parsed.Transactions.Count, unknownCount, null,
                 candidates.Count > 0 ? candidates : null,
-                warnings.Count > 0 ? warnings : null);
+                warnings.Count > 0 ? warnings : null,
+                lotsAdded);
         }
         catch
         {
