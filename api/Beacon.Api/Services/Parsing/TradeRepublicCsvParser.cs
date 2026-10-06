@@ -165,6 +165,7 @@ public partial class TradeRepublicCsvParser : IBankStatementParser
         var transactionId = field("transaction_id");
         return new ParsedTrade(
             isin,
+            Ticker: null,
             AssetName: name.Length > 0 ? name : $"ETF {isin}",
             date,
             Quantity: shares,

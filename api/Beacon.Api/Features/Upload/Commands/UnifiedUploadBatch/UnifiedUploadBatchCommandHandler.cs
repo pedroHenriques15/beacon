@@ -13,8 +13,10 @@ public class UnifiedUploadBatchCommandHandler(
     Micro1InvoiceParser micro1Parser,
     DeelWithdrawalParser withdrawalParser,
     MercorStatementParser mercorParser,
+    XtbExportParser xtbParser,
     StatementUploadService statementService,
     GroceryReceiptUploadService groceryService,
+    XtbUploadService xtbService,
     FileStorageService fileStorage,
     AppDbContext db,
     ILogger<UnifiedUploadBatchCommandHandler> logger)
@@ -27,14 +29,20 @@ public class UnifiedUploadBatchCommandHandler(
         var invoices = new List<PendingInvoice>();
         var withdrawals = new List<PendingWithdrawal>();
         var mercors = new List<PendingMercor>();
+        var xtbs = new List<PendingXtb>();
 
         for (var i = 0; i < files.Count; i++)
         {
             var (fileName, content) = files[i];
-            slots[i] = await ClassifyAsync(i, fileName, content, invoices, withdrawals, mercors, ct);
+            slots[i] = XlsxWorkbook.IsXlsxFile(fileName)
+                ? HoldXtb(i, fileName, content, xtbs)
+                : await ClassifyAsync(i, fileName, content, invoices, withdrawals, mercors, ct);
         }
 
         foreach (var (index, result) in await CorrelateAsync(invoices, withdrawals))
+            slots[index] = result;
+
+        foreach (var (index, result) in await ImportXtbAsync(xtbs, ct))
             slots[index] = result;
 
         // After every file is in, so a bank statement in this same upload counts towards the suggestion.
@@ -197,11 +205,94 @@ public class UnifiedUploadBatchCommandHandler(
             }
         }
 
+        return Unrecognised(fileName);
+    }
+
+    private UnifiedUploadItemResult Unrecognised(string fileName)
+    {
         logger.LogInformation("Unified upload: {File} not recognised by any parser", fileName);
         return new UnifiedUploadItemResult(fileName, "Unknown", false, false,
-            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements (PDF); Trade Republic transaction exports (CSV); Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal); Mercor statements.",
+            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements (PDF); Trade Republic transaction exports (CSV); XTB account exports (XLSX); Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal); Mercor statements.",
             null, null, null);
     }
+
+    // An XLSX is a broker's export, read in .NET (ADR-034). It is held until every file is in, so
+    // the exports of one upload are applied oldest first.
+    private UnifiedUploadItemResult? HoldXtb(int index, string fileName, MemoryStream content, List<PendingXtb> xtbs)
+    {
+        XlsxWorkbook workbook;
+        try
+        {
+            content.Seek(0, SeekOrigin.Begin);
+            workbook = XlsxWorkbook.Read(content);
+        }
+        catch (FormatException ex)
+        {
+            return new UnifiedUploadItemResult(fileName, "Unknown", false, false, ex.Message, null, null, null);
+        }
+
+        if (!xtbParser.CanParse(workbook)) return Unrecognised(fileName);
+        try
+        {
+            xtbs.Add(new PendingXtb(index, fileName, xtbParser.Parse(fileName, workbook)));
+            return null;
+        }
+        catch (FormatException ex)
+        {
+            logger.LogWarning(ex, "{File} looked like an XTB export but was refused", fileName);
+            return new UnifiedUploadItemResult(fileName, "BrokerExport", false, false, ex.Message, null, null, null);
+        }
+    }
+
+    // Oldest period first, so a sell never comes before the buy it sells; a second download of a
+    // month adds nothing. Then the newest export's holdings are compared with Beacon's.
+    private async Task<List<(int Index, UnifiedUploadItemResult Result)>> ImportXtbAsync(
+        List<PendingXtb> xtbs, CancellationToken ct)
+    {
+        var results = new List<(int Index, UnifiedUploadItemResult Result)>();
+        (PendingXtb Xtb, TradesUploadResult Result)? latest = null;
+        foreach (var xtb in xtbs.OrderBy(x => x.Export.PeriodFrom).ThenBy(x => x.Export.GeneratedAtUtc))
+        {
+            try
+            {
+                var result = await xtbService.ImportAsync(xtb.Export, ct);
+                logger.LogInformation("Unified upload: {File} detected as an XTB export", xtb.FileName);
+                results.Add((xtb.Index, TradesItem(xtb.FileName, result)));
+                latest = (xtb, result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "XTB import failed for {File}", xtb.FileName);
+                results.Add((xtb.Index, new UnifiedUploadItemResult(xtb.FileName, "BrokerExport", false, false,
+                    ex.Message, null, null, null)));
+            }
+        }
+
+        if (latest is { } last)
+        {
+            IReadOnlyList<string> warnings;
+            try
+            {
+                warnings = await xtbService.CheckHoldingsAsync(last.Xtb.Export, ct);
+            }
+            catch (Exception ex)
+            {
+                // The trades are in: a check that can't run must not fail the upload.
+                logger.LogError(ex, "Could not compare XTB holdings for {File}", last.Xtb.FileName);
+                warnings = [$"The holdings could not be compared with XTB's: {ex.Message}"];
+            }
+            if (warnings.Count > 0)
+                results[results.FindIndex(r => r.Index == last.Xtb.Index)] =
+                    (last.Xtb.Index, TradesItem(last.Xtb.FileName, last.Result with { Warnings = warnings }));
+        }
+        return results;
+    }
+
+    private static UnifiedUploadItemResult TradesItem(string fileName, TradesUploadResult result) =>
+        new(fileName, "BrokerExport",
+            Success: result.Added > 0 || result.TradeCount == 0,
+            WasDuplicate: result.TradeCount > 0 && result.Added == 0,
+            Error: null, null, null, null, TradesResult: result);
 
     private async Task<List<(int Index, UnifiedUploadItemResult Result)>> CorrelateAsync(
         List<PendingInvoice> invoices, List<PendingWithdrawal> withdrawals)
@@ -351,4 +442,5 @@ public class UnifiedUploadBatchCommandHandler(
     private sealed record PendingInvoice(int Index, string FileName, MemoryStream Content, ParsedSalarySlip InvoiceUsd);
     private sealed record PendingWithdrawal(int Index, string FileName, DeelWithdrawal Withdrawal);
     private sealed record PendingMercor(int Index, string FileName, string PdfPath, MercorStatement Statement);
+    private sealed record PendingXtb(int Index, string FileName, XtbExport Export);
 }

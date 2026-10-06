@@ -381,3 +381,39 @@ rate, after fees no document shows); pairing with a payout document as micro1 do
 sends none). Costs accepted: the suggestion takes the month's payouts by date, and a payout
 for late-month work lands the next month, so it can be off and is corrected by hand; a fee
 Mercor or its payout provider takes is invisible, folded into the rate.
+
+## ADR-034 · XTB is imported from its XLSX export, as investment lots only
+
+Since 2026-10-06 XTB, where an S&P 500 ETF is bought each month through an investment plan,
+comes in as its monthly account export: an `.xlsx` workbook with three sheets, Cash
+Operations, Closed Positions and Open Positions. XTB is no account in Beacon. The export yields
+no statement and no transactions, only its trades, which `TradeImportService` turns into lots
+(ADR-031); the cash sent to XTB is already on the bank's statement, as a transfer out. The
+workbook is read in .NET with the Open XML SDK (`DocumentFormat.OpenXml`, Microsoft's, MIT), so
+the server needs nothing new and the Python extractor stays PDF-only; the tests write their
+synthetic workbooks with it too. `XtbExportParser` returns trades, not a statement, so like
+Mercor's parser (ADR-033) it is a plain class outside the parser factories; otherwise ADR-004
+holds: one class and one `AddSingleton` line, detected by its sheets. A stock purchase is a buy
+and a stock sell a sell, quantity and price from the row's comment, the operation's id (as
+`XTB:<id>`) the lot's `ExternalId`; deposits and transfers between subaccounts are skipped.
+Any other row type, an instrument that is not an ETF, a short position, an account not in EUR
+(ADR-005) and an amount that is not the quantity at the price (a commission, a currency
+conversion) are refused until a real export shows one. Lots from several sources share one
+asset: a trade's asset is matched by ticker, then by the symbol its prices sync from, so XTB's
+`VWCE.DE` finds the ETF that Trade Republic's buys created from its ISIN; an unknown ticker
+creates the asset with it. Sells are checked against the holdings like a manual sell, a file at
+a time and all or nothing, and an upload applies its exports oldest period first. A trade with
+an id also matches a lot typed by hand (same asset, date and quantity, no id), which takes the
+id instead of getting a twin. The file is not stored, since no row would reference it. After an
+upload, the newest export's Open Positions is compared with Beacon's holdings, counting each
+asset's lots from XTB and those typed by hand, never another source's, and a difference is
+shown as a warning. XTB lists what is held when the file is made, not at the period's end, so
+an export older than the latest XTB trade in Beacon is not compared. Alternatives: XTB as an
+account with statements, deposits as transactions and a cash balance (the owner declined it:
+the export has no balances, and the cash is on the bank's statement already); ClosedXML (handier,
+with several more dependencies); ExcelDataReader (small but read-only, so the tests would need
+another way to write a workbook); reading the workbook in the Python extractor. Costs accepted:
+an asset created from an XTB ticker is not found later by a Trade Republic ISIN, so Trade
+Republic's buys of the same ETF must come in first and its prices sync once (until then the
+asset has no prices symbol); the SDK adds a few megabytes to the deployment; and the holdings
+check is only as fresh as the latest download.

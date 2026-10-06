@@ -37,4 +37,3 @@ Nothing is queued; the next items come from "Later".
 - Android app.
 - Automatic email scanning and better email rule filters (research).
 - Show which monthly documents are overdue, so a missing statement or salary slip is noticed.
-- Import XTB statements, with their ETF buys as investment lots.

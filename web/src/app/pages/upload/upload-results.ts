@@ -2,6 +2,7 @@ import {
   BatchUploadItemResult,
   ParsedSlipResponse,
   UnifiedMercorResult,
+  UnifiedUploadItemResult,
 } from '../../core/models/statement.model';
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import { usd } from '../../core/utils/money';
@@ -51,7 +52,7 @@ export interface FileEntry {
 }
 
 export interface FileGroup {
-  key: 'statements' | 'slips' | 'groceries' | 'micro1' | 'failed';
+  key: 'statements' | 'trades' | 'slips' | 'groceries' | 'micro1' | 'failed';
   title: string;
   /** '2 imported, 1 already in Beacon'. */
   summary: string;
@@ -61,6 +62,8 @@ export interface FileGroup {
 
 export interface UploadOutcome {
   statements: BatchUploadItemResult[];
+  /** Broker exports (XTB), whose trades become lots on Invest. */
+  trades: UnifiedUploadItemResult[];
   slips: SalaryQueueItem[];
   groceries: GroceryReceiptUploadResult[];
   micro1: FailedFile[];
@@ -145,6 +148,42 @@ function statementEntry(item: BatchUploadItemResult, i: number): FileEntry {
     title: item.fileName,
     meta: item.error ?? 'Import failed.',
     fileName: null,
+  };
+}
+
+function tradesEntry(item: UnifiedUploadItemResult, i: number): FileEntry {
+  const r = item.tradesResult;
+  const base = {
+    key: `trades-${i}`,
+    amount: null,
+    warnings: r?.warnings ?? [],
+    slipIndex: null,
+    action: null,
+  };
+  if (!r) {
+    return {
+      ...base,
+      tone: 'error',
+      title: item.fileName,
+      meta: item.error ?? 'Import failed.',
+      fileName: null,
+    };
+  }
+  const entry = {
+    ...base,
+    title: `${r.broker} trades, ${periodLabel(r.periodFrom)}`,
+    fileName: item.fileName,
+  };
+  const trades = count(r.tradeCount, 'trade', 'trades');
+  if (r.tradeCount === 0) return { ...entry, tone: 'ok', meta: 'No trades in this period' };
+  if (r.added === 0) return { ...entry, tone: 'duplicate', meta: `Already in Invest, ${trades}` };
+  return {
+    ...entry,
+    tone: 'ok',
+    meta:
+      r.added < r.tradeCount
+        ? `${r.added} of ${trades} added to Invest, the rest were there already`
+        : `${trades} added to Invest`,
   };
 }
 
@@ -255,6 +294,8 @@ export function uploadGroups(outcome: UploadOutcome): FileGroup[] {
   };
 
   add('statements', 'Bank statements', outcome.statements.map(statementEntry));
+
+  add('trades', 'Investment trades', outcome.trades.map(tradesEntry), null, { ok: 'added' });
 
   const slips = outcome.slips.map(slipEntry);
   add(

@@ -21,8 +21,13 @@ public class TradeImportServiceTests : IDisposable
 
     private static ParsedTrade Trade(
         decimal quantity = 0.5m, string? id = "trade-1", DateOnly? date = null, decimal fees = 0m) =>
-        new(Isin, "Example World ETF", date ?? new DateOnly(2026, 8, 3), quantity, 166.66m, fees, id,
+        new(Isin, Ticker: null, "Example World ETF", date ?? new DateOnly(2026, 8, 3), quantity, 166.66m, fees, id,
             "Trade Republic savings plan");
+
+    private static ParsedTrade XtbTrade(
+        string ticker = "SXR8.DE", decimal quantity = 0.5m, string id = "XTB:1", DateOnly? date = null) =>
+        new(Isin: null, ticker, "Example S&P 500", date ?? new DateOnly(2026, 6, 4), quantity, 600m, 0m, id,
+            quantity < 0 ? "XTB sell" : "XTB investment plan");
 
     [Fact]
     public async Task ImportAsync_CreatesTheEtfAssetAndALotWithItsFees()
@@ -149,5 +154,111 @@ public class TradeImportServiceTests : IDisposable
 
         db.InvestmentLots.Add(new InvestmentLot { Asset = asset, Quantity = 1, PricePerUnit = 1, ExternalId = "trade-1" });
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task ImportAsync_ATicker_MatchesTheAssetWithThatTicker_WhateverItsCase()
+    {
+        await using var db = CreateDb();
+        db.InvestmentAssets.Add(new InvestmentAsset { AssetType = "ETF", Ticker = "sxr8.de", Name = "Typed S&P 500" });
+        await db.SaveChangesAsync();
+
+        await MakeService(db).ImportAsync([XtbTrade()]);
+
+        var asset = await db.InvestmentAssets.Include(a => a.Lots).SingleAsync();
+        Assert.Equal("Typed S&P 500", asset.Name);
+        Assert.Single(asset.Lots);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ATicker_MatchesAnAssetCreatedFromItsIsin_ByThePricesSymbol()
+    {
+        await using var db = CreateDb();
+        db.InvestmentAssets.Add(new InvestmentAsset
+        {
+            AssetType = "ETF",
+            Isin = Isin,
+            Ticker = null,
+            PricesSymbol = "VWCE.DE",
+            Name = "Example World ETF",
+        });
+        await db.SaveChangesAsync();
+
+        await MakeService(db).ImportAsync([XtbTrade(ticker: "VWCE.DE")]);
+
+        var asset = await db.InvestmentAssets.Include(a => a.Lots).SingleAsync();
+        Assert.Equal(Isin, asset.Isin);
+        Assert.Single(asset.Lots);
+    }
+
+    [Fact]
+    public async Task ImportAsync_AnUnknownTicker_CreatesTheAssetWithIt_AndQueuesItsPrices()
+    {
+        await using var db = CreateDb();
+        var queue = TestPricing.Queue();
+
+        await new TradeImportService(db, queue).ImportAsync([XtbTrade(), XtbTrade(id: "XTB:2")]);
+
+        var asset = await db.InvestmentAssets.Include(a => a.Lots).SingleAsync();
+        Assert.Equal("SXR8.DE", asset.Ticker);
+        Assert.Null(asset.Isin);
+        Assert.Equal("ETF", asset.AssetType);
+        Assert.Equal("Example S&P 500", asset.Name);
+        Assert.Equal(2, asset.Lots.Count);
+        Assert.Equal([asset.Id], TestPricing.Drain(queue));
+    }
+
+    [Fact]
+    public async Task ImportAsync_ALotTypedByHand_TakesTheTradesId_InsteadOfATwin()
+    {
+        await using var db = CreateDb();
+        var asset = new InvestmentAsset { AssetType = "ETF", Ticker = "SXR8.DE", Name = "Typed S&P 500" };
+        db.InvestmentLots.Add(new InvestmentLot
+        {
+            Asset = asset,
+            Date = new DateOnly(2026, 6, 4),
+            Quantity = 0.5m,
+            PricePerUnit = 600m,
+            Notes = "typed",
+        });
+        await db.SaveChangesAsync();
+        var service = MakeService(db);
+
+        var first = await service.ImportAsync([XtbTrade(id: "XTB:1"), XtbTrade(id: "XTB:2")]);
+        var again = await service.ImportAsync([XtbTrade(id: "XTB:1"), XtbTrade(id: "XTB:2")]);
+
+        // The typed lot is the first trade; the second, alike but for its id, is a lot of its own.
+        Assert.Equal(1, first);
+        Assert.Equal(0, again);
+        await using var fresh = CreateDb();
+        var lots = await fresh.InvestmentLots.OrderBy(l => l.Id).ToListAsync();
+        Assert.Equal(["XTB:1", "XTB:2"], lots.Select(l => l.ExternalId));
+        Assert.Equal("typed", lots[0].Notes);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ASellWithinTheHoldings_IsANegativeLot()
+    {
+        await using var db = CreateDb();
+
+        var count = await MakeService(db).ImportAsync(
+            [XtbTrade(quantity: 2m, id: "XTB:1"), XtbTrade(quantity: -2m, id: "XTB:2", date: new DateOnly(2026, 6, 9))]);
+
+        Assert.Equal(2, count);
+        Assert.Equal(0m, (await db.InvestmentLots.ToListAsync()).Sum(l => l.Quantity));
+    }
+
+    [Fact]
+    public async Task ImportAsync_ASellBeyondTheHoldings_IsRefused_AndSavesNothing()
+    {
+        await using var db = CreateDb();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => MakeService(db).ImportAsync(
+            [XtbTrade(ticker: "VWCE.DE", quantity: 1m, id: "XTB:1"), XtbTrade(quantity: -1m, id: "XTB:2")]));
+
+        Assert.Contains("Cannot sell 1 SXR8.DE on 2026-06-04 - only 0 held.", ex.Message);
+        await using var fresh = CreateDb();
+        Assert.Empty(await fresh.InvestmentAssets.ToListAsync());
+        Assert.Empty(await fresh.InvestmentLots.ToListAsync());
     }
 }

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { BatchUploadItemResult, ParsedSlipResponse } from '../../core/models/statement.model';
+import {
+  BatchUploadItemResult,
+  ParsedSlipResponse,
+  TradesUploadResult,
+  UnifiedUploadItemResult,
+} from '../../core/models/statement.model';
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import {
   dayLabel,
@@ -12,7 +17,15 @@ import {
 } from './upload-results';
 
 function outcome(overrides: Partial<UploadOutcome>): UploadOutcome {
-  return { statements: [], slips: [], groceries: [], micro1: [], failed: [], ...overrides };
+  return {
+    statements: [],
+    trades: [],
+    slips: [],
+    groceries: [],
+    micro1: [],
+    failed: [],
+    ...overrides,
+  };
 }
 
 function statement(overrides: Partial<BatchUploadItemResult>): BatchUploadItemResult {
@@ -28,6 +41,32 @@ function statement(overrides: Partial<BatchUploadItemResult>): BatchUploadItemRe
       message: null,
     },
     error: null,
+    ...overrides,
+  };
+}
+
+function brokerExport(
+  trades: Partial<TradesUploadResult> | null,
+  overrides: Partial<UnifiedUploadItemResult> = {},
+): UnifiedUploadItemResult {
+  return {
+    fileName: 'EUR_1_2026-05-31_2026-06-30.xlsx',
+    documentType: 'BrokerExport',
+    success: true,
+    wasDuplicate: false,
+    error: null,
+    statementResult: null,
+    groceryResult: null,
+    salaryResult: null,
+    tradesResult: trades && {
+      broker: 'XTB',
+      periodFrom: '2026-06-01',
+      periodTo: '2026-06-30',
+      tradeCount: 4,
+      added: 4,
+      warnings: [],
+      ...trades,
+    },
     ...overrides,
   };
 }
@@ -102,6 +141,48 @@ describe('uploadGroups', () => {
     expect(group.entries[1].meta).toBe('Already imported');
     expect(group.entries[2].meta).toBe('No bank');
     expect(group.summary).toBe('1 imported, 1 already in Beacon, 1 failed');
+  });
+
+  it('names a broker export by broker and month, with the trades it added to Invest', () => {
+    const [group] = uploadGroups(
+      outcome({
+        trades: [
+          brokerExport({}),
+          brokerExport({ added: 2, warnings: ['SXR8.DE: XTB lists 3 held'] }),
+          brokerExport({ added: 0 }, { success: false, wasDuplicate: true }),
+          brokerExport({ tradeCount: 0, added: 0, periodFrom: '2026-07-01' }),
+          brokerExport(null, { success: false, error: 'Cannot sell 2 VWCE.DE' }),
+        ],
+      }),
+    );
+
+    expect(group.key).toBe('trades');
+    expect(group.title).toBe('Investment trades');
+    expect(group.entries.map((e) => e.tone)).toEqual(['ok', 'ok', 'duplicate', 'ok', 'error']);
+    expect(group.entries[0].title).toBe('XTB trades, June 2026');
+    expect(group.entries[0].meta).toBe('4 trades added to Invest');
+    expect(group.entries[0].fileName).toBe('EUR_1_2026-05-31_2026-06-30.xlsx');
+    expect(group.entries[1].meta).toBe(
+      '2 of 4 trades added to Invest, the rest were there already',
+    );
+    expect(group.entries[1].warnings).toEqual(['SXR8.DE: XTB lists 3 held']);
+    expect(group.entries[2].meta).toBe('Already in Invest, 4 trades');
+    expect(group.entries[3].title).toBe('XTB trades, July 2026');
+    expect(group.entries[3].meta).toBe('No trades in this period');
+    expect(group.entries[4].title).toBe('EUR_1_2026-05-31_2026-06-30.xlsx');
+    expect(group.entries[4].meta).toBe('Cannot sell 2 VWCE.DE');
+    expect(group.summary).toBe('3 added, 1 already in Beacon, 1 failed');
+  });
+
+  it('lists broker exports right after the statements', () => {
+    const groups = uploadGroups(
+      outcome({
+        groceries: [receipt({})],
+        trades: [brokerExport({})],
+        statements: [statement({})],
+      }),
+    );
+    expect(groups.map((g) => g.key)).toEqual(['statements', 'trades', 'groceries']);
   });
 
   it('says how many transactions of a statement need a category', () => {
