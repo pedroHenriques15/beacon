@@ -172,6 +172,160 @@ public class StatementUploadImportTests : IDisposable
         Assert.True(synthetic.IsExcluded);
     }
 
+    // ── BPI retirement plan (PPR) movements ─────────────────────────────────────
+
+    private static string BpiMarchPage(string activos, string cash = "", string plans = "") => $"""
+        EXTRACTO INTEGRADO
+        IBAN: PT50 0000 0000 0000 0000 0000 0
+        Período De 07/03/2026 a 06/04/2026
+        SALDO ANTERIOR CONTABILISTICO 0,00
+        SALDO ACTUAL CONTABILISTICO 0,00
+        ACTIVOS {activos}
+        DEPÓSITOS À ORDEM
+        {cash}
+        PLANOS DE POUPANÇA REFORMA
+        PLANO OBRIGAÇÕES PPR/OICVM 01/01/2020
+        {plans}
+        TOTAL PLANOS DE POUPANÇA REFORMA {activos}
+        """;
+
+    private static async Task SeedFebruaryBpiAsync(AppDbContext db, decimal pprBalance)
+    {
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "BPI",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 2, 7),
+            PeriodTo = new DateOnly(2026, 3, 6),
+            PprBalance = pprBalance,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<List<Transaction>> ImportBpiAsync(AppDbContext db, string page)
+    {
+        var result = await MakeService(db, [page]).ImportAsync(MakeFormFile(page));
+        Assert.True(result.Imported);
+        await using var freshDb = new AppDbContext(DbOptions());
+        return await freshDb.Transactions
+            .Where(t => t.Description.StartsWith("BPI Reforma"))
+            .OrderBy(t => t.DatePosting)
+            .ToListAsync();
+    }
+
+    [Fact]
+    public async Task Import_BpiSubscriptionOnlyMonth_BooksTheSubscriptionAndTheMarketChange()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var salary = new Category { Name = "Salary", Color = "#16a34a" };
+        db.Categories.Add(salary);
+        await db.SaveChangesAsync();
+        db.CategoryRules.Add(new CategoryRule { CategoryId = salary.Id, Pattern = "BPI Reforma - SUBSCRICAO EMPRESA" });
+        await SeedFebruaryBpiAsync(db, 1000m);
+
+        var rows = await ImportBpiAsync(db, BpiMarchPage("1 420,00",
+            plans: "20/03 24/03 SUBSCRICAO EMPRESA 50,00000 8,00000 400,00"));
+
+        Assert.Equal(2, rows.Count);
+        var subscription = rows[0];
+        Assert.Equal("BPI Reforma - SUBSCRICAO EMPRESA", subscription.Description);
+        Assert.Equal(new DateOnly(2026, 3, 20), subscription.DatePosting);
+        Assert.Equal(new DateOnly(2026, 3, 24), subscription.DateValue);
+        Assert.Equal(400m, subscription.Amount);
+        Assert.Equal("credit", subscription.Type);
+        Assert.Equal(salary.Id, subscription.CategoryId);
+        var gains = rows[1];
+        Assert.Equal("BPI Reforma - Ganhos", gains.Description);
+        Assert.Equal(20m, gains.Amount);
+        Assert.Equal("credit", gains.Type);
+    }
+
+    [Fact]
+    public async Task Import_BpiFullRedemptionAndNewSubscription_GainsIsTheMarketChange()
+    {
+        // The previous statement held a redemption whose cash had not arrived (in ACTIVOS); this
+        // month it arrives, the whole plan having been redeemed, and a new plan is subscribed.
+        await using var db = new AppDbContext(DbOptions());
+        await SeedFebruaryBpiAsync(db, 800m);
+
+        var rows = await ImportBpiAsync(db, BpiMarchPage("396,50",
+            cash: """
+                09/03 09/03 RESGATE FORA CONDICOES GERAIS PLANO PPR 800,00 800,00
+                10/03 10/03 TRF SEPA+ P/ OUTRA CONTA -800,00 0,00
+                """,
+            plans: "25/03 27/03 SUBSCRICAO EMPRESA 80,00000 5,00000 400,00"));
+
+        Assert.Equal(["BPI Reforma - SUBSCRICAO EMPRESA", "BPI Reforma - Ganhos"], rows.Select(r => r.Description));
+        Assert.Equal(400m, rows[0].Amount);
+        Assert.Equal(3.50m, rows[1].Amount);
+        Assert.Equal("debit", rows[1].Type);
+    }
+
+    [Fact]
+    public async Task Import_BpiRedemptionInBothSections_IsCountedOnce()
+    {
+        // Redeemed and paid out in the month: in the plan section and as a cash row. A second
+        // redemption whose cash is still to come stays in ACTIVOS and is not counted yet.
+        await using var db = new AppDbContext(DbOptions());
+        await SeedFebruaryBpiAsync(db, 2000m);
+
+        var rows = await ImportBpiAsync(db, BpiMarchPage("398,00",
+            cash: """
+                16/03 16/03 RESGATE FORA CONDICOES GERAIS PLANO PPR 1 990,00 1 990,00
+                17/03 17/03 TRF SEPA+ P/ OUTRA CONTA -1 990,00 0,00
+                """,
+            plans: """
+                09/03 16/03 RESG.FORA COND.GERAL 400,00000 4,97500 1 990,00
+                21/03 23/03 SUBSCRICAO EMPRESA 100,00000 4,00000 400,00
+                31/03 07/04 RESG.FORA COND.GERAL 100,00000 3,98000 398,00
+                """));
+
+        Assert.Equal(["BPI Reforma - SUBSCRICAO EMPRESA", "BPI Reforma - Ganhos"], rows.Select(r => r.Description));
+        Assert.Equal(12m, rows[1].Amount);
+        Assert.Equal("debit", rows[1].Type);
+    }
+
+    [Fact]
+    public async Task Import_BpiMonthWithoutMovements_GainsIsTheBalanceChange()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        await SeedFebruaryBpiAsync(db, 1000m);
+
+        var rows = await ImportBpiAsync(db, BpiMarchPage("1 012,34"));
+
+        var gains = Assert.Single(rows);
+        Assert.Equal("BPI Reforma - Ganhos", gains.Description);
+        Assert.Equal(12.34m, gains.Amount);
+        Assert.Equal("credit", gains.Type);
+    }
+
+    [Fact]
+    public async Task Import_FirstBpiStatement_BooksTheSubscriptionWithNoGains()
+    {
+        await using var db = new AppDbContext(DbOptions());
+
+        var rows = await ImportBpiAsync(db, BpiMarchPage("1 420,00",
+            plans: "20/03 24/03 SUBSCRICAO EMPRESA 50,00000 8,00000 400,00"));
+
+        var subscription = Assert.Single(rows);
+        Assert.Equal("BPI Reforma - SUBSCRICAO EMPRESA", subscription.Description);
+    }
+
+    [Fact]
+    public async Task Import_BpiUnknownPlanWording_IsRefused_AndPersistsNothing()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var page = BpiMarchPage("450,00", plans: "20/03 24/03 SUBSCRICAO PARTICULAR 10,00000 5,00000 50,00");
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(
+            () => MakeService(db, [page]).ImportAsync(MakeFormFile(page)));
+
+        Assert.Contains("SUBSCRICAO PARTICULAR", ex.Message);
+        await using var freshDb = new AppDbContext(DbOptions());
+        Assert.Equal(0, await freshDb.MonthlyStatements.CountAsync());
+        Assert.Empty(Directory.GetFiles(_tempStorageRoot));
+    }
+
     [Fact]
     public async Task Import_SameBytesTwice_RejectsByHash()
     {
