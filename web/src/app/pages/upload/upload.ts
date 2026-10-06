@@ -2,6 +2,7 @@ import {
   Component,
   computed,
   inject,
+  Injector,
   OnInit,
   signal,
   ChangeDetectionStrategy,
@@ -15,9 +16,11 @@ import { FinanceService } from '../../core/services/finance.service';
 import { SalaryService } from '../../core/services/salary.service';
 import { GroceriesService } from '../../core/services/groceries.service';
 import { GroceryCategoriesService } from '../../core/services/grocery-categories.service';
+import { InvestmentsService } from '../../core/services/investments.service';
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
 import {
   BatchUploadItemResult,
+  HourlyRateFormula,
   ParsedLineItemResponse,
   ParsedSlipResponse,
   SalaryItemCategory,
@@ -27,7 +30,7 @@ import {
   UnifiedUploadItemResult,
   UploadResult,
 } from '../../core/models/statement.model';
-import { eur } from '../../core/utils/money';
+import { eur, usd } from '../../core/utils/money';
 import { bankInitials } from '../../core/utils/bank';
 import {
   dayLabel,
@@ -64,6 +67,7 @@ interface LineItemDraft {
 type PendingDialog =
   | { type: 'grocery-mapping'; receiptId: number; categories: string[] }
   | { type: 'salary-review'; queueIdx: number }
+  | { type: 'mercor-eur'; queueIdx: number }
   | { type: 'transfer-review'; candidates: TransferCandidate[] };
 
 const BANK_DETECT_ERROR = 'Could not detect bank';
@@ -76,6 +80,9 @@ const ITEM_TYPE_COLORS: Record<'income' | 'deduction' | 'tax', string> = {
   deduction: '#ef4444',
   tax: '#f59e0b',
 };
+
+/** The hourly-rate formula a profile created from a slip starts with, by the slip's parser. */
+const NEW_PROFILE_FORMULA: Partial<Record<string, HourlyRateFormula>> = { Mercor: 'hours' };
 
 @Component({
   selector: 'app-upload',
@@ -91,8 +98,10 @@ export class UploadComponent implements OnInit {
   private groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   finance = inject(FinanceService);
+  private injector = inject(Injector);
 
   readonly eur = eur;
+  readonly usd = usd;
   readonly bankInitials = bankInitials;
   readonly dayLabel = dayLabel;
 
@@ -123,6 +132,8 @@ export class UploadComponent implements OnInit {
   profiles = signal<SalaryProfile[]>([]);
 
   micro1Unpaired = signal<FailedFile[]>([]);
+  /** Broker exports (XTB) of the last upload, read or refused. */
+  tradeFiles = signal<UnifiedUploadItemResult[]>([]);
   /** Grocery receipts that failed and files of no known kind. */
   failedFiles = signal<FailedFile[]>([]);
 
@@ -133,6 +144,7 @@ export class UploadComponent implements OnInit {
   groups = computed(() =>
     uploadGroups({
       statements: this.batchSummary()?.items ?? [],
+      trades: this.tradeFiles(),
       slips: this.salaryQueue(),
       groceries: this.groceryResults(),
       micro1: this.micro1Unpaired(),
@@ -183,6 +195,20 @@ export class UploadComponent implements OnInit {
   slipTotalEspecie = signal<number | null>(null);
 
   slipPendingProfileName = signal<string | null>(null);
+  /** The parser of the slip under review: picks a new profile's formula. */
+  private slipParserName = signal<string | null>(null);
+
+  /** The Mercor statement whose EUR received is being asked for (ADR-033). */
+  showMercorModal = signal(false);
+  mercorQueueIdx = signal<number | null>(null);
+  mercorEur = signal<number | null>(null);
+  mercorLoading = signal(false);
+  mercorError = signal('');
+  mercorStatement = computed(() => {
+    const idx = this.mercorQueueIdx();
+    return idx === null ? null : (this.salaryQueue()[idx]?.mercor ?? null);
+  });
+  mercorEurValid = computed(() => (this.mercorEur() ?? 0) > 0);
 
   /** Slips already saved for the profile being reviewed - drives the merge notice below. */
   private profileSlips = signal<SalarySlip[]>([]);
@@ -267,9 +293,12 @@ export class UploadComponent implements OnInit {
     this.transferError.set('');
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.tradeFiles.set([]);
     this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
+    this.showMercorModal.set(false);
+    this.mercorQueueIdx.set(null);
     this.showMappingModal.set(false);
     this.pendingMappingCategories.set([]);
     this.mappingIndex.set(0);
@@ -376,13 +405,11 @@ export class UploadComponent implements OnInit {
   }
 
   private uploadFiles(files: File[]): void {
-    const valid = files.filter(
-      (f) => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.zip'),
-    );
+    const valid = files.filter((f) => /\.(pdf|csv|xlsx|zip)$/i.test(f.name));
 
     if (valid.length === 0) {
       this.state.set('error');
-      this.message.set('Only PDF files or ZIP archives containing PDFs are supported.');
+      this.message.set('Only PDF, CSV and XLSX files, or ZIP archives of them, are supported.');
       return;
     }
 
@@ -392,6 +419,7 @@ export class UploadComponent implements OnInit {
     this.batchSummary.set(null);
     this.salaryQueue.set([]);
     this.micro1Unpaired.set([]);
+    this.tradeFiles.set([]);
     this.failedFiles.set([]);
     this.groceryResults.set([]);
     this.pendingDialogs.set([]);
@@ -400,9 +428,13 @@ export class UploadComponent implements OnInit {
       next: (results: UnifiedUploadItemResult[]) => {
         const bankItems = results.filter((r) => r.documentType === 'BankStatement');
         const groceryItems = results.filter((r) => r.documentType === 'GroceryReceipt');
-        const salaryItems = results.filter((r) => r.documentType === 'SalarySlip');
+        // A Mercor statement queues as a slip that waits for the EUR it paid.
+        const salaryItems = results.filter(
+          (r) => r.documentType === 'SalarySlip' || r.documentType === 'MercorNeedsEur',
+        );
         const unknownItems = results.filter((r) => r.documentType === 'Unknown');
         const micro1Items = results.filter((r) => r.documentType === 'Micro1Unpaired');
+        const tradeItems = results.filter((r) => r.documentType === 'BrokerExport');
 
         const dialogs: PendingDialog[] = [];
 
@@ -451,16 +483,27 @@ export class UploadComponent implements OnInit {
 
         if (salaryItems.length > 0) {
           const startIdx = this.salaryQueue().length;
-          const newItems: SalaryQueueItem[] = salaryItems.map((r) => ({
-            status: r.salaryResult ? ('ready' as const) : ('error' as const),
-            pdfPath: r.salaryResult?.pdfPath,
-            fileName: r.salaryResult?.fileName ?? r.fileName,
-            parsed: r.salaryResult?.parsed,
-            error: r.error ?? undefined,
-          }));
+          const newItems: SalaryQueueItem[] = salaryItems.map((r) =>
+            r.mercorResult
+              ? {
+                  status: 'needs-eur' as const,
+                  pdfPath: r.mercorResult.pdfPath,
+                  fileName: r.mercorResult.fileName,
+                  mercor: r.mercorResult,
+                }
+              : {
+                  status: r.salaryResult ? ('ready' as const) : ('error' as const),
+                  pdfPath: r.salaryResult?.pdfPath,
+                  fileName: r.salaryResult?.fileName ?? r.fileName,
+                  parsed: r.salaryResult?.parsed,
+                  error: r.error ?? undefined,
+                },
+          );
           this.salaryQueue.update((q) => [...q, ...newItems]);
           salaryItems.forEach((r, i) => {
-            if (r.salaryResult) {
+            if (r.mercorResult) {
+              dialogs.push({ type: 'mercor-eur', queueIdx: startIdx + i });
+            } else if (r.salaryResult) {
               dialogs.push({ type: 'salary-review', queueIdx: startIdx + i });
             }
           });
@@ -474,6 +517,14 @@ export class UploadComponent implements OnInit {
             })),
           );
         }
+
+        this.tradeFiles.set(tradeItems);
+        // Invest and the dashboard keep the assets for the session: show them the new lots, from
+        // a statement's buys or a broker's export.
+        const lotsAdded =
+          bankItems.some((r) => (r.statementResult?.lotsAdded ?? 0) > 0) ||
+          tradeItems.some((r) => (r.tradesResult?.added ?? 0) > 0);
+        if (lotsAdded) this.injector.get(InvestmentsService).load();
 
         const failedItems = [...failedGroceryItems, ...unknownItems];
         this.failedFiles.set(
@@ -513,8 +564,64 @@ export class UploadComponent implements OnInit {
 
   reviewSalaryItem(idx: number): void {
     const item = this.salaryQueue()[idx];
+    if (item.status === 'needs-eur') {
+      this.openMercorEur(idx);
+      return;
+    }
     if (!item.parsed || !item.pdfPath) return;
     this.openSlipFromParsed(item.parsed, item.pdfPath, item.fileName ?? item.file?.name ?? '', idx);
+  }
+
+  /** Asks for the EUR a Mercor statement paid, pre-filled with the payouts imported for its month. */
+  private openMercorEur(queueIdx: number): void {
+    const statement = this.salaryQueue()[queueIdx]?.mercor;
+    if (!statement) return;
+    this.mercorQueueIdx.set(queueIdx);
+    this.mercorEur.set(statement.suggestedEur);
+    this.mercorError.set('');
+    this.mercorLoading.set(false);
+    this.showMercorModal.set(true);
+  }
+
+  setMercorEur(value: number | string | null): void {
+    this.mercorEur.set(value === null || value === '' ? null : +value);
+  }
+
+  /** Converts the statement at the EUR entered, then opens the usual slip review. */
+  confirmMercorEur(): void {
+    const idx = this.mercorQueueIdx();
+    const item = idx === null ? undefined : this.salaryQueue()[idx];
+    const amount = this.mercorEur();
+    if (idx === null || !item?.pdfPath || amount === null || !this.mercorEurValid()) return;
+    const pdfPath = item.pdfPath;
+
+    this.mercorLoading.set(true);
+    this.mercorError.set('');
+    this.salaryService.parseMercor(pdfPath, amount).subscribe({
+      next: (parsed) => {
+        this.mercorLoading.set(false);
+        this.showMercorModal.set(false);
+        this.mercorQueueIdx.set(null);
+        this.updateSalaryItem(idx, { status: 'ready', parsed });
+        this.openSlipFromParsed(parsed, pdfPath, item.fileName ?? '', idx);
+      },
+      error: (err) => {
+        this.mercorLoading.set(false);
+        const body = err?.error;
+        this.mercorError.set(
+          typeof body === 'string'
+            ? body
+            : (body?.message ?? 'Could not convert the statement. Try again.'),
+        );
+      },
+    });
+  }
+
+  /** Leaves the statement waiting: its row on the timeline asks again. */
+  dismissMercorModal(): void {
+    this.showMercorModal.set(false);
+    this.mercorQueueIdx.set(null);
+    this.advanceDialogQueue();
   }
 
   private openSlipFromParsed(
@@ -524,6 +631,7 @@ export class UploadComponent implements OnInit {
     queueIdx: number,
   ): void {
     this.slipQueueIdx.set(queueIdx);
+    this.slipParserName.set(parsed.parserName);
     this.slipPeriod.set(parsed.period.slice(0, 7));
     this.slipGross.set(parsed.grossAmount);
     this.slipNet.set(parsed.netAmount);
@@ -629,7 +737,8 @@ export class UploadComponent implements OnInit {
     const name = employerName?.trim() || 'My Profile';
     const match = this.profiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
     if (match) return of(match.id);
-    return this.salaryService.createProfile(name).pipe(
+    const formula = NEW_PROFILE_FORMULA[this.slipParserName() ?? ''];
+    return this.salaryService.createProfile(name, undefined, formula).pipe(
       switchMap((profile) =>
         this.salaryService.getProfiles().pipe(
           tap((all) => this.profiles.set(all)),
@@ -844,6 +953,8 @@ export class UploadComponent implements OnInit {
       this.showMappingModal.set(true);
     } else if (next.type === 'salary-review') {
       this.reviewSalaryItem(next.queueIdx);
+    } else if (next.type === 'mercor-eur') {
+      this.openMercorEur(next.queueIdx);
     }
   }
 

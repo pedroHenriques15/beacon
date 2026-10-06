@@ -46,10 +46,13 @@ public static class ParseVerifier
                 $"Gross amount mismatch: income line items sum to {incomeSum:F2}, " +
                 $"but gross amount is {parsed.GrossAmount:F2}.");
 
-        var computed = incomeSum - deductionSum - taxSum;
+        // What is paid in kind (CentralGest's meal tickets) counts in the income but not in the
+        // net, which is only what reaches the bank.
+        var inKind = parsed.TotalEspecie ?? 0m;
+        var computed = incomeSum - deductionSum - taxSum - inKind;
         if (Math.Abs(computed - parsed.NetAmount) > 0.01m)
             warnings.Add(
-                $"Net amount mismatch: income − deductions − tax = {computed:F2}, " +
+                $"Net amount mismatch: income − deductions − tax{(inKind == 0m ? "" : " − paid in kind")} = {computed:F2}, " +
                 $"but net amount is {parsed.NetAmount:F2}.");
 
         return warnings;

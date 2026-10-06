@@ -39,9 +39,10 @@ line, with no switch to extend. Each detection signal must belong to exactly one
 ## ADR-005 · Statements are EUR-only
 
 `StatementUploadService` rejects a parsed statement whose currency is not EUR, and every
-aggregate assumes EUR. There is no FX layer; the one conversion in the app is the micro1
-paycheck (ADR-007), which uses the rate of the real withdrawal. Supporting another currency
-means adding currency to the aggregates first.
+aggregate assumes EUR. There is no FX layer; the only conversions in the app are pay
+received in USD, each at the euros that actually arrived: the micro1 paycheck (ADR-007), at
+the rate of the real withdrawal, and the Mercor month (ADR-033), at the EUR received.
+Supporting another currency means adding currency to the aggregates first.
 
 ## ADR-006 · The Excluded category is authoritative for `IsExcluded`
 
@@ -115,7 +116,7 @@ negative sell), and sells are validated against net holdings on both server and 
 `StatementUploadService` marks them excluded (bank `TRADE REPUBLIC` only): they move cash
 into an investment. `SavingsPlanImportService` then turns each one into an `InvestmentLot`,
 creating the ETF asset on first sight by ISIN. The import is idempotent and its failures
-never fail the upload.
+never fail the upload. Superseded by ADR-031.
 
 ## ADR-015 · Backend tests use EF Core InMemory, never a mocked AppDbContext
 
@@ -319,3 +320,100 @@ sidebar, was hard to use on a phone. Costs accepted: three web fonts to load, mi
 `display=swap` and the preconnects; a dark-only client; route paths keep their old names
 (`/dashboard`, `/transactions`, `/analytics`, `/investments`, `/rules`) while their labels
 change to Home, Activity, Insights, Invest and Categories.
+
+## ADR-031 · Trade Republic is imported from its CSV export
+
+Supersedes ADR-014. Since 2026-10-06 Trade Republic comes in as its monthly transaction export
+("Extrato de transações", a CSV), and its PDF statement is no longer read: the PDF parser is
+removed, so a Trade Republic PDF is reported as not recognised. The PDF's table had to be
+pieced together from three lines a row, and its buys scraped from the description for an ISIN
+and a quantity; the CSV gives every row a type, the ISIN, shares, price, fee, tax and a unique
+`transaction_id`, so one-off buys and their fees come in too. ADR-004 still holds:
+`TradeRepublicCsvParser` is an `IBankStatementParser` detected by the CSV's header line, and
+the upload passes the file's text as a single page, without pdfplumber. A file holds one
+calendar month (one spanning two is refused), a row's cash effect is `amount + fee + tax`,
+and a row of an account, type, category or currency not seen yet is refused rather than
+guessed. The export has no balances, so they chain like the meal card's (ADR-010): the opening
+is the previous month's closing, 0.00 with a warning when there is no earlier statement, and a
+missing month in between is refused. A buy, from this parser or any later one, is cash moved
+into an investment: the parser attaches the trade to its row, the row is excluded with no
+category, and `TradeImportService` turns the trade into an `InvestmentLot`, creating the asset
+by ISIN on first sight. A lot keeps the trade's id in `ExternalId`, so the same trade is never
+booked twice; a trade without one dedups by asset, date and quantity, as before. A failed lot
+import never fails the upload. Stored files keep their extension (`<guid>.csv`); `PdfPath`
+keeps its name. Costs accepted: a month's balances are only as right as the months before it,
+and the export carries no account IBAN, so these statements have an empty `Account`.
+
+## ADR-032 · BPI's PPR: subscriptions as rows, the market change as "Ganhos"
+
+Since 2026-10-06 a BPI statement's retirement savings plan (PPR) shows as what moved it. Each
+subscription in the plan section becomes its own credit row ("BPI Reforma - SUBSCRICAO
+EMPRESA"), and "BPI Reforma - Ganhos" keeps only the market change: the change in
+`PprBalance` since the previous BPI statement, less the subscriptions, plus the redemptions.
+Before, Ganhos was the whole change, so an employer's contribution, a redemption and the
+market's move landed in one row under one category, and a month with a redemption read as a
+large loss. A redemption is counted by its cash row (`RESGATE ... PPR`) only, never by the plan
+section's own `RESG.FORA COND.GERAL` row. `PprBalance` is `ACTIVOS` less the current account,
+which holds a redemption until its cash arrives, a statement later at times. The cash row is
+therefore the moment the redemption leaves the balance, and counting both rows would count it
+twice. The plan section's wordings are a closed list: an unknown one refuses the file rather
+than being taken for a market change. Alternatives: `PprBalance` as the plan section's own
+total, counting the section's redemptions instead (it changes what every stored statement's
+`PprBalance` means, so every BPI statement would need importing again); Ganhos as before, with
+the subscriptions split out by hand each month. Costs accepted: a redemption paid anywhere but
+the BPI account would read as a market loss; statements imported before this change keep their
+single Ganhos row until they are deleted and imported again, in order.
+
+## ADR-033 · A Mercor month is converted at the EUR actually received
+
+Since 2026-10-06 a month of Mercor work comes in as Mercor's "Line Item Statement", a one-page
+PDF in USD that says nothing about the euros that reached the bank. Like a micro1 invoice
+(ADR-007), it is not a EUR slip on its own, so `MercorStatementParser` is a plain class, not
+in the salary parser factory, and the upload never saves the statement as it stands. The batch
+reads and stores it and asks for the EUR received, prefilled with the Mercor credits already
+imported from any bank for the statement's month and listing them, so the figure can be
+checked; the slip review opens only once the amount is given. The EUR received is both gross
+and net, since no fee is known, and sets the month's rate (EUR ÷ USD total), at which Base Pay
+and the hourly rate are converted; "Other" takes any pay beyond the hourly lines and the
+rounding. Hours are each line's amount ÷ its rate, since the statement's hours column is cut
+to the minute. Alternatives: a published exchange rate (Mercor's payouts arrive at their own
+rate, after fees no document shows); pairing with a payout document as micro1 does (Mercor
+sends none). Costs accepted: the suggestion takes the month's payouts by date, and a payout
+for late-month work lands the next month, so it can be off and is corrected by hand; a fee
+Mercor or its payout provider takes is invisible, folded into the rate.
+
+## ADR-034 · XTB is imported from its XLSX export, as investment lots only
+
+Since 2026-10-06 XTB, where an S&P 500 ETF is bought each month through an investment plan,
+comes in as its monthly account export: an `.xlsx` workbook with three sheets, Cash
+Operations, Closed Positions and Open Positions. XTB is no account in Beacon. The export yields
+no statement and no transactions, only its trades, which `TradeImportService` turns into lots
+(ADR-031); the cash sent to XTB is already on the bank's statement, as a transfer out. The
+workbook is read in .NET with the Open XML SDK (`DocumentFormat.OpenXml`, Microsoft's, MIT), so
+the server needs nothing new and the Python extractor stays PDF-only; the tests write their
+synthetic workbooks with it too. `XtbExportParser` returns trades, not a statement, so like
+Mercor's parser (ADR-033) it is a plain class outside the parser factories; otherwise ADR-004
+holds: one class and one `AddSingleton` line, detected by its sheets. A stock purchase is a buy
+and a stock sell a sell, quantity and price from the row's comment, the operation's id (as
+`XTB:<id>`) the lot's `ExternalId`; deposits and transfers between subaccounts are skipped.
+Any other row type, an instrument that is not an ETF, a short position, an account not in EUR
+(ADR-005) and an amount that is not the quantity at the price (a commission, a currency
+conversion) are refused until a real export shows one. Lots from several sources share one
+asset: a trade's asset is matched by ticker, then by the symbol its prices sync from, so XTB's
+`VWCE.DE` finds the ETF that Trade Republic's buys created from its ISIN; an unknown ticker
+creates the asset with it. Sells are checked against the holdings like a manual sell, a file at
+a time and all or nothing, and an upload applies its exports oldest period first. A trade with
+an id also matches a lot typed by hand (same asset, date and quantity, no id), which takes the
+id instead of getting a twin. The file is not stored, since no row would reference it. After an
+upload, the newest export's Open Positions is compared with Beacon's holdings, counting each
+asset's lots from XTB and those typed by hand, never another source's, and a difference is
+shown as a warning. XTB lists what is held when the file is made, not at the period's end, so
+an export older than the latest XTB trade in Beacon is not compared. Alternatives: XTB as an
+account with statements, deposits as transactions and a cash balance (the owner declined it:
+the export has no balances, and the cash is on the bank's statement already); ClosedXML (handier,
+with several more dependencies); ExcelDataReader (small but read-only, so the tests would need
+another way to write a workbook); reading the workbook in the Python extractor. Costs accepted:
+an asset created from an XTB ticker is not found later by a Trade Republic ISIN, so Trade
+Republic's buys of the same ETF must come in first and its prices sync once (until then the
+asset has no prices symbol); the SDK adds a few megabytes to the deployment; and the holdings
+check is only as fresh as the latest download.

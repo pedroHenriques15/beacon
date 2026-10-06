@@ -83,6 +83,8 @@ export interface UploadResult {
   message: string | null;
   transferCandidates?: TransferCandidate[];
   warnings?: string[] | null;
+  /** Investment lots the statement's buys added (Trade Republic). */
+  lotsAdded?: number;
 }
 
 export interface BatchUploadItemResult {
@@ -166,15 +168,57 @@ export interface UnifiedSalaryResult {
   parsed: ParsedSlipResponse;
 }
 
+/** A Mercor credit imported from a bank, counted in the EUR a Mercor statement suggests. */
+export interface MercorPayout {
+  date: string;
+  bank: string;
+  amount: number;
+}
+
+/** A Mercor statement, read and stored, waiting for the EUR it paid (USD figures). */
+export interface UnifiedMercorResult {
+  pdfPath: string;
+  fileName: string;
+  period: string;
+  totalPayUsd: number;
+  hoursWorked: number;
+  payRateUsd: number;
+  /** The sum of `payouts`, or null when the month has none. */
+  suggestedEur: number | null;
+  payouts: MercorPayout[];
+}
+
+/** What a broker's export (XTB's XLSX) added to Invest: lots only, no statement. */
+export interface TradesUploadResult {
+  broker: string;
+  periodFrom: string;
+  periodTo: string;
+  /** The buys and sells in the file. */
+  tradeCount: number;
+  /** The lots created; the other trades were imported before or typed by hand. */
+  added: number;
+  /** Holdings that differ from the broker's own list. */
+  warnings: string[];
+}
+
 export interface UnifiedUploadItemResult {
   fileName: string;
-  documentType: 'BankStatement' | 'GroceryReceipt' | 'SalarySlip' | 'Unknown' | 'Micro1Unpaired';
+  documentType:
+    | 'BankStatement'
+    | 'GroceryReceipt'
+    | 'SalarySlip'
+    | 'Unknown'
+    | 'Micro1Unpaired'
+    | 'MercorNeedsEur'
+    | 'BrokerExport';
   success: boolean;
   wasDuplicate: boolean;
   error: string | null;
   statementResult: UploadResult | null;
   groceryResult: GroceryReceiptUploadResult | null;
   salaryResult: UnifiedSalaryResult | null;
+  mercorResult?: UnifiedMercorResult | null;
+  tradesResult?: TradesUploadResult | null;
 }
 
 export interface InvestmentLot {

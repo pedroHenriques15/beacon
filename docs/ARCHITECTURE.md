@@ -13,14 +13,16 @@ over Tailscale (ADR-001).
 A request goes from the Angular client to `/api/*` with the `X-Api-Key` header, through
 `ApiKeyMiddleware` and `ExceptionHandlingMiddleware`, to a controller that calls one feature
 handler, which works on SQLite through EF Core. For an upload, `PdfExtractorService` runs
-`scripts/pdfExtractor.py` (pdfplumber) to get the page text, a parser turns it into domain
-objects, and `ParseVerifier` checks the result before it is saved.
+`scripts/pdfExtractor.py` (pdfplumber) to get the page text (a CSV export is its own text, and
+an XLSX export is read in .NET), a parser turns it into domain objects, and `ParseVerifier`
+checks the result before it is saved.
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | PDF extraction | Python 3 + `pdfplumber` |
+| XLSX reading | Open XML SDK (`DocumentFormat.OpenXml`, ADR-034) |
 | Backend API | ASP.NET Core 10 (.NET 10) |
 | Database | SQLite + EF Core 10 (code-first) |
 | Frontend | Angular 22 (standalone components, signals) |
@@ -46,7 +48,7 @@ beacon/
 │   │   │   ├── GroceryCategories/
 │   │   │   ├── Health/           # GetHealth (answers without the API key)
 │   │   │   ├── Investments/
-│   │   │   │   └── Shared/       # SavingsPlanImportService
+│   │   │   │   └── Shared/       # TradeImportService
 │   │   │   ├── Logs/             # GetLogs, LogClientError
 │   │   │   ├── Salary/
 │   │   │   ├── Shared/           # ExcludedCategory, ProtectedEntityHelper, ValidationExtensions
@@ -58,7 +60,7 @@ beacon/
 │   │   ├── Models/               # Domain entities
 │   │   ├── Services/             # Upload services, storage, Google, PDF extractor
 │   │   │   ├── Logging/          # Log files (Serilog), level defaults, client-error rate limit
-│   │   │   ├── Parsing/          # Bank, salary & grocery parsers; MealCardTextParser; ParseVerifier
+│   │   │   ├── Parsing/          # Bank, salary, grocery & XTB parsers; CsvText; XlsxWorkbook; MealCardTextParser; ParseVerifier
 │   │   │   └── Pricing/          # Price source (Yahoo, OpenFIGI), daily sync, queue, Xetra calendar
 │   │   ├── Validation/           # ValidationResult
 │   │   ├── appsettings.template.json
@@ -68,7 +70,7 @@ beacon/
 │       ├── Data/                 # SQLite behaviour
 │       ├── Handlers/             # CQRS handler tests
 │       ├── Middleware/           # Middleware tests
-│       ├── Parsing/              # Parser tests (bank, salary slip, grocery)
+│       ├── Parsing/              # Parser tests (bank, salary slip, grocery, XTB) and synthetic file builders
 │       ├── Services/             # Service-level tests
 │       └── Validation/           # Validator tests
 ├── web/
@@ -161,17 +163,22 @@ Excluded category and clears it when the row moves out. It is generic over
 tables mean two id lookups (`GetIdAsync` / `GetGroceryIdAsync`) but one shared category name.
 
 Call sites. Transactions: `SetTransactionCategory`, `UpdateTransaction`, `CreateTransaction`,
-`MarkTransfers`, `ApplyRuleService`. Groceries: `SetGroceryItemCategory`,
+`MarkTransfers`, `ApplyRuleService`, `StatementUploadService` (each parsed row's rule match,
+and BPI's synthetic PPR rows, also when a backfill recomputes "BPI Reforma - Ganhos") and
+`ImportMealCardText` (each row's rule match). Groceries: `SetGroceryItemCategory`,
 `CreateGroceryItem`, `MarkGroceryItemsExcluded`, `GroceryApplyRuleService`,
 `GroceryReceiptUploadService` (which also routes receipt-category **mappings** through it, so
-mapping a receipt section to Excluded genuinely excludes its items on import). Never write
-`.CategoryId = …` directly: a label and a flag that drift apart mean a row shows up as a
-spending line labelled "Excluded".
+mapping a receipt section to Excluded genuinely excludes its items on import) and
+`CreateGroceryReceiptCategoryMapping` (the new mapping applied to unassigned items already
+stored). Never write `.CategoryId = …` directly: a label and a flag that drift apart mean a
+row shows up as a spending line labelled "Excluded". The statement and meal-card imports once
+did, so rules that put a row in Excluded left it unflagged; migration
+`FlagRowsInExcludedCategory` flagged every row already in Excluded, and never clears a flag.
 
-A row can also be excluded with **no** category (Trade Republic savings-plan buys, set by
-`StatementUploadService`); `ApplyCategory` deliberately leaves such a flag alone when a
-category is later assigned, and only clears it for rows actually leaving the Excluded
-category.
+A row can also be excluded with **no** category (an investment buy, a row its parser marks
+as a trade, set by `StatementUploadService`; see "Bank statement parsers"); `ApplyCategory`
+deliberately leaves such a flag alone when a category is later assigned, and only clears it
+for rows actually leaving the Excluded category.
 
 The frontend mirrors this defensively: `finance.service.ts` and `groceries.service.ts` each
 treat a row as excluded when `isExcluded` **or** its category is named `Excluded`, so a
@@ -183,7 +190,7 @@ out of totals"; its In, Out and Kept come from `allTransactions` and `countedIte
 filter applied, so those rows never reach a figure. The Excluded category is never offered as
 a plain category pick (`assignableCats` / `gAssignableCats` on the Activity page), since
 excluding is its own action, but it stays in *filter* dropdowns so excluded rows remain
-findable. Rules *may* target it; both rule services set the flag when
+findable. Rules *may* target it; both rule services and every import set the flag when
 they match.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
@@ -210,6 +217,48 @@ new bank:**
 1. Create `Services/Parsing/MyBankParser.cs` implementing `IBankStatementParser`.
 2. Register in `Program.cs`: `builder.Services.AddSingleton<IBankStatementParser, MyBankParser>();`
 3. No other changes needed: detection is automatic.
+
+**CSV exports** (ADR-031). The batch upload takes `.csv` files, alone or inside a ZIP, beside
+PDFs. `UnifiedUploadBatchCommandHandler` reads a CSV as UTF-8 text (`CsvText.Decode`, which
+drops a byte order mark and refuses other encodings) and passes it, as the single page, to the
+same cascade as a PDF's text, without pdfplumber and without the micro1 and Mercor checks;
+`StatementUploadService` does the same for a CSV posted to `/api/statements/upload`. A CSV
+parser detects its format by the header line and splits rows with `CsvText.ReadRows`
+(RFC 4180 quoting). The file is stored as `<guid>.csv` (see "File storage"). A parser refuses
+a file it can't trust with a `FormatException`, which the upload reports as the file's error.
+
+Three things a parser can hand the upload beside its rows:
+
+- **Relative balances.** An export without balances returns `BalancesRelative`, opening at 0
+  with every balance counted from it. `StatementUploadService.ChainBalancesAsync` then opens
+  it at the closing balance of the bank's statement for the previous month and shifts every
+  balance by it, as the meal card chains (ADR-010). With no earlier statement of the bank it
+  opens at 0.00 and warns; a month missing in between is refused, naming the month to import
+  first; an earlier month imported after a later one warns that the later one's balances were
+  not recomputed. Such a statement may not overlap any other of its bank (not only one with
+  the same `PeriodFrom`), so a re-export of a month, or a month a PDF statement covered from
+  another first day, is refused as already imported.
+- **Trades.** A row that buys an investment carries a `ParsedTrade` (ISIN, asset name, date,
+  quantity, price, fees, the source's trade id; a broker's export names the asset by ticker
+  instead, see "Supported brokers"). `StatementUploadService` stores the row as
+  an excluded debit with no category and no rule match, since it is cash moved into an
+  investment, not spending, and after saving the statement hands the trades to
+  `TradeImportService` (see "Investments"). The row's own amount includes the fees.
+- **A retirement plan (BPI's PPR).** `PprBalance` is what the plan is worth at the end of the
+  period: `ACTIVOS` less the current account, so it still holds a redemption whose cash has not
+  reached the account ("Posições a Liquidar"). `PprSubscriptions` are the plan section's
+  subscriptions. `StatementUploadService` books each subscription as a credit on its own dates,
+  "BPI Reforma - " and the section's wording ("BPI Reforma - SUBSCRICAO EMPRESA"). It then adds
+  "BPI Reforma - Ganhos" at `PeriodTo`, what the market did: the change in `PprBalance` since
+  the previous BPI statement, less the statement's subscriptions, plus its cash rows that
+  redeem the plan (`RESGATE ... PPR`). The plan section lists a redemption too, but it is
+  counted only by its cash row, the moment it leaves `PprBalance`. A statement with no earlier
+  BPI one has no Ganhos row, and a Ganhos of zero adds none. Both rows match rules like any
+  row. Importing a statement before a later one recomputes the later one's Ganhos with the
+  same formula, from its stored rows; deleting a statement recomputes its successor's.
+
+Parser warnings (`ParsedStatement.Warnings`, a skipped row, say) are returned with the
+upload's result, after `ParseVerifier`'s and the balance chaining's.
 
 Meal-card statements are imported as pasted text, not PDF (ADR-010): `MealCardTextParser`
 (static class, not DI-registered) parses the raw text, and the `ImportMealCardText` command
@@ -242,9 +291,17 @@ items), no personal data.
 
 | Parser | Detection signal | Format notes |
 |---|---|---|
-| `CentralGestParser` | `"CentralGest Software"` footer | Two-column (original+duplicate); mixed PT/US number formats |
+| `CentralGestParser` | `"CentralGest Software"` footer | Two-column (original+duplicate); mixed PT/US number formats; subsidy-only runs (see below) |
 | `DomirestParser` | `"DOMIREST"` company name | Stacked original+duplicate; PT number format |
 | `Micro1InvoiceParser` | `"Micro1 Inc."` (USD invoice) | **Not** factory-registered; paired with a Deel withdrawal → EUR (see below) |
+| `MercorStatementParser` | `"Mercor Line Item Statement"` (USD statement) | Plain class, **not** an `ISalarySlipParser`; converted at the EUR received (see below) |
+
+`CentralGestParser` reads a fixed set of lines: `Vencimento`, `PPR`, `Tickets Refeição`,
+`Segurança Social`, `IRS`, and the holiday and Christmas pay lines (`Subsídio de Férias` or
+`de Natal`, `PPR Sub Férias` or `Sub Natal`), each under its own name. `HoursWorked` is the
+month's weekdays × 8, except on a slip with no `Vencimento`: a subsidy-only pay run, which
+has no hours (see "Merging a second pay run into a month"). `TotalEspecie` is the meal
+tickets paid in kind; the net (`Total a Pagar`) leaves them out.
 
 **To add a new salary slip parser:**
 
@@ -286,6 +343,41 @@ rather than converting base and gross separately, so FX rounding cannot leak out
 one-cent `Other` the user would have to categorise. Header wording also varies between
 invoices (`Invoice #`/`Sub total` vs `Document`/`Subtotal`): no regex may depend on it.
 
+#### Mercor: one USD statement, converted at the EUR received
+
+Mercor's monthly "Line Item Statement" (`MercorStatementParser`, plain class, detects
+`"Mercor Line Item Statement"`) is in USD and says nothing about the euros that reached the
+bank, so, like a micro1 invoice, it is never a slip on its own (ADR-033). The parser yields
+`MercorStatement(Period, TotalPayUsd, ShiftPayUsd, HoursWorked, PayRateUsd)`. The period is
+the 1st of the month "Statement Period" starts in. The hourly lines
+(`... $$40.00 02:30 $$100.00`: a doubled `$$` before the rate and the amount, in no date
+order) must sum to `Total Shift Pay`, or the file is refused naming both sums, and a
+`Total Pay` below `Total Shift Pay` is refused too. Hours are Σ amount ÷ rate, rounded to two
+decimals, because the `HOURS WORKED` column is cut to the minute (a few cents of pay show
+`00:00`); the pay rate is shift pay ÷ those hours, which is the rate itself when every line
+shares it.
+
+`UnifiedUploadBatchCommandHandler` checks for a Mercor statement before the standard cascade
+(after micro1's two checks), stores the PDF and, once every file of the batch is in, returns a
+**`MercorNeedsEur`** result (`UnifiedMercorResult`): the USD figures, the stored file name and
+a suggestion, the sum of the credits from any bank whose description contains "mercor"
+(ignoring case) dated in the statement's month, listed with date, bank and amount. Waiting
+for the end of the batch lets a bank statement uploaded alongside count. A statement that
+fails to parse comes back as a failed `SalarySlip` with the reason rather than going to the
+cascade, since its title belongs to no other document. The batch saves no slip.
+
+The Upload page asks for the EUR received, pre-filled with the suggestion, and the slip review
+cannot open without it. `POST /api/salary/parse-mercor` (`ParseMercorStatement`) takes
+`{ pdfPath, eurReceived }`, reads the stored statement again and returns the EUR slip from
+`MercorReconciler.Reconcile(statement, eurReceived)`: gross = net = the EUR received (no fee
+is known, so no deduction), `rate = EUR ÷ TotalPayUsd`, `Base Pay = round(ShiftPayUsd × rate)`
+(the whole EUR when the statement is hourly pay only), `Other = EUR − Base Pay` (pay beyond
+the hourly lines, plus the rounding) and `HourlyRate = round(PayRateUsd × rate)`. The usual
+slip review follows: the profile is matched by the employer, "Mercor", and one created there
+starts with the `hours` formula; a second statement for a month offers the merge (ADR-008).
+The payouts are matched by date only, so a payout for late-month work, which lands the next
+month, is corrected by hand in the field.
+
 #### Profiles, categories and the parse flow
 
 Each `SalaryProfile` stores an `HourlyRateFormula` (`hours` | `workdays` | `days`, default
@@ -306,17 +398,20 @@ Salary parse flow:
 #### Merging a second pay run into a month
 
 `SalarySlips` has a unique `(SalaryProfileId, Period)` index and `Period` is always the 1st
-of the month, so a cycle that pays **twice a calendar month** (micro1/Deel invoices each
-half-month) cannot create two rows (ADR-008). `POST /api/salary/slips/{id}/merge`
-(`MergeSalarySlipCommandHandler`) folds a second pay run into the existing slip instead:
-gross/net/base/hours/`TotalEspecie` are summed null-safely, `HourlyRate` is re-averaged
-**weighted by hours** (it is a rate, not a total), line items are combined **per category**
-(one `Base Pay` line per month, new categories appended after the existing `SortOrder`), and
-per-unit detail (`UnitValue`, `Percentage`) survives only when both sides agree. `Period` and
-`SalaryProfileId` are never touched, and incoming line-item categories are validated against
-the target slip's profile exactly as in `CreateSalarySlip`. A slip holds **one** PDF: the
-first stays authoritative and a superseded second PDF is deleted from storage rather than
-orphaned, with both file names kept in `SourceFile` (`"a.pdf; b.pdf"`).
+of the month, so a cycle that pays **twice a calendar month** cannot create two rows
+(ADR-008). Two do: micro1/Deel invoices each half-month, and a CentralGest employer pays
+holiday or Christmas pay (subsídio de férias, de Natal) as a second slip for the month.
+`POST /api/salary/slips/{id}/merge` (`MergeSalarySlipCommandHandler`) folds a second pay run
+into the existing slip instead: gross/net/base/hours/`TotalEspecie` are summed null-safely,
+`HourlyRate` is re-averaged **weighted by hours** (it is a rate, not a total), line items are
+combined **per category** (one `Base Pay` line per month, new categories appended after the
+existing `SortOrder`), and per-unit detail (`UnitValue`, `Percentage`) survives only when both
+sides agree. A subsidy-only slip parses with no hours and no base, so merging it leaves the
+month's as they were, and its subsidy lines join the month under their own categories.
+`Period` and `SalaryProfileId` are never touched, and incoming line-item categories are
+validated against the target slip's profile exactly as in `CreateSalarySlip`. A slip holds
+**one** PDF: the first stays authoritative and a superseded second PDF is deleted from
+storage rather than orphaned, with both file names kept in `SourceFile` (`"a.pdf; b.pdf"`).
 
 The upload page drives this: when the slip review modal opens it re-fetches that profile's
 slips (an earlier review *in the same batch* may have just created the slip this one merges
@@ -354,14 +449,19 @@ public interface IGroceryReceiptParser
 
 `Services/Parsing/ParseVerifier.cs` is a static post-parse sanity-check layer that returns
 user-facing warnings: `VerifyStatement` (opening + credits − debits vs closing balance),
-`VerifySalarySlip` (line-item sums vs gross/net), `VerifyGroceryReceipt` (item sum vs receipt
-total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
+`VerifySalarySlip` (income items vs gross; income − deductions − tax − `TotalEspecie` vs net,
+since what is paid in kind never reaches the bank), `VerifyGroceryReceipt` (item sum vs
+receipt total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 `GroceryReceiptUploadService` and `UnifiedUploadBatchCommandHandler`.
 
-### PDF storage
+### File storage
 
-`FileStorageService` (singleton) keeps uploaded PDFs in one flat folder, `Storage__Path`
-(default `statements/` next to the binaries), as `<guid>.pdf`.
+`FileStorageService` (singleton) keeps uploaded PDFs and CSV exports in one flat folder,
+`Storage__Path` (default `statements/` next to the binaries), as `<guid>.pdf` or
+`<guid>.csv`: `SaveAsync` keeps an upload's extension when it is one of those two, and stores
+anything else as `.pdf`. `GetFile` serves each with its content type (`application/pdf`,
+`text/csv`). The column keeps the name `PdfPath`. An XLSX export (XTB, ADR-034) is not stored:
+its trades become lots, and no row would reference the file.
 
 - `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) holds only the file name
   (ADR-023). `SaveAsync` writes the file and returns its name, which the upload flows store and
@@ -376,25 +476,27 @@ total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
   (`RestoreBackupCommandHandler.StorePdfPathsAsFileNames`), so an old backup cannot bring
   absolute paths back.
 - At startup `Program.cs` runs `OrphanedPdfCleanup` (scoped, in `Services/`) when
-  `Storage__Path` is set: every `*.pdf` in the storage root that no `PdfPath` references and
-  that is older than 24 hours is deleted; a file that cannot be deleted is logged and
-  skipped. A row references a file by the name its `PdfPath` ends in
+  `Storage__Path` is set: every stored file (`*.pdf`, `*.csv`) in the storage root that no
+  `PdfPath` references and that is older than 24 hours is deleted; a file that cannot be
+  deleted is logged and skipped. A row references a file by the name its `PdfPath` ends in
   (`FileStorageService.FileNameOf`, which splits on both `/` and `\`), so a relative path, an
   absolute path under the root and an absolute path written on another machine (a restored
   backup) all protect their file.
 - The cleanup deletes nothing, and logs a warning, when the database references none of the
-  PDFs in the folder: the two do not belong together. That covers the demo database (no
+  files in the folder: the two do not belong together. That covers the demo database (no
   `PdfPath` at all) or a restored database pointed at another machine's uploads. The cost:
-  PDFs left behind after every row is gone stay until a new upload is referenced.
+  files left behind after every row is gone stay until a new upload is referenced.
 - The demo backend never shares the folder: `scripts/run-backend-demo.ps1` sets
   `Storage__Path` and `Backup__Path` to `local/uploads-demo` and `local/backups-demo`,
   whatever `local/environment.demo` says.
 
 ### Investments
 
-Entities: `InvestmentAsset` (`AssetType` is `ETF` or `Gold`; optional `Isin` with a filtered
-unique index, used to match auto-imported holdings), `InvestmentLot` (signed `Quantity`
-`decimal(18,6)`: positive = buy, negative = sell), `InvestmentPriceSnapshot` (one price per
+Entities: `InvestmentAsset` (`AssetType` is `ETF` or `Gold`; optional `Isin` with a unique
+index; an imported trade finds its asset by `Isin`, or by `Ticker` and then `PricesSymbol`),
+`InvestmentLot` (signed `Quantity` `decimal(18,6)`: positive = buy, negative = sell; optional
+`ExternalId` with a unique index, the source's id of an imported trade, `XTB:<id>` for XTB's),
+`InvestmentPriceSnapshot` (one price per
 asset per day, unique `(AssetId, Date)` index; `Source` is `Manual`, `Synced` or `Legacy`).
 Endpoints live in `Controllers/InvestmentsController.cs` under `/api/investments`; handlers
 follow the tuple-result pattern `(Result?, Error?)` where `(null, null)` maps to 404.
@@ -412,14 +514,36 @@ Conventions:
 - P&L uses **average cost basis** (ADR-013), computed client-side in `investments.service.ts`
   (`assetMetrics`): buys update the weighted average (fees included), sells book realised
   P&L against it.
-- **Trade Republic savings-plan auto-import** (ADR-014): `SavingsPlanImportService`
-  (`Features/Investments/Shared/`, scoped) runs after `StatementUploadService` persists a
-  `TRADE REPUBLIC` statement. It turns each `Savings plan execution` row (already excluded
-  from spending) into an `InvestmentLot`: ISIN + quantity parsed from the description,
-  `PricePerUnit = amount / quantity`, `Fees = 0`. The ETF asset is created on first sight,
-  matched by `Isin`, with `Ticker` left null and queued for a price sync, which finds the
-  ticker from the ISIN (e.g. `VWCE.DE` for `IE00BK5BQT80`). Idempotent: lots dedup by
-  `(AssetId, Date, Quantity)`, and import failures are caught so they never fail the upload.
+- **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
+  scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
+  Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already
+  excluded from spending), and for each XTB export (see "Broker exports" below). Each
+  `ParsedTrade` becomes an `InvestmentLot` with the source's quantity (negative for a sell),
+  price per unit and fees (Trade Republic's fee plus tax), its id in `ExternalId` and a note
+  saying where it came from. Lots from several sources share one asset. A trade with an ISIN
+  finds its asset by `Isin`; one with a ticker by `Ticker` (any case), then by `PricesSymbol`,
+  so XTB's `VWCE.DE` finds the ETF that Trade Republic's buys created from its ISIN once its
+  prices have synced. An asset not found is created as an ETF, named from the source and
+  queued for a price sync: from an ISIN with `Ticker` left null, which the sync finds (e.g.
+  `VWCE.DE` for `IE00BK5BQT80`); from a ticker with that ticker. An asset created from a ticker
+  is not found later by an ISIN. Idempotent: a trade whose id a lot already holds is skipped; a
+  trade with a new id that matches a lot without one by `(AssetId, Date, Quantity)` (a lot typed
+  by hand) gives that lot its id instead of adding a twin; a trade without an id dedups by
+  `(AssetId, Date, Quantity)`. A sell is checked against the asset's holdings, its lots so far
+  plus the import's earlier trades, as a manual sell is; one beyond them throws, and nothing of
+  the import is saved. After a statement, the lots added are returned as `LotsAdded`, and its
+  failures are caught, logged and returned as a warning, so they never fail the upload.
+- **Broker exports** (ADR-034): an XTB export is uploaded through the batch like any file, and
+  `XtbUploadService` (`Services/`, scoped) hands its trades to `TradeImportService`. XTB is no
+  account in Beacon: no statement, no transactions, and the file is not stored. The batch holds
+  every XTB export until all its files are read, then applies them oldest period first (a
+  second download of a month after the first), each all or nothing, so a June sell never comes
+  before May's buy; a refused file is that file's error and the others still import. Then
+  `CheckHoldingsAsync` compares the newest imported export's Open Positions with Beacon: per
+  asset, the lots from XTB (`ExternalId` starting `XTB:`) and those typed by hand, never another
+  source's, against the quantity XTB lists for its tickers. A difference is a warning on that
+  file. XTB lists the holdings when the file is generated, not at the period's end, so when an
+  XTB lot in Beacon is dated after the export's period, nothing is compared.
 
 Pricing (ADR-028): daily closes are stored, not fetched on demand.
 
@@ -590,10 +714,10 @@ still deploys.
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
-| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `SavingsPlanImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser`, `MercorStatementParser`, `XtbExportParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
+| Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `XtbUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `TradeImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
 | `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
-| `MealCardTextParser`, `ParseVerifier` | Static classes, not registered in DI |
+| `MealCardTextParser`, `ParseVerifier`, `CsvText`, `Micro1Reconciler`, `MercorReconciler` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
 
 ## Frontend
@@ -607,6 +731,12 @@ still deploys.
 - Computed signals: `banks`, `latestPerBank`, `totalBalance`, `allTransactions`,
   `allTransactionsRaw`, `monthlySummaries`.
 - Call `reload()` after any mutation to refresh state.
+
+`InvestmentsService` holds the investment assets the same way, loaded once when first used
+(the Invest page or the dashboard); its `load()` refreshes them. The Invest page calls it after
+its own changes, and the Upload page after an upload that added lots: a statement's buys
+(`lotsAdded` on its result) or a broker's export (`tradesResult.added`). It gets the service
+from the injector only then, so opening the Upload page loads no investments.
 
 All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModules.
 
@@ -727,13 +857,20 @@ tools in `scripts/` all go through `UseBeaconSqlite`.
   for one user.
 
 At startup `Program.cs` seeds default data (including the protected Excluded categories)
-and then runs the PDF cleanup (see "PDF storage").
+and then runs the orphaned file cleanup (see "File storage").
 
 ## API surface
 
 All endpoints require the `X-Api-Key` header, except `/swagger` in development,
 `GET /api/auth/google/callback` (ADR-017) and `GET /api/health` (ADR-026). Use Swagger
 (`http://localhost:5098/swagger`) or read `Controllers/` for the full surface.
+
+`POST /api/upload/batch` takes every kind of document at once (PDFs, CSV and XLSX exports,
+ZIPs of them) and answers one result per file, by `documentType`: `BankStatement`,
+`GroceryReceipt`, `SalarySlip` (parsed, saved only after review), `Micro1Unpaired`,
+`MercorNeedsEur`, `BrokerExport` (an XTB export: its trades added as lots, counted in
+`tradesResult`, with the holdings check's warnings) or `Unknown`. A Mercor statement then goes through `POST /api/salary/parse-mercor` with the EUR
+received (see "Mercor" above).
 
 `GET /api/health` is for deploy scripts and monitors. It answers 200 with `status: "ok"` when
 the database file exists, its migration history reads and no migration is pending, and 503
@@ -755,18 +892,65 @@ answer.
 | ActivoBank | BIC `ACTVPTPL` or "EXTRATO COMBINADO" |
 | BPI | SWIFT `BBPIPTPL` or "EXTRACTO INTEGRADO" |
 | Revolut | BIC `REVOPTP2` or "Revolut Bank UAB" |
-| Trade Republic | BIC `TRBKPTP2` or "TRADE REPUBLIC BANK GMBH" |
+| Trade Republic (CSV) | The header line of the transaction export ("Extrato de transações") |
 
-Trade Republic statements use a jumbled multi-line table layout (each row spans a date line,
-a money line and a year line; the type column can wrap), so `TradeRepublicParser` is
-block-based rather than single-line-regex. Savings-plan ETF buys (`Savings plan execution …`)
-stay debits so the balance reconciles, but `StatementUploadService` sets `IsExcluded = true`
-on them (guarded to bank `TRADE REPUBLIC`) so they drop out of spending: they are
-cash→investment transfers. `SavingsPlanImportService` then imports them as `InvestmentLot`s
-(see "Investments").
+BPI's integrated statement holds the current account and, when the holder has one, a
+retirement savings plan (PPR) section. The current account's rows are the statement's rows,
+and its closing balance is `ACTIVOS`, everything held at BPI. Rows give a day and a month only;
+the year is whichever of the period's years puts the date nearest the period, so a statement
+from December into January dates each row in its own year. `BpiParser` reads each movement
+in the plan section (dates, wording, units, average cost and `VALOR APLICADO`, the amount) and
+knows four wordings: `SUBSCRICAO EMPRESA`, a subscription; `RESG.FORA COND.GERAL`, a
+redemption, counted by its cash row instead; `SUBS.TRANSF.CLASSE` and `RESGATE POR ERRO`, a
+class transfer and a correction, which move no money in or out. It refuses the file, naming the
+line, for any other wording or a movement it can't read, so a new kind of movement is never
+taken for a market change. The rows the upload adds are in "Bank statement parsers".
+
+Trade Republic is imported from its transaction export, a CSV, one calendar month per file
+(ADR-031); its PDF statement is not read. `TradeRepublicCsvParser` maps every row to one
+transaction dated by `date`, in `datetime` order (the file's rows come in no order), with a
+cash effect of `amount + fee + tax` (all signed: a fee charged on its own has `amount` 0 and
+a negative `fee`) and the export's `description`. A row that moves no money is skipped with a warning.
+It refuses, naming the row's date and type, any `account_type` but `DEFAULT`, any
+`(category, type)` pair not seen in a real export (`CASH`: `CARD_TRANSACTION`,
+`CARD_TRANSACTION_INTERNATIONAL`, `CARD_ORDERING_FEE`, `TRANSFER_INSTANT_INBOUND`,
+`TRANSFER_INSTANT_OUTBOUND`, `INTEREST_PAYMENT`, `BENEFITS_SAVEBACK`; `TRADING`: `BUY`), any
+row not in EUR (ADR-005), a buy of anything but a `FUND`, and a file whose rows span two
+months. The statement is the calendar month (`PeriodFrom` the 1st), with an empty `Account`,
+since the export has no IBAN, and relative balances (see "Bank statement parsers"). A `BUY`
+row (`symbol` is the ISIN) carries its trade, with fees the absolute `fee + tax` and
+`transaction_id` as its id.
 
 Meal-card statements have no PDF parser: they are imported as pasted text (see "Bank
 statement parsers") and stored under bank name `MEAL CARD`.
+
+## Supported brokers
+
+A broker is no account in Beacon: its export's trades become investment lots, with no
+statement and no transactions (ADR-034; see "Investments", "Broker exports").
+
+| Broker | Export | Detection signal |
+|---|---|---|
+| XTB | Monthly account export (XLSX), `EUR_<account>_<from>_<to>.xlsx` | Sheets "Cash Operations", "Closed Positions" and "Open Positions", each opening with "Account number" |
+
+`XtbExportParser` reads the workbook through `XlsxWorkbook` (`Services/Parsing/`), which gives
+each sheet's rows as cell text: shared strings resolved, numbers as stored, dates as Excel
+serial numbers. Times are UTC, and a trade is dated by its day in Lisbon; the period is the
+Cash Operations sheet's "Date from (UTC)" to "Date to (UTC)", Lisbon's first and last day of
+the month. From Cash Operations, a `Stock purchase` is a buy and a `Stock sell` a sell, matched
+by `Ticker` and named by `Instrument`. Quantity and price come from the comment
+(`OPEN BUY 0.5 @ 600.00`; a split fill, `OPEN BUY 2/2.5 @ 100.00`, is the fill's 2, and a
+sell reads `CLOSE BUY ...`), the operation's `ID` becomes `XTB:<ID>`, and there are no fees.
+`Deposit` and `Subaccount transfer` rows (the bank transfer in, and cash moved between the "My
+Trades" and "Investment Plans" subaccounts) are skipped. It refuses the file, naming the row,
+for any other type, a category other than `ETF`, a comment it can't read, and an amount that
+is not the quantity at the price, give or take a cent plus the price times 0.0001, the
+rounding of the quantity's fourth decimal (more would be a commission or a currency
+conversion, not seen yet). It also refuses an account not in EUR, by the file name's prefix or
+the currencies in Open Positions (ADR-005). From Open Positions it reads "Data as of report
+generated" and the bought positions summed by ticker, skipping each instrument's total row,
+and refuses a position of another type (a short). Closed Positions is only part of the
+detection.
 
 ## Environment variables
 
@@ -810,30 +994,36 @@ instead, since an in-memory database can be neither. Seed related
 rows through navigations (`Category = cat`), not through ids read before `SaveChanges`: ids are
 assigned on save. `Data/` pins the engine behaviour the app relies on (decimal sums and sorts
 in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, foreign keys).
-Coverage: all bank/salary/grocery parsers (incl.
-Trade Republic's block-based multi-line layout, and the micro1
+Coverage: all bank/salary/grocery parsers (incl. the Trade Republic CSV export's row types,
+sums, order and refusals, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
-`UnifiedUploadBatch` pairing/unpaired/ambiguous cases), `ParseVerifier`, `ApiKeyMiddleware`,
-`ExceptionHandlingMiddleware` (incl. a body over its limit), `RequestLoggingMiddleware`, the
-log files (missing or unwritable folder, retention, level defaults and overrides, JSON lines
-read back), `ApplyRuleService` (incl. Excluded-category rules setting
-`IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup` (relative, foreign and absolute
-stored paths), `SavingsPlanImportService`, `StatementUploadService` (PPR recompute helper,
-Trade Republic savings-plan exclusion), `YahooPriceHistorySource` (chart and OpenFIGI
-parsing on synthetic responses, EUR check, retries, an unavailable source),
-`PriceHistorySyncService` (schedule, queue, turned off), `XetraCalendar` and stale prices,
-the price-source migration,
-CQRS handlers for Backup (incl. investment tables), Categories,
-Health (a missing, damaged or unmigrated database; prices ok, stale or disabled),
-Transactions, Groceries (incl. Excluded-category sync across `SetGroceryItemCategory`,
-`CreateGroceryItem` and `GroceryApplyRuleService`), Salary (incl. `MergeSalarySlip`),
-Statements (incl. meal-card text import), Logs (level, time and text filters, the limit,
-client errors with their caps), Investments (assets, lots, prices, oversell
+`UnifiedUploadBatch` pairing/unpaired/ambiguous cases, the Mercor statement's sums, hours and
+refusals with `MercorReconciler`, the batch's EUR suggestion (that month's Mercor credits,
+from any bank, in the same batch too) and `ParseMercorStatement`, CSV files skipping the
+extractor, and XTB exports applied oldest first, again, over lots typed by hand, refused, with
+the holdings warning on the newest only, and an XLSX that is not XTB's), `XtbExportParser`
+(purchases, split fills, sells, skipped rows, Lisbon dates, holdings and refusals, on synthetic
+workbooks written with the Open XML SDK) and `XlsxWorkbook`,
+`ParseVerifier`, `ApiKeyMiddleware`, `ExceptionHandlingMiddleware` (incl. a body over its
+limit), `RequestLoggingMiddleware`, the log files (missing or unwritable folder, retention,
+level defaults and overrides, JSON lines read back), `ApplyRuleService` (incl.
+Excluded-category rules setting `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup`
+(relative, foreign and absolute stored paths, stored CSVs), `TradeImportService` (fees, dedup
+by trade id, tickers and prices symbols, a lot typed by hand, sells within and beyond the
+holdings), `XtbUploadService` (the holdings check), `StatementUploadService` (PPR recompute helper, Trade Republic balance chaining,
+overlap and buys), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
+responses, EUR check, retries, an unavailable source), `PriceHistorySyncService` (schedule,
+queue, turned off), `XetraCalendar` and stale prices, the price-source migration, CQRS handlers
+for Backup (incl. investment tables), Categories, Health (a missing, damaged or unmigrated
+database; prices ok, stale or disabled), Transactions, Groceries (incl. Excluded-category sync
+across `SetGroceryItemCategory`, `CreateGroceryItem` and `GroceryApplyRuleService`), Salary
+(incl. `MergeSalarySlip`), Statements (incl. meal-card text import), Logs (level, time and text
+filters, the limit, client errors with their caps), Investments (assets, lots, prices, oversell
 validation, price sync with its sources, ISIN lookup and failures, a changed symbol, recent
 prices and history queries with the price carried into a range, sync status, sync triggers),
-input validation, `GoogleOAuthService` (each connection state),
-`GoogleCalendarService`, `GoogleTasksService`, the Calendar and Tasks controllers' Google
-error responses, the health route's status codes and the client-error route's size and rate
-limits on Kestrel (`Controllers/`).
+input validation, `GoogleOAuthService` (each connection state), `GoogleCalendarService`,
+`GoogleTasksService`, the Calendar and Tasks controllers' Google error responses, the health
+route's status codes and the client-error route's size and rate limits on Kestrel
+(`Controllers/`).
 
 Frontend: Vitest specs next to the code (`*.spec.ts`), run by `ng test`.

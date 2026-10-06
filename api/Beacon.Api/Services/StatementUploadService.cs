@@ -1,6 +1,9 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Shared;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services.Parsing;
 using Microsoft.EntityFrameworkCore;
@@ -12,20 +15,32 @@ public record TransferCandidate(
     int ExistingTxId, string ExistingDescription, string ExistingType, string ExistingBank,
     DateOnly Date, decimal Amount);
 
+/// <param name="LotsAdded">Investment lots the statement's buys added, so the client refreshes Invest.</param>
 public record UploadResult(
     bool Imported, string Bank, DateOnly PeriodFrom,
     int TransactionCount, int UnknownCount, string? Message,
     List<TransferCandidate>? TransferCandidates = null,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null,
+    int LotsAdded = 0);
 
 public class StatementUploadService(
     AppDbContext db,
     IPdfExtractor extractor,
     BankStatementParserFactory parserFactory,
     FileStorageService fileStorage,
-    SavingsPlanImportService savingsPlanImport,
+    TradeImportService tradeImport,
     ILogger<StatementUploadService> logger)
 {
+    internal const string PprGainsDescription = "BPI Reforma - Ganhos";
+
+    // A subscription's row is this prefix and the plan section's wording.
+    private const string PprRowPrefix = "BPI Reforma - ";
+
+    // The cash row a redemption pays into the account, such as "RESGATE FORA CONDICOES GERAIS
+    // SMART OBRIGAÇÕES PPR". The plan section lists the redemption too, but PprBalance holds it
+    // until this row arrives, so this row is the one counted.
+    private static readonly Regex PprRedemptionRegex = new(@"^RESGATE\b.*\bPPR\b", RegexOptions.Compiled);
+
     public async Task<UploadResult> ImportAsync(IFormFile file, IReadOnlyList<string>? preExtractedPages = null, CancellationToken ct = default)
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"beacon_{Guid.NewGuid():N}.pdf");
@@ -43,37 +58,51 @@ public class StatementUploadService(
                 return new UploadResult(false, string.Empty, DateOnly.MinValue,
                     0, 0, "This exact file has already been imported.");
 
-            var pages = preExtractedPages ?? await extractor.ExtractPagesAsync(tempPath, ct);
-            var fullText = string.Join("\n", pages);
-            var parser = parserFactory.DetectParser(fullText);
-            var parsed = parser.Parse(file.FileName, pages);
+            ParsedStatement parsed;
+            try
+            {
+                // A CSV is its own text, passed as the single page (ADR-031).
+                var pages = preExtractedPages
+                    ?? (CsvText.IsCsvFile(file.FileName)
+                        ? [CsvText.Decode(fileBytes)]
+                        : await extractor.ExtractPagesAsync(tempPath, ct));
+                var fullText = string.Join("\n", pages);
+                var parser = parserFactory.DetectParser(fullText);
+                parsed = parser.Parse(file.FileName, pages);
+            }
+            catch (FormatException ex)
+            {
+                // A file the parser refuses (a CSV row of an unknown type, say) is the user's to fix.
+                throw new NotSupportedException(ex.Message, ex);
+            }
 
             if (!string.Equals(parsed.Currency, "EUR", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
                     $"Only EUR statements are supported - this statement is in {parsed.Currency}.");
 
-            var warnings = ParseVerifier.VerifyStatement(parsed);
-
-            if (await db.MonthlyStatements.AnyAsync(s =>
-                    s.Bank == parsed.Bank && s.PeriodFrom == parsed.PeriodFrom))
+            // A statement without balances can't overlap another of its bank at all: the second
+            // would book the same rows again on top of the first's balances.
+            if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && (parsed.BalancesRelative
+                    ? s.PeriodFrom <= parsed.PeriodTo && s.PeriodTo >= parsed.PeriodFrom
+                    : s.PeriodFrom == parsed.PeriodFrom), ct))
                 return new UploadResult(false, parsed.Bank, parsed.PeriodFrom,
                     0, 0, "Statement already exists for this bank and period.");
 
+            var warnings = new List<string>();
+            if (parsed.BalancesRelative)
+                parsed = await ChainBalancesAsync(parsed, warnings, ct);
+            warnings.InsertRange(0, ParseVerifier.VerifyStatement(parsed));
+            warnings.AddRange(parsed.Warnings ?? []);
+
             var rules = await db.CategoryRules.ToListAsync();
+            var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
 
             file.OpenReadStream().Seek(0, SeekOrigin.Begin);
             savedPath = await fileStorage.SaveAsync(file);
 
             var transactions = parsed.Transactions.Select(tx =>
             {
-                var matchedRule = rules
-                    .OrderBy(r => r.Id)
-                    .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
-
-                var isSavingsPlan = parsed.Bank == "TRADE REPUBLIC"
-                    && tx.Description.Contains("Savings plan execution", StringComparison.Ordinal);
-
-                return new Transaction
+                var transaction = new Transaction
                 {
                     DatePosting = tx.DatePosting,
                     DateValue = tx.DateValue,
@@ -81,17 +110,34 @@ public class StatementUploadService(
                     Amount = tx.Amount,
                     Type = tx.Type,
                     Balance = tx.Balance,
-                    CategoryId = matchedRule?.CategoryId,
-                    CategoryRuleId = matchedRule?.Id,
                     CategorySetManually = false,
-                    IsExcluded = isSavingsPlan
                 };
+
+                // A buy is cash moved into an investment, not spending: excluded, with no
+                // category, and its trade becomes a lot below (ADR-031).
+                if (tx.Trade is not null)
+                {
+                    transaction.IsExcluded = true;
+                    return transaction;
+                }
+
+                var matchedRule = rules
+                    .OrderBy(r => r.Id)
+                    .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
+                transaction.CategoryRuleId = matchedRule?.Id;
+                ExcludedCategory.ApplyCategory(transaction, matchedRule?.CategoryId, excludedCategoryId);
+                return transaction;
             }).ToList();
 
-            var unknownCount = transactions.Count(t => t.CategoryId is null);
+            var unknownCount = transactions.Count(t => t.CategoryId is null && !t.IsExcluded);
 
             if (parsed.PprBalance.HasValue)
             {
+                transactions.AddRange((parsed.PprSubscriptions ?? [])
+                    .Where(s => s.Amount != 0)
+                    .Select(s => NewPprRow(PprRowPrefix + s.Description, s.DatePosting, s.DateValue,
+                        s.Amount, parsed.PprBalance.Value, rules, excludedCategoryId)));
+
                 var prevStatement = await db.MonthlyStatements
                     .Where(s => s.Bank == "BPI" && s.PprBalance.HasValue && s.PeriodFrom < parsed.PeriodFrom)
                     .OrderByDescending(s => s.PeriodFrom)
@@ -99,26 +145,10 @@ public class StatementUploadService(
 
                 if (prevStatement is not null)
                 {
-                    var delta = parsed.PprBalance.Value - prevStatement.PprBalance!.Value;
-                    if (delta != 0)
-                    {
-                        var matchedRule = rules
-                            .OrderBy(r => r.Id)
-                            .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
-
-                        transactions.Add(new Transaction
-                        {
-                            DatePosting = parsed.PeriodTo,
-                            DateValue = parsed.PeriodTo,
-                            Description = "BPI Reforma - Ganhos",
-                            Amount = Math.Abs(delta),
-                            Type = delta >= 0 ? "credit" : "debit",
-                            Balance = parsed.PprBalance.Value,
-                            CategoryId = matchedRule?.CategoryId,
-                            CategoryRuleId = matchedRule?.Id,
-                            CategorySetManually = false
-                        });
-                    }
+                    var gains = PprGains(parsed.PprBalance.Value - prevStatement.PprBalance!.Value, transactions);
+                    if (gains != 0)
+                        transactions.Add(NewPprRow(PprGainsDescription, parsed.PeriodTo, parsed.PeriodTo,
+                            gains, parsed.PprBalance.Value, rules, excludedCategoryId));
                 }
             }
 
@@ -144,18 +174,23 @@ public class StatementUploadService(
             logger.LogInformation("Imported {Count} transactions for {Bank} {Period} ({Unknown} uncategorised)",
                 parsed.Transactions.Count, parsed.Bank, parsed.PeriodFrom, unknownCount);
 
-            try
+            // The statement is committed: a lot that fails to import must not fail the upload.
+            var trades = parsed.Transactions.Where(t => t.Trade is not null).Select(t => t.Trade!).ToList();
+            var lotsAdded = 0;
+            if (trades.Count > 0)
             {
-                var lots = await savingsPlanImport.ImportAsync(statement, ct);
-                if (lots > 0)
-                    logger.LogInformation(
-                        "Auto-imported {Count} Trade Republic savings-plan lot(s) for {Period}",
-                        lots, parsed.PeriodFrom);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex,
-                    "Failed to auto-import Trade Republic savings-plan lots for {Period}", parsed.PeriodFrom);
+                try
+                {
+                    lotsAdded = await tradeImport.ImportAsync(trades, ct);
+                    logger.LogInformation("Imported {Count} of {Trades} investment buy(s) as lots for {Bank} {Period}",
+                        lotsAdded, trades.Count, parsed.Bank, parsed.PeriodFrom);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to import the investment buys of {Bank} {Period} as lots",
+                        parsed.Bank, parsed.PeriodFrom);
+                    warnings.Add($"The investment buys were not added to Invest: {ex.Message}");
+                }
             }
 
             var newTxIds = transactions.Select(t => t.Id).ToHashSet();
@@ -206,7 +241,7 @@ public class StatementUploadService(
                 try
                 {
                     var recomputed = await RecomputeNextPprSyntheticAsync(
-                        db, rules, parsed.PeriodFrom, parsed.PprBalance.Value);
+                        db, rules, excludedCategoryId, parsed.PeriodFrom, parsed.PprBalance.Value);
                     if (recomputed is not null)
                         logger.LogInformation(
                             "Recomputed synthetic PPR transaction for BPI {Period} after backfill of {NewPeriod}",
@@ -223,7 +258,8 @@ public class StatementUploadService(
             return new UploadResult(true, parsed.Bank, parsed.PeriodFrom,
                 parsed.Transactions.Count, unknownCount, null,
                 candidates.Count > 0 ? candidates : null,
-                warnings.Count > 0 ? warnings : null);
+                warnings.Count > 0 ? warnings : null,
+                lotsAdded);
         }
         catch
         {
@@ -237,14 +273,60 @@ public class StatementUploadService(
     }
 
     /// <summary>
+    /// A statement without balances (a CSV export, ADR-031) opens at the closing balance of its
+    /// bank's statement for the previous month, and every balance moves up by it. With no earlier
+    /// statement it opens at 0.00 and says so; a month missing in between is refused, since the
+    /// balances would chain from the wrong month.
+    /// </summary>
+    private async Task<ParsedStatement> ChainBalancesAsync(
+        ParsedStatement parsed, List<string> warnings, CancellationToken ct)
+    {
+        var previous = await db.MonthlyStatements
+            .Where(s => s.Bank == parsed.Bank && s.PeriodFrom < parsed.PeriodFrom)
+            .OrderByDescending(s => s.PeriodFrom)
+            .FirstOrDefaultAsync(ct);
+
+        var opening = 0m;
+        if (previous is null)
+        {
+            warnings.Add($"No earlier {parsed.Bank} statement, so the opening balance was taken as 0.00.");
+        }
+        else
+        {
+            var month = new DateOnly(parsed.PeriodFrom.Year, parsed.PeriodFrom.Month, 1);
+            if (previous.PeriodTo < month.AddMonths(-1))
+            {
+                var missing = new DateOnly(previous.PeriodTo.Year, previous.PeriodTo.Month, 1).AddMonths(1);
+                throw new NotSupportedException(
+                    $"Import the {parsed.Bank} statement for {missing.ToString("MMMM yyyy", CultureInfo.InvariantCulture)} first: " +
+                    "each month's balances follow on from the month before.");
+            }
+            opening = previous.ClosingBalance;
+        }
+
+        if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && s.PeriodFrom > parsed.PeriodFrom, ct))
+            warnings.Add($"A later {parsed.Bank} statement already exists: its balances were not recomputed.");
+
+        return parsed with
+        {
+            OpeningBalance = parsed.OpeningBalance + opening,
+            ClosingBalance = parsed.ClosingBalance + opening,
+            Transactions = parsed.Transactions.Select(t => t with { Balance = t.Balance + opening }).ToList(),
+            BalancesRelative = false,
+        };
+    }
+
+    /// <summary>
     /// Backfill correction (audit D1): when a BPI statement is inserted between two existing
     /// ones, the chronologically next statement's synthetic "BPI Reforma - Ganhos" transaction
-    /// was computed against an older baseline - recompute it against the new statement.
+    /// was computed against an older baseline - recompute it against the new statement, with
+    /// the subscriptions and redemptions among the next statement's stored rows.
     /// Returns the period of the recomputed statement, or null when there was nothing to do.
     /// </summary>
     internal static async Task<DateOnly?> RecomputeNextPprSyntheticAsync(
         AppDbContext db,
         IReadOnlyList<CategoryRule> rules,
+        int? excludedCategoryId,
         DateOnly uploadedPeriodFrom,
         decimal uploadedPprBalance)
     {
@@ -256,13 +338,13 @@ public class StatementUploadService(
 
         if (nextStatement is null) return null;
 
-        var newDelta = nextStatement.PprBalance!.Value - uploadedPprBalance;
+        var newGains = PprGains(nextStatement.PprBalance!.Value - uploadedPprBalance, nextStatement.Transactions);
         var synthetic = nextStatement.Transactions
-            .FirstOrDefault(t => t.Description == "BPI Reforma - Ganhos");
+            .FirstOrDefault(t => t.Description == PprGainsDescription);
 
         if (synthetic is not null)
         {
-            if (newDelta == 0)
+            if (newGains == 0)
             {
                 // Respect user-touched rows: a manually categorised or excluded synthetic
                 // is left in place rather than silently destroyed.
@@ -271,28 +353,14 @@ public class StatementUploadService(
             }
             else
             {
-                synthetic.Amount = Math.Abs(newDelta);
-                synthetic.Type = newDelta >= 0 ? "credit" : "debit";
+                synthetic.Amount = Math.Abs(newGains);
+                synthetic.Type = newGains >= 0 ? "credit" : "debit";
             }
         }
-        else if (newDelta != 0)
+        else if (newGains != 0)
         {
-            var matchedRule = rules
-                .OrderBy(r => r.Id)
-                .FirstOrDefault(r => "BPI Reforma - Ganhos".Contains(r.Pattern, StringComparison.Ordinal));
-
-            nextStatement.Transactions.Add(new Transaction
-            {
-                DatePosting = nextStatement.PeriodTo,
-                DateValue = nextStatement.PeriodTo,
-                Description = "BPI Reforma - Ganhos",
-                Amount = Math.Abs(newDelta),
-                Type = newDelta >= 0 ? "credit" : "debit",
-                Balance = nextStatement.PprBalance.Value,
-                CategoryId = matchedRule?.CategoryId,
-                CategoryRuleId = matchedRule?.Id,
-                CategorySetManually = false
-            });
+            nextStatement.Transactions.Add(NewPprRow(PprGainsDescription, nextStatement.PeriodTo,
+                nextStatement.PeriodTo, newGains, nextStatement.PprBalance.Value, rules, excludedCategoryId));
         }
         else
         {
@@ -301,5 +369,42 @@ public class StatementUploadService(
 
         await db.SaveChangesAsync();
         return nextStatement.PeriodFrom;
+    }
+
+    /// <summary>
+    /// What the market did to the PPR over a statement: the change in its balance, less the
+    /// subscriptions paid into it, plus the redemptions paid out of it into the account.
+    /// </summary>
+    private static decimal PprGains(decimal balanceChange, IEnumerable<Transaction> statementRows)
+    {
+        var credits = statementRows.Where(t => t.Type == "credit").ToList();
+        var subscriptions = credits
+            .Where(t => t.Description.StartsWith(PprRowPrefix, StringComparison.Ordinal)
+                && t.Description != PprGainsDescription)
+            .Sum(t => t.Amount);
+        var redemptions = credits.Where(t => PprRedemptionRegex.IsMatch(t.Description)).Sum(t => t.Amount);
+        return balanceChange - subscriptions + redemptions;
+    }
+
+    private static Transaction NewPprRow(string description, DateOnly datePosting, DateOnly dateValue,
+        decimal signedAmount, decimal pprBalance, IReadOnlyList<CategoryRule> rules, int? excludedCategoryId)
+    {
+        var matchedRule = rules
+            .OrderBy(r => r.Id)
+            .FirstOrDefault(r => description.Contains(r.Pattern, StringComparison.Ordinal));
+
+        var row = new Transaction
+        {
+            DatePosting = datePosting,
+            DateValue = dateValue,
+            Description = description,
+            Amount = Math.Abs(signedAmount),
+            Type = signedAmount >= 0 ? "credit" : "debit",
+            Balance = pprBalance,
+            CategoryRuleId = matchedRule?.Id,
+            CategorySetManually = false
+        };
+        ExcludedCategory.ApplyCategory(row, matchedRule?.CategoryId, excludedCategoryId);
+        return row;
     }
 }

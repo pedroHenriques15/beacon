@@ -16,6 +16,7 @@ using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
+using Beacon.Api.Features.Salary.Commands.ParseMercorStatement;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
@@ -108,7 +109,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseBeaconSqlite(c
 builder.Services.AddSingleton<IBankStatementParser, ActivoBankParser>();
 builder.Services.AddSingleton<IBankStatementParser, BpiParser>();
 builder.Services.AddSingleton<IBankStatementParser, RevolutParser>();
-builder.Services.AddSingleton<IBankStatementParser, TradeRepublicParser>();
+builder.Services.AddSingleton<IBankStatementParser, TradeRepublicCsvParser>();
 builder.Services.AddSingleton<BankStatementParserFactory>();
 
 builder.Services.AddSingleton<IGroceryReceiptParser, ContinenteParser>();
@@ -120,6 +121,8 @@ builder.Services.AddSingleton<SalarySlipParserFactory>();
 
 builder.Services.AddSingleton<Micro1InvoiceParser>();
 builder.Services.AddSingleton<DeelWithdrawalParser>();
+builder.Services.AddSingleton<MercorStatementParser>();
+builder.Services.AddSingleton<XtbExportParser>();
 
 builder.Services.AddSingleton<FileStorageService>();
 builder.Services.AddMemoryCache();
@@ -147,6 +150,7 @@ builder.Services.AddScoped<GoogleCalendarService>();
 builder.Services.AddScoped<GoogleTasksService>();
 builder.Services.AddScoped<IPdfExtractor, PdfExtractorService>();
 builder.Services.AddScoped<StatementUploadService>();
+builder.Services.AddScoped<XtbUploadService>();
 builder.Services.AddScoped<OrphanedPdfCleanup>();
 
 builder.Services.AddScoped<DownloadBackupQueryHandler>();
@@ -214,6 +218,7 @@ builder.Services.AddScoped<DeleteSalaryProfileCommandHandler>();
 builder.Services.AddScoped<GetSalarySlipsQueryHandler>();
 builder.Services.AddScoped<CreateSalarySlipCommandHandler>();
 builder.Services.AddScoped<ParseSalarySlipCommandHandler>();
+builder.Services.AddScoped<ParseMercorStatementCommandHandler>();
 builder.Services.AddScoped<UpdateSalarySlipCommandHandler>();
 builder.Services.AddScoped<MergeSalarySlipCommandHandler>();
 builder.Services.AddScoped<DeleteSalarySlipCommandHandler>();
@@ -235,7 +240,7 @@ builder.Services.AddScoped<DeleteInvestmentLotCommandHandler>();
 builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
 builder.Services.AddScoped<SyncPriceHistoryCommandHandler>();
-builder.Services.AddScoped<SavingsPlanImportService>();
+builder.Services.AddScoped<TradeImportService>();
 builder.Services.AddHostedService<PriceHistorySyncService>();
 
 builder.Services.AddScoped<GetLogsQueryHandler>();

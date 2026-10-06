@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
@@ -75,6 +76,7 @@ public class ImportMealCardTextCommandHandler(
                 "A later MEAL CARD statement already exists - its balance was not recomputed and may need updating.");
 
         var rules = await db.CategoryRules.ToListAsync(ct);
+        var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
 
         var transactions = parsed.Transactions.Select(tx =>
         {
@@ -82,7 +84,7 @@ public class ImportMealCardTextCommandHandler(
                 .OrderBy(r => r.Id)
                 .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
 
-            return new Transaction
+            var transaction = new Transaction
             {
                 DatePosting = tx.DatePosting,
                 DateValue = tx.DateValue,
@@ -90,10 +92,11 @@ public class ImportMealCardTextCommandHandler(
                 Amount = tx.Amount,
                 Type = tx.Type,
                 Balance = tx.Balance,
-                CategoryId = matchedRule?.CategoryId,
                 CategoryRuleId = matchedRule?.Id,
                 CategorySetManually = false
             };
+            ExcludedCategory.ApplyCategory(transaction, matchedRule?.CategoryId, excludedCategoryId);
+            return transaction;
         }).ToList();
 
         var unknownCount = transactions.Count(t => t.CategoryId is null);

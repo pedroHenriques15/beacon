@@ -30,7 +30,8 @@ keeps out:
 - `appsettings.json` and `appsettings.*.json` (all but the template): connection strings, keys.
 - `.claude/settings.local.json`: machine-specific permissions (server paths, `sudo` rules).
 - `.vscode/`, except the shared `tasks.json` and `launch.json`.
-- Every PDF, and every SQLite file (`*.db`, `*.db-wal`, `*.db-shm`) wherever it lands.
+- Every PDF, CSV and XLSX file (statements and their exports), and every SQLite file (`*.db`,
+  `*.db-wal`, `*.db-shm`), wherever it lands.
 
 Anything tracked is published, docs included. No real names, IBANs, NIFs, emails, figures
 from real statements, personal paths, hostnames, IPs or keys in code, docs, fixtures or seed

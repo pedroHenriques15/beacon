@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.Statements.Commands.DeleteStatement;
 using Beacon.Api.Features.Statements.Commands.ImportMealCardText;
 using Beacon.Api.Features.Statements.Queries.DownloadStatementFile;
@@ -634,6 +635,28 @@ public class StatementHandlerTests : IDisposable
         Assert.Equal(cat.Id, lidl.CategoryId);
         Assert.Equal(rule.Id, lidl.CategoryRuleId);
         Assert.Null(txs.First(t => t.Description.Contains("PINGO")).CategoryId);
+    }
+
+    [Fact]
+    public async Task ImportMealCardText_RuleToExcludedCategory_StoresTheRowExcluded()
+    {
+        await using var db = CreateDb();
+
+        var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        db.Categories.Add(excluded);
+        await db.SaveChangesAsync();
+        db.CategoryRules.Add(new CategoryRule { CategoryId = excluded.Id, Pattern = "EMPLOYER LOAD" });
+        await db.SaveChangesAsync();
+
+        await MakeImportHandler(db).HandleAsync(
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
+
+        await using var freshDb = CreateDb();
+        var txs = await freshDb.Transactions.ToListAsync();
+        var load = txs.Single(t => t.Description.Contains("EMPLOYER LOAD"));
+        Assert.Equal(excluded.Id, load.CategoryId);
+        Assert.True(load.IsExcluded);
+        Assert.False(txs.Single(t => t.Description.Contains("LIDL")).IsExcluded);
     }
 
     [Fact]

@@ -390,6 +390,29 @@ public class GroceriesHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateGroceryReceiptCategoryMapping_ToExcludedCategory_ExcludesItemsRetroactively()
+    {
+        await using var db = CreateDb();
+        var excluded = new GroceryCategory { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        db.GroceryCategories.Add(excluded);
+        var receipt = await SeedReceiptAsync(db, "Continente", items:
+        [
+            new GroceryItem { Description = "SACO PAPEL", Amount = 0.10m, Quantity = 1, ReceiptCategory = "Sacos" },
+            new GroceryItem { Description = "BREAD", Amount = 1.20m, Quantity = 1, ReceiptCategory = "Padaria" }
+        ]);
+
+        var handler = new CreateGroceryReceiptCategoryMappingCommandHandler(db, NullLogger<CreateGroceryReceiptCategoryMappingCommandHandler>.Instance);
+        await handler.HandleAsync(new CreateGroceryReceiptCategoryMappingCommand("Sacos", excluded.Id));
+
+        await using var freshDb = CreateDb();
+        var items = await freshDb.GroceryItems.Where(i => i.ReceiptId == receipt.Id).ToListAsync();
+        var bag = items.Single(i => i.Description == "SACO PAPEL");
+        Assert.Equal(excluded.Id, bag.CategoryId);
+        Assert.True(bag.IsExcluded);
+        Assert.False(items.Single(i => i.Description == "BREAD").IsExcluded);
+    }
+
+    [Fact]
     public async Task CreateGroceryReceiptCategoryMapping_ReturnsNullForUnknownCategory()
     {
         await using var db = CreateDb();

@@ -38,10 +38,10 @@ public class OrphanedPdfCleanupTests : IDisposable
         return new OrphanedPdfCleanup(db, config, NullLogger<OrphanedPdfCleanup>.Instance);
     }
 
-    // A PDF as the upload flows store it, <guid>.pdf in the storage root, last written `age` ago.
-    private string StoredPdf(TimeSpan age)
+    // A file as the upload flows store it, <guid>.pdf (or .csv) in the storage root, last written `age` ago.
+    private string StoredPdf(TimeSpan age, string extension = ".pdf")
     {
-        var path = Path.Combine(_storageRoot, $"{Guid.NewGuid()}.pdf");
+        var path = Path.Combine(_storageRoot, $"{Guid.NewGuid()}{extension}");
         File.WriteAllBytes(path, "pdf"u8.ToArray());
         File.SetLastWriteTimeUtc(path, DateTime.UtcNow - age);
         return path;
@@ -130,6 +130,36 @@ public class OrphanedPdfCleanupTests : IDisposable
 
         Assert.Equal(1, deleted);
         Assert.False(File.Exists(file));
+    }
+
+    [Fact]
+    public async Task UnreferencedCsvOlderThanMinimumAge_IsDeleted_AndAReferencedOneSurvives()
+    {
+        await using var db = CreateDb();
+        var referenced = StoredPdf(Old, ".csv");
+        var orphan = StoredPdf(Old, ".csv");
+        AddStatement(db, Path.GetFileName(referenced));
+        await db.SaveChangesAsync();
+
+        var deleted = await CreateCleanup(db).RunAsync();
+
+        Assert.Equal(1, deleted);
+        Assert.True(File.Exists(referenced));
+        Assert.False(File.Exists(orphan));
+    }
+
+    [Fact]
+    public async Task AFileNoUploadStores_IsLeftAlone()
+    {
+        await using var db = CreateDb();
+        var referenced = StoredPdf(Old);
+        var other = StoredPdf(Old, ".txt");
+        AddStatement(db, Path.GetFileName(referenced));
+        await db.SaveChangesAsync();
+
+        await CreateCleanup(db).RunAsync();
+
+        Assert.True(File.Exists(other));
     }
 
     [Fact]

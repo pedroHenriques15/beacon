@@ -53,6 +53,29 @@ public class FileStorageServiceTests : IDisposable
         Assert.Equal(".pdf", Path.GetExtension(path));
     }
 
+    [Theory]
+    [InlineData("export.csv", ".csv")]
+    [InlineData("EXPORT.CSV", ".csv")]
+    [InlineData("statement.PDF", ".pdf")]
+    [InlineData("no-extension", ".pdf")]
+    public async Task SaveAsync_KeepsAKnownExtension_AndOtherwiseStoresAPdf(string uploaded, string stored)
+    {
+        var path = await _service.SaveAsync(new FormFileStub("data"u8.ToArray(), uploaded));
+
+        Assert.Equal(stored, Path.GetExtension(path));
+    }
+
+    [Fact]
+    public async Task GetFile_OfAStoredCsv_ServesItAsCsv()
+    {
+        var relative = await _service.SaveAsync(new FormFileStub("a,b"u8.ToArray(), "export.csv"));
+
+        var (stream, contentType, _) = _service.GetFile(relative, "export.csv");
+        await stream.DisposeAsync();
+
+        Assert.Equal("text/csv", contentType);
+    }
+
     [Fact]
     public async Task SaveAsync_ReturnsTheFileNameWithoutADirectory()
     {

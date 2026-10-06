@@ -5,6 +5,7 @@
 @use 'upload-aside' as *;
 @use 'upload-transfer' as *;
 @use 'upload-slip' as *;
+@use 'upload-mercor' as *;
 @use 'upload-mapping' as *;
 
 // Desktop: the drop zone and the results, with an aside for what Beacon reads and the meal card.

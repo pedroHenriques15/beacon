@@ -10,5 +10,6 @@ public class InvestmentLot
     public decimal PricePerUnit { get; set; } // per share or per gram
     public decimal? Fees { get; set; }
     public string? Notes { get; set; }
+    public string? ExternalId { get; set; }   // the source's id of an imported trade (Trade Republic's transaction_id)
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
 }

@@ -30,7 +30,7 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
                     using var archive = new ZipArchive(file.OpenReadStream(), ZipArchiveMode.Read);
                     foreach (var entry in archive.Entries)
                     {
-                        if (!entry.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!IsDocument(entry.Name)) continue;
 
                         if (totalDecompressed >= MaxTotalDecompressedBytes)
                             return BadRequest("The archive expands beyond the allowed total size.");
@@ -51,7 +51,7 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
                         toProcess.Add((entry.Name, ms));
                     }
                 }
-                else if (file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                else if (IsDocument(file.FileName))
                 {
                     var ms = new MemoryStream();
                     await file.CopyToAsync(ms, ct);
@@ -62,12 +62,12 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
                 {
                     errors.Add(new UnifiedUploadItemResult(
                         file.FileName, "Unknown", false, false,
-                        "Only PDF files and ZIP archives are supported.", null, null, null));
+                        "Only PDF, CSV and XLSX files, and ZIP archives of them, are supported.", null, null, null));
                 }
             }
 
             if (toProcess.Count == 0 && errors.Count == 0)
-                return BadRequest("No PDF files found in the provided input.");
+                return BadRequest("No PDF, CSV or XLSX files found in the provided input.");
 
             var results = toProcess.Count > 0
                 ? await handler.HandleAsync(toProcess, ct)
@@ -81,6 +81,12 @@ public class UploadController(UnifiedUploadBatchCommandHandler handler) : Contro
             foreach (var (_, ms) in toProcess) ms.Dispose();
         }
     }
+
+    /// <summary>A file the batch reads: a PDF, a CSV export (ADR-031) or an XLSX export (ADR-034).</summary>
+    internal static bool IsDocument(string fileName) =>
+        fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+        || fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+        || fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<bool> CopyBoundedAsync(Stream source, Stream destination, long maxBytes, CancellationToken ct)
     {

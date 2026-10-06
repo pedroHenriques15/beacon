@@ -351,6 +351,11 @@ namespace Beacon.Api.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
                     b.Property<decimal?>("Fees")
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
@@ -374,6 +379,9 @@ namespace Beacon.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AssetId");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique();
 
                     b.ToTable("InvestmentLots");
                 });
