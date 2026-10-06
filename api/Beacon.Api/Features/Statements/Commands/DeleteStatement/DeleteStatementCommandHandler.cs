@@ -96,7 +96,7 @@ public class DeleteStatementCommandHandler(AppDbContext db, FileStorageService f
                         .FirstOrDefaultAsync(ct);
 
                     var synthetic = successor?.Transactions.FirstOrDefault(t =>
-                        t.Description == "BPI Reforma - Ganhos" && !t.CategorySetManually && !t.IsExcluded);
+                        t.Description == StatementUploadService.PprGainsDescription && !t.CategorySetManually && !t.IsExcluded);
                     if (synthetic is not null)
                     {
                         db.Transactions.Remove(synthetic);

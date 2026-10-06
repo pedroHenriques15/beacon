@@ -63,6 +63,45 @@ public class StatementUploadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RecomputeNextPprSynthetic_Backfill_CountsTheNextStatementsSubscriptionsAndRedemptions()
+    {
+        await using var db = CreateDb();
+
+        var march = MakeBpiStatement(
+            new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), 1300m,
+            MakeSynthetic(50m, "credit", 1300m));
+        march.Transactions.Add(new Transaction
+        {
+            DatePosting = new DateOnly(2026, 3, 20),
+            DateValue = new DateOnly(2026, 3, 24),
+            Description = "BPI Reforma - SUBSCRICAO EMPRESA",
+            Amount = 400m,
+            Type = "credit",
+            Balance = 1300m,
+        });
+        march.Transactions.Add(new Transaction
+        {
+            DatePosting = new DateOnly(2026, 3, 9),
+            DateValue = new DateOnly(2026, 3, 9),
+            Description = "RESGATE FORA CONDICOES GERAIS PLANO PPR",
+            Amount = 150m,
+            Type = "credit",
+            Balance = 150m,
+            IsExcluded = true,
+        });
+        db.MonthlyStatements.Add(march);
+        await db.SaveChangesAsync();
+
+        await StatementUploadService.RecomputeNextPprSyntheticAsync(
+            db, [], null, new DateOnly(2026, 2, 1), 1100m);
+
+        // (1300 − 1100) − 400 subscribed + 150 redeemed = −50.
+        var synthetic = await db.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
+        Assert.Equal(50m, synthetic.Amount);
+        Assert.Equal("debit", synthetic.Type);
+    }
+
+    [Fact]
     public async Task RecomputeNextPprSynthetic_ZeroDelta_RemovesSynthetic()
     {
         await using var db = CreateDb();

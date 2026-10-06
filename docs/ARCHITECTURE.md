@@ -162,7 +162,7 @@ tables mean two id lookups (`GetIdAsync` / `GetGroceryIdAsync`) but one shared c
 
 Call sites. Transactions: `SetTransactionCategory`, `UpdateTransaction`, `CreateTransaction`,
 `MarkTransfers`, `ApplyRuleService`, `StatementUploadService` (each parsed row's rule match,
-and the synthetic "BPI Reforma - Ganhos" row, also when a backfill recomputes it) and
+and BPI's synthetic PPR rows, also when a backfill recomputes "BPI Reforma - Ganhos") and
 `ImportMealCardText` (each row's rule match). Groceries: `SetGroceryItemCategory`,
 `CreateGroceryItem`, `MarkGroceryItemsExcluded`, `GroceryApplyRuleService`,
 `GroceryReceiptUploadService` (which also routes receipt-category **mappings** through it, so
@@ -225,7 +225,7 @@ parser detects its format by the header line and splits rows with `CsvText.ReadR
 (RFC 4180 quoting). The file is stored as `<guid>.csv` (see "File storage"). A parser refuses
 a file it can't trust with a `FormatException`, which the upload reports as the file's error.
 
-Two things a parser can hand the upload beside its rows:
+Three things a parser can hand the upload beside its rows:
 
 - **Relative balances.** An export without balances returns `BalancesRelative`, opening at 0
   with every balance counted from it. `StatementUploadService.ChainBalancesAsync` then opens
@@ -241,6 +241,18 @@ Two things a parser can hand the upload beside its rows:
   an excluded debit with no category and no rule match, since it is cash moved into an
   investment, not spending, and after saving the statement hands the trades to
   `TradeImportService` (see "Investments"). The row's own amount includes the fees.
+- **A retirement plan (BPI's PPR).** `PprBalance` is what the plan is worth at the end of the
+  period: `ACTIVOS` less the current account, so it still holds a redemption whose cash has not
+  reached the account ("Posições a Liquidar"). `PprSubscriptions` are the plan section's
+  subscriptions. `StatementUploadService` books each subscription as a credit on its own dates,
+  "BPI Reforma - " and the section's wording ("BPI Reforma - SUBSCRICAO EMPRESA"). It then adds
+  "BPI Reforma - Ganhos" at `PeriodTo`, what the market did: the change in `PprBalance` since
+  the previous BPI statement, less the statement's subscriptions, plus its cash rows that
+  redeem the plan (`RESGATE ... PPR`). The plan section lists a redemption too, but it is
+  counted only by its cash row, the moment it leaves `PprBalance`. A statement with no earlier
+  BPI one has no Ganhos row, and a Ganhos of zero adds none. Both rows match rules like any
+  row. Importing a statement before a later one recomputes the later one's Ganhos with the
+  same formula, from its stored rows; deleting a statement recomputes its successor's.
 
 Parser warnings (`ParsedStatement.Warnings`, a skipped row, say) are returned with the
 upload's result, after `ParseVerifier`'s and the balance chaining's.
@@ -849,6 +861,18 @@ answer.
 | BPI | SWIFT `BBPIPTPL` or "EXTRACTO INTEGRADO" |
 | Revolut | BIC `REVOPTP2` or "Revolut Bank UAB" |
 | Trade Republic (CSV) | The header line of the transaction export ("Extrato de transações") |
+
+BPI's integrated statement holds the current account and, when the holder has one, a
+retirement savings plan (PPR) section. The current account's rows are the statement's rows,
+and its closing balance is `ACTIVOS`, everything held at BPI. Rows give a day and a month only;
+the year is whichever of the period's years puts the date nearest the period, so a statement
+from December into January dates each row in its own year. `BpiParser` reads each movement
+in the plan section (dates, wording, units, average cost and `VALOR APLICADO`, the amount) and
+knows four wordings: `SUBSCRICAO EMPRESA`, a subscription; `RESG.FORA COND.GERAL`, a
+redemption, counted by its cash row instead; `SUBS.TRANSF.CLASSE` and `RESGATE POR ERRO`, a
+class transfer and a correction, which move no money in or out. It refuses the file, naming the
+line, for any other wording or a movement it can't read, so a new kind of movement is never
+taken for a market change. The rows the upload adds are in "Bank statement parsers".
 
 Trade Republic is imported from its transaction export, a CSV, one calendar month per file
 (ADR-031); its PDF statement is not read. `TradeRepublicCsvParser` maps every row to one

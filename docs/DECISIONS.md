@@ -344,6 +344,26 @@ import never fails the upload. Stored files keep their extension (`<guid>.csv`);
 keeps its name. Costs accepted: a month's balances are only as right as the months before it,
 and the export carries no account IBAN, so these statements have an empty `Account`.
 
+## ADR-032 · BPI's PPR: subscriptions as rows, the market change as "Ganhos"
+
+Since 2026-10-06 a BPI statement's retirement savings plan (PPR) shows as what moved it. Each
+subscription in the plan section becomes its own credit row ("BPI Reforma - SUBSCRICAO
+EMPRESA"), and "BPI Reforma - Ganhos" keeps only the market change: the change in
+`PprBalance` since the previous BPI statement, less the subscriptions, plus the redemptions.
+Before, Ganhos was the whole change, so an employer's contribution, a redemption and the
+market's move landed in one row under one category, and a month with a redemption read as a
+large loss. A redemption is counted by its cash row (`RESGATE ... PPR`) only, never by the plan
+section's own `RESG.FORA COND.GERAL` row. `PprBalance` is `ACTIVOS` less the current account,
+which holds a redemption until its cash arrives, a statement later at times. The cash row is
+therefore the moment the redemption leaves the balance, and counting both rows would count it
+twice. The plan section's wordings are a closed list: an unknown one refuses the file rather
+than being taken for a market change. Alternatives: `PprBalance` as the plan section's own
+total, counting the section's redemptions instead (it changes what every stored statement's
+`PprBalance` means, so every BPI statement would need importing again); Ganhos as before, with
+the subscriptions split out by hand each month. Costs accepted: a redemption paid anywhere but
+the BPI account would read as a market loss; statements imported before this change keep their
+single Ganhos row until they are deleted and imported again, in order.
+
 ## ADR-033 · A Mercor month is converted at the EUR actually received
 
 Since 2026-10-06 a month of Mercor work comes in as Mercor's "Line Item Statement", a one-page

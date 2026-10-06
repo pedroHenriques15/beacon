@@ -202,6 +202,24 @@ public class BpiParserTests
     }
 
     [Fact]
+    public void Parse_PeriodAcrossYearEnd_DatesEachRowInItsOwnYear()
+    {
+        var txBlock = """
+            05/12 05/12 BEFORE THE PERIOD 10,00 1 010,00
+            15/12 15/12 DECEMBER TX 10,00 1 020,00
+            31/12 02/01 ACROSS NEW YEAR 10,00 1 030,00
+            03/01 03/01 JANUARY TX 10,00 1 040,00
+            """;
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(
+            periodFrom: "07/12/2026", periodTo: "06/01/2027", txBlock: txBlock)]);
+
+        Assert.Equal(
+            [new DateOnly(2026, 12, 5), new DateOnly(2026, 12, 15), new DateOnly(2026, 12, 31), new DateOnly(2027, 1, 3)],
+            result.Transactions.Select(t => t.DatePosting));
+        Assert.Equal(new DateOnly(2027, 1, 2), result.Transactions[2].DateValue);
+    }
+
+    [Fact]
     public void Parse_MissingPeriodHeader_ThrowsInvalidOperation()
     {
         var badText = "IBAN: PT50001000000000000000001\nNo period here";
@@ -214,7 +232,7 @@ public class BpiParserTests
         var txBlock = """
             01/01 01/01 VALID TX 100,00 1 100,00
             PLANOS DE POUPANÇA
-            02/01 02/01 AFTER PPR TX 50,00 1 050,00
+            02/01 02/01 SUBSCRICAO EMPRESA 10,00000 5,00000 50,00
             """;
 
         var fullText = $"""
@@ -252,5 +270,107 @@ public class BpiParserTests
         var result = _parser.Parse("bpi.pdf", [page1, page2]);
 
         Assert.Equal(2, result.Transactions.Count);
+    }
+
+    // ── Retirement plan (PPR) section ───────────────────────────────────────────
+
+    private static string BuildWithPlans(string movements, string afterTotal = "") => $"""
+        IBAN: PT50 0010 0000 0000 0000 0000 1
+        Período De 07/02/2024 a 06/03/2024
+        SALDO ANTERIOR CONTABILISTICO 0,00
+        SALDO ACTUAL CONTABILISTICO 0,00
+        ACTIVOS 800,00
+        DEPÓSITOS À ORDEM
+        PLANOS DE POUPANÇA REFORMA
+        DATA DATA DESCRIÇÃO DATA DATA UNIDADES CUSTO MÉD VALOR COTAÇÃO VALOR
+        MOV VAL INÍCIO VENCIMENTO PARTIC. AQUISIÇÃO APLICADO EUROS
+        PLANO OBRIGAÇÕES PPR/OICVM 01/01/2020
+        TITULAR
+        {movements}
+        SALDO ACTUAL 100,00000 8,00000 800,00 8,00000 800,00
+        TOTAL PLANOS DE POUPANÇA REFORMA 800,00
+        {afterTotal}
+        """;
+
+    [Fact]
+    public void Parse_PprSection_ReadsASubscription()
+    {
+        var result = _parser.Parse("bpi.pdf", [BuildWithPlans(
+            "15/02 17/02 SUBSCRICAO EMPRESA 50,00000 8,00000 400,00")]);
+
+        var subscription = Assert.Single(result.PprSubscriptions!);
+        Assert.Equal(new DateOnly(2024, 2, 15), subscription.DatePosting);
+        Assert.Equal(new DateOnly(2024, 2, 17), subscription.DateValue);
+        Assert.Equal("SUBSCRICAO EMPRESA", subscription.Description);
+        Assert.Equal(400.00m, subscription.Amount);
+        Assert.Empty(result.Transactions);
+    }
+
+    [Fact]
+    public void Parse_PprSection_PeriodAcrossYearEnd_DatesASubscriptionInTheNewYear()
+    {
+        var text = BuildWithPlans("05/01 07/01 SUBSCRICAO EMPRESA 50,00000 8,00000 400,00")
+            .Replace("07/02/2024 a 06/03/2024", "07/12/2026 a 06/01/2027");
+
+        var subscription = Assert.Single(_parser.Parse("bpi.pdf", [text]).PprSubscriptions!);
+
+        Assert.Equal(new DateOnly(2027, 1, 5), subscription.DatePosting);
+        Assert.Equal(new DateOnly(2027, 1, 7), subscription.DateValue);
+    }
+
+    [Fact]
+    public void Parse_PprSection_RedemptionsTransfersAndCorrections_AreNotSubscriptions()
+    {
+        var result = _parser.Parse("bpi.pdf", [BuildWithPlans("""
+            09/02 16/02 RESG.FORA COND.GERAL 1 000,50000 5,00000 5 002,50
+            20/02 22/02 SUBSCRICAO EMPRESA 80,00000 5,00000 400,00
+            03/02 03/02 SUBS.TRANSF.CLASSE 0,00050 5,00000 0,00
+            03/02 03/02 RESGATE POR ERRO 0,00050 1,00000 0,00
+            """)]);
+
+        var subscription = Assert.Single(result.PprSubscriptions!);
+        Assert.Equal(400.00m, subscription.Amount);
+        Assert.Empty(result.Transactions);
+    }
+
+    [Fact]
+    public void Parse_PprSection_UnknownWording_IsRefusedNamingTheLine()
+    {
+        const string line = "15/02 17/02 SUBSCRICAO PARTICULAR 10,00000 5,00000 50,00";
+
+        var ex = Assert.Throws<FormatException>(() => _parser.Parse("bpi.pdf", [BuildWithPlans(line)]));
+
+        Assert.Contains(line, ex.Message);
+    }
+
+    [Fact]
+    public void Parse_PprSection_UnreadableMovement_IsRefusedNamingTheLine()
+    {
+        const string line = "15/02 17/02 SUBSCRICAO EMPRESA 400,00";
+
+        var ex = Assert.Throws<FormatException>(() => _parser.Parse("bpi.pdf", [BuildWithPlans(line)]));
+
+        Assert.Contains(line, ex.Message);
+    }
+
+    [Fact]
+    public void Parse_PprSection_EndsAtItsTotal()
+    {
+        var result = _parser.Parse("bpi.pdf", [BuildWithPlans(
+            "15/02 17/02 SUBSCRICAO EMPRESA 50,00000 8,00000 400,00",
+            afterTotal: """
+                POSIÇÕES A LIQUIDAR
+                28/02 28/02 OUTRA OPERACAO 10,00000 5,00000 50,00
+                """)]);
+
+        Assert.Single(result.PprSubscriptions!);
+    }
+
+    [Fact]
+    public void Parse_WithoutPlanMovements_HasNoSubscriptions()
+    {
+        var result = _parser.Parse("bpi.pdf", [BuildFullText(activos: "10 000,00")]);
+
+        Assert.Empty(result.PprSubscriptions!);
     }
 }
