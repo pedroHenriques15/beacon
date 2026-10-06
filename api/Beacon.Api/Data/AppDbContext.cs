@@ -265,6 +265,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(l => l.PricePerUnit).HasPrecision(18, 4);
             e.Property(l => l.Fees).HasPrecision(18, 2);
             e.Property(l => l.Notes).HasMaxLength(500);
+            e.Property(l => l.ExternalId).HasMaxLength(100);
+            // An imported trade is booked once (ADR-031). Lots entered by hand have no id; SQLite
+            // unique indexes treat NULLs as distinct, so no filter is needed.
+            e.HasIndex(l => l.ExternalId).IsUnique();
         });
 
         modelBuilder.Entity<InvestmentPriceSnapshot>(e =>

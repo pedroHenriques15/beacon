@@ -40,6 +40,22 @@ public class UnifiedUploadBatchCommandHandler(
         List<PendingInvoice> invoices, List<PendingWithdrawal> withdrawals,
         CancellationToken ct)
     {
+        // A CSV export is its own text: it goes to the parsers as the single page, without
+        // pdfplumber, and is never a micro1 document (ADR-031).
+        if (CsvText.IsCsvFile(fileName))
+        {
+            string text;
+            try
+            {
+                text = CsvText.Decode(content.ToArray());
+            }
+            catch (FormatException ex)
+            {
+                return new UnifiedUploadItemResult(fileName, "Unknown", false, false, ex.Message, null, null, null);
+            }
+            return await RunStandardCascadeAsync(fileName, content, [text], ct);
+        }
+
         var tempPath = Path.Combine(Path.GetTempPath(), $"beacon_{Guid.NewGuid():N}.pdf");
         try
         {
@@ -168,7 +184,7 @@ public class UnifiedUploadBatchCommandHandler(
 
         logger.LogInformation("Unified upload: {File} not recognised by any parser", fileName);
         return new UnifiedUploadItemResult(fileName, "Unknown", false, false,
-            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements; Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal).",
+            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements (PDF); Trade Republic transaction exports (CSV); Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal).",
             null, null, null);
     }
 
@@ -252,7 +268,7 @@ public class UnifiedUploadBatchCommandHandler(
         new(content, 0, content.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),
-            ContentType = "application/pdf",
+            ContentType = CsvText.IsCsvFile(fileName) ? "text/csv" : "application/pdf",
         };
 
     private sealed record PendingInvoice(int Index, string FileName, MemoryStream Content, ParsedSalarySlip InvoiceUsd);

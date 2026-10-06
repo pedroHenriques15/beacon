@@ -41,8 +41,10 @@ appsettings.*.json
 *.crt
 *.key
 
-# ─── Uploaded PDFs — never commit ───────────────────────────────────────────
+# ─── Uploaded files: PDFs and CSV/XLSX exports — never commit ────────────────
 *.pdf
+*.csv
+*.xlsx
 
 # ─── Local runtime data (secrets + backups) — never commit ───────────────────
 local/

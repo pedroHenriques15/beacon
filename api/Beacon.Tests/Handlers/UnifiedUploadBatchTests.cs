@@ -4,6 +4,7 @@ using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
+using Beacon.Tests.Parsing;
 using Beacon.Tests.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -57,12 +58,12 @@ public class UnifiedUploadBatchTests : IDisposable
     private UnifiedUploadBatchCommandHandler MakeHandler(AppDbContext db, IPdfExtractor extractor)
     {
         var bankFactory = new BankStatementParserFactory(
-            [new ActivoBankParser(), new BpiParser(), new RevolutParser()]);
+            [new ActivoBankParser(), new BpiParser(), new RevolutParser(), new TradeRepublicCsvParser()]);
         var groceryFactory = new GroceryReceiptParserFactory([new ContinenteParser()]);
         var salaryFactory = new SalarySlipParserFactory([new CentralGestParser(), new DomirestParser()]);
         var statementService = new StatementUploadService(
             db, extractor, bankFactory, _fileStorage,
-            new SavingsPlanImportService(db, TestPricing.Queue(), NullLogger<SavingsPlanImportService>.Instance),
+            new TradeImportService(db, TestPricing.Queue()),
             NullLogger<StatementUploadService>.Instance);
         var groceryService = new GroceryReceiptUploadService(
             db, extractor, groceryFactory, _fileStorage, NullLogger<GroceryReceiptUploadService>.Instance);
@@ -158,6 +159,72 @@ public class UnifiedUploadBatchTests : IDisposable
         Assert.False(results[1].Success);
         Assert.True(results[1].WasDuplicate);
         Assert.Contains("already been imported", results[1].Error);
+    }
+
+    [Fact]
+    public async Task Handle_TradeRepublicCsv_ImportsWithoutTheExtractor_AndKeepsTheCsv()
+    {
+        await using var db = CreateDb();
+        var extractor = new StubExtractor(["never used"]);
+        var handler = MakeHandler(db, extractor);
+        var csv = TradeRepublicCsv.File(
+            TradeRepublicCsv.Cash("2026-08-02", "CARD_TRANSACTION", "-7.30", "MINI MERCADO"));
+
+        var results = await handler.HandleAsync([MakeFile("Extrato de transações.csv", "\uFEFF" + csv)]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("BankStatement", item.DocumentType);
+        Assert.True(item.Success);
+        Assert.Equal(0, extractor.Calls);
+
+        await using var freshDb = CreateDb();
+        var stmt = await freshDb.MonthlyStatements.SingleAsync();
+        Assert.Equal("TRADE REPUBLIC", stmt.Bank);
+        Assert.Equal(".csv", Path.GetExtension(stmt.PdfPath));
+    }
+
+    [Fact]
+    public async Task Handle_ARefusedCsv_ReportsWhy_WithoutCallingItADuplicate()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new StubExtractor(["never used"]));
+        var csv = TradeRepublicCsv.File(
+            TradeRepublicCsv.Cash("2026-08-12", "CARD_TRANSACTION", "-3.00", "SHOP", currency: "USD"));
+
+        var results = await handler.HandleAsync([MakeFile("export.csv", csv)]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("BankStatement", item.DocumentType);
+        Assert.False(item.Success);
+        Assert.False(item.WasDuplicate);
+        Assert.Contains("only EUR", item.Error);
+    }
+
+    [Fact]
+    public async Task Handle_ACsvThatIsNotUtf8_IsReportedUnread()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new StubExtractor(["never used"]));
+
+        var results = await handler.HandleAsync([("export.csv", new MemoryStream([0x22, 0xE7, 0xE3, 0x22]))]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("Unknown", item.DocumentType);
+        Assert.Contains("not UTF-8", item.Error);
+    }
+
+    [Fact]
+    public async Task Handle_ATradeRepublicPdf_IsNotRecognised_AndPointsToTheCsv()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new StubExtractor(
+            ["TRADE REPUBLIC BANK GMBH, SUCURSAL EM PORTUGAL\nBIC TRBKPTP2XXX"]));
+
+        var results = await handler.HandleAsync([MakeFile("statement.pdf", "tr-pdf-bytes")]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("Unknown", item.DocumentType);
+        Assert.Contains("Trade Republic transaction exports (CSV)", item.Error);
     }
 
     [Fact]

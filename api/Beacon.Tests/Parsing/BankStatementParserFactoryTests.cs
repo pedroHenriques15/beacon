@@ -12,7 +12,7 @@ public class BankStatementParserFactoryTests
             new ActivoBankParser(),
             new BpiParser(),
             new RevolutParser(),
-            new TradeRepublicParser()
+            new TradeRepublicCsvParser()
         };
         return new BankStatementParserFactory(parsers);
     }
@@ -56,14 +56,22 @@ public class BankStatementParserFactoryTests
     [InlineData("EXTRACTO INTEGRADO", "BPI")]
     [InlineData("REVOPTP2", "REVOLUT")]
     [InlineData("Revolut Bank UAB", "REVOLUT")]
-    [InlineData("TRBKPTP2", "TRADE REPUBLIC")]
-    [InlineData("TRADE REPUBLIC BANK GMBH", "TRADE REPUBLIC")]
     public void DetectParser_IdentifiesCorrectBankFromText(string signal, string expectedBank)
     {
         var factory = CreateFactory();
         var parser = factory.DetectParser($"some content {signal} more content");
         Assert.Equal(expectedBank, parser.BankName);
     }
+
+    [Fact]
+    public void DetectParser_TheTradeRepublicExportsHeader_IsTradeRepublic() =>
+        Assert.Equal("TRADE REPUBLIC", CreateFactory().DetectParser(TradeRepublicCsv.File()).BankName);
+
+    [Theory]
+    [InlineData("TRBKPTP2")]
+    [InlineData("TRADE REPUBLIC BANK GMBH")]
+    public void DetectParser_TheTradeRepublicPdfsSignals_AreNoLongerRecognised(string signal) =>
+        Assert.Throws<NotSupportedException>(() => CreateFactory().DetectParser($"some content {signal} more content"));
 
     [Fact]
     public void DetectParser_ThrowsForUnrecognisedContent()
