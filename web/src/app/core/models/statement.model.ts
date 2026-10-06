@@ -166,15 +166,42 @@ export interface UnifiedSalaryResult {
   parsed: ParsedSlipResponse;
 }
 
+/** A Mercor credit imported from a bank, counted in the EUR a Mercor statement suggests. */
+export interface MercorPayout {
+  date: string;
+  bank: string;
+  amount: number;
+}
+
+/** A Mercor statement, read and stored, waiting for the EUR it paid (USD figures). */
+export interface UnifiedMercorResult {
+  pdfPath: string;
+  fileName: string;
+  period: string;
+  totalPayUsd: number;
+  hoursWorked: number;
+  payRateUsd: number;
+  /** The sum of `payouts`, or null when the month has none. */
+  suggestedEur: number | null;
+  payouts: MercorPayout[];
+}
+
 export interface UnifiedUploadItemResult {
   fileName: string;
-  documentType: 'BankStatement' | 'GroceryReceipt' | 'SalarySlip' | 'Unknown' | 'Micro1Unpaired';
+  documentType:
+    | 'BankStatement'
+    | 'GroceryReceipt'
+    | 'SalarySlip'
+    | 'Unknown'
+    | 'Micro1Unpaired'
+    | 'MercorNeedsEur';
   success: boolean;
   wasDuplicate: boolean;
   error: string | null;
   statementResult: UploadResult | null;
   groceryResult: GroceryReceiptUploadResult | null;
   salaryResult: UnifiedSalaryResult | null;
+  mercorResult?: UnifiedMercorResult | null;
 }
 
 export interface InvestmentLot {

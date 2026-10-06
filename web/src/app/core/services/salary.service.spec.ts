@@ -333,4 +333,16 @@ describe('SalaryService', () => {
 
     expect(errorMsg).toBe('No salary slip parser recognised this PDF format.');
   });
+
+  it('parseMercor() POSTs the stored file and the EUR received to /api/salary/parse-mercor', () => {
+    let result: ParsedSlipResponse | undefined;
+    service.parseMercor('abc.pdf', 124.5).subscribe((v) => (result = v));
+
+    const req = ctrl.expectOne('/api/salary/parse-mercor');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ pdfPath: 'abc.pdf', eurReceived: 124.5 });
+    req.flush(PARSED);
+
+    expect(result?.grossAmount).toBe(1680);
+  });
 });

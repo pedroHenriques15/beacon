@@ -1,0 +1,86 @@
+@use '../../../styles/mixins' as *;
+
+// The EUR a Mercor statement paid: its USD figures, the field, and the payouts that pre-filled it.
+.mercor-modal {
+  --modal-width: 520px;
+}
+
+.usd {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+
+  div {
+    min-width: 0;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+  }
+
+  dt {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  dd {
+    @include figures;
+    margin: 2px 0 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+}
+
+.payouts {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__bank {
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__date {
+    @include figures;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__amount {
+    @include figures;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--credit);
+  }
+}
+
+@include phone {
+  .usd div {
+    padding: 8px 10px;
+  }
+}

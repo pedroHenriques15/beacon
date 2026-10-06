@@ -16,6 +16,7 @@ using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.CreateSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
+using Beacon.Api.Features.Salary.Commands.ParseMercorStatement;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
@@ -120,6 +121,7 @@ builder.Services.AddSingleton<SalarySlipParserFactory>();
 
 builder.Services.AddSingleton<Micro1InvoiceParser>();
 builder.Services.AddSingleton<DeelWithdrawalParser>();
+builder.Services.AddSingleton<MercorStatementParser>();
 
 builder.Services.AddSingleton<FileStorageService>();
 builder.Services.AddMemoryCache();
@@ -214,6 +216,7 @@ builder.Services.AddScoped<DeleteSalaryProfileCommandHandler>();
 builder.Services.AddScoped<GetSalarySlipsQueryHandler>();
 builder.Services.AddScoped<CreateSalarySlipCommandHandler>();
 builder.Services.AddScoped<ParseSalarySlipCommandHandler>();
+builder.Services.AddScoped<ParseMercorStatementCommandHandler>();
 builder.Services.AddScoped<UpdateSalarySlipCommandHandler>();
 builder.Services.AddScoped<MergeSalarySlipCommandHandler>();
 builder.Services.AddScoped<DeleteSalarySlipCommandHandler>();

@@ -1,14 +1,23 @@
-import { BatchUploadItemResult, ParsedSlipResponse } from '../../core/models/statement.model';
+import {
+  BatchUploadItemResult,
+  ParsedSlipResponse,
+  UnifiedMercorResult,
+} from '../../core/models/statement.model';
 import { GroceryReceiptUploadResult } from '../../core/models/grocery.model';
+import { usd } from '../../core/utils/money';
 import { monthName, monthYearLabel } from '../../core/utils/month-totals';
 
-/** A salary slip found in an upload, waiting to be reviewed and saved. */
+/**
+ * A salary slip found in an upload, waiting to be reviewed and saved. A Mercor statement starts as
+ * 'needs-eur', with `mercor` and no `parsed`, until the EUR it paid is entered.
+ */
 export interface SalaryQueueItem {
   file?: File;
-  status: 'pending' | 'uploading' | 'parsing' | 'ready' | 'saved' | 'error';
+  status: 'pending' | 'uploading' | 'parsing' | 'needs-eur' | 'ready' | 'saved' | 'error';
   pdfPath?: string;
   fileName?: string;
   parsed?: ParsedSlipResponse;
+  mercor?: UnifiedMercorResult;
   error?: string;
 }
 
@@ -35,8 +44,10 @@ export interface FileEntry {
   /** A receipt's total or a slip's gross pay. */
   amount: number | null;
   warnings: string[];
-  /** The salary queue index the "Review and save" action opens, if it has one. */
+  /** The salary queue index the entry's action opens, if it has one. */
   slipIndex: number | null;
+  /** What that action's button says. */
+  action: string | null;
 }
 
 export interface FileGroup {
@@ -107,6 +118,7 @@ function statementEntry(item: BatchUploadItemResult, i: number): FileEntry {
     amount: null,
     warnings: r?.warnings ?? [],
     slipIndex: null,
+    action: null,
   };
   if (item.success && r) {
     const unknown = r.unknownCount > 0 ? `, ${r.unknownCount} need a category` : '';
@@ -136,29 +148,49 @@ function statementEntry(item: BatchUploadItemResult, i: number): FileEntry {
   };
 }
 
+function slipTitle(item: SalaryQueueItem, fileName: string): string {
+  const p = item.parsed;
+  if (p) return `${p.employer?.trim() || 'Salary'} slip, ${periodLabel(p.period)}`;
+  if (item.mercor) return `Mercor statement, ${periodLabel(item.mercor.period)}`;
+  return fileName;
+}
+
 function slipEntry(item: SalaryQueueItem, i: number): FileEntry {
   const fileName = item.fileName ?? item.file?.name ?? '';
   const p = item.parsed;
   const base = {
     key: `slip-${i}`,
-    title: p ? `${p.employer?.trim() || 'Salary'} slip, ${periodLabel(p.period)}` : fileName,
-    fileName: p ? fileName : null,
+    title: slipTitle(item, fileName),
+    fileName: p || item.mercor ? fileName : null,
     amount: p?.grossAmount ?? null,
     warnings: [],
     slipIndex: null,
+    action: null,
   };
+  const review = { slipIndex: i, action: 'Review and save' };
   switch (item.status) {
+    case 'needs-eur': {
+      const m = item.mercor;
+      const usdPay = m ? `${usd(m.totalPayUsd)} for ${m.hoursWorked.toFixed(2)} h, ` : '';
+      return {
+        ...base,
+        tone: 'review',
+        meta: `${usdPay}waiting for the EUR received`,
+        slipIndex: i,
+        action: 'Enter EUR received',
+      };
+    }
     case 'ready':
-      return { ...base, tone: 'review', meta: 'Gross pay, not saved yet', slipIndex: i };
+      return { ...base, ...review, tone: 'review', meta: 'Gross pay, not saved yet' };
     case 'saved':
       return { ...base, tone: 'ok', meta: 'Saved to Salary' };
     case 'error':
       // A slip that was read but failed to open its review can be retried.
       return {
         ...base,
+        ...(p && item.pdfPath ? review : {}),
         tone: 'error',
         meta: item.error ?? 'Could not read this slip.',
-        slipIndex: p && item.pdfPath ? i : null,
       };
     default:
       return { ...base, tone: 'working', meta: SLIP_PROGRESS[item.status] ?? '' };
@@ -176,6 +208,7 @@ function groceryEntry(r: GroceryReceiptUploadResult, i: number): FileEntry {
     amount: r.total,
     warnings: r.warnings ?? [],
     slipIndex: null,
+    action: null,
   };
 }
 
@@ -189,6 +222,7 @@ function plainEntry(key: string, tone: FileTone, f: FailedFile): FileEntry {
     amount: null,
     warnings: [],
     slipIndex: null,
+    action: null,
   };
 }
 

@@ -116,6 +116,14 @@ export class SalaryService {
     return this.http.post<ParsedSlipResponse>('/api/salary/parse-pdf', { pdfPath });
   }
 
+  /** A Mercor statement the upload stored, converted to a EUR slip at the EUR it paid. */
+  parseMercor(pdfPath: string, eurReceived: number): Observable<ParsedSlipResponse> {
+    return this.http.post<ParsedSlipResponse>('/api/salary/parse-mercor', {
+      pdfPath,
+      eurReceived,
+    });
+  }
+
   createSlip(body: SlipBody & { salaryProfileId: number }): Observable<SalarySlip> {
     return this.http.post<SalarySlip>('/api/salary/slips', body);
   }
