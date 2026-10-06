@@ -2,6 +2,7 @@ using System.Text;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Shared;
 using Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
+using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
 using Beacon.Tests.Parsing;
@@ -70,8 +71,8 @@ public class UnifiedUploadBatchTests : IDisposable
 
         return new UnifiedUploadBatchCommandHandler(
             extractor, bankFactory, groceryFactory, salaryFactory,
-            new Micro1InvoiceParser(), new DeelWithdrawalParser(),
-            statementService, groceryService, _fileStorage,
+            new Micro1InvoiceParser(), new DeelWithdrawalParser(), new MercorStatementParser(),
+            statementService, groceryService, _fileStorage, db,
             NullLogger<UnifiedUploadBatchCommandHandler>.Instance);
     }
 
@@ -341,5 +342,134 @@ public class UnifiedUploadBatchTests : IDisposable
 
         await using var freshDb = CreateDb();
         Assert.Equal(1, await freshDb.MonthlyStatements.CountAsync());
+    }
+
+    private const string ActivoBankAugustWithMercor = """
+        DEPOSITO A ORDEM: 123456789
+        EXTRATO DE 2026/08/01 A 2026/08/31
+        MOEDA BASE: EURO
+        SALDO INICIAL 1 000.00
+        08.14 08.14 TRF MERCOR.IO CORPORATION PAYOUTS 88.20 1 088.20
+        SALDO FINAL 1 088.20
+        ACTVPTPL
+        """;
+
+    private static Transaction Credit(string date, decimal amount, string description, string type = "credit") => new()
+    {
+        DatePosting = DateOnly.Parse(date),
+        DateValue = DateOnly.Parse(date),
+        Description = description,
+        Amount = amount,
+        Type = type,
+    };
+
+    private async Task SeedStatementAsync(string bank, params Transaction[] transactions)
+    {
+        await using var db = CreateDb();
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = bank,
+            Account = "",
+            PeriodFrom = new DateOnly(2026, 7, 1),
+            PeriodTo = new DateOnly(2026, 9, 30),
+            SourceFile = $"{bank}.pdf",
+            Transactions = transactions,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Handle_MercorStatement_AsksForTheEur_AndSavesNoSlip()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new PerFileExtractor());
+
+        var results = await handler.HandleAsync([MakeFile("mercor.pdf", MercorStatementText.Page())]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("MercorNeedsEur", item.DocumentType);
+        Assert.Null(item.Error);
+        Assert.Null(item.SalaryResult);
+
+        var mercor = item.MercorResult!;
+        Assert.Equal(new DateOnly(2026, 8, 1), mercor.Period);
+        Assert.Equal(145.17m, mercor.TotalPayUsd);
+        Assert.Equal(3.63m, mercor.HoursWorked);
+        Assert.Equal(40.00m, mercor.PayRateUsd);
+        Assert.Null(mercor.SuggestedEur);
+        Assert.Empty(mercor.Payouts);
+
+        // Stored for the conversion endpoint, under a file name the client sends back.
+        Assert.Equal(Path.GetFileName(mercor.PdfPath), mercor.PdfPath);
+        Assert.True(File.Exists(_fileStorage.GetFullPath(mercor.PdfPath)));
+
+        await using var freshDb = CreateDb();
+        Assert.Equal(0, await freshDb.SalarySlips.CountAsync());
+    }
+
+    [Fact]
+    public async Task Handle_MercorStatement_SuggestsOnlyThatMonthsMercorCredits_FromAnyBank()
+    {
+        await SeedStatementAsync("REVOLUT",
+            Credit("2026-08-25", 40.00m, "Carregamento de Mercor.io Corporation"),
+            Credit("2026-08-10", 50.00m, "Carregamento de MERCOR.IO CORPORATION"),
+            Credit("2026-07-31", 20.00m, "Carregamento de MERCOR.IO CORPORATION"),
+            Credit("2026-09-01", 30.00m, "Carregamento de MERCOR.IO CORPORATION"),
+            Credit("2026-08-12", 5.00m, "MERCOR.IO CORPORATION", type: "debit"),
+            Credit("2026-08-15", 300.00m, "Transfer from savings"));
+        await SeedStatementAsync("BPI", Credit("2026-08-31", 10.00m, "TRF MERCORIO CORPORATION PAYOUTS"));
+
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new PerFileExtractor());
+
+        var results = await handler.HandleAsync([MakeFile("mercor.pdf", MercorStatementText.Page())]);
+
+        var mercor = Assert.Single(results).MercorResult!;
+        Assert.Equal(100.00m, mercor.SuggestedEur);
+        Assert.Equal(
+            new[]
+            {
+                new MercorPayout(new DateOnly(2026, 8, 10), "REVOLUT", 50.00m),
+                new MercorPayout(new DateOnly(2026, 8, 25), "REVOLUT", 40.00m),
+                new MercorPayout(new DateOnly(2026, 8, 31), "BPI", 10.00m),
+            },
+            mercor.Payouts);
+    }
+
+    [Fact]
+    public async Task Handle_MercorStatement_CountsABankStatementLaterInTheSameUpload()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new PerFileExtractor());
+
+        var results = await handler.HandleAsync(
+        [
+            MakeFile("mercor.pdf", MercorStatementText.Page()),
+            MakeFile("activo-august.pdf", ActivoBankAugustWithMercor),
+        ]);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("MercorNeedsEur", results[0].DocumentType);
+        Assert.Equal("BankStatement", results[1].DocumentType);
+        Assert.True(results[1].Success, results[1].Error);
+        Assert.Equal(88.20m, results[0].MercorResult!.SuggestedEur);
+    }
+
+    [Fact]
+    public async Task Handle_MercorStatementThatDoesNotAddUp_IsReportedWithTheReason_AndNotStored()
+    {
+        await using var db = CreateDb();
+        var handler = MakeHandler(db, new PerFileExtractor());
+
+        var results = await handler.HandleAsync(
+            [MakeFile("mercor.pdf", MercorStatementText.Page(shiftPay: "150.00", totalPay: "150.00"))]);
+
+        var item = Assert.Single(results);
+        Assert.Equal("SalarySlip", item.DocumentType);
+        Assert.False(item.Success);
+        Assert.Contains("Mercor statement", item.Error);
+        Assert.Contains("$150.00", item.Error);
+        Assert.Null(item.MercorResult);
+        Assert.Empty(Directory.GetFiles(_tempStorageRoot));
     }
 }

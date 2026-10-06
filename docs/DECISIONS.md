@@ -39,9 +39,10 @@ line, with no switch to extend. Each detection signal must belong to exactly one
 ## ADR-005 · Statements are EUR-only
 
 `StatementUploadService` rejects a parsed statement whose currency is not EUR, and every
-aggregate assumes EUR. There is no FX layer; the one conversion in the app is the micro1
-paycheck (ADR-007), which uses the rate of the real withdrawal. Supporting another currency
-means adding currency to the aggregates first.
+aggregate assumes EUR. There is no FX layer; the only conversions in the app are pay
+received in USD, each at the euros that actually arrived: the micro1 paycheck (ADR-007), at
+the rate of the real withdrawal, and the Mercor month (ADR-033), at the EUR received.
+Supporting another currency means adding currency to the aggregates first.
 
 ## ADR-006 · The Excluded category is authoritative for `IsExcluded`
 
@@ -342,3 +343,21 @@ booked twice; a trade without one dedups by asset, date and quantity, as before.
 import never fails the upload. Stored files keep their extension (`<guid>.csv`); `PdfPath`
 keeps its name. Costs accepted: a month's balances are only as right as the months before it,
 and the export carries no account IBAN, so these statements have an empty `Account`.
+
+## ADR-033 · A Mercor month is converted at the EUR actually received
+
+Since 2026-10-06 a month of Mercor work comes in as Mercor's "Line Item Statement", a one-page
+PDF in USD that says nothing about the euros that reached the bank. Like a micro1 invoice
+(ADR-007), it is not a EUR slip on its own, so `MercorStatementParser` is a plain class, not
+in the salary parser factory, and the upload never saves the statement as it stands. The batch
+reads and stores it and asks for the EUR received, prefilled with the Mercor credits already
+imported from any bank for the statement's month and listing them, so the figure can be
+checked; the slip review opens only once the amount is given. The EUR received is both gross
+and net, since no fee is known, and sets the month's rate (EUR ÷ USD total), at which Base Pay
+and the hourly rate are converted; "Other" takes any pay beyond the hourly lines and the
+rounding. Hours are each line's amount ÷ its rate, since the statement's hours column is cut
+to the minute. Alternatives: a published exchange rate (Mercor's payouts arrive at their own
+rate, after fees no document shows); pairing with a payout document as micro1 does (Mercor
+sends none). Costs accepted: the suggestion takes the month's payouts by date, and a payout
+for late-month work lands the next month, so it can be off and is corrected by hand; a fee
+Mercor or its payout provider takes is invisible, folded into the rate.

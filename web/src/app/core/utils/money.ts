@@ -11,9 +11,21 @@ const EUR_WHOLE = new Intl.NumberFormat('en-GB', {
   maximumFractionDigits: 0,
 });
 
+const USD = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 /** '€1,862.45', always without a sign. */
 export function eur(value: number): string {
   return EUR.format(Math.abs(value));
+}
+
+/** '$1,862.45', always without a sign: pay quoted in USD before it becomes EUR (Mercor). */
+export function usd(value: number): string {
+  return USD.format(Math.abs(value));
 }
 
 /** '€1,862', always without a sign. */

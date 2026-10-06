@@ -1,6 +1,8 @@
+using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
+using Microsoft.EntityFrameworkCore;
 namespace Beacon.Api.Features.Upload.Commands.UnifiedUploadBatch;
 
 public class UnifiedUploadBatchCommandHandler(
@@ -10,9 +12,11 @@ public class UnifiedUploadBatchCommandHandler(
     SalarySlipParserFactory salaryFactory,
     Micro1InvoiceParser micro1Parser,
     DeelWithdrawalParser withdrawalParser,
+    MercorStatementParser mercorParser,
     StatementUploadService statementService,
     GroceryReceiptUploadService groceryService,
     FileStorageService fileStorage,
+    AppDbContext db,
     ILogger<UnifiedUploadBatchCommandHandler> logger)
 {
     public async Task<List<UnifiedUploadItemResult>> HandleAsync(
@@ -22,22 +26,27 @@ public class UnifiedUploadBatchCommandHandler(
         var slots = new UnifiedUploadItemResult?[files.Count];
         var invoices = new List<PendingInvoice>();
         var withdrawals = new List<PendingWithdrawal>();
+        var mercors = new List<PendingMercor>();
 
         for (var i = 0; i < files.Count; i++)
         {
             var (fileName, content) = files[i];
-            slots[i] = await ClassifyAsync(i, fileName, content, invoices, withdrawals, ct);
+            slots[i] = await ClassifyAsync(i, fileName, content, invoices, withdrawals, mercors, ct);
         }
 
         foreach (var (index, result) in await CorrelateAsync(invoices, withdrawals))
             slots[index] = result;
+
+        // After every file is in, so a bank statement in this same upload counts towards the suggestion.
+        foreach (var mercor in mercors)
+            slots[mercor.Index] = await AskForEurAsync(mercor, ct);
 
         return slots.Where(r => r is not null).Select(r => r!).ToList();
     }
 
     private async Task<UnifiedUploadItemResult?> ClassifyAsync(
         int index, string fileName, MemoryStream content,
-        List<PendingInvoice> invoices, List<PendingWithdrawal> withdrawals,
+        List<PendingInvoice> invoices, List<PendingWithdrawal> withdrawals, List<PendingMercor> mercors,
         CancellationToken ct)
     {
         // A CSV export is its own text: it goes to the parsers as the single page, without
@@ -104,6 +113,12 @@ public class UnifiedUploadBatchCommandHandler(
                 {
                     logger.LogWarning(ex, "{File} looked like a Deel withdrawal but did not parse; falling back to standard detection", fileName);
                 }
+            }
+            else if (mercorParser.CanParse(fullText))
+            {
+                // The statement's own title, which no other document carries: one that fails to parse
+                // is reported with the reason rather than passed to the cascade as unrecognised.
+                return await HoldMercorAsync(index, fileName, content, pages, mercors, ct);
             }
 
             return await RunStandardCascadeAsync(fileName, content, pages, ct);
@@ -184,7 +199,7 @@ public class UnifiedUploadBatchCommandHandler(
 
         logger.LogInformation("Unified upload: {File} not recognised by any parser", fileName);
         return new UnifiedUploadItemResult(fileName, "Unknown", false, false,
-            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements (PDF); Trade Republic transaction exports (CSV); Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal).",
+            "File format not recognised. Supported: ActivoBank, BPI, Revolut statements (PDF); Trade Republic transaction exports (CSV); Continente receipts; CentralGest, Domirest salary slips; micro1 invoices (paired with a Deel withdrawal); Mercor statements.",
             null, null, null);
     }
 
@@ -253,6 +268,68 @@ public class UnifiedUploadBatchCommandHandler(
         }
     }
 
+    // A Mercor statement is in USD and never a slip on its own (ADR-033): it is stored and held until
+    // the owner gives the EUR it paid, through POST /api/salary/parse-mercor.
+    private async Task<UnifiedUploadItemResult?> HoldMercorAsync(
+        int index, string fileName, MemoryStream content, IReadOnlyList<string> pages,
+        List<PendingMercor> mercors, CancellationToken ct)
+    {
+        try
+        {
+            var statement = mercorParser.Parse(pages);
+            content.Seek(0, SeekOrigin.Begin);
+            var savedPath = await fileStorage.SaveAsync(BuildFormFile(content, fileName));
+            mercors.Add(new PendingMercor(index, fileName, savedPath, statement));
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Mercor statement processing failed for {File}", fileName);
+            return new UnifiedUploadItemResult(fileName, "SalarySlip", false, false,
+                $"Could not read this Mercor statement: {ex.Message}", null, null, null);
+        }
+    }
+
+    private async Task<UnifiedUploadItemResult> AskForEurAsync(PendingMercor mercor, CancellationToken ct)
+    {
+        var statement = mercor.Statement;
+        IReadOnlyList<MercorPayout> payouts;
+        try
+        {
+            payouts = await FindMercorPayoutsAsync(statement.Period, ct);
+        }
+        catch (Exception ex)
+        {
+            // The suggestion is a convenience: without it the owner types the amount.
+            logger.LogError(ex, "Could not look up Mercor payouts for {File}", mercor.FileName);
+            payouts = [];
+        }
+
+        logger.LogInformation("Unified upload: {File} detected as a Mercor statement, waiting for the EUR received",
+            mercor.FileName);
+        return new UnifiedUploadItemResult(mercor.FileName, "MercorNeedsEur", true, false, null, null, null, null,
+            new UnifiedMercorResult(
+                mercor.PdfPath, mercor.FileName, statement.Period,
+                statement.TotalPayUsd, statement.HoursWorked, statement.PayRateUsd,
+                payouts.Count > 0 ? payouts.Sum(p => p.Amount) : null,
+                payouts));
+    }
+
+    /// <summary>Credits from any bank that name Mercor and fall in the statement's month.</summary>
+    private async Task<IReadOnlyList<MercorPayout>> FindMercorPayoutsAsync(DateOnly period, CancellationToken ct)
+    {
+        var from = new DateOnly(period.Year, period.Month, 1);
+        var to = from.AddMonths(1);
+        return await db.Transactions
+            .AsNoTracking()
+            .Where(t => t.Type == "credit"
+                && t.DatePosting >= from && t.DatePosting < to
+                && t.Description.ToLower().Contains("mercor"))
+            .OrderBy(t => t.DatePosting).ThenBy(t => t.Id)
+            .Select(t => new MercorPayout(t.DatePosting, t.Statement.Bank, t.Amount))
+            .ToListAsync(ct);
+    }
+
     private static string InvoiceBlockReason(bool ambiguous) => ambiguous
         ? "Multiple micro1 files in this upload share the same USD amount, so they can't be paired unambiguously. Upload each paycheck (its invoice + Deel withdrawal) in a separate batch."
         : "This micro1 invoice has no matching Deel withdrawal in this upload. Add the withdrawal statement and upload both together.";
@@ -273,4 +350,5 @@ public class UnifiedUploadBatchCommandHandler(
 
     private sealed record PendingInvoice(int Index, string FileName, MemoryStream Content, ParsedSalarySlip InvoiceUsd);
     private sealed record PendingWithdrawal(int Index, string FileName, DeelWithdrawal Withdrawal);
+    private sealed record PendingMercor(int Index, string FileName, string PdfPath, MercorStatement Statement);
 }

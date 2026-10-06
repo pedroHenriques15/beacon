@@ -5,6 +5,7 @@ using Beacon.Api.Features.Salary.Commands.DeleteSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.DeleteSalaryProfile;
 using Beacon.Api.Features.Salary.Commands.DeleteSalarySlip;
 using Beacon.Api.Features.Salary.Commands.MergeSalarySlip;
+using Beacon.Api.Features.Salary.Commands.ParseMercorStatement;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryItemCategory;
 using Beacon.Api.Features.Salary.Commands.UpdateSalaryProfile;
@@ -34,7 +35,8 @@ public class SalaryController(
     UpdateSalaryItemCategoryCommandHandler updateItemCategory,
     DeleteSalaryItemCategoryCommandHandler deleteItemCategory,
     FileStorageService fileStorage,
-    ParseSalarySlipCommandHandler parseSalarySlip) : ControllerBase
+    ParseSalarySlipCommandHandler parseSalarySlip,
+    ParseMercorStatementCommandHandler parseMercorStatement) : ControllerBase
 {
 
     [HttpPost("upload-pdf")]
@@ -60,6 +62,20 @@ public class SalaryController(
 
         var (result, error) = await parseSalarySlip.HandleAsync(
             new ParseSalarySlipCommand(fullPath), ct);
+        if (error is not null) return BadRequest(error);
+        return Ok(result);
+    }
+
+    /// <summary>A Mercor statement the upload stored, converted at the EUR it paid (ADR-033).</summary>
+    [HttpPost("parse-mercor")]
+    public async Task<IActionResult> ParseMercor([FromBody] ParseMercorRequest body, CancellationToken ct)
+    {
+        string fullPath;
+        try { fullPath = fileStorage.GetFullPath(body.PdfPath); }
+        catch (UnauthorizedAccessException) { return BadRequest("Invalid file path."); }
+
+        var (result, error) = await parseMercorStatement.HandleAsync(
+            new ParseMercorStatementCommand(fullPath, body.EurReceived), ct);
         if (error is not null) return BadRequest(error);
         return Ok(result);
     }
@@ -184,6 +200,7 @@ public class SalaryController(
 }
 
 public record ParsePdfRequest(string PdfPath);
+public record ParseMercorRequest(string PdfPath, decimal EurReceived);
 public record CreateSalaryProfileRequest(string Name, string? Description, string? HourlyRateFormula = null);
 public record UpdateSalaryProfileRequest(string Name, string? Description, string? HourlyRateFormula = null);
 

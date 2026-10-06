@@ -219,7 +219,7 @@ new bank:**
 **CSV exports** (ADR-031). The batch upload takes `.csv` files, alone or inside a ZIP, beside
 PDFs. `UnifiedUploadBatchCommandHandler` reads a CSV as UTF-8 text (`CsvText.Decode`, which
 drops a byte order mark and refuses other encodings) and passes it, as the single page, to the
-same cascade as a PDF's text, without pdfplumber and without the micro1 checks;
+same cascade as a PDF's text, without pdfplumber and without the micro1 and Mercor checks;
 `StatementUploadService` does the same for a CSV posted to `/api/statements/upload`. A CSV
 parser detects its format by the header line and splits rows with `CsvText.ReadRows`
 (RFC 4180 quoting). The file is stored as `<guid>.csv` (see "File storage"). A parser refuses
@@ -279,6 +279,7 @@ items), no personal data.
 | `CentralGestParser` | `"CentralGest Software"` footer | Two-column (original+duplicate); mixed PT/US number formats; subsidy-only runs (see below) |
 | `DomirestParser` | `"DOMIREST"` company name | Stacked original+duplicate; PT number format |
 | `Micro1InvoiceParser` | `"Micro1 Inc."` (USD invoice) | **Not** factory-registered; paired with a Deel withdrawal → EUR (see below) |
+| `MercorStatementParser` | `"Mercor Line Item Statement"` (USD statement) | Plain class, **not** an `ISalarySlipParser`; converted at the EUR received (see below) |
 
 `CentralGestParser` reads a fixed set of lines: `Vencimento`, `PPR`, `Tickets Refeição`,
 `Segurança Social`, `IRS`, and the holiday and Christmas pay lines (`Subsídio de Férias` or
@@ -326,6 +327,41 @@ zero. For such a base-pay-only invoice the reconciler puts the whole EUR gross i
 rather than converting base and gross separately, so FX rounding cannot leak out as a stray
 one-cent `Other` the user would have to categorise. Header wording also varies between
 invoices (`Invoice #`/`Sub total` vs `Document`/`Subtotal`): no regex may depend on it.
+
+#### Mercor: one USD statement, converted at the EUR received
+
+Mercor's monthly "Line Item Statement" (`MercorStatementParser`, plain class, detects
+`"Mercor Line Item Statement"`) is in USD and says nothing about the euros that reached the
+bank, so, like a micro1 invoice, it is never a slip on its own (ADR-033). The parser yields
+`MercorStatement(Period, TotalPayUsd, ShiftPayUsd, HoursWorked, PayRateUsd)`. The period is
+the 1st of the month "Statement Period" starts in. The hourly lines
+(`... $$40.00 02:30 $$100.00`: a doubled `$$` before the rate and the amount, in no date
+order) must sum to `Total Shift Pay`, or the file is refused naming both sums, and a
+`Total Pay` below `Total Shift Pay` is refused too. Hours are Σ amount ÷ rate, rounded to two
+decimals, because the `HOURS WORKED` column is cut to the minute (a few cents of pay show
+`00:00`); the pay rate is shift pay ÷ those hours, which is the rate itself when every line
+shares it.
+
+`UnifiedUploadBatchCommandHandler` checks for a Mercor statement before the standard cascade
+(after micro1's two checks), stores the PDF and, once every file of the batch is in, returns a
+**`MercorNeedsEur`** result (`UnifiedMercorResult`): the USD figures, the stored file name and
+a suggestion, the sum of the credits from any bank whose description contains "mercor"
+(ignoring case) dated in the statement's month, listed with date, bank and amount. Waiting
+for the end of the batch lets a bank statement uploaded alongside count. A statement that
+fails to parse comes back as a failed `SalarySlip` with the reason rather than going to the
+cascade, since its title belongs to no other document. The batch saves no slip.
+
+The Upload page asks for the EUR received, pre-filled with the suggestion, and the slip review
+cannot open without it. `POST /api/salary/parse-mercor` (`ParseMercorStatement`) takes
+`{ pdfPath, eurReceived }`, reads the stored statement again and returns the EUR slip from
+`MercorReconciler.Reconcile(statement, eurReceived)`: gross = net = the EUR received (no fee
+is known, so no deduction), `rate = EUR ÷ TotalPayUsd`, `Base Pay = round(ShiftPayUsd × rate)`
+(the whole EUR when the statement is hourly pay only), `Other = EUR − Base Pay` (pay beyond
+the hourly lines, plus the rounding) and `HourlyRate = round(PayRateUsd × rate)`. The usual
+slip review follows: the profile is matched by the employer, "Mercor", and one created there
+starts with the `hours` formula; a second statement for a month offers the merge (ADR-008).
+The payouts are matched by date only, so a payout for late-month work, which lands the next
+month, is corrected by hand in the field.
 
 #### Profiles, categories and the parse flow
 
@@ -641,10 +677,10 @@ still deploys.
 
 | Service type | Lifetime |
 |---|---|
-| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
+| Parsers, `BankStatementParserFactory`, `SalarySlipParserFactory`, `GroceryReceiptParserFactory`, `Micro1InvoiceParser`, `DeelWithdrawalParser`, `MercorStatementParser` (concrete singletons, not factory-registered), `FileStorageService`, `YahooPriceHistorySource` (as `IPriceHistorySource`), `PriceSyncQueue`, `TimeProvider`, `LogFiles` | Singleton |
 | Feature handlers, `PdfExtractorService` (as `IPdfExtractor`), `StatementUploadService`, `GroceryReceiptUploadService`, `OrphanedPdfCleanup`, `ApplyRuleService`, `GroceryApplyRuleService`, `TradeImportService`, `GoogleOAuthService`, `GoogleCalendarService`, `GoogleTasksService` | Scoped |
 | `PriceHistorySyncService` | Hosted service (`AddHostedService`) |
-| `MealCardTextParser`, `ParseVerifier`, `CsvText` | Static classes, not registered in DI |
+| `MealCardTextParser`, `ParseVerifier`, `CsvText`, `Micro1Reconciler`, `MercorReconciler` | Static classes, not registered in DI |
 | `AppDbContext` | Scoped (EF default) |
 
 ## Frontend
@@ -786,6 +822,12 @@ All endpoints require the `X-Api-Key` header, except `/swagger` in development,
 `GET /api/auth/google/callback` (ADR-017) and `GET /api/health` (ADR-026). Use Swagger
 (`http://localhost:5098/swagger`) or read `Controllers/` for the full surface.
 
+`POST /api/upload/batch` takes every kind of document at once (PDFs, CSV exports, ZIPs of
+them) and answers one result per file, by `documentType`: `BankStatement`, `GroceryReceipt`,
+`SalarySlip` (parsed, saved only after review), `Micro1Unpaired`, `MercorNeedsEur` or
+`Unknown`. A Mercor statement then goes through `POST /api/salary/parse-mercor` with the EUR
+received (see "Mercor" above).
+
 `GET /api/health` is for deploy scripts and monitors. It answers 200 with `status: "ok"` when
 the database file exists, its migration history reads and no migration is pending, and 503
 with `status: "degraded"` and a `reason` otherwise: `database unreachable` (no file, or one
@@ -871,7 +913,10 @@ in SQL, searches and sorts with accents, `NOCASE` unique names, decimal scale, f
 Coverage: all bank/salary/grocery parsers (incl. the Trade Republic CSV export's row types,
 sums, order and refusals, and the micro1
 `Micro1InvoiceParser`/`DeelWithdrawalParser`/`Micro1Reconciler` two-PDF USD→EUR flow, with
-`UnifiedUploadBatch` pairing/unpaired/ambiguous cases, and CSV files skipping the extractor),
+`UnifiedUploadBatch` pairing/unpaired/ambiguous cases, the Mercor statement's sums, hours and
+refusals with `MercorReconciler`, the batch's EUR suggestion (that month's Mercor credits,
+from any bank, in the same batch too) and `ParseMercorStatement`, and CSV files skipping the
+extractor),
 `ParseVerifier`, `ApiKeyMiddleware`, `ExceptionHandlingMiddleware` (incl. a body over its
 limit), `RequestLoggingMiddleware`, the log files (missing or unwritable folder, retention,
 level defaults and overrides, JSON lines read back), `ApplyRuleService` (incl.

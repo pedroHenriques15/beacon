@@ -122,12 +122,56 @@ describe('uploadGroups', () => {
     const [group] = uploadGroups(outcome({ slips }));
 
     expect(group.entries.map((e) => e.slipIndex)).toEqual([0, null, 2, null]);
+    expect(group.entries.map((e) => e.action)).toEqual([
+      'Review and save',
+      null,
+      'Review and save',
+      null,
+    ]);
     expect(group.entries[0].title).toBe('Acme slip, September 2026');
     expect(group.entries[0].amount).toBe(2980);
     expect(group.entries[1].meta).toBe('Saved to Salary');
     expect(group.entries[3].title).toBe('d.pdf');
     expect(group.note).toBe('Review and save each slip before it is recorded.');
     expect(group.summary).toBe('1 to review, 1 saved, 2 failed');
+  });
+
+  it('asks for the EUR received of a Mercor statement before its review', () => {
+    const mercor = {
+      pdfPath: 'm',
+      fileName: 'mercor.pdf',
+      period: '2026-08-01',
+      totalPayUsd: 145.17,
+      hoursWorked: 3.6,
+      payRateUsd: 40,
+      suggestedEur: null,
+      payouts: [],
+    };
+    const [group] = uploadGroups(
+      outcome({
+        slips: [
+          { status: 'needs-eur', fileName: 'mercor.pdf', pdfPath: 'm', mercor },
+          {
+            status: 'ready',
+            fileName: 'mercor.pdf',
+            pdfPath: 'm',
+            mercor,
+            parsed: { ...parsedSlip, employer: 'Mercor', period: '2026-08-01' },
+          },
+        ],
+      }),
+    );
+
+    const [waiting, converted] = group.entries;
+    expect(waiting.tone).toBe('review');
+    expect(waiting.title).toBe('Mercor statement, August 2026');
+    expect(waiting.meta).toBe('$145.17 for 3.60 h, waiting for the EUR received');
+    expect(waiting.fileName).toBe('mercor.pdf');
+    expect(waiting.amount).toBeNull();
+    expect([waiting.slipIndex, waiting.action]).toEqual([0, 'Enter EUR received']);
+    expect(converted.title).toBe('Mercor slip, August 2026');
+    expect(converted.action).toBe('Review and save');
+    expect(group.summary).toBe('2 to review');
   });
 
   it('drops the review note once every slip is saved', () => {

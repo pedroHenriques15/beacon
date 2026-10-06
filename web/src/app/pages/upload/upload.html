@@ -278,7 +278,7 @@
                   }
                   @if (e.slipIndex !== null) {
                     <button type="button" class="btn-accent file__action" (click)="reviewEntry(e)">
-                      Review and save
+                      {{ e.action }}
                     </button>
                   }
                 </li>
@@ -344,7 +344,7 @@
           </span>
           <span class="kind__text">
             <strong>Salary slips</strong>
-            <span>CentralGest, Domirest</span>
+            <span>CentralGest, Domirest; Mercor's USD statement, with the EUR you received</span>
           </span>
         </li>
         <li class="kind">
@@ -617,6 +617,120 @@
           (click)="confirmTransfers()"
         >
           {{ transferSaving() ? 'Saving…' : transferActionLabel() }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showMercorModal() && mercorStatement(); as m) {
+  <div class="modal-overlay">
+    <div
+      class="modal mercor-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mercor-h"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-header">
+        <h3 id="mercor-h">Mercor, {{ formatPeriod(m.period) }}</h3>
+        <button
+          type="button"
+          class="modal-close"
+          aria-label="Close"
+          [disabled]="mercorLoading()"
+          (click)="dismissMercorModal()"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <p class="modal-sub">
+        Mercor's statement is in US dollars and doesn't say what reached your bank. Enter the euros
+        it paid; the slip is converted at that amount.
+      </p>
+
+      <dl class="usd">
+        <div>
+          <dt>Total pay</dt>
+          <dd>{{ usd(m.totalPayUsd) }}</dd>
+        </div>
+        <div>
+          <dt>Hours</dt>
+          <dd>{{ m.hoursWorked.toFixed(2) }}</dd>
+        </div>
+        <div>
+          <dt>Rate</dt>
+          <dd>{{ usd(m.payRateUsd) }}/h</dd>
+        </div>
+      </dl>
+
+      <label class="field-label" for="mercor-eur">EUR received</label>
+      <input
+        id="mercor-eur"
+        class="field-input"
+        type="number"
+        step="0.01"
+        min="0.01"
+        placeholder="0.00"
+        [ngModel]="mercorEur()"
+        (ngModelChange)="setMercorEur($event)"
+        (keydown.enter)="confirmMercorEur()"
+      />
+      @if (m.payouts.length > 0) {
+        <p class="field-hint">
+          Pre-filled with the Mercor {{ m.payouts.length === 1 ? 'payout' : 'payouts' }} imported
+          for {{ formatPeriod(m.period) }}. Pay for late-month work can land the month after;
+          correct the amount if so.
+        </p>
+        <ul class="payouts" aria-label="Mercor payouts">
+          @for (p of m.payouts; track $index) {
+            <li class="payout">
+              <span class="avatar" aria-hidden="true">{{ bankInitials(p.bank) }}</span>
+              <span class="payout__text">
+                <span class="payout__bank">{{ p.bank }}</span>
+                <span class="payout__date">{{ dayLabel(p.date) }}</span>
+              </span>
+              <span class="payout__amount">+{{ eur(p.amount) }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="field-hint">
+          No Mercor payout is imported for {{ formatPeriod(m.period) }}. Upload that month's bank
+          statement first, or enter the amount yourself.
+        </p>
+      }
+
+      @if (mercorError()) {
+        <p class="modal-error" role="alert">{{ mercorError() }}</p>
+      }
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="mercorLoading()"
+          (click)="dismissMercorModal()"
+        >
+          Later
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="!mercorEurValid() || mercorLoading()"
+          (click)="confirmMercorEur()"
+        >
+          {{ mercorLoading() ? 'Converting…' : 'Review the slip' }}
         </button>
       </div>
     </div>
