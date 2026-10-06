@@ -376,13 +376,11 @@ export class UploadComponent implements OnInit {
   }
 
   private uploadFiles(files: File[]): void {
-    const valid = files.filter(
-      (f) => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.zip'),
-    );
+    const valid = files.filter((f) => /\.(pdf|csv|zip)$/i.test(f.name));
 
     if (valid.length === 0) {
       this.state.set('error');
-      this.message.set('Only PDF files or ZIP archives containing PDFs are supported.');
+      this.message.set('Only PDF and CSV files, or ZIP archives of them, are supported.');
       return;
     }
 

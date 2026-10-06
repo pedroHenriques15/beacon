@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using Beacon.Api.Data;
 using Beacon.Api.Features.Investments.Shared;
@@ -24,7 +25,7 @@ public class StatementUploadService(
     IPdfExtractor extractor,
     BankStatementParserFactory parserFactory,
     FileStorageService fileStorage,
-    SavingsPlanImportService savingsPlanImport,
+    TradeImportService tradeImport,
     ILogger<StatementUploadService> logger)
 {
     public async Task<UploadResult> ImportAsync(IFormFile file, IReadOnlyList<string>? preExtractedPages = null, CancellationToken ct = default)
@@ -44,21 +45,41 @@ public class StatementUploadService(
                 return new UploadResult(false, string.Empty, DateOnly.MinValue,
                     0, 0, "This exact file has already been imported.");
 
-            var pages = preExtractedPages ?? await extractor.ExtractPagesAsync(tempPath, ct);
-            var fullText = string.Join("\n", pages);
-            var parser = parserFactory.DetectParser(fullText);
-            var parsed = parser.Parse(file.FileName, pages);
+            ParsedStatement parsed;
+            try
+            {
+                // A CSV is its own text, passed as the single page (ADR-031).
+                var pages = preExtractedPages
+                    ?? (CsvText.IsCsvFile(file.FileName)
+                        ? [CsvText.Decode(fileBytes)]
+                        : await extractor.ExtractPagesAsync(tempPath, ct));
+                var fullText = string.Join("\n", pages);
+                var parser = parserFactory.DetectParser(fullText);
+                parsed = parser.Parse(file.FileName, pages);
+            }
+            catch (FormatException ex)
+            {
+                // A file the parser refuses (a CSV row of an unknown type, say) is the user's to fix.
+                throw new NotSupportedException(ex.Message, ex);
+            }
 
             if (!string.Equals(parsed.Currency, "EUR", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
                     $"Only EUR statements are supported - this statement is in {parsed.Currency}.");
 
-            var warnings = ParseVerifier.VerifyStatement(parsed);
-
-            if (await db.MonthlyStatements.AnyAsync(s =>
-                    s.Bank == parsed.Bank && s.PeriodFrom == parsed.PeriodFrom))
+            // A statement without balances can't overlap another of its bank at all: the second
+            // would book the same rows again on top of the first's balances.
+            if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && (parsed.BalancesRelative
+                    ? s.PeriodFrom <= parsed.PeriodTo && s.PeriodTo >= parsed.PeriodFrom
+                    : s.PeriodFrom == parsed.PeriodFrom), ct))
                 return new UploadResult(false, parsed.Bank, parsed.PeriodFrom,
                     0, 0, "Statement already exists for this bank and period.");
+
+            var warnings = new List<string>();
+            if (parsed.BalancesRelative)
+                parsed = await ChainBalancesAsync(parsed, warnings, ct);
+            warnings.InsertRange(0, ParseVerifier.VerifyStatement(parsed));
+            warnings.AddRange(parsed.Warnings ?? []);
 
             var rules = await db.CategoryRules.ToListAsync();
             var excludedCategoryId = await ExcludedCategory.GetIdAsync(db, ct);
@@ -68,13 +89,6 @@ public class StatementUploadService(
 
             var transactions = parsed.Transactions.Select(tx =>
             {
-                var matchedRule = rules
-                    .OrderBy(r => r.Id)
-                    .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
-
-                var isSavingsPlan = parsed.Bank == "TRADE REPUBLIC"
-                    && tx.Description.Contains("Savings plan execution", StringComparison.Ordinal);
-
                 var transaction = new Transaction
                 {
                     DatePosting = tx.DatePosting,
@@ -83,15 +97,26 @@ public class StatementUploadService(
                     Amount = tx.Amount,
                     Type = tx.Type,
                     Balance = tx.Balance,
-                    CategoryRuleId = matchedRule?.Id,
                     CategorySetManually = false,
-                    IsExcluded = isSavingsPlan
                 };
+
+                // A buy is cash moved into an investment, not spending: excluded, with no
+                // category, and its trade becomes a lot below (ADR-031).
+                if (tx.Trade is not null)
+                {
+                    transaction.IsExcluded = true;
+                    return transaction;
+                }
+
+                var matchedRule = rules
+                    .OrderBy(r => r.Id)
+                    .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
+                transaction.CategoryRuleId = matchedRule?.Id;
                 ExcludedCategory.ApplyCategory(transaction, matchedRule?.CategoryId, excludedCategoryId);
                 return transaction;
             }).ToList();
 
-            var unknownCount = transactions.Count(t => t.CategoryId is null);
+            var unknownCount = transactions.Count(t => t.CategoryId is null && !t.IsExcluded);
 
             if (parsed.PprBalance.HasValue)
             {
@@ -148,18 +173,22 @@ public class StatementUploadService(
             logger.LogInformation("Imported {Count} transactions for {Bank} {Period} ({Unknown} uncategorised)",
                 parsed.Transactions.Count, parsed.Bank, parsed.PeriodFrom, unknownCount);
 
-            try
+            // The statement is committed: a lot that fails to import must not fail the upload.
+            var trades = parsed.Transactions.Where(t => t.Trade is not null).Select(t => t.Trade!).ToList();
+            if (trades.Count > 0)
             {
-                var lots = await savingsPlanImport.ImportAsync(statement, ct);
-                if (lots > 0)
-                    logger.LogInformation(
-                        "Auto-imported {Count} Trade Republic savings-plan lot(s) for {Period}",
-                        lots, parsed.PeriodFrom);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex,
-                    "Failed to auto-import Trade Republic savings-plan lots for {Period}", parsed.PeriodFrom);
+                try
+                {
+                    var lots = await tradeImport.ImportAsync(trades, ct);
+                    logger.LogInformation("Imported {Count} of {Trades} investment buy(s) as lots for {Bank} {Period}",
+                        lots, trades.Count, parsed.Bank, parsed.PeriodFrom);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to import the investment buys of {Bank} {Period} as lots",
+                        parsed.Bank, parsed.PeriodFrom);
+                    warnings.Add($"The investment buys were not added to Invest: {ex.Message}");
+                }
             }
 
             var newTxIds = transactions.Select(t => t.Id).ToHashSet();
@@ -238,6 +267,50 @@ public class StatementUploadService(
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
         }
+    }
+
+    /// <summary>
+    /// A statement without balances (a CSV export, ADR-031) opens at the closing balance of its
+    /// bank's statement for the previous month, and every balance moves up by it. With no earlier
+    /// statement it opens at 0.00 and says so; a month missing in between is refused, since the
+    /// balances would chain from the wrong month.
+    /// </summary>
+    private async Task<ParsedStatement> ChainBalancesAsync(
+        ParsedStatement parsed, List<string> warnings, CancellationToken ct)
+    {
+        var previous = await db.MonthlyStatements
+            .Where(s => s.Bank == parsed.Bank && s.PeriodFrom < parsed.PeriodFrom)
+            .OrderByDescending(s => s.PeriodFrom)
+            .FirstOrDefaultAsync(ct);
+
+        var opening = 0m;
+        if (previous is null)
+        {
+            warnings.Add($"No earlier {parsed.Bank} statement, so the opening balance was taken as 0.00.");
+        }
+        else
+        {
+            var month = new DateOnly(parsed.PeriodFrom.Year, parsed.PeriodFrom.Month, 1);
+            if (previous.PeriodTo < month.AddMonths(-1))
+            {
+                var missing = new DateOnly(previous.PeriodTo.Year, previous.PeriodTo.Month, 1).AddMonths(1);
+                throw new NotSupportedException(
+                    $"Import the {parsed.Bank} statement for {missing.ToString("MMMM yyyy", CultureInfo.InvariantCulture)} first: " +
+                    "each month's balances follow on from the month before.");
+            }
+            opening = previous.ClosingBalance;
+        }
+
+        if (await db.MonthlyStatements.AnyAsync(s => s.Bank == parsed.Bank && s.PeriodFrom > parsed.PeriodFrom, ct))
+            warnings.Add($"A later {parsed.Bank} statement already exists: its balances were not recomputed.");
+
+        return parsed with
+        {
+            OpeningBalance = parsed.OpeningBalance + opening,
+            ClosingBalance = parsed.ClosingBalance + opening,
+            Transactions = parsed.Transactions.Select(t => t with { Balance = t.Balance + opening }).ToList(),
+            BalancesRelative = false,
+        };
     }
 
     /// <summary>

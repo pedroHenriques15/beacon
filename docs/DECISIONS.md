@@ -115,7 +115,7 @@ negative sell), and sells are validated against net holdings on both server and 
 `StatementUploadService` marks them excluded (bank `TRADE REPUBLIC` only): they move cash
 into an investment. `SavingsPlanImportService` then turns each one into an `InvestmentLot`,
 creating the ETF asset on first sight by ISIN. The import is idempotent and its failures
-never fail the upload.
+never fail the upload. Superseded by ADR-031.
 
 ## ADR-015 · Backend tests use EF Core InMemory, never a mocked AppDbContext
 
@@ -319,3 +319,26 @@ sidebar, was hard to use on a phone. Costs accepted: three web fonts to load, mi
 `display=swap` and the preconnects; a dark-only client; route paths keep their old names
 (`/dashboard`, `/transactions`, `/analytics`, `/investments`, `/rules`) while their labels
 change to Home, Activity, Insights, Invest and Categories.
+
+## ADR-031 · Trade Republic is imported from its CSV export
+
+Supersedes ADR-014. Since 2026-10-06 Trade Republic comes in as its monthly transaction export
+("Extrato de transações", a CSV), and its PDF statement is no longer read: the PDF parser is
+removed, so a Trade Republic PDF is reported as not recognised. The PDF's table had to be
+pieced together from three lines a row, and its buys scraped from the description for an ISIN
+and a quantity; the CSV gives every row a type, the ISIN, shares, price, fee, tax and a unique
+`transaction_id`, so one-off buys and their fees come in too. ADR-004 still holds:
+`TradeRepublicCsvParser` is an `IBankStatementParser` detected by the CSV's header line, and
+the upload passes the file's text as a single page, without pdfplumber. A file holds one
+calendar month (one spanning two is refused), a row's cash effect is `amount + fee + tax`,
+and a row of an account, type, category or currency not seen yet is refused rather than
+guessed. The export has no balances, so they chain like the meal card's (ADR-010): the opening
+is the previous month's closing, 0.00 with a warning when there is no earlier statement, and a
+missing month in between is refused. A buy, from this parser or any later one, is cash moved
+into an investment: the parser attaches the trade to its row, the row is excluded with no
+category, and `TradeImportService` turns the trade into an `InvestmentLot`, creating the asset
+by ISIN on first sight. A lot keeps the trade's id in `ExternalId`, so the same trade is never
+booked twice; a trade without one dedups by asset, date and quantity, as before. A failed lot
+import never fails the upload. Stored files keep their extension (`<guid>.csv`); `PdfPath`
+keeps its name. Costs accepted: a month's balances are only as right as the months before it,
+and the export carries no account IBAN, so these statements have an empty `Account`.

@@ -44,7 +44,8 @@
             </h2>
             <p class="drop__text">
               Beacon works out whether each one is a bank statement, a salary slip or a grocery
-              receipt, and files it in the right place. A ZIP of PDFs works too.
+              receipt, and files it in the right place. A ZIP of PDFs works too, and so does Trade
+              Republic's CSV export.
             </p>
             <div class="drop__actions">
               <button type="button" class="btn-primary drop__choose" (click)="pdfInput.click()">
@@ -57,7 +58,7 @@
             <input
               #pdfInput
               type="file"
-              accept=".pdf,.zip"
+              accept=".pdf,.csv,.zip"
               multiple
               hidden
               (change)="onFileSelected($event)"
@@ -65,7 +66,7 @@
             <input
               #folderInput
               type="file"
-              accept=".pdf"
+              accept=".pdf,.csv"
               webkitdirectory
               multiple
               hidden
@@ -322,7 +323,7 @@
           </span>
           <span class="kind__text">
             <strong>Bank statements</strong>
-            <span>ActivoBank, BPI, Revolut</span>
+            <span>ActivoBank, BPI, Revolut; Trade Republic's CSV export</span>
           </span>
         </li>
         <li class="kind">

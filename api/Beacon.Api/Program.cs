@@ -108,7 +108,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseBeaconSqlite(c
 builder.Services.AddSingleton<IBankStatementParser, ActivoBankParser>();
 builder.Services.AddSingleton<IBankStatementParser, BpiParser>();
 builder.Services.AddSingleton<IBankStatementParser, RevolutParser>();
-builder.Services.AddSingleton<IBankStatementParser, TradeRepublicParser>();
+builder.Services.AddSingleton<IBankStatementParser, TradeRepublicCsvParser>();
 builder.Services.AddSingleton<BankStatementParserFactory>();
 
 builder.Services.AddSingleton<IGroceryReceiptParser, ContinenteParser>();
@@ -235,7 +235,7 @@ builder.Services.AddScoped<DeleteInvestmentLotCommandHandler>();
 builder.Services.AddScoped<UpsertInvestmentPriceCommandHandler>();
 builder.Services.AddScoped<DeleteInvestmentPriceSnapshotCommandHandler>();
 builder.Services.AddScoped<SyncPriceHistoryCommandHandler>();
-builder.Services.AddScoped<SavingsPlanImportService>();
+builder.Services.AddScoped<TradeImportService>();
 builder.Services.AddHostedService<PriceHistorySyncService>();
 
 builder.Services.AddScoped<GetLogsQueryHandler>();
