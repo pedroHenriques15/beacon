@@ -276,9 +276,16 @@ items), no personal data.
 
 | Parser | Detection signal | Format notes |
 |---|---|---|
-| `CentralGestParser` | `"CentralGest Software"` footer | Two-column (original+duplicate); mixed PT/US number formats |
+| `CentralGestParser` | `"CentralGest Software"` footer | Two-column (original+duplicate); mixed PT/US number formats; subsidy-only runs (see below) |
 | `DomirestParser` | `"DOMIREST"` company name | Stacked original+duplicate; PT number format |
 | `Micro1InvoiceParser` | `"Micro1 Inc."` (USD invoice) | **Not** factory-registered; paired with a Deel withdrawal → EUR (see below) |
+
+`CentralGestParser` reads a fixed set of lines: `Vencimento`, `PPR`, `Tickets Refeição`,
+`Segurança Social`, `IRS`, and the holiday and Christmas pay lines (`Subsídio de Férias` or
+`de Natal`, `PPR Sub Férias` or `Sub Natal`), each under its own name. `HoursWorked` is the
+month's weekdays × 8, except on a slip with no `Vencimento`: a subsidy-only pay run, which
+has no hours (see "Merging a second pay run into a month"). `TotalEspecie` is the meal
+tickets paid in kind; the net (`Total a Pagar`) leaves them out.
 
 **To add a new salary slip parser:**
 
@@ -340,17 +347,20 @@ Salary parse flow:
 #### Merging a second pay run into a month
 
 `SalarySlips` has a unique `(SalaryProfileId, Period)` index and `Period` is always the 1st
-of the month, so a cycle that pays **twice a calendar month** (micro1/Deel invoices each
-half-month) cannot create two rows (ADR-008). `POST /api/salary/slips/{id}/merge`
-(`MergeSalarySlipCommandHandler`) folds a second pay run into the existing slip instead:
-gross/net/base/hours/`TotalEspecie` are summed null-safely, `HourlyRate` is re-averaged
-**weighted by hours** (it is a rate, not a total), line items are combined **per category**
-(one `Base Pay` line per month, new categories appended after the existing `SortOrder`), and
-per-unit detail (`UnitValue`, `Percentage`) survives only when both sides agree. `Period` and
-`SalaryProfileId` are never touched, and incoming line-item categories are validated against
-the target slip's profile exactly as in `CreateSalarySlip`. A slip holds **one** PDF: the
-first stays authoritative and a superseded second PDF is deleted from storage rather than
-orphaned, with both file names kept in `SourceFile` (`"a.pdf; b.pdf"`).
+of the month, so a cycle that pays **twice a calendar month** cannot create two rows
+(ADR-008). Two do: micro1/Deel invoices each half-month, and a CentralGest employer pays
+holiday or Christmas pay (subsídio de férias, de Natal) as a second slip for the month.
+`POST /api/salary/slips/{id}/merge` (`MergeSalarySlipCommandHandler`) folds a second pay run
+into the existing slip instead: gross/net/base/hours/`TotalEspecie` are summed null-safely,
+`HourlyRate` is re-averaged **weighted by hours** (it is a rate, not a total), line items are
+combined **per category** (one `Base Pay` line per month, new categories appended after the
+existing `SortOrder`), and per-unit detail (`UnitValue`, `Percentage`) survives only when both
+sides agree. A subsidy-only slip parses with no hours and no base, so merging it leaves the
+month's as they were, and its subsidy lines join the month under their own categories.
+`Period` and `SalaryProfileId` are never touched, and incoming line-item categories are
+validated against the target slip's profile exactly as in `CreateSalarySlip`. A slip holds
+**one** PDF: the first stays authoritative and a superseded second PDF is deleted from
+storage rather than orphaned, with both file names kept in `SourceFile` (`"a.pdf; b.pdf"`).
 
 The upload page drives this: when the slip review modal opens it re-fetches that profile's
 slips (an earlier review *in the same batch* may have just created the slip this one merges
@@ -388,8 +398,9 @@ public interface IGroceryReceiptParser
 
 `Services/Parsing/ParseVerifier.cs` is a static post-parse sanity-check layer that returns
 user-facing warnings: `VerifyStatement` (opening + credits − debits vs closing balance),
-`VerifySalarySlip` (line-item sums vs gross/net), `VerifyGroceryReceipt` (item sum vs receipt
-total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
+`VerifySalarySlip` (income items vs gross; income − deductions − tax − `TotalEspecie` vs net,
+since what is paid in kind never reaches the bank), `VerifyGroceryReceipt` (item sum vs
+receipt total). Called from `StatementUploadService`, `ParseSalarySlipCommandHandler`,
 `GroceryReceiptUploadService` and `UnifiedUploadBatchCommandHandler`.
 
 ### File storage
