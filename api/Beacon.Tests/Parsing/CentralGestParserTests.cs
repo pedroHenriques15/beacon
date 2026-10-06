@@ -38,7 +38,8 @@ public class CentralGestParserTests
         string irs = "60,00",
         string gross = "1,680.00",
         string deductions = "192.00",
-        string net = "1,488.00") => $"""
+        string net = "1,488.00",
+        string extraLines = "") => $"""
         {employer} {employer}
         4000-000 - Porto
         N.º Contribuinte: {nif}
@@ -49,6 +50,7 @@ public class CentralGestParserTests
         Programador Informático 11111111111 22222222222 1,200.00
         Vencimento {vencimento} 0.00 Vencimento {vencimento} 0.00
         PPR 1.00 300.00 {ppr} 0.00 PPR 1.00 300.00 {ppr} 0.00
+        {extraLines}
         Tickets Refeição 20.00 9.00 {tickets} 11.00 0.00 Tickets Refeição 20.00 9.00 {tickets} 11.00 0.00
         Segurança Social {segSocial} 11.00 1,200.00 Segurança Social {segSocial} 11.00 1,200.00
         IRS {irs} 12.50 480.00 IRS {irs} 12.50 480.00
@@ -216,6 +218,140 @@ public class CentralGestParserTests
 
         Assert.DoesNotContain(result.LineItems, i => i.Description == "PPR – Poupança Reforma");
         Assert.DoesNotContain(result.LineItems, i => i.Description == "Tickets Refeição");
+    }
+
+    [Fact]
+    public void Parse_RegularSlip_CountsTheMonthsWeekdayHours()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
+
+        Assert.Equal(176m, result.HoursWorked); // March 2026: 22 weekdays
+    }
+
+    [Fact]
+    public void Parse_RegularSlipWithMealTickets_VerifiesWithoutWarnings()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
+
+        Assert.Equal(180.00m, result.TotalEspecie);
+        Assert.Empty(ParseVerifier.VerifySalarySlip(result));
+    }
+
+    [Fact]
+    public void Parse_SlipWithPprAndPprSubFerias_KeepsThemApart()
+    {
+        var page = BuildSamplePage(
+            extraLines: "PPR Sub Férias 1.00 250.00 250,00 0.00 PPR Sub Férias 1.00 250.00 250,00 0.00");
+
+        var result = _parser.Parse("slip.pdf", [page]);
+
+        Assert.Equal(300.00m, result.LineItems.Single(i => i.Description == "PPR – Poupança Reforma").Amount);
+        Assert.Equal(250.00m, result.LineItems.Single(i => i.Description == "PPR Sub Férias").Amount);
+    }
+
+    /// <summary>
+    /// A pay run with only a subsidy: no Vencimento and no meal tickets. Synthetic figures in the
+    /// shape of a real holiday-pay slip.
+    /// </summary>
+    private static string BuildSubsidyPage(string subsidyLines, string period = "julho - 2026") => $"""
+        EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A. EXAMPLE TECH - CONSULTORIA INFORMÁTICA S.A.
+        4000-000 - Porto
+        N.º Contribuinte: 999000002
+        Original
+        Recibo de Remuneração
+        Mês: {period}
+         127
+        Programador Informático 11111111111 22222222222 1,200.00
+        {subsidyLines}
+        Segurança Social 132,00 11.00 1,200.00 Segurança Social 132,00 11.00 1,200.00
+        IRS 60,00 12.50 480.00 IRS 60,00 12.50 480.00
+         1,500.00 192.00 1,308.00
+         0,00 1 308,00
+        CentralGest Software - RECIBA5_DetIRS_090.RPT CentralGest Software - RECIBA5_DetIRS_090.RPT
+        """;
+
+    private const string HolidayPayLines = """
+        PPR Sub Férias 1.00 300.00 300,00 0.00 PPR Sub Férias 1.00 300.00 300,00 0.00
+        Subsídio de Férias 22.00 d 54.55 1 200,00 0.00 Subsídio de Férias 22.00 d 54.55 1 200,00 0.00
+        """;
+
+    private const string ChristmasPayLines = """
+        PPR Sub Natal 1.00 300.00 300,00 0.00 PPR Sub Natal 1.00 300.00 300,00 0.00
+        Subsídio de Natal 1.00 1,200.00 1 200,00 0.00 Subsídio de Natal 1.00 1,200.00 1 200,00 0.00
+        """;
+
+    [Fact]
+    public void Parse_HolidayPaySlip_ReadsSubsidyAndItsPprAsIncome()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(HolidayPayLines)]);
+
+        var subsidy = result.LineItems.Single(i => i.Description == "Subsídio de Férias");
+        Assert.Equal(1200.00m, subsidy.Amount);
+        Assert.Equal("income", subsidy.ItemType);
+        Assert.Equal(22.00m, subsidy.Quantity);
+        Assert.Equal(54.55m, subsidy.UnitValue);
+
+        var ppr = result.LineItems.Single(i => i.Description == "PPR Sub Férias");
+        Assert.Equal(300.00m, ppr.Amount);
+        Assert.Equal("income", ppr.ItemType);
+        Assert.Equal(1.00m, ppr.Quantity);
+        Assert.Equal(300.00m, ppr.UnitValue);
+    }
+
+    [Fact]
+    public void Parse_HolidayPaySlip_TakesNoPlainPprOrVencimento()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(HolidayPayLines)]);
+
+        Assert.Equal(
+            new[] { "PPR Sub Férias", "Subsídio de Férias", "Segurança Social", "IRS" },
+            result.LineItems.Select(i => i.Description));
+    }
+
+    [Fact]
+    public void Parse_HolidayPaySlip_SumsToGrossAndVerifiesWithoutWarnings()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(HolidayPayLines)]);
+
+        Assert.Equal(1500.00m, result.GrossAmount);
+        Assert.Equal(1308.00m, result.NetAmount);
+        Assert.Equal(result.GrossAmount, result.LineItems.Where(i => i.ItemType == "income").Sum(i => i.Amount));
+        Assert.Empty(ParseVerifier.VerifySalarySlip(result));
+    }
+
+    [Fact]
+    public void Parse_HolidayPaySlip_HasNoHoursOrBase()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(HolidayPayLines)]);
+
+        Assert.Null(result.HoursWorked);
+        Assert.Null(result.BaseAmount);
+    }
+
+    [Fact]
+    public void Parse_ChristmasPaySlip_ReadsSubsidyAndItsPprAsIncome()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(ChristmasPayLines, "novembro - 2026")]);
+
+        var subsidy = result.LineItems.Single(i => i.Description == "Subsídio de Natal");
+        Assert.Equal(1200.00m, subsidy.Amount);
+        Assert.Equal("income", subsidy.ItemType);
+        Assert.Equal(1.00m, subsidy.Quantity);
+        Assert.Equal(1200.00m, subsidy.UnitValue);
+
+        var ppr = result.LineItems.Single(i => i.Description == "PPR Sub Natal");
+        Assert.Equal(300.00m, ppr.Amount);
+        Assert.Equal("income", ppr.ItemType);
+    }
+
+    [Fact]
+    public void Parse_ChristmasPaySlip_SumsToGrossWithNoHours()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSubsidyPage(ChristmasPayLines, "novembro - 2026")]);
+
+        Assert.Equal(new DateOnly(2026, 11, 1), result.Period);
+        Assert.Null(result.HoursWorked);
+        Assert.Empty(ParseVerifier.VerifySalarySlip(result));
     }
 
     [Theory]

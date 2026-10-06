@@ -22,10 +22,12 @@ public partial class CentralGestParser : ISalarySlipParser
         var hourlyRate = ExtractHourlyRate(fullText);
         var lineItems = ExtractLineItems(fullText);
 
+        // A holiday or Christmas pay run has no Vencimento and pays for no hours of its own, so
+        // merging it into its month must leave that month's hours as they were.
         return new ParsedSalarySlip(
             employer, employerNif, period, gross, net, lineItems,
             BaseAmount: baseAmount,
-            HoursWorked: CountWeekdayHours(period),
+            HoursWorked: baseAmount is null ? null : CountWeekdayHours(period),
             HourlyRate: hourlyRate,
             TotalEspecie: totalEspecie);
     }
@@ -112,6 +114,9 @@ public partial class CentralGestParser : ISalarySlipParser
                 Quantity: ParseUs(ppr.Groups[1].Value),
                 UnitValue: ParseUs(ppr.Groups[2].Value)));
 
+        AddSubsidyItems(items, PprSubsidyRegex().Matches(fullText));
+        AddSubsidyItems(items, SubsidyRegex().Matches(fullText));
+
         var tr = TicketsRegex().Match(fullText);
         if (tr.Success)
             items.Add(new ParsedSalaryLineItem(
@@ -140,6 +145,26 @@ public partial class CentralGestParser : ISalarySlipParser
                 IncidenciaBase: ParseUs(irs.Groups[3].Value)));
 
         return items;
+    }
+
+    /// <summary>
+    /// Holiday (Férias) and Christmas (Natal) pay lines, each kept under its own name. Every line
+    /// appears twice, once per column (original and duplicate), so a name is taken only once.
+    /// </summary>
+    private static void AddSubsidyItems(List<ParsedSalaryLineItem> items, MatchCollection matches)
+    {
+        foreach (Match m in matches)
+        {
+            var name = m.Groups["name"].Value;
+            if (items.Any(i => i.Description == name)) continue;
+
+            items.Add(new ParsedSalaryLineItem(
+                name,
+                ParsePt(m.Groups["amount"].Value),
+                "income",
+                Quantity: ParseUs(m.Groups["qty"].Value),
+                UnitValue: ParseUs(m.Groups["unit"].Value)));
+        }
     }
 
     public static decimal ParsePt(string s) =>
@@ -185,6 +210,13 @@ public partial class CentralGestParser : ISalarySlipParser
 
     [GeneratedRegex(@"PPR\s+([\d.]+)\s+([\d.]+)\s+([\d ]+,\d{2})")]
     private static partial Regex PprRegex();
+
+    [GeneratedRegex(@"(?<name>PPR Sub (?:Férias|Natal))\s+(?<qty>[\d,]+\.\d{2})\s+(?<unit>[\d,]+\.\d{2})\s+(?<amount>[\d ]+,\d{2})")]
+    private static partial Regex PprSubsidyRegex();
+
+    // The quantity may carry a unit letter, such as "22.00 d" for days.
+    [GeneratedRegex(@"(?<name>Subsídio de (?:Férias|Natal))\s+(?<qty>[\d,]+\.\d{2})\s+(?:\p{L}+\s+)?(?<unit>[\d,]+\.\d{2})\s+(?<amount>[\d ]+,\d{2})")]
+    private static partial Regex SubsidyRegex();
 
     [GeneratedRegex(@"Tickets Refeição\s+([\d.]+)\s+([\d.]+)\s+([\d ]+,\d{2})")]
     private static partial Regex TicketsRegex();

@@ -12,7 +12,8 @@ namespace Beacon.Tests.Handlers;
 
 /// <summary>
 /// Merging a second pay run into an existing month — the micro1/Deel case, where a paycheck arrives
-/// twice a calendar month but the schema allows one slip per (profile, period).
+/// twice a calendar month but the schema allows one slip per (profile, period), and a holiday or
+/// Christmas pay run paid as its own slip.
 /// </summary>
 public class MergeSalarySlipTests : IDisposable
 {
@@ -362,6 +363,77 @@ public class MergeSalarySlipTests : IDisposable
         Assert.Null(result);
         Assert.NotNull(error);
         Assert.Equal(1402.47m, (await db.SalarySlips.FirstAsync()).GrossAmount);
+    }
+
+    /// <summary>
+    /// A holiday pay run has its own subsidy line, Social Security and IRS, but no base pay and no
+    /// hours: merged into its month it must leave the month's hours alone.
+    /// </summary>
+    [Fact]
+    public async Task Merge_SubsidyRunWithoutHours_KeepsTheMonthsHoursAndSumsTheRest()
+    {
+        await using var db = CreateDb();
+        var profile = new SalaryProfile { Name = "Example Tech" };
+        db.SalaryProfiles.Add(profile);
+        await db.SaveChangesAsync();
+
+        SalaryItemCategory Category(string name, string itemType) => new()
+        { SalaryProfileId = profile.Id, Name = name, Color = "#22c55e", ItemType = itemType };
+        var vencimento = Category("Vencimento", "income");
+        var subsidy = Category("Subsídio de Férias", "income");
+        var socialSecurity = Category("Segurança Social", "deduction");
+        var irs = Category("IRS", "tax");
+        db.SalaryItemCategories.AddRange(vencimento, subsidy, socialSecurity, irs);
+        await db.SaveChangesAsync();
+
+        var july = new SalarySlip
+        {
+            SalaryProfileId = profile.Id,
+            Period = new DateOnly(2026, 7, 1),
+            GrossAmount = 1200m,
+            NetAmount = 1008m,
+            BaseAmount = 1200m,
+            HoursWorked = 184m,
+            HourlyRate = 7.50m,
+            LineItems =
+            [
+                new SalaryLineItem { SalaryItemCategoryId = vencimento.Id, Amount = 1200m, SortOrder = 0 },
+                new SalaryLineItem { SalaryItemCategoryId = socialSecurity.Id, Amount = 132m, SortOrder = 1 },
+                new SalaryLineItem { SalaryItemCategoryId = irs.Id, Amount = 60m, SortOrder = 2 },
+            ],
+        };
+        db.SalarySlips.Add(july);
+        await db.SaveChangesAsync();
+
+        var holidayPay = new MergeSalarySlipCommand(
+            july.Id,
+            GrossAmount: 1200m,
+            NetAmount: 1008m,
+            Notes: null,
+            PdfPath: null,
+            SourceFile: "july-holiday-pay.pdf",
+            LineItems:
+            [
+                new CreateLineItemRequest(subsidy.Id, 1200m, 0),
+                new CreateLineItemRequest(socialSecurity.Id, 132m, 1),
+                new CreateLineItemRequest(irs.Id, 60m, 2),
+            ],
+            BaseAmount: null,
+            HoursWorked: null,
+            HourlyRate: 7.50m);
+
+        var (result, error) = await CreateHandler(db).HandleAsync(holidayPay);
+
+        Assert.Null(error);
+        Assert.Equal(184m, result!.HoursWorked);
+        Assert.Equal(1200m, result.BaseAmount);
+        Assert.Equal(7.50m, result.HourlyRate);
+        Assert.Equal(2400m, result.GrossAmount);
+        Assert.Equal(2016m, result.NetAmount);
+        Assert.Equal(4, result.LineItems.Count);
+        Assert.Equal(1200m, result.LineItems.Single(li => li.SalaryItemCategoryId == subsidy.Id).Amount);
+        Assert.Equal(264m, result.LineItems.Single(li => li.SalaryItemCategoryId == socialSecurity.Id).Amount);
+        Assert.Equal(120m, result.LineItems.Single(li => li.SalaryItemCategoryId == irs.Id).Amount);
     }
 
     [Fact]

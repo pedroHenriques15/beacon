@@ -221,6 +221,15 @@ public class DomirestParserTests
         Assert.Equal(4, result.LineItems.Count);
     }
 
+    [Fact]
+    public void Parse_SampleSlip_VerifiesWithoutWarnings()
+    {
+        var result = _parser.Parse("slip.pdf", [BuildSamplePage()]);
+
+        Assert.Null(result.TotalEspecie);
+        Assert.Empty(ParseVerifier.VerifySalarySlip(result));
+    }
+
     [Theory]
     [InlineData("364,80", 364.80)]
     [InlineData("42,33", 42.33)]

@@ -216,6 +216,44 @@ public class ParseVerifierTests
         Assert.Empty(ParseVerifier.VerifySalarySlip(slip));
     }
 
+    [Fact]
+    public void VerifySalarySlip_NetLeavesOutWhatIsPaidInKind_ReturnsNoWarnings()
+    {
+        // Meal tickets count in the income but never reach the bank: 2000 − 300 − 200 − 150 = 1350
+        var slip = new ParsedSalarySlip(
+            "Employer", null,
+            DateOnly.MinValue,
+            GrossAmount: 2000m, NetAmount: 1350m,
+            LineItems:
+            [
+                LineItem("income", 2000m),
+                LineItem("deduction", 300m),
+                LineItem("tax", 200m)
+            ],
+            TotalEspecie: 150m);
+
+        Assert.Empty(ParseVerifier.VerifySalarySlip(slip));
+    }
+
+    [Fact]
+    public void VerifySalarySlip_NetMismatchWithPaidInKind_NamesItInTheWarning()
+    {
+        var slip = new ParsedSalarySlip(
+            "Employer", null,
+            DateOnly.MinValue,
+            GrossAmount: 2000m, NetAmount: 1500m,
+            LineItems:
+            [
+                LineItem("income", 2000m),
+                LineItem("deduction", 300m),
+                LineItem("tax", 200m)
+            ],
+            TotalEspecie: 150m);
+
+        var warning = Assert.Single(ParseVerifier.VerifySalarySlip(slip));
+        Assert.Contains("income − deductions − tax − paid in kind =", warning);
+    }
+
     // ── VerifyGroceryReceipt ─────────────────────────────────────────────────
 
     [Fact]
