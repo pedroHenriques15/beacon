@@ -161,12 +161,17 @@ Excluded category and clears it when the row moves out. It is generic over
 tables mean two id lookups (`GetIdAsync` / `GetGroceryIdAsync`) but one shared category name.
 
 Call sites. Transactions: `SetTransactionCategory`, `UpdateTransaction`, `CreateTransaction`,
-`MarkTransfers`, `ApplyRuleService`. Groceries: `SetGroceryItemCategory`,
+`MarkTransfers`, `ApplyRuleService`, `StatementUploadService` (each parsed row's rule match,
+and the synthetic "BPI Reforma - Ganhos" row, also when a backfill recomputes it) and
+`ImportMealCardText` (each row's rule match). Groceries: `SetGroceryItemCategory`,
 `CreateGroceryItem`, `MarkGroceryItemsExcluded`, `GroceryApplyRuleService`,
 `GroceryReceiptUploadService` (which also routes receipt-category **mappings** through it, so
-mapping a receipt section to Excluded genuinely excludes its items on import). Never write
-`.CategoryId = …` directly: a label and a flag that drift apart mean a row shows up as a
-spending line labelled "Excluded".
+mapping a receipt section to Excluded genuinely excludes its items on import) and
+`CreateGroceryReceiptCategoryMapping` (the new mapping applied to unassigned items already
+stored). Never write `.CategoryId = …` directly: a label and a flag that drift apart mean a
+row shows up as a spending line labelled "Excluded". The statement and meal-card imports once
+did, so rules that put a row in Excluded left it unflagged; migration
+`FlagRowsInExcludedCategory` flagged every row already in Excluded, and never clears a flag.
 
 A row can also be excluded with **no** category (Trade Republic savings-plan buys, set by
 `StatementUploadService`); `ApplyCategory` deliberately leaves such a flag alone when a
@@ -183,7 +188,7 @@ out of totals"; its In, Out and Kept come from `allTransactions` and `countedIte
 filter applied, so those rows never reach a figure. The Excluded category is never offered as
 a plain category pick (`assignableCats` / `gAssignableCats` on the Activity page), since
 excluding is its own action, but it stays in *filter* dropdowns so excluded rows remain
-findable. Rules *may* target it; both rule services set the flag when
+findable. Rules *may* target it; both rule services and every import set the flag when
 they match.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a

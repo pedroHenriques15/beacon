@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Shared;
 using Beacon.Api.Models;
 using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +54,7 @@ public class StatementUploadServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var recomputed = await StatementUploadService.RecomputeNextPprSyntheticAsync(
-            db, [], new DateOnly(2026, 2, 1), 1100m);
+            db, [], null, new DateOnly(2026, 2, 1), 1100m);
 
         Assert.Equal(new DateOnly(2026, 3, 1), recomputed);
         var synthetic = await db.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
@@ -72,7 +73,7 @@ public class StatementUploadServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var recomputed = await StatementUploadService.RecomputeNextPprSyntheticAsync(
-            db, [], new DateOnly(2026, 2, 1), 1100m);
+            db, [], null, new DateOnly(2026, 2, 1), 1100m);
 
         Assert.Equal(new DateOnly(2026, 3, 1), recomputed);
         Assert.False(await db.Transactions.AnyAsync(t => t.Description == "BPI Reforma - Ganhos"));
@@ -90,12 +91,35 @@ public class StatementUploadServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var recomputed = await StatementUploadService.RecomputeNextPprSyntheticAsync(
-            db, [], new DateOnly(2026, 2, 1), 1000m);
+            db, [], null, new DateOnly(2026, 2, 1), 1000m);
 
         Assert.Equal(new DateOnly(2026, 3, 1), recomputed);
         var synthetic = await db.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
         Assert.Equal(100m, synthetic.Amount);
         Assert.Equal("debit", synthetic.Type);
+    }
+
+    [Fact]
+    public async Task RecomputeNextPprSynthetic_MissingSynthetic_RuleToExcluded_CreatesItExcluded()
+    {
+        await using var db = CreateDb();
+
+        var excluded = new Category { Name = ExcludedCategory.Name, Color = "#64748b", IsProtected = true };
+        db.Categories.Add(excluded);
+        db.MonthlyStatements.Add(MakeBpiStatement(
+            new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), 900m));
+        await db.SaveChangesAsync();
+        var rule = new CategoryRule { CategoryId = excluded.Id, Pattern = "BPI Reforma" };
+        db.CategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        await StatementUploadService.RecomputeNextPprSyntheticAsync(
+            db, [rule], excluded.Id, new DateOnly(2026, 2, 1), 1000m);
+
+        await using var freshDb = CreateDb();
+        var synthetic = await freshDb.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
+        Assert.Equal(excluded.Id, synthetic.CategoryId);
+        Assert.True(synthetic.IsExcluded);
     }
 
     [Fact]
@@ -110,7 +134,7 @@ public class StatementUploadServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var recomputed = await StatementUploadService.RecomputeNextPprSyntheticAsync(
-            db, [], new DateOnly(2026, 2, 1), 1100m);
+            db, [], null, new DateOnly(2026, 2, 1), 1100m);
 
         // User-touched rows are never silently destroyed.
         Assert.Null(recomputed);
@@ -127,7 +151,7 @@ public class StatementUploadServiceTests : IDisposable
         await db.SaveChangesAsync();
 
         var recomputed = await StatementUploadService.RecomputeNextPprSyntheticAsync(
-            db, [], new DateOnly(2026, 2, 1), 1100m);
+            db, [], null, new DateOnly(2026, 2, 1), 1100m);
 
         Assert.Null(recomputed);
     }
