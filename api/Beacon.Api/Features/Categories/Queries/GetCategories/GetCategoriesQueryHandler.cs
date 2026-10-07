@@ -13,7 +13,7 @@ public class GetCategoriesQueryHandler(AppDbContext db, ILogger<GetCategoriesQue
             .OrderBy(c => EF.Functions.Collate(c.Name, SqliteSetup.DisplayOrder))
             .Select(c => new GetCategoriesResponse(
                 c.Id, c.Name, c.Color, c.IsProtected,
-                c.Rules.Select(r => new RuleDto(r.Id, r.CategoryId, r.Pattern)).ToList()))
+                c.Rules.Select(r => new RuleDto(r.Id, r.CategoryId, r.Pattern, r.MatchWholeDescription)).ToList()))
             .ToListAsync(ct);
     }
 }

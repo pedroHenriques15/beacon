@@ -638,6 +638,27 @@ public class StatementHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportMealCardText_RuleWithAnAmount_MatchesOnlyThatAmount()
+    {
+        await using var db = CreateDb();
+
+        var cat = new Category { Name = "Groceries", Color = "#00ff00" };
+        db.Categories.Add(cat);
+        await db.SaveChangesAsync();
+        db.CategoryRules.AddRange(
+            new CategoryRule { CategoryId = cat.Id, Pattern = "LIDL", Value = 12.50m },
+            new CategoryRule { CategoryId = cat.Id, Pattern = "PINGO DOCE", Value = 9.99m, MatchWholeDescription = true });
+        await db.SaveChangesAsync();
+
+        await MakeImportHandler(db).HandleAsync(
+            new ImportMealCardTextCommand(ValidMealCardText, ClosingBalance: 79.20m), CancellationToken.None);
+
+        var txs = await db.Transactions.ToListAsync();
+        Assert.Equal(cat.Id, txs.Single(t => t.Description == "LIDL STORE").CategoryId);
+        Assert.Null(txs.Single(t => t.Description == "PINGO DOCE").CategoryId);
+    }
+
+    [Fact]
     public async Task ImportMealCardText_RuleToExcludedCategory_StoresTheRowExcluded()
     {
         await using var db = CreateDb();

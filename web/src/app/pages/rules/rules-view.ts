@@ -36,13 +36,14 @@ export function ruleAmount(value: number | null | undefined): string {
   return value < 0 ? signedEur(value) : eur(value);
 }
 
-/** What a rule matches, in words: 'contains Banana and amount €2.50'. */
+/** What a rule matches, in words: 'contains Banana and amount €2.50', 'equals BANANA KG'. */
 export function ruleSummary(
   pattern: string | null | undefined,
   value: number | null | undefined,
+  matchWholeDescription: boolean,
 ): string {
   const parts: string[] = [];
-  if (pattern) parts.push(`contains ${pattern}`);
+  if (pattern) parts.push(`${matchWholeDescription ? 'equals' : 'contains'} ${pattern}`);
   if (value !== null && value !== undefined) parts.push(`amount ${ruleAmount(value)}`);
   return parts.join(' and ');
 }

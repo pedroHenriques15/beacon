@@ -30,9 +30,16 @@ export class CategoriesService {
     color: string,
     pattern?: string,
     value?: number | null,
+    matchWholeDescription = false,
   ): Observable<Category> {
     return this.http
-      .post<Category>('/api/categories', { name, color, pattern, value: value ?? null })
+      .post<Category>('/api/categories', {
+        name,
+        color,
+        pattern,
+        value: value ?? null,
+        matchWholeDescription,
+      })
       .pipe(tap(() => this.load()));
   }
 
@@ -40,15 +47,30 @@ export class CategoriesService {
     return this.http.delete<void>(`/api/categories/${id}`).pipe(tap(() => this.load()));
   }
 
-  createRule(categoryId: number, pattern: string, value?: number | null): Observable<CategoryRule> {
+  createRule(
+    categoryId: number,
+    pattern: string,
+    value?: number | null,
+    matchWholeDescription = false,
+  ): Observable<CategoryRule> {
     return this.http
-      .post<CategoryRule>('/api/categories/rules', { categoryId, pattern, value: value ?? null })
+      .post<CategoryRule>('/api/categories/rules', {
+        categoryId,
+        pattern,
+        value: value ?? null,
+        matchWholeDescription,
+      })
       .pipe(tap(() => this.load()));
   }
 
-  updateRule(id: number, pattern: string | null, value: number | null): Observable<void> {
+  updateRule(
+    id: number,
+    pattern: string | null,
+    value: number | null,
+    matchWholeDescription = false,
+  ): Observable<void> {
     return this.http
-      .put<void>(`/api/categories/rules/${id}`, { pattern, value })
+      .put<void>(`/api/categories/rules/${id}`, { pattern, value, matchWholeDescription })
       .pipe(tap(() => this.load()));
   }
 

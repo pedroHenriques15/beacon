@@ -10,10 +10,12 @@ using Beacon.Api.Features.Groceries.Queries.GetGroceryReceipts;
 using Beacon.Api.Features.Groceries.Shared;
 using Beacon.Api.Features.Shared;
 using Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryCategory;
+using Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryCategoryRule;
 using Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryReceiptCategoryMapping;
 using Beacon.Api.Features.GroceryCategories.Commands.DeleteGroceryCategory;
 using Beacon.Api.Features.GroceryCategories.Commands.DeleteGroceryReceiptCategoryMapping;
 using Beacon.Api.Features.GroceryCategories.Commands.UpdateGroceryCategory;
+using Beacon.Api.Features.GroceryCategories.Commands.UpdateGroceryCategoryRule;
 using Beacon.Api.Features.GroceryCategories.Queries.GetGroceryReceiptCategoryMappings;
 using Beacon.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -737,5 +739,64 @@ public class GroceriesHandlerTests : IDisposable
         Assert.NotNull(result);
         var created = await db.GroceryItems.FindAsync(result.Id);
         Assert.True(created!.IsExcluded);
+    }
+
+    [Fact]
+    public async Task CreateGroceryItem_RuleWithTextAndAmount_RequiresBoth()
+    {
+        await using var db = CreateDb();
+        var (_, other, receipt) = await SeedForExclusionAsync(db);
+
+        db.GroceryCategoryRules.Add(new GroceryCategoryRule { CategoryId = other.Id, Pattern = "COCA COLA", Value = 0.90m });
+        await db.SaveChangesAsync();
+
+        var handler = new CreateGroceryItemCommandHandler(db, NullLogger<CreateGroceryItemCommandHandler>.Instance);
+        var (both, _) = await handler.HandleAsync(new CreateGroceryItemCommand(receipt.Id, "COCA COLA LATA", 0.90m, 1));
+        var (textOnly, _) = await handler.HandleAsync(new CreateGroceryItemCommand(receipt.Id, "COCA COLA LATA", 1.20m, 1));
+        var (amountOnly, _) = await handler.HandleAsync(new CreateGroceryItemCommand(receipt.Id, "AGUA LUSO", 0.90m, 1));
+
+        Assert.Equal(other.Id, both!.CategoryId);
+        Assert.Null(textOnly!.CategoryId);
+        Assert.Null(amountOnly!.CategoryId);
+    }
+
+    [Fact]
+    public async Task CreateGroceryItem_WholeDescriptionRule_SkipsItemsThatOnlyContainIt()
+    {
+        await using var db = CreateDb();
+        var (_, other, receipt) = await SeedForExclusionAsync(db);
+
+        db.GroceryCategoryRules.Add(new GroceryCategoryRule { CategoryId = other.Id, Pattern = "COCA COLA LATA", MatchWholeDescription = true });
+        await db.SaveChangesAsync();
+
+        var handler = new CreateGroceryItemCommandHandler(db, NullLogger<CreateGroceryItemCommandHandler>.Instance);
+        var (whole, _) = await handler.HandleAsync(new CreateGroceryItemCommand(receipt.Id, "COCA COLA LATA", 0.90m, 1));
+        var (longer, _) = await handler.HandleAsync(new CreateGroceryItemCommand(receipt.Id, "COCA COLA LATA ZERO", 0.90m, 1));
+
+        Assert.Equal(other.Id, whole!.CategoryId);
+        Assert.Null(longer!.CategoryId);
+    }
+
+    [Fact]
+    public async Task GroceryCategoryRule_CreateAndUpdate_StoreHowItsTextMatches()
+    {
+        await using var db = CreateDb();
+        var cat = new GroceryCategory { Name = "Drinks", Color = "#00f" };
+        db.GroceryCategories.Add(cat);
+        await db.SaveChangesAsync();
+
+        var created = await new CreateGroceryCategoryRuleCommandHandler(
+                db, new GroceryApplyRuleService(db), NullLogger<CreateGroceryCategoryRuleCommandHandler>.Instance)
+            .HandleAsync(new CreateGroceryCategoryRuleCommand(cat.Id, "COCA COLA LATA", null, MatchWholeDescription: true));
+
+        Assert.True(created!.MatchWholeDescription);
+        Assert.True((await db.GroceryCategoryRules.SingleAsync()).MatchWholeDescription);
+
+        await new UpdateGroceryCategoryRuleCommandHandler(db, NullLogger<UpdateGroceryCategoryRuleCommandHandler>.Instance)
+            .HandleAsync(new UpdateGroceryCategoryRuleCommand(created.Id, "COCA COLA", null));
+
+        var updated = await db.GroceryCategoryRules.SingleAsync();
+        Assert.Equal("COCA COLA", updated.Pattern);
+        Assert.False(updated.MatchWholeDescription);
     }
 }

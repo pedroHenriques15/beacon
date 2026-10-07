@@ -51,7 +51,7 @@ beacon/
 │   │   │   │   └── Shared/       # TradeImportService
 │   │   │   ├── Logs/             # GetLogs, LogClientError
 │   │   │   ├── Salary/
-│   │   │   ├── Shared/           # ExcludedCategory, ProtectedEntityHelper, ValidationExtensions
+│   │   │   ├── Shared/           # ExcludedCategory, RuleMatch, ProtectedEntityHelper, ValidationExtensions
 │   │   │   ├── Statements/
 │   │   │   ├── Transactions/
 │   │   │   └── Upload/           # UnifiedUploadBatch (multi-type batch upload)
@@ -197,6 +197,26 @@ There is no `Internal Transfer` category. It was the pre-rename name of this con
 data migration (`MergeInternalTransferIntoExcluded`, before the move to SQLite) folded any
 surviving rows, rules and transactions into `Excluded` (marking them excluded) and deleted
 it. Do not re-introduce it.
+
+### Category rules
+
+A category rule (`CategoryRule`, `GroceryCategoryRule`) is a text (`Pattern`, may be empty),
+how the text matches (`MatchWholeDescription`) and an amount (`Value`, optional); creating or
+editing one needs a text or an amount. Its text matches a row whose description, trimmed,
+**equals** it when `MatchWholeDescription` is set, and a row whose description **contains** it
+otherwise; both are ordinal, so case-sensitive, and the text is trimmed on save. If the rule
+has an amount, the row's amount must equal it too. An empty text is no text condition, and a
+rule with neither matches nothing (ADR-035). Rules from before the choice existed match a part
+of the description (the migration's default), and so does a request that leaves the flag out;
+the rule dialogs offer the whole description by default, filled in from the row on the Activity
+page. Every server path uses one matcher, `RuleMatch.Matches` (`Features/Shared/RuleMatch.cs`):
+the statement upload (each parsed row, and BPI's synthetic PPR rows), the meal-card import, the
+grocery receipt upload, adding a grocery item, and `ApplyRuleService` /
+`GroceryApplyRuleService`. At import the lowest-id matching rule wins and the row records it in
+`CategoryRuleId`. Creating a rule applies it once to every row with no category; editing one
+applies nothing. The client's `matchesRule` (`core/utils/rule-match.ts`) mirrors the matcher
+for the match count the rule dialogs show. A category a rule assigns goes through
+`ExcludedCategory.ApplyCategory`, like any other.
 
 ### Bank statement parsers
 
@@ -1006,12 +1026,13 @@ the holdings warning on the newest only, and an XLSX that is not XTB's), `XtbExp
 workbooks written with the Open XML SDK) and `XlsxWorkbook`,
 `ParseVerifier`, `ApiKeyMiddleware`, `ExceptionHandlingMiddleware` (incl. a body over its
 limit), `RequestLoggingMiddleware`, the log files (missing or unwritable folder, retention,
-level defaults and overrides, JSON lines read back), `ApplyRuleService` (incl.
-Excluded-category rules setting `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup`
+level defaults and overrides, JSON lines read back), `RuleMatch` (whole or partial text,
+amount, both, neither), `ApplyRuleService` (incl. Excluded-category rules setting `IsExcluded`),
+`GroceryReceiptUploadService` (rules with an amount), `FileStorageService`, `OrphanedPdfCleanup`
 (relative, foreign and absolute stored paths, stored CSVs), `TradeImportService` (fees, dedup
 by trade id, tickers and prices symbols, a lot typed by hand, sells within and beyond the
 holdings), `XtbUploadService` (the holdings check), `StatementUploadService` (PPR recompute helper, Trade Republic balance chaining,
-overlap and buys), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
+overlap and buys, rules with an amount), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
 responses, EUR check, retries, an unavailable source), `PriceHistorySyncService` (schedule,
 queue, turned off), `XetraCalendar` and stale prices, the price-source migration, CQRS handlers
 for Backup (incl. investment tables), Categories, Health (a missing, damaged or unmigrated

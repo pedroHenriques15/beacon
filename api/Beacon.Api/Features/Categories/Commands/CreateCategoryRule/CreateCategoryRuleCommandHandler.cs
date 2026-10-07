@@ -10,7 +10,8 @@ public class CreateCategoryRuleCommandHandler(AppDbContext db, ApplyRuleService 
 {
     public async Task<CreateCategoryRuleResponse?> HandleAsync(CreateCategoryRuleCommand cmd, CancellationToken ct = default)
     {
-        logger.LogInformation("CreateCategoryRule: categoryId={CategoryId} pattern={Pattern} value={Value}", cmd.CategoryId, cmd.Pattern, cmd.Value);
+        logger.LogInformation("CreateCategoryRule: categoryId={CategoryId} pattern={Pattern} value={Value} whole={MatchWholeDescription}",
+            cmd.CategoryId, cmd.Pattern, cmd.Value, cmd.MatchWholeDescription);
 
         new CreateCategoryRuleCommandValidator().Validate(cmd).ThrowIfInvalid();
 
@@ -18,12 +19,18 @@ public class CreateCategoryRuleCommandHandler(AppDbContext db, ApplyRuleService 
             return null;
 
         var pattern = string.IsNullOrWhiteSpace(cmd.Pattern) ? string.Empty : cmd.Pattern.Trim();
-        var rule = new CategoryRule { CategoryId = cmd.CategoryId, Pattern = pattern, Value = cmd.Value };
+        var rule = new CategoryRule
+        {
+            CategoryId = cmd.CategoryId,
+            Pattern = pattern,
+            Value = cmd.Value,
+            MatchWholeDescription = cmd.MatchWholeDescription
+        };
         db.CategoryRules.Add(rule);
         await db.SaveChangesAsync(ct);
 
         await applyRule.ApplyAsync(rule);
 
-        return new CreateCategoryRuleResponse(rule.Id, rule.CategoryId, rule.Pattern, rule.Value);
+        return new CreateCategoryRuleResponse(rule.Id, rule.CategoryId, rule.Pattern, rule.Value, rule.MatchWholeDescription);
     }
 }

@@ -21,7 +21,6 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-- Category rules: honour a rule's amount on every import, not only when the rule is created.
 - Totals: net each category, so money paid back (a shared dinner, a refund) lowers its spending
   instead of counting as income.
 - Investments: show the total return since the first investment, realised and unrealised, as

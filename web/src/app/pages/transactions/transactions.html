@@ -960,7 +960,7 @@
         This category was assigned automatically by rule <strong>"{{ p.pattern }}"</strong>.
       </p>
       <p>
-        Do you want to delete this rule so future transactions with this pattern are no longer
+        Do you want to delete this rule so future transactions matching it are no longer
         auto-categorized?
       </p>
       <div class="modal-actions">
@@ -982,10 +982,10 @@
       </div>
       <p>
         You assigned <strong>{{ p.categoryName }}</strong> to this transaction. Do you want to
-        create a rule so future transactions containing this pattern are categorized automatically?
+        create a rule so future transactions like this one are categorized automatically?
       </p>
 
-      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <label class="field-label">Description <span class="muted">(optional)</span></label>
       <input
         class="field-input"
         type="text"
@@ -993,9 +993,19 @@
         [ngModel]="ruleCreatePattern()"
         (ngModelChange)="ruleCreatePattern.set($event)"
       />
+      <label class="field-label" for="rule-create-match">Description match</label>
+      <select
+        id="rule-create-match"
+        class="field-select"
+        [ngModel]="ruleCreateWhole()"
+        (ngModelChange)="ruleCreateWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Transactions whose description contains this text will be auto-categorized as
-        <strong>{{ p.categoryName }}</strong
+        Transactions whose description {{ ruleCreateWhole() ? 'is exactly' : 'contains' }} this text
+        will be auto-categorized as <strong>{{ p.categoryName }}</strong
         >.
       </p>
 
@@ -1055,11 +1065,11 @@
         </button>
       </div>
       <p>
-        Do you want to create a rule so future transactions matching this pattern are excluded
+        Do you want to create a rule so future transactions like this one are excluded
         automatically?
       </p>
 
-      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <label class="field-label">Description <span class="muted">(optional)</span></label>
       <input
         class="field-input"
         type="text"
@@ -1067,8 +1077,19 @@
         [ngModel]="excludeRulePattern()"
         (ngModelChange)="excludeRulePattern.set($event)"
       />
+      <label class="field-label" for="exclude-rule-match">Description match</label>
+      <select
+        id="exclude-rule-match"
+        class="field-select"
+        [ngModel]="excludeRuleWhole()"
+        (ngModelChange)="excludeRuleWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Transactions whose description contains this text will be excluded automatically.
+        Transactions whose description {{ excludeRuleWhole() ? 'is exactly' : 'contains' }} this
+        text will be excluded automatically.
       </p>
 
       <label class="field-label">Value <span class="muted">(optional)</span></label>
@@ -1127,11 +1148,11 @@
         </button>
       </div>
       <p>
-        Do you want to create a rule so future grocery items matching this pattern are excluded
+        Do you want to create a rule so future grocery items like this one are excluded
         automatically?
       </p>
 
-      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <label class="field-label">Description <span class="muted">(optional)</span></label>
       <input
         class="field-input"
         type="text"
@@ -1139,8 +1160,19 @@
         [ngModel]="gExcludeRulePattern()"
         (ngModelChange)="gExcludeRulePattern.set($event)"
       />
+      <label class="field-label" for="g-exclude-rule-match">Description match</label>
+      <select
+        id="g-exclude-rule-match"
+        class="field-select"
+        [ngModel]="gExcludeRuleWhole()"
+        (ngModelChange)="gExcludeRuleWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Items whose description contains this text will be excluded automatically.
+        Items whose description {{ gExcludeRuleWhole() ? 'is exactly' : 'contains' }} this text will
+        be excluded automatically.
       </p>
 
       <label class="field-label">Value <span class="muted">(optional)</span></label>
@@ -1383,7 +1415,9 @@
         }}</span>
       </div>
 
-      <label class="field-label">Auto-assign pattern <span class="muted">(optional)</span></label>
+      <label class="field-label"
+        >Auto-assign description <span class="muted">(optional)</span></label
+      >
       <input
         class="field-input"
         type="text"
@@ -1391,8 +1425,19 @@
         [ngModel]="createPattern()"
         (ngModelChange)="createPattern.set($event)"
       />
+      <label class="field-label" for="create-cat-match">Description match</label>
+      <select
+        id="create-cat-match"
+        class="field-select"
+        [ngModel]="createWhole()"
+        (ngModelChange)="createWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Transactions whose description contains this text will be auto-categorized.
+        Transactions whose description {{ createWhole() ? 'is exactly' : 'contains' }} this text
+        will be auto-categorized.
       </p>
 
       <label class="field-label">Auto-assign value <span class="muted">(optional)</span></label>
@@ -1447,8 +1492,7 @@
         This category was assigned automatically by rule <strong>"{{ p.pattern }}"</strong>.
       </p>
       <p>
-        Do you want to delete this rule so future items with this pattern are no longer
-        auto-categorized?
+        Do you want to delete this rule so future items matching it are no longer auto-categorized?
       </p>
       <div class="modal-actions">
         <button class="btn-secondary" (click)="gConfirmPending(false)">Keep rule</button>
@@ -1469,10 +1513,10 @@
       </div>
       <p>
         You assigned <strong>{{ p.categoryName }}</strong> to this item. Do you want to create a
-        rule so future items containing this pattern are categorized automatically?
+        rule so future items like this one are categorized automatically?
       </p>
 
-      <label class="field-label">Pattern <span class="muted">(optional)</span></label>
+      <label class="field-label">Description <span class="muted">(optional)</span></label>
       <input
         class="field-input"
         type="text"
@@ -1480,9 +1524,19 @@
         [ngModel]="gRuleCreatePattern()"
         (ngModelChange)="gRuleCreatePattern.set($event)"
       />
+      <label class="field-label" for="g-rule-create-match">Description match</label>
+      <select
+        id="g-rule-create-match"
+        class="field-select"
+        [ngModel]="gRuleCreateWhole()"
+        (ngModelChange)="gRuleCreateWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Items whose description contains this text will be auto-categorized as
-        <strong>{{ p.categoryName }}</strong
+        Items whose description {{ gRuleCreateWhole() ? 'is exactly' : 'contains' }} this text will
+        be auto-categorized as <strong>{{ p.categoryName }}</strong
         >.
       </p>
 
@@ -1662,7 +1716,9 @@
         }}</span>
       </div>
 
-      <label class="field-label">Auto-assign pattern <span class="muted">(optional)</span></label>
+      <label class="field-label"
+        >Auto-assign description <span class="muted">(optional)</span></label
+      >
       <input
         class="field-input"
         type="text"
@@ -1670,7 +1726,20 @@
         [ngModel]="gCreatePattern()"
         (ngModelChange)="gCreatePattern.set($event)"
       />
-      <p class="field-hint">Items whose description contains this text will be auto-categorized.</p>
+      <label class="field-label" for="g-create-cat-match">Description match</label>
+      <select
+        id="g-create-cat-match"
+        class="field-select"
+        [ngModel]="gCreateWhole()"
+        (ngModelChange)="gCreateWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Items whose description {{ gCreateWhole() ? 'is exactly' : 'contains' }} this text will be
+        auto-categorized.
+      </p>
 
       <label class="field-label">Auto-assign value <span class="muted">(optional)</span></label>
       <input
