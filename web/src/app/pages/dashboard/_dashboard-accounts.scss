@@ -85,15 +85,25 @@
 }
 
 .cats__list {
-  gap: 12px;
+  gap: 4px;
 }
 
+// Each category opens Insights on it.
 .cat {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-size: 13px;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--surface-raised);
+  }
 
   &__name {
     display: flex;

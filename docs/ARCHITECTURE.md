@@ -789,6 +789,14 @@ from the injector only then, so opening the Upload page loads no investments.
 
 All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModules.
 
+Activity and Insights take their view from the URL's query, so other pages can link to one.
+Activity reads `month`, `category` (an id, or `unknown`), `bank`, `type`, and for groceries
+`tab=groceries` with `categoryId`. Insights reads `month` (`YYYY-MM`, or `all`), `side` (`in`
+or `out`, the "By category" filter; with `category=unknown`, also which Unknown), `category`,
+and `tab=groceries` with `categoryId`, and writes its view back with `replaceUrl`, so a reload
+or a shared link opens the same view. Home's "Where it went" links each category to Insights
+this way.
+
 Angular 22 made OnPush the default change detection and `fetch` the default HTTP backend. The
 upgrade kept the earlier behaviour: every component declares
 `changeDetection: ChangeDetectionStrategy.Eager`, and `app.config.ts` passes `withXhr()` to

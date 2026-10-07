@@ -348,6 +348,25 @@ export class DashboardComponent {
     return (val >= 0 ? '+' : '−') + Math.abs(val).toFixed(1) + '%';
   }
 
+  /** Category ids by name, from the rows, for links into Insights. */
+  private categoryIds = computed(() => {
+    const ids = new Map<string, number>();
+    for (const tx of this.finance.allTransactions())
+      if (tx.category) ids.set(tx.category.name, tx.category.id);
+    return ids;
+  });
+
+  /** Insights on the selected month's spending, on one category when given. */
+  insightsQuery(label?: string): Record<string, string> {
+    const query: Record<string, string> = { month: this.selectedMonth(), side: 'out' };
+    if (label === CATEGORY_UNKNOWN) query['category'] = 'unknown';
+    else if (label) {
+      const id = this.categoryIds().get(label);
+      if (id !== undefined) query['category'] = String(id);
+    }
+    return query;
+  }
+
   monthQuery(month: string): Record<string, string> {
     const queryParams: Record<string, string> = { month };
     const bank = this.selectedBank();

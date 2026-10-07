@@ -417,6 +417,61 @@ describe('AnalyticsComponent', () => {
     });
   });
 
+  describe('URL', () => {
+    async function openAt(url: string) {
+      await router.navigateByUrl(url);
+      const fx = TestBed.createComponent(AnalyticsComponent);
+      const page = fx.componentInstance;
+      vi.spyOn(page as any, 'renderTrendChart').mockImplementation(() => {});
+      vi.spyOn(page as any, 'renderCategoryTrendChart').mockImplementation(() => {});
+      vi.spyOn(page as any, 'renderGroceryCategoryTrendChart').mockImplementation(() => {});
+      fx.detectChanges();
+      await fx.whenStable();
+      return { fx, page };
+    }
+
+    beforeEach(() => {
+      (TestBed.inject(CategoriesService).categories as any).set([
+        { id: 5, name: 'Rent', color: '#fff', isProtected: false },
+      ]);
+      transactionsSignal.set([
+        makeTx('2026-08', 'Rent', 700),
+        makeTx('2026-09', 'Rent', 700),
+        makeTx('2026-09', null, 10, 'credit'),
+      ]);
+    });
+
+    it('opens on the month, side and category it names', async () => {
+      const { page } = await openAt('/?month=2026-08&side=out&category=5');
+      expect(page.filterMonth()).toBe('2026-08');
+      expect(page.side()).toBe('out');
+      expect(page.selectedCategory()).toMatchObject({ label: 'Rent', dominantType: 'debit' });
+    });
+
+    it('picks Unknown on the side it names', async () => {
+      const { page } = await openAt('/?month=2026-09&side=in&category=unknown');
+      expect(page.selectedCategory()).toMatchObject({
+        label: CATEGORY_UNKNOWN,
+        dominantType: 'credit',
+      });
+    });
+
+    it('opens all months, and ignores a category it does not know', async () => {
+      const { page } = await openAt('/?month=all&category=99');
+      expect(page.filterMonth()).toBe('');
+      expect(page.selectedCategory()).toBeNull();
+    });
+
+    it('puts a change on the page in the URL', async () => {
+      const { fx, page } = await openAt('/?month=2026-09');
+      page.setSide('in');
+      page.selectCategory(CATEGORY_UNKNOWN, '#000', 'credit');
+      fx.detectChanges();
+      await fx.whenStable();
+      expect(router.url).toBe('/?month=2026-09&side=in&category=unknown');
+    });
+  });
+
   describe('category netting (ADR-037)', () => {
     /** A dinner of 100 and three friends paying back 25 each. */
     const dinner = (month: string) => [

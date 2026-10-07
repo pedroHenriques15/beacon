@@ -571,6 +571,23 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('insightsQuery', () => {
+    it('opens Insights on the selected month’s spending, on a category by its id', () => {
+      monthTotalsSignal.set([makeTotals({ month: '2025-03', expenses: 10, net: -10 })]);
+      allTransactionsSignal.set([
+        makeTx({ month: '2025-03', category: { id: 7, name: 'Food', color: '#fff' } }),
+      ]);
+      component.selectedMonth.set('2025-03');
+      expect(component.insightsQuery()).toEqual({ month: '2025-03', side: 'out' });
+      expect(component.insightsQuery('Food')).toEqual({
+        month: '2025-03',
+        side: 'out',
+        category: '7',
+      });
+      expect(component.insightsQuery(CATEGORY_UNKNOWN)).toMatchObject({ category: 'unknown' });
+    });
+  });
+
   describe('formatSignedPct', () => {
     it('formats null as an em dash', () => {
       expect(component.formatSignedPct(null)).toBe('—');

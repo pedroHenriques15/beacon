@@ -471,27 +471,34 @@
         <section class="cats" aria-labelledby="cats-h">
           <div class="block-head">
             <h2 id="cats-h">Where it went</h2>
-            <a class="link-btn" routerLink="/analytics"
+            <a class="link-btn" routerLink="/analytics" [queryParams]="insightsQuery()"
               ><span class="cats__desktop">Insights</span
               ><span class="cats__phone">All categories</span></a
             >
           </div>
           <ul class="cats__list">
             @for (cat of topCategories(); track cat.label; let i = $index) {
-              <li class="cat" [class.cat--extra]="i >= 4">
-                <span class="cat__name"
-                  ><span class="cat-dot" [style.--_dot]="cat.color"></span>{{ cat.label }}</span
-                >
-                <span class="cat__track"
-                  ><span
-                    class="cat__bar"
-                    [style.width.%]="cat.pct"
-                    [style.background]="cat.color"
-                  ></span
-                ></span>
-                <span class="cat__amount"
-                  ><span class="cat__share">{{ cat.share }}%</span> {{ eur(cat.total) }}</span
-                >
+              <li [class.cat--extra]="i >= 4">
+                <a class="cat" routerLink="/analytics" [queryParams]="insightsQuery(cat.label)">
+                  <span class="cat__name">
+                    @if (cat.label === unknownLabel) {
+                      <span class="ring"></span>
+                    } @else {
+                      <span class="cat-dot" [style.--_dot]="cat.color"></span>
+                    }
+                    {{ cat.label }}
+                  </span>
+                  <span class="cat__track"
+                    ><span
+                      class="cat__bar"
+                      [style.width.%]="cat.pct"
+                      [style.background]="cat.color"
+                    ></span
+                  ></span>
+                  <span class="cat__amount"
+                    ><span class="cat__share">{{ cat.share }}%</span> {{ eur(cat.total) }}</span
+                  >
+                </a>
               </li>
             }
           </ul>

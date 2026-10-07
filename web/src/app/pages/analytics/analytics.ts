@@ -10,10 +10,11 @@ import {
   ChangeDetectionStrategy,
   Injector,
   afterNextRender,
+  untracked,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import {
   Chart,
   ChartOptions,
@@ -119,6 +120,7 @@ export class AnalyticsComponent implements OnDestroy {
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   router = inject(Router);
+  private route = inject(ActivatedRoute);
   private injector = inject(Injector);
 
   readonly eur = eur;
@@ -157,6 +159,9 @@ export class AnalyticsComponent implements OnDestroy {
     dominantType: 'credit' | 'debit';
   } | null>(null);
   private defaultApplied = false;
+  /** A category the URL named, kept until the categories and rows it needs have loaded. */
+  private pendingCategory = signal<{ id: string; side: Side | null } | null>(null);
+  private pendingGroceryCategory = signal<string | null>(null);
   /** "Six months of flow": money in and out per month. */
   trendChart?: Chart;
   categoryTrendChart?: Chart;
@@ -553,7 +558,77 @@ export class AnalyticsComponent implements OnDestroy {
     return Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2).replace(/0$/, '');
   }
 
+  /**
+   * What the page shows, as its URL's query: `month` ('YYYY-MM' or 'all'), `side`, `category`
+   * (an id, or 'unknown'), and for groceries `tab` and `categoryId`. A reload or a shared link
+   * opens the same view.
+   */
+  private urlQuery = computed(() => {
+    const query: Record<string, string> = {};
+    if (this.activeTab() === 'groceries') {
+      query['tab'] = 'groceries';
+      query['month'] = this.gFilterMonth() || 'all';
+      const sel = this.gSelectedCategory();
+      const id = sel ? this.groceryCategoryId(sel.label) : null;
+      if (id) query['categoryId'] = id;
+      return query;
+    }
+    query['month'] = this.filterMonth() || 'all';
+    if (this.side() !== 'all') query['side'] = this.side();
+    const sel = this.selectedCategory();
+    const id = sel ? this.categoryId(sel.label) : null;
+    if (id) query['category'] = id;
+    return query;
+  });
+
   constructor() {
+    this.applyQuery(this.route.snapshot.queryParamMap);
+
+    effect(() => {
+      const query = this.urlQuery();
+      untracked(() => this.writeQuery(query));
+    });
+
+    effect(() => {
+      const pending = this.pendingCategory();
+      const categories = this.catSvc.categories();
+      const known = this.allCategories();
+      if (!pending) return;
+      const label =
+        pending.id === 'unknown'
+          ? CATEGORY_UNKNOWN
+          : categories.find((c) => String(c.id) === pending.id)?.name;
+      const cat = label ? known.find((c) => c.label === label) : undefined;
+      if (cat) {
+        untracked(() => {
+          this.pendingCategory.set(null);
+          this.selectCategory(cat.label, cat.color, pending.side === 'in' ? 'credit' : 'debit');
+        });
+      } else if (!label && categories.length > 0) {
+        untracked(() => this.pendingCategory.set(null));
+      }
+    });
+
+    effect(() => {
+      const pending = this.pendingGroceryCategory();
+      const categories = this.groceryCatSvc.categories();
+      const known = this.gAllCategories();
+      if (!pending) return;
+      const label =
+        pending === 'unknown'
+          ? CATEGORY_UNKNOWN
+          : categories.find((c) => String(c.id) === pending)?.name;
+      const cat = label ? known.find((c) => c.label === label) : undefined;
+      if (cat) {
+        untracked(() => {
+          this.pendingGroceryCategory.set(null);
+          this.selectGroceryCategory(cat.label, cat.color);
+        });
+      } else if (!label && categories.length > 0) {
+        untracked(() => this.pendingGroceryCategory.set(null));
+      }
+    });
+
     effect(() => {
       const months = this.availableMonths();
       if (months.length > 0 && !this.defaultApplied) {
@@ -609,6 +684,44 @@ export class AnalyticsComponent implements OnDestroy {
     this.trendChart?.destroy();
     this.categoryTrendChart?.destroy();
     this.gCategoryTrendChart?.destroy();
+  }
+
+  /** Opens the view a URL asks for; anything it does not recognise is left as it is. */
+  private applyQuery(params: ParamMap): void {
+    if (params.get('tab') === 'groceries') this.activeTab.set('groceries');
+    const month = params.get('month');
+    if (month === 'all') this.selectMonth('');
+    else if (month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month)) this.selectMonth(month);
+    const side = params.get('side');
+    const picked: Side | null = side === 'in' || side === 'out' ? side : null;
+    if (picked) this.side.set(picked);
+    const category = params.get('category');
+    if (category) this.pendingCategory.set({ id: category, side: picked });
+    const groceryCategory = params.get('categoryId');
+    if (groceryCategory) this.pendingGroceryCategory.set(groceryCategory);
+  }
+
+  /** Puts the view in the URL, replacing the entry, when it changed. */
+  private writeQuery(query: Record<string, string>): void {
+    if (!this.defaultApplied) return;
+    const current = this.route.snapshot.queryParamMap;
+    const same =
+      current.keys.length === Object.keys(query).length &&
+      Object.entries(query).every(([key, value]) => current.get(key) === value);
+    if (same) return;
+    this.router.navigate([], { relativeTo: this.route, queryParams: query, replaceUrl: true });
+  }
+
+  private categoryId(label: string): string | null {
+    if (label === CATEGORY_UNKNOWN) return 'unknown';
+    const cat = this.catSvc.categories().find((c) => c.name === label);
+    return cat ? String(cat.id) : null;
+  }
+
+  private groceryCategoryId(label: string): string | null {
+    if (label === CATEGORY_UNKNOWN) return 'unknown';
+    const cat = this.groceryCatSvc.categories().find((c) => c.name === label);
+    return cat ? String(cat.id) : null;
   }
 
   /** The scrubber (or a month in the flow chart) picks the month for both tabs. */
@@ -675,10 +788,9 @@ export class AnalyticsComponent implements OnDestroy {
 
   navigateToCategory(label: string, txType: 'credit' | 'debit'): void {
     const month = this.filterMonth();
-    const cat = this.catSvc.categories().find((c) => c.name === label);
     const params: Record<string, string> = {};
-    if (cat) params['category'] = String(cat.id);
-    else if (label === CATEGORY_UNKNOWN) params['category'] = 'unknown';
+    const id = this.categoryId(label);
+    if (id) params['category'] = id;
     if (month) params['month'] = month;
     // A category's money in and out net together, so its link lists both (ADR-037).
     if (label === CATEGORY_UNKNOWN) params['type'] = txType;
@@ -715,10 +827,9 @@ export class AnalyticsComponent implements OnDestroy {
 
   navigateToGroceryCategory(label: string): void {
     const month = this.gFilterMonth();
-    const cat = this.groceryCatSvc.categories().find((c) => c.name === label);
     const params: Record<string, string> = {};
-    if (cat) params['categoryId'] = String(cat.id);
-    else if (label === CATEGORY_UNKNOWN) params['categoryId'] = 'unknown';
+    const id = this.groceryCategoryId(label);
+    if (id) params['categoryId'] = id;
     if (month) params['month'] = month;
     this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
   }
