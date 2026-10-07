@@ -331,6 +331,18 @@
             }}</span>
             since {{ change.since | date: 'd MMM' }}
           </p>
+          @if (change.growth !== null && change.rest !== null) {
+            <p class="worth__parts">
+              <strong [class.amount-in]="change.growth > 0">{{
+                signedEur(change.growth, true)
+              }}</strong>
+              investment growth,
+              <strong [class.amount-in]="change.rest > 0">{{
+                signedEur(change.rest, true)
+              }}</strong>
+              from your accounts
+            </p>
+          }
         }
         <div
           class="worth__split"

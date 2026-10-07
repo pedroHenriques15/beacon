@@ -561,7 +561,10 @@ Conventions:
   its own total return, and the value chart opens on All. The chart's title is what prices did
   over the shown range, the money put in or taken out left out (`valueChange`,
   `investments.service.ts`); the line under it gives the value's change and that money. Home's
-  Investments row shows the total return after the value, and today's change after it.
+  Investments row shows the total return after the value, and today's change after it. Home's
+  net worth change since the end of the previous month splits the same way: investment growth
+  (`valueChange` between the history's point at that date and its latest), and the rest, what
+  the accounts kept; a buy paid from cash moves neither.
 - **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
   scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
   Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already

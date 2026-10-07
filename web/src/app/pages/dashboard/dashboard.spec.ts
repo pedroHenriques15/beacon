@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { DashboardComponent } from './dashboard';
 import { bankInitials } from '../../core/utils/bank';
 import { FinanceService } from '../../core/services/finance.service';
-import { InvestmentsService } from '../../core/services/investments.service';
+import { InvestmentsService, PortfolioPoint } from '../../core/services/investments.service';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { MonthTotals } from '../../core/utils/month-totals';
 
@@ -81,6 +81,7 @@ describe('DashboardComponent', () => {
   const totalReturnSignal = signal(0);
   const totalReturnPctSignal = signal<number | null>(null);
   const firstBuyDateSignal = signal<string | null>(null);
+  const portfolioHistorySignal = signal<PortfolioPoint[]>([]);
   const loadPriceHistory = vi.fn();
 
   beforeEach(() => {
@@ -98,6 +99,7 @@ describe('DashboardComponent', () => {
     totalReturnSignal.set(0);
     totalReturnPctSignal.set(null);
     firstBuyDateSignal.set(null);
+    portfolioHistorySignal.set([]);
     loadPriceHistory.mockClear();
 
     TestBed.configureTestingModule({
@@ -130,7 +132,7 @@ describe('DashboardComponent', () => {
             totalReturn: totalReturnSignal,
             totalReturnPct: totalReturnPctSignal,
             firstBuyDate: firstBuyDateSignal,
-            portfolioHistory: signal([]),
+            portfolioHistory: portfolioHistorySignal,
             assetMetrics: signal([]),
             loadPriceHistory,
           },
@@ -157,6 +159,47 @@ describe('DashboardComponent', () => {
 
     it('is zero when both are zero', () => {
       expect(component.netWorth()).toBe(0);
+    });
+  });
+
+  describe('netWorthChange', () => {
+    beforeEach(() => {
+      monthTotalsSignal.set([makeTotals({ month: '2025-02', income: 1, net: 1 })]);
+      component.selectedMonth.set('2025-02');
+      statementsSignal.set([{ bank: 'BPI', periodTo: '2025-01-31', closingBalance: 1000 }]);
+      investmentAssetsSignal.set([{ lots: [{ date: '2025-01-10' }] }]);
+    });
+
+    it('splits the change into investment growth and what the accounts kept', () => {
+      totalBalanceSignal.set(2000);
+      totalCurrentValueSignal.set(600);
+      portfolioHistorySignal.set([
+        { date: '2025-01-31', totalValue: 500, invested: 500 },
+        { date: '2025-02-28', totalValue: 600, invested: 500 },
+      ]);
+      expect(component.netWorthChange()).toEqual({
+        amount: 1100,
+        since: '2025-01-31',
+        growth: 100,
+        rest: 1000,
+      });
+    });
+
+    it('moves neither part for a buy paid from cash', () => {
+      // 1,000 kept, 500 of it moved into investments that then grew by 100.
+      totalBalanceSignal.set(1500);
+      totalCurrentValueSignal.set(1100);
+      portfolioHistorySignal.set([
+        { date: '2025-01-31', totalValue: 500, invested: 500 },
+        { date: '2025-02-28', totalValue: 1100, invested: 1000 },
+      ]);
+      expect(component.netWorthChange()).toMatchObject({ amount: 1100, growth: 100, rest: 1000 });
+    });
+
+    it('has no parts without investments', () => {
+      investmentAssetsSignal.set([]);
+      totalBalanceSignal.set(1300);
+      expect(component.netWorthChange()).toMatchObject({ amount: 300, growth: null, rest: null });
     });
   });
 

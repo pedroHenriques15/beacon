@@ -11,7 +11,7 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
-import { InvestmentsService } from '../../core/services/investments.service';
+import { InvestmentsService, valueChange } from '../../core/services/investments.service';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
@@ -223,7 +223,11 @@ export class DashboardComponent {
     return total > 0 ? Math.max(0, Math.min(100, (this.cashTotal() / total) * 100)) : 100;
   });
 
-  /** Net worth's change since the end of the month before the selected one; null if unknown. */
+  /**
+   * Net worth's change since the end of the month before the selected one; null if unknown.
+   * `growth` is what investment prices added (money put in left out), `rest` the change less it:
+   * what the accounts kept. Both null without investments.
+   */
   netWorthChange = computed(() => {
     const cutoff = lastDayOf(previousMonth(this.selectedMonth()));
     const latest = new Map<string, { periodTo: string; closing: number }>();
@@ -237,6 +241,7 @@ export class DashboardComponent {
     const cash = [...latest.values()].reduce((sum, b) => sum + b.closing, 0);
 
     let invested = 0;
+    let growth: number | null = null;
     if (this.investments.assets().length > 0) {
       const history = this.investments.portfolioHistory();
       const point = [...history].reverse().find((p) => p.date <= cutoff);
@@ -245,8 +250,14 @@ export class DashboardComponent {
         .some((a) => a.lots.some((l) => l.date <= cutoff));
       if (point) invested = point.totalValue;
       else if (heldBefore) return null;
+      const last = history[history.length - 1];
+      if (last) {
+        const start = point ?? { date: cutoff, totalValue: 0, invested: 0 };
+        growth = valueChange(start, last).growth;
+      }
     }
-    return { amount: this.netWorth() - cash - invested, since: cutoff };
+    const amount = this.netWorth() - cash - invested;
+    return { amount, since: cutoff, growth, rest: growth === null ? null : amount - growth };
   });
 
   monthSnapshot = computed(() => {
