@@ -31,6 +31,21 @@
         Groceries
       </button>
     </div>
+    @if (shownMonth()) {
+      <div class="tab-bar" role="group" aria-label="Months to show">
+        @for (opt of rangeOptions; track opt.value) {
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="rangeMonths() === opt.value"
+            [attr.aria-pressed]="rangeMonths() === opt.value"
+            (click)="rangeMonths.set(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    }
     @if (activeTab() === 'transactions') {
       <div class="tab-bar" role="group" aria-label="Money in or out">
         @for (opt of sideOptions; track opt.value) {
@@ -56,7 +71,7 @@
           <option [value]="cat.label">{{ cat.label }}</option>
         }
       </select>
-      @if (!filterMonth()) {
+      @if (!filterMonth() || isRange()) {
         <button
           type="button"
           class="btn-secondary controls__average"
@@ -99,7 +114,7 @@
 
     @let monthKey = filterMonth();
     @let compare = compareName();
-    @let period = monthKey ? monthName(monthKey) : isAverages() ? 'Average month' : 'All months';
+    @let period = periodLabel();
 
     <div class="insights">
       <div class="insights__row insights__row--stretch">
@@ -276,7 +291,7 @@
             }
 
             @if (categoryTopMerchants().length) {
-              <h3 class="detail__title">Top merchants{{ periodSuffix(monthKey) }}</h3>
+              <h3 class="detail__title">Top merchants{{ periodSuffix(periodMonths()) }}</h3>
               <ul class="rows">
                 @for (m of categoryTopMerchants(); track m.description) {
                   <li class="row">
@@ -290,7 +305,7 @@
             }
 
             @if (categoryPeriodTransactions().length) {
-              <h3 class="detail__title">Transactions{{ periodSuffix(monthKey) }}</h3>
+              <h3 class="detail__title">Transactions{{ periodSuffix(periodMonths()) }}</h3>
               <ul class="rows rows--scroll">
                 @for (tx of categoryPeriodTransactions(); track tx.id) {
                   <li class="row row--dated">
@@ -324,13 +339,19 @@
   } @else {
     @let gKey = gFilterMonth();
     @let gCompare = gCompareName();
-    @let gPeriod = gKey ? monthName(gKey) : 'All months';
+    @let gPeriod = gPeriodLabel();
 
     <div class="insights">
       <div class="insights__row">
         <section class="groc" aria-labelledby="groc-h">
           <div class="groc__summary">
-            <h2 id="groc-h">{{ gKey ? 'Groceries in ' + gPeriod : 'Groceries, all months' }}</h2>
+            <h2 id="groc-h">
+              {{
+                gKey
+                  ? (gIsRange() ? 'Groceries over ' : 'Groceries in ') + gPeriod
+                  : 'Groceries, all months'
+              }}
+            </h2>
             <p class="hero__total">{{ eur(gTotalSpending()) }}</p>
             <p class="hero__note">{{ gNote() }}</p>
           </div>
@@ -466,7 +487,7 @@
             }
 
             @if (gCategoryTopItems().length) {
-              <h3 class="detail__title">Top items{{ periodSuffix(gKey) }}</h3>
+              <h3 class="detail__title">Top items{{ periodSuffix(gPeriodMonths()) }}</h3>
               <ul class="rows">
                 @for (item of gCategoryTopItems(); track item.description) {
                   <li class="row">
@@ -478,7 +499,7 @@
             }
 
             @if (gCategoryPeriodItems().length) {
-              <h3 class="detail__title">Items{{ periodSuffix(gKey) }}</h3>
+              <h3 class="detail__title">Items{{ periodSuffix(gPeriodMonths()) }}</h3>
               <ul class="rows rows--scroll">
                 @for (item of gCategoryPeriodItems(); track item.id) {
                   <li class="row row--dated">

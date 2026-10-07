@@ -9,6 +9,8 @@ import {
   compareText,
   flowWindow,
   mostBought,
+  periodKeys,
+  periodName,
   signedPct,
   storeTotals,
   sumByCategory,
@@ -253,5 +255,30 @@ describe('mostBought', () => {
     expect(items.map((i) => i.description)).toEqual(['Leite', 'Azeite']);
     expect(items[0].quantity).toBe(12);
     expect(items[0].total).toBeCloseTo(10.68);
+  });
+});
+
+describe('periodKeys', () => {
+  it('counts calendar months back from the end, oldest first, across a year', () => {
+    expect(periodKeys('2026-02', 3)).toEqual(['2025-12', '2026-01', '2026-02']);
+    expect(periodKeys('2026-09', 1)).toEqual(['2026-09']);
+  });
+
+  it('takes the year so far, January alone in January', () => {
+    expect(periodKeys('2026-04', 'ytd')).toEqual(['2026-01', '2026-02', '2026-03', '2026-04']);
+    expect(periodKeys('2026-01', 'ytd')).toEqual(['2026-01']);
+  });
+
+  it('starts no earlier than the first month with money, and is null for all months', () => {
+    expect(periodKeys('2026-09', 6, '2026-07')).toEqual(['2026-07', '2026-08', '2026-09']);
+    expect(periodKeys('', 6)).toBeNull();
+  });
+});
+
+describe('periodName', () => {
+  it('names one month, a range within a year, and one across years', () => {
+    expect(periodName(['2026-09'])).toBe('September');
+    expect(periodName(['2026-04', '2026-05', '2026-06'])).toBe('Apr – Jun 2026');
+    expect(periodName(['2025-11', '2025-12', '2026-01'])).toBe('Nov 2025 – Jan 2026');
   });
 });

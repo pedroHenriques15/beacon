@@ -181,14 +181,24 @@ export class DashboardComponent {
     }));
   });
 
-  /** The six months summed, and as an average month; null without months. */
+  /** The counted rows of the six months, only the picked account's when one is picked. */
+  private sixRows = computed(() => {
+    const bank = this.selectedBank();
+    const months = new Set(this.sixKeys());
+    return this.finance
+      .allTransactions()
+      .filter((tx) => months.has(tx.month) && (!bank || tx.bank === bank));
+  });
+
+  /**
+   * The six months together, and as an average month; null without months. Each category nets
+   * over all six (ADR-037), as on Insights, so a payback a month after its expense cancels it
+   * here, though each month's row counts it on its own.
+   */
   sixSummary = computed(() => {
-    const rows = this.sixMonths();
-    if (rows.length === 0) return null;
-    const income = rows.reduce((s, r) => s + r.income, 0);
-    const expenses = rows.reduce((s, r) => s + r.expenses, 0);
-    const net = income - expenses;
-    const n = rows.length;
+    const n = this.sixMonths().length;
+    if (n === 0) return null;
+    const { income, spending: expenses, net } = categoryNet(this.sixRows());
     return {
       income,
       expenses,
@@ -202,11 +212,7 @@ export class DashboardComponent {
    * "Top spending" and "Top income": the categories that cost and brought in the most over the
    * six months, netted over all of them (ADR-037); the picked account's rows only, if any.
    */
-  sixTops = computed(() => {
-    const bank = this.selectedBank();
-    const rows = this.finance.allTransactions().filter((tx) => !bank || tx.bank === bank);
-    return windowTops(rows, [...this.sixKeys()].reverse());
-  });
+  sixTops = computed(() => windowTops(this.sixRows(), [...this.sixKeys()].reverse()));
 
   // Net worth = cash across banks + current investment portfolio value
   cashTotal = computed(() => this.finance.totalBalance());
@@ -356,9 +362,16 @@ export class DashboardComponent {
     return ids;
   });
 
-  /** Insights on the selected month's spending, on one category when given. */
-  insightsQuery(label?: string): Record<string, string> {
-    const query: Record<string, string> = { month: this.selectedMonth(), side: 'out' };
+  /** Where the six months' links go: nowhere with an account picked, as Insights has no bank filter. */
+  sixLink = computed(() => (this.selectedBank() ? null : '/analytics'));
+
+  /**
+   * Insights on the selected month, or on the `months` up to it, on one side, and on one category
+   * when given.
+   */
+  insightsQuery(label?: string, side: 'in' | 'out' = 'out', months = 1): Record<string, string> {
+    const query: Record<string, string> = { month: this.selectedMonth(), side };
+    if (months > 1) query['months'] = String(months);
     if (label === CATEGORY_UNKNOWN) query['category'] = 'unknown';
     else if (label) {
       const id = this.categoryIds().get(label);

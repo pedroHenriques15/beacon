@@ -7,7 +7,7 @@ import {
   incomeByCategory,
   spendingByCategory,
 } from '../../core/utils/category-net';
-import { MonthCell, MonthTotals } from '../../core/utils/month-totals';
+import { MonthCell, MonthTotals, monthName, monthsUpTo } from '../../core/utils/month-totals';
 import { eur } from '../../core/utils/money';
 import { niceScale } from '../dashboard/river';
 
@@ -107,6 +107,34 @@ export function categoryLines(totals: NetTotals, filter: SideFilter, months = 1)
   return lines.sort(
     (a, b) => b.total - a.total || a.side.localeCompare(b.side) || a.label.localeCompare(b.label),
   );
+}
+
+/** How many months a period covers: one, three, six or twelve, or the year so far. */
+export type RangeChoice = 1 | 3 | 6 | 12 | 'ytd';
+
+/**
+ * The calendar months of a period ending at `end`, oldest first: one month, `range` months, or
+ * January of `end`'s year on ('ytd'), none before `first` (the first month with money) but
+ * always `end`. Null for all months (`end` is '').
+ */
+export function periodKeys(end: string, range: RangeChoice, first?: string): string[] | null {
+  if (!end) return null;
+  const count = range === 'ytd' ? Number(end.slice(5, 7)) : range;
+  return monthsUpTo(end, count)
+    .reverse()
+    .filter((k) => !first || k >= first || k === end);
+}
+
+/** A period's name: 'September' for one month, 'Apr – Sep 2026', 'Nov 2025 – Feb 2026'. */
+export function periodName(keys: string[]): string {
+  if (keys.length === 0) return '';
+  const first = keys[0];
+  const last = keys[keys.length - 1];
+  if (keys.length === 1) return monthName(first);
+  const year = (k: string) => k.slice(0, 4);
+  return year(first) === year(last)
+    ? `${monthName(first, 'short')} – ${monthName(last, 'short')} ${year(last)}`
+    : `${monthName(first, 'short')} ${year(first)} – ${monthName(last, 'short')} ${year(last)}`;
 }
 
 /** One month of a category: what it netted, with what came in and went out before netting. */

@@ -53,6 +53,7 @@ import { ChartTheme, applyChartTheme, axisOptions, withAlpha } from '../../core/
 import { CategoryBarsComponent } from './category-bars';
 import {
   CategoryTotal,
+  RangeChoice,
   Side,
   SideFilter,
   categoryBars,
@@ -61,6 +62,8 @@ import {
   compareText,
   flowWindow,
   mostBought,
+  periodKeys,
+  periodName,
   signedPct,
   storeTotals,
   sumByCategory,
@@ -141,8 +144,17 @@ export class AnalyticsComponent implements OnDestroy {
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
 
-  /** The Spending tab's month, 'YYYY-MM'; '' means all months. */
+  /** The Spending tab's month, 'YYYY-MM', the last of the period; '' means all months. */
   filterMonth = signal('');
+  /** How many months up to the selected one each tab shows. */
+  rangeMonths = signal<RangeChoice>(1);
+  readonly rangeOptions: { value: RangeChoice; label: string }[] = [
+    { value: 1, label: 'Month' },
+    { value: 3, label: '3M' },
+    { value: 6, label: '6M' },
+    { value: 12, label: '12M' },
+    { value: 'ytd', label: 'Year' },
+  ];
   /** With all months selected, show an average month instead of the totals. */
   showAverages = signal(false);
   /** Which side "By category" lists: both, money in or money out. */
@@ -182,21 +194,44 @@ export class AnalyticsComponent implements OnDestroy {
   );
 
   pageTitle = computed(() => {
-    const month = this.shownMonth();
-    return month ? `${monthName(month)} insights` : 'Insights';
+    const keys = this.activeTab() === 'groceries' ? this.gPeriodMonths() : this.periodMonths();
+    return keys ? `${periodName(keys)} insights` : 'Insights';
   });
 
-  isAverages = computed(() => !this.filterMonth() && this.showAverages());
+  /**
+   * The Spending tab's months, oldest first: the selected one, or the range up to it, from the
+   * first month with money on; null for all months.
+   */
+  periodMonths = computed(() =>
+    periodKeys(this.filterMonth(), this.rangeMonths(), this.availableMonths().at(-1)),
+  );
 
+  /** Whether the Spending tab shows more than one month, but not all of them. */
+  isRange = computed(() => (this.periodMonths()?.length ?? 0) > 1);
+
+  /** The period in words: 'September', 'Apr – Sep 2026', 'Average month', 'All months'. */
+  periodLabel = computed(() => {
+    const keys = this.periodMonths();
+    if (this.isAverages()) return 'Average month';
+    return keys ? periodName(keys) : 'All months';
+  });
+
+  isAverages = computed(() => (!this.filterMonth() || this.isRange()) && this.showAverages());
+
+  /** The months an average divides by: the range's, or every month with money. */
   private monthCount = computed(() => {
+    const keys = this.periodMonths();
+    if (keys) return keys.length;
     const months = new Set(this.finance.allTransactions().map((tx) => tx.month));
     return Math.max(1, months.size);
   });
 
   private txFiltered = computed(() => {
-    const m = this.filterMonth();
+    const keys = this.periodMonths();
     const txs = this.finance.allTransactions();
-    return m ? txs.filter((tx) => tx.month === m) : txs;
+    if (!keys) return txs;
+    const months = new Set(keys);
+    return txs.filter((tx) => months.has(tx.month));
   });
 
   /** The period's totals, each category netted over the whole period (ADR-037). */
@@ -216,8 +251,10 @@ export class AnalyticsComponent implements OnDestroy {
   totalIncome = computed(() => this.incomeData().reduce((s, d) => s + d.total, 0));
   kept = computed(() => this.totalIncome() - this.totalSpending());
 
-  /** The month the selected one is compared with; null for all months. */
-  compareMonth = computed(() => (this.filterMonth() ? previousMonth(this.filterMonth()) : null));
+  /** The month a single selected month is compared with; null for a range or all months. */
+  compareMonth = computed(() =>
+    this.filterMonth() && !this.isRange() ? previousMonth(this.filterMonth()) : null,
+  );
   compareName = computed(() => {
     const prev = this.compareMonth();
     return prev ? monthName(prev) : '';
@@ -263,10 +300,11 @@ export class AnalyticsComponent implements OnDestroy {
 
   heroLabel = computed(() => {
     const word = this.side() === 'in' ? 'In' : 'Out';
-    const month = this.filterMonth();
-    if (month) return `${word} in ${monthName(month)}`;
-    return this.isAverages()
-      ? `${word} in an average month`
+    const keys = this.periodMonths();
+    if (keys && !this.isRange()) return `${word} in ${monthName(keys[0])}`;
+    if (this.isAverages()) return `${word} in an average month`;
+    return keys
+      ? `${word} over ${periodName(keys)}`
       : `${word} over ${plural(this.monthCount(), 'month')}`;
   });
 
@@ -276,7 +314,7 @@ export class AnalyticsComponent implements OnDestroy {
   /** The sentence before "You kept …" under the hero figure. */
   spendingNote = computed(() => {
     const n = this.monthCount();
-    if (!this.filterMonth()) {
+    if (!this.filterMonth() || this.isRange()) {
       return this.isAverages()
         ? `Averaged over ${plural(n, 'month')}.`
         : `About ${eur(this.totalSpending() / n)} a month.`;
@@ -290,10 +328,12 @@ export class AnalyticsComponent implements OnDestroy {
     return text ? `${text[0].toUpperCase()}${text.slice(1)}.` : null;
   });
 
-  /** Six months up to the selected one, or the last 18 with all months. */
-  flowMonths = computed(() =>
-    flowWindow(this.finance.monthTotals(), this.filterMonth(), this.filterMonth() ? 6 : 18),
-  );
+  /** The period's months, at least six up to the selected one, or the last 18 with all months. */
+  flowMonths = computed(() => {
+    const keys = this.periodMonths();
+    const count = keys ? Math.max(6, keys.length) : 18;
+    return flowWindow(this.finance.monthTotals(), this.filterMonth(), count);
+  });
 
   flowTitle = computed(() => {
     const n = this.flowMonths().length;
@@ -395,10 +435,10 @@ export class AnalyticsComponent implements OnDestroy {
     const avgMonthly = months.length
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
-    const currentMonth = this.filterMonth();
-    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
-    const delta = prevTotal !== null ? currentTotal - prevTotal : null;
+    const keys = this.periodMonths() ?? [];
+    const currentTotal = keys.reduce((s, k) => s + (byMonth.get(k) ?? 0), 0);
+    const compare = this.compareMonth();
+    const delta = compare ? currentTotal - (byMonth.get(compare) ?? 0) : null;
     return { avgMonthly, currentTotal, delta };
   });
 
@@ -412,11 +452,29 @@ export class AnalyticsComponent implements OnDestroy {
     return [...new Set(months)].sort().reverse();
   });
 
+  /** The Groceries tab's months, as `periodMonths` for spending. */
+  gPeriodMonths = computed(() =>
+    periodKeys(this.gFilterMonth(), this.rangeMonths(), this.gAvailableMonths().at(-1)),
+  );
+
+  gIsRange = computed(() => (this.gPeriodMonths()?.length ?? 0) > 1);
+
+  gPeriodLabel = computed(() => {
+    const keys = this.gPeriodMonths();
+    return keys ? periodName(keys) : 'All months';
+  });
+
+  /** The month a single selected month is compared with; null for a range or all months. */
+  private gCompareMonth = computed(() =>
+    this.gFilterMonth() && !this.gIsRange() ? previousMonth(this.gFilterMonth()) : null,
+  );
+
   private gItemsFiltered = computed(() => {
-    const m = this.gFilterMonth();
+    const keys = this.gPeriodMonths();
     const items = this.groceriesSvc.countedItems();
-    if (!m) return items;
-    return items.filter((i) => i.receiptDate.slice(0, 7) === m);
+    if (!keys) return items;
+    const months = new Set(keys);
+    return items.filter((i) => months.has(i.receiptDate.slice(0, 7)));
   });
 
   gSpendingData = computed(() => groceryByCategory(this.gItemsFiltered()));
@@ -424,15 +482,14 @@ export class AnalyticsComponent implements OnDestroy {
   gTotalSpending = computed(() => this.gSpendingData().reduce((s, d) => s + d.total, 0));
 
   gCompareName = computed(() => {
-    const m = this.gFilterMonth();
-    return m ? monthName(previousMonth(m)) : '';
+    const prev = this.gCompareMonth();
+    return prev ? monthName(prev) : '';
   });
 
-  /** The previous month's groceries by category; null with all months or when it had none. */
+  /** The previous month's groceries by category; null without one, or when it had none. */
   private gPrevSpendingData = computed(() => {
-    const m = this.gFilterMonth();
-    if (!m) return null;
-    const prev = previousMonth(m);
+    const prev = this.gCompareMonth();
+    if (!prev) return null;
     const rows = groceryByCategory(
       this.groceriesSvc.countedItems().filter((i) => i.receiptDate.slice(0, 7) === prev),
     );
@@ -446,14 +503,15 @@ export class AnalyticsComponent implements OnDestroy {
 
   /** "4.8% more than August, read from 12 receipts." */
   gNote = computed(() => {
-    const month = this.gFilterMonth();
+    const keys = this.gPeriodMonths();
     const receipts = new Set(this.gItemsFiltered().map((i) => i.receiptId)).size;
-    if (receipts === 0) return month ? `No receipts in ${monthName(month)}.` : 'No receipts yet.';
+    if (receipts === 0) return keys ? `No receipts in ${periodName(keys)}.` : 'No receipts yet.';
     const read = `read from ${plural(receipts, 'receipt')}`;
-    if (!month) {
+    if (!keys) {
       const months = this.gAvailableMonths().length;
       return `Over ${plural(months, 'month')}, ${read}.`;
     }
+    if (this.gIsRange()) return `Over ${periodName(keys)}, ${read}.`;
     const prev = this.gPrevSpendingData();
     const text = compareText(
       this.gTotalSpending(),
@@ -530,16 +588,16 @@ export class AnalyticsComponent implements OnDestroy {
     const avgMonthly = months.length
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
-    const currentMonth = this.gFilterMonth();
-    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
-    const delta = prevTotal !== null ? currentTotal - prevTotal : null;
+    const keys = this.gPeriodMonths() ?? [];
+    const currentTotal = keys.reduce((s, k) => s + (byMonth.get(k) ?? 0), 0);
+    const compare = this.gCompareMonth();
+    const delta = compare ? currentTotal - (byMonth.get(compare) ?? 0) : null;
     return { avgMonthly, currentTotal, delta };
   });
 
-  /** ' in September' or ', all months', after a list's title. */
-  periodSuffix(month: string): string {
-    return month ? ` in ${monthName(month)}` : ', all months';
+  /** ' in September', ' in Apr – Sep 2026' or ', all months', after a list's title. */
+  periodSuffix(keys: string[] | null): string {
+    return keys ? ` in ${periodName(keys)}` : ', all months';
   }
 
   txAmount(tx: EnrichedTransaction): string {
@@ -568,12 +626,16 @@ export class AnalyticsComponent implements OnDestroy {
     if (this.activeTab() === 'groceries') {
       query['tab'] = 'groceries';
       query['month'] = this.gFilterMonth() || 'all';
+      if (this.gFilterMonth() && this.rangeMonths() !== 1)
+        query['months'] = String(this.rangeMonths());
       const sel = this.gSelectedCategory();
       const id = sel ? this.groceryCategoryId(sel.label) : null;
       if (id) query['categoryId'] = id;
       return query;
     }
     query['month'] = this.filterMonth() || 'all';
+    if (this.filterMonth() && this.rangeMonths() !== 1)
+      query['months'] = String(this.rangeMonths());
     if (this.side() !== 'all') query['side'] = this.side();
     const sel = this.selectedCategory();
     const id = sel ? this.categoryId(sel.label) : null;
@@ -649,7 +711,7 @@ export class AnalyticsComponent implements OnDestroy {
       if (this.activeTab() !== 'transactions') return;
       this.trendCanvas();
       this.flowMonths();
-      this.filterMonth();
+      this.periodMonths();
       this.renderTrendChart();
     });
 
@@ -692,6 +754,8 @@ export class AnalyticsComponent implements OnDestroy {
     const month = params.get('month');
     if (month === 'all') this.selectMonth('');
     else if (month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month)) this.selectMonth(month);
+    const range = this.rangeOptions.find((o) => String(o.value) === params.get('months'));
+    if (range) this.rangeMonths.set(range.value);
     const side = params.get('side');
     const picked: Side | null = side === 'in' || side === 'out' ? side : null;
     if (picked) this.side.set(picked);
@@ -791,7 +855,8 @@ export class AnalyticsComponent implements OnDestroy {
     const params: Record<string, string> = {};
     const id = this.categoryId(label);
     if (id) params['category'] = id;
-    if (month) params['month'] = month;
+    // Activity shows one month, so a range links to every month.
+    if (month && !this.isRange()) params['month'] = month;
     // A category's money in and out net together, so its link lists both (ADR-037).
     if (label === CATEGORY_UNKNOWN) params['type'] = txType;
     this.router.navigate(['/transactions'], { queryParams: params });
@@ -830,7 +895,7 @@ export class AnalyticsComponent implements OnDestroy {
     const params: Record<string, string> = {};
     const id = this.groceryCategoryId(label);
     if (id) params['categoryId'] = id;
-    if (month) params['month'] = month;
+    if (month && !this.gIsRange()) params['month'] = month;
     this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
   }
 
@@ -876,9 +941,10 @@ export class AnalyticsComponent implements OnDestroy {
     if (!canvas || rows.length === 0) return;
 
     const theme = applyChartTheme();
-    const selected = this.filterMonth();
+    const keys = this.periodMonths();
+    const period = new Set(keys ?? []);
     const tint = (color: string, month: string) =>
-      !selected || month === selected ? color : withAlpha(color, 0.38);
+      !keys || period.has(month) ? color : withAlpha(color, 0.38);
     const years = new Set(rows.map((r) => r.month.slice(0, 4))).size;
     const labels = rows.map((r) => [
       years > 1 ? shortMonthYear(r.month) : monthName(r.month, 'short'),

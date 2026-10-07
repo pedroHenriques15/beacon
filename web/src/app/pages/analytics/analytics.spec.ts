@@ -417,6 +417,90 @@ describe('AnalyticsComponent', () => {
     });
   });
 
+  describe('ranges', () => {
+    beforeEach(() => {
+      transactionsSignal.set([
+        makeTx('2026-07', 'Rent', 700),
+        makeTx('2026-08', 'Eating out', 100),
+        makeTx('2026-09', 'Eating out', 60, 'credit'),
+        makeTx('2026-09', 'Rent', 700),
+        makeTx('2026-09', 'Salary', 2000, 'credit'),
+      ]);
+      component.selectMonth('2026-09');
+    });
+
+    it('shows the months up to the selected one, netted over all of them', () => {
+      component.rangeMonths.set(3);
+      expect(component.periodMonths()).toEqual(['2026-07', '2026-08', '2026-09']);
+      expect(component.isRange()).toBe(true);
+      expect(component.spendingData().map((d) => [d.label, d.total])).toEqual([
+        ['Rent', 1400],
+        ['Eating out', 40],
+      ]);
+      expect(component.heroLabel()).toBe('Out over Jul – Sep 2026');
+      expect(component.pageTitle()).toBe('Jul – Sep 2026 insights');
+      expect(component.compareMonth()).toBeNull();
+    });
+
+    it('starts no earlier than the first month with money', () => {
+      component.rangeMonths.set(12);
+      expect(component.periodMonths()).toEqual(['2026-07', '2026-08', '2026-09']);
+      component.rangeMonths.set('ytd');
+      expect(component.periodMonths()?.[0]).toBe('2026-07');
+    });
+
+    it('averages over the range’s months', () => {
+      component.rangeMonths.set(3);
+      component.showAverages.set(true);
+      expect(component.isAverages()).toBe(true);
+      expect(component.totalSpending()).toBeCloseTo(480);
+      expect(component.periodLabel()).toBe('Average month');
+      expect(component.spendingNote()).toBe('Averaged over 3 months.');
+    });
+
+    it('sums a picked category over the range, with no previous month', () => {
+      component.rangeMonths.set(3);
+      component.selectCategory('Rent', '#fff', 'debit');
+      expect(component.categoryStats()).toMatchObject({ currentTotal: -1400, delta: null });
+    });
+
+    it('shows at least six months of flow, and every month of a longer range', () => {
+      const months = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(Date.UTC(2025, 7 + i, 1));
+        return d.toISOString().slice(0, 7);
+      });
+      monthTotalsSignal.set(
+        [...months].reverse().map((month) => ({ month, income: 1, expenses: 1, net: 0 })),
+      );
+      component.rangeMonths.set(3);
+      expect(component.flowMonths().length).toBe(6);
+      // A range starts at the first month with transactions.
+      transactionsSignal.update((rows) => [...rows, makeTx('2025-08', 'Rent', 700)]);
+      component.rangeMonths.set(12);
+      expect(component.flowMonths().length).toBe(12);
+    });
+
+    it('links a category to every month of Activity, which shows one month', () => {
+      const spy = vi.spyOn(router, 'navigate');
+      component.rangeMonths.set(3);
+      component.navigateToCategory(CATEGORY_UNKNOWN, 'debit');
+      expect(spy).toHaveBeenLastCalledWith(['/transactions'], {
+        queryParams: { category: 'unknown', type: 'debit' },
+      });
+    });
+
+    it('takes the range on the Groceries tab too', () => {
+      allItemsSignal.set([
+        makeItem({ receiptId: 1, receiptDate: '2026-08-10', categoryName: 'Food', amount: 20 }),
+        makeItem({ receiptId: 2, receiptDate: '2026-09-10', categoryName: 'Food', amount: 30 }),
+      ]);
+      component.selectMonth('2026-09');
+      component.rangeMonths.set(3);
+      expect(component.gTotalSpending()).toBeCloseTo(50);
+      expect(component.gNote()).toBe('Over Aug – Sep 2026, read from 2 receipts.');
+    });
+  });
+
   describe('URL', () => {
     async function openAt(url: string) {
       await router.navigateByUrl(url);
@@ -460,6 +544,16 @@ describe('AnalyticsComponent', () => {
       const { page } = await openAt('/?month=all&category=99');
       expect(page.filterMonth()).toBe('');
       expect(page.selectedCategory()).toBeNull();
+    });
+
+    it('opens on the range it names', async () => {
+      const { fx, page } = await openAt('/?month=2026-09&months=6');
+      expect(page.rangeMonths()).toBe(6);
+      expect(page.periodMonths()).toEqual(['2026-08', '2026-09']);
+      page.rangeMonths.set('ytd');
+      fx.detectChanges();
+      await fx.whenStable();
+      expect(router.url).toBe('/?month=2026-09&months=ytd');
     });
 
     it('puts a change on the page in the URL', async () => {

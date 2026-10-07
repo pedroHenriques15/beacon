@@ -348,20 +348,43 @@ describe('DashboardComponent', () => {
       ]);
     });
 
-    it('sums the months, averages them and gives the share kept', () => {
+    it('nets the months together, averages them and gives the share kept', () => {
+      const cat = (name: string) => ({ name, color: '#fff' });
       monthTotalsSignal.set([
-        makeTotals({ month: '2025-02', income: 2000, expenses: 1500, net: 500 }),
-        makeTotals({ month: '2025-01', income: 1000, expenses: 1100, net: -100 }),
+        makeTotals({ month: '2025-02', income: 2060, expenses: 1500, net: 560 }),
+        makeTotals({ month: '2025-01', income: 1000, expenses: 1220, net: -220 }),
+      ]);
+      allTransactionsSignal.set([
+        makeTx({ month: '2025-01', amount: 1000, type: 'credit', category: cat('Salary') }),
+        makeTx({ month: '2025-01', amount: 1100, category: cat('Rent') }),
+        makeTx({ month: '2025-01', amount: 120, category: cat('Dinner') }),
+        makeTx({ month: '2025-02', amount: 2000, type: 'credit', category: cat('Salary') }),
+        makeTx({ month: '2025-02', amount: 1500, category: cat('Rent') }),
+        // January's dinner paid back in February: income that month, a lower cost over both.
+        makeTx({ month: '2025-02', amount: 60, type: 'credit', category: cat('Dinner') }),
       ]);
       component.selectedMonth.set('2025-02');
-      expect(component.sixMonths().map((r) => r.keptShare)).toEqual([25, -10]);
+      expect(component.sixMonths().map((r) => r.keptShare)).toEqual([27, -22]);
       expect(component.sixSummary()).toEqual({
         income: 3000,
-        expenses: 2600,
-        net: 400,
-        keptShare: 13,
-        average: { income: 1500, expenses: 1300, net: 200 },
+        expenses: 2660,
+        net: 340,
+        keptShare: 11,
+        average: { income: 1500, expenses: 1330, net: 170 },
       });
+    });
+
+    it('links the six months to Insights, unless an account is picked', () => {
+      component.selectedMonth.set('2025-02');
+      expect(component.sixLink()).toBe('/analytics');
+      expect(component.insightsQuery('Unknown', 'in', 6)).toEqual({
+        month: '2025-02',
+        side: 'in',
+        months: '6',
+        category: 'unknown',
+      });
+      component.selectedBank.set('BPI');
+      expect(component.sixLink()).toBeNull();
     });
 
     it('has no summary without months', () => {

@@ -200,10 +200,11 @@ without a category stay gross, each credit income and each debit spending, and K
 either way. One pure helper does it, `categoryNet` (`core/utils/category-net.ts`, with
 `spendingByCategory` and `incomeByCategory` for the per-category lists); no page keeps its own
 credit and debit split for a total. A view nets over everything it shows: Home's month, Home's
-last six months (its "Top spending" and "Top income", netted once over the six) and Activity's
-filters across every bank (per bank only within that bank: Home's account filter, Activity's
-"Totals by bank"), Insights over its month or its whole range, so a payback that arrives a
-month after its expense nets only in a view that holds both months. Excluded rows and rows of an unclassified
+last six months (their total and their "Top spending" and "Top income", netted once over the
+six, while each month's row nets on its own) and Activity's filters across every bank (per bank
+only within that bank: Home's account filter, Activity's "Totals by bank"), Insights over its
+month, its range or all months, so a payback that arrives a month after its expense nets only
+in a view that holds both months. Excluded rows and rows of an unclassified
 type never reach the helper's figures, whatever a caller passes.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
@@ -789,13 +790,21 @@ from the injector only then, so opening the Upload page loads no investments.
 
 All pages are lazy-loaded standalone components via `app.routes.ts`. No NgModules.
 
+Insights shows one month, a range of calendar months ending at the scrubber's month (3, 6 or
+12, or the year so far; `periodKeys` in `pages/analytics/insights.ts`, from the first month
+with money on), or all months; a range has no comparison with the previous month. Home's "Last
+six months" are the same six calendar months (a month without money is an empty row), so
+Home's totals match Insights' six months for the same end month.
+
 Activity and Insights take their view from the URL's query, so other pages can link to one.
 Activity reads `month`, `category` (an id, or `unknown`), `bank`, `type`, and for groceries
-`tab=groceries` with `categoryId`. Insights reads `month` (`YYYY-MM`, or `all`), `side` (`in`
-or `out`, the "By category" filter; with `category=unknown`, also which Unknown), `category`,
-and `tab=groceries` with `categoryId`, and writes its view back with `replaceUrl`, so a reload
-or a shared link opens the same view. Home's "Where it went" links each category to Insights
-this way.
+`tab=groceries` with `categoryId`. Insights reads `month` (`YYYY-MM`, or `all`), `months` (`3`,
+`6`, `12` or `ytd`), `side` (`in` or `out`, the "By category" filter; with `category=unknown`,
+also which Unknown), `category`, and `tab=groceries` with `categoryId`, and writes its view back
+with `replaceUrl`, so a reload or a shared link opens the same view. Home links to Insights this
+way: each category of "Where it went" on the month, and the six months and each of their top
+categories on `months=6` (not while an account is picked, since Insights has no bank filter).
+Activity shows one month, so Insights links a range to every month of it.
 
 Angular 22 made OnPush the default change detection and `fetch` the default HTTP backend. The
 upgrade kept the earlier behaviour: every component declares

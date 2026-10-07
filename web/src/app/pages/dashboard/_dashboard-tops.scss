@@ -30,17 +30,29 @@
   padding: 0;
 }
 
+.tops__item {
+  border-bottom: 1px solid var(--border-soft);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+// Each row opens Insights on the category over the same six months.
 .top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   min-height: 54px;
-  border-bottom: 1px solid var(--border-soft);
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
+  text-decoration: none;
 
-  &:last-child {
-    border-bottom: none;
+  &[href]:hover {
+    background: var(--surface-raised);
   }
 
   &__name {

@@ -79,6 +79,13 @@
                 Show all
               </button>
             </span>
+          } @else if (sixMonths().length > 0) {
+            <a
+              class="link-btn"
+              routerLink="/analytics"
+              [queryParams]="{ month: snap.month, months: 6 }"
+              >In Insights</a
+            >
           }
         </div>
         <div class="six__table" role="table" aria-label="Last six months">
@@ -153,30 +160,36 @@
               @if (tops.spending.length > 0) {
                 <ol class="tops__list">
                   @for (cat of tops.spending; track cat.label) {
-                    <li class="top">
-                      <span class="top__name">
-                        @if (cat.label === unknownLabel) {
-                          <span class="ring"></span>
-                        } @else {
-                          <span class="cat-dot" [style.--_dot]="cat.color"></span>
-                        }
-                        <span class="top__label">{{ cat.label }}</span>
-                      </span>
-                      <span class="top__months" aria-hidden="true">
-                        @for (m of cat.months; track m.month) {
-                          <span class="top__month"
-                            ><span
-                              class="top__bar"
-                              [style.height.%]="m.pct"
-                              [style.background]="cat.color"
-                            ></span
-                          ></span>
-                        }
-                      </span>
-                      <span class="top__figures">
-                        <span class="top__total">{{ signedEur(-cat.total) }}</span>
-                        <span class="top__avg">{{ eur(cat.average) }} a month</span>
-                      </span>
+                    <li class="tops__item">
+                      <a
+                        class="top"
+                        [routerLink]="sixLink()"
+                        [queryParams]="insightsQuery(cat.label, 'out', 6)"
+                      >
+                        <span class="top__name">
+                          @if (cat.label === unknownLabel) {
+                            <span class="ring"></span>
+                          } @else {
+                            <span class="cat-dot" [style.--_dot]="cat.color"></span>
+                          }
+                          <span class="top__label">{{ cat.label }}</span>
+                        </span>
+                        <span class="top__months" aria-hidden="true">
+                          @for (m of cat.months; track m.month) {
+                            <span class="top__month"
+                              ><span
+                                class="top__bar"
+                                [style.height.%]="m.pct"
+                                [style.background]="cat.color"
+                              ></span
+                            ></span>
+                          }
+                        </span>
+                        <span class="top__figures">
+                          <span class="top__total">{{ signedEur(-cat.total) }}</span>
+                          <span class="top__avg">{{ eur(cat.average) }} a month</span>
+                        </span>
+                      </a>
                     </li>
                   }
                 </ol>
@@ -189,30 +202,36 @@
               @if (tops.income.length > 0) {
                 <ol class="tops__list">
                   @for (cat of tops.income; track cat.label) {
-                    <li class="top">
-                      <span class="top__name">
-                        @if (cat.label === unknownLabel) {
-                          <span class="ring"></span>
-                        } @else {
-                          <span class="cat-dot" [style.--_dot]="cat.color"></span>
-                        }
-                        <span class="top__label">{{ cat.label }}</span>
-                      </span>
-                      <span class="top__months" aria-hidden="true">
-                        @for (m of cat.months; track m.month) {
-                          <span class="top__month"
-                            ><span
-                              class="top__bar"
-                              [style.height.%]="m.pct"
-                              [style.background]="cat.color"
-                            ></span
-                          ></span>
-                        }
-                      </span>
-                      <span class="top__figures">
-                        <span class="top__total amount-in">{{ signedEur(cat.total) }}</span>
-                        <span class="top__avg">{{ eur(cat.average) }} a month</span>
-                      </span>
+                    <li class="tops__item">
+                      <a
+                        class="top"
+                        [routerLink]="sixLink()"
+                        [queryParams]="insightsQuery(cat.label, 'in', 6)"
+                      >
+                        <span class="top__name">
+                          @if (cat.label === unknownLabel) {
+                            <span class="ring"></span>
+                          } @else {
+                            <span class="cat-dot" [style.--_dot]="cat.color"></span>
+                          }
+                          <span class="top__label">{{ cat.label }}</span>
+                        </span>
+                        <span class="top__months" aria-hidden="true">
+                          @for (m of cat.months; track m.month) {
+                            <span class="top__month"
+                              ><span
+                                class="top__bar"
+                                [style.height.%]="m.pct"
+                                [style.background]="cat.color"
+                              ></span
+                            ></span>
+                          }
+                        </span>
+                        <span class="top__figures">
+                          <span class="top__total amount-in">{{ signedEur(cat.total) }}</span>
+                          <span class="top__avg">{{ eur(cat.average) }} a month</span>
+                        </span>
+                      </a>
                     </li>
                   }
                 </ol>
