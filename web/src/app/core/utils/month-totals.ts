@@ -80,3 +80,26 @@ export function daysInMonth(key: string): number {
   const [y, m] = key.split('-').map(Number);
   return new Date(y, m, 0).getDate();
 }
+
+/** `count` calendar months ending at `end`, newest first. */
+export function monthsUpTo(end: string, count: number): string[] {
+  const keys = [end];
+  while (keys.length < count) keys.push(previousMonth(keys[keys.length - 1]));
+  return keys;
+}
+
+/**
+ * Kept as a share of what came in, a whole percent (the savings rate), halves away from zero so
+ * a loss rounds like a gain; null without income.
+ */
+export function keptShare(income: number, kept: number): number | null {
+  if (income <= 0) return null;
+  const pct = (kept / income) * 100;
+  return Math.sign(pct) * Math.round(Math.abs(pct));
+}
+
+/** '32%', '−12%' (a true minus sign), or '—' without income. */
+export function keptShareText(share: number | null): string {
+  if (share === null) return '—';
+  return `${share < 0 ? '−' : ''}${Math.abs(share)}%`;
+}

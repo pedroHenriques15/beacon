@@ -52,7 +52,7 @@
   }
 }
 
-// The main blocks: "Six months of flow", "Where it went", the grocery summary.
+// The main blocks: "Six months of flow", "By category", the grocery summary.
 .flow,
 .went,
 .groc {
@@ -92,17 +92,11 @@
   .flow {
     order: 2;
   }
-  .moves {
+  .went {
     order: 3;
   }
-  .went {
-    order: 4;
-  }
   .detail {
-    order: 5;
-  }
-  .came {
-    order: 6;
+    order: 4;
   }
 
   // In a column a flex-basis would become a height.
@@ -135,7 +129,8 @@
 
     .tab-bar {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
       width: 100%;
     }
 
@@ -143,9 +138,5 @@
       flex: 1 1 160px;
       max-width: none;
     }
-  }
-
-  .went__since {
-    display: none;
   }
 }

@@ -210,7 +210,7 @@ describe('formatting', () => {
 });
 
 describe('historyCaption', () => {
-  it('splits the change into money put in and price moves', () => {
+  it('leads with what prices did, then the value and the money put in', () => {
     const caption = historyCaption([
       { date: '2026-01-05', totalValue: 1000, invested: 900 },
       { date: '2026-02-01', totalValue: 1200, invested: 1100 },
@@ -218,8 +218,8 @@ describe('historyCaption', () => {
     ]);
 
     expect(caption).toEqual({
-      title: 'Up €500 since 5 Jan 2026',
-      detail: '€400 put in, +€100 from price moves',
+      title: 'Up €100 from prices since 5 Jan 2026',
+      detail: 'Value up €500, with €400 put in',
     });
   });
 
@@ -230,18 +230,33 @@ describe('historyCaption', () => {
     ]);
 
     expect(caption).toEqual({
-      title: 'Down €350 since 5 Jan 2026',
-      detail: '€300 taken out, −€50 from price moves',
+      title: 'Down €50 from prices since 5 Jan 2026',
+      detail: 'Value down €350, with €300 taken out',
     });
   });
 
-  it('leaves out the money part when none moved, and needs two points', () => {
+  it('counts no gain when buys alone raised the value', () => {
+    const caption = historyCaption([
+      { date: '2026-01-05', totalValue: 1000, invested: 1000 },
+      { date: '2026-03-10', totalValue: 3000, invested: 3000 },
+    ]);
+
+    expect(caption).toEqual({
+      title: 'No change from prices since 5 Jan 2026',
+      detail: 'Value up €2,000, with €2,000 put in',
+    });
+  });
+
+  it('says when nothing moved, and needs two points', () => {
     expect(
       historyCaption([
         { date: '2026-01-05', totalValue: 1000, invested: 1000 },
         { date: '2026-03-10', totalValue: 1000, invested: 1000 },
       ]),
-    ).toEqual({ title: 'No change since 5 Jan 2026', detail: '€0 from price moves' });
+    ).toEqual({
+      title: 'No change from prices since 5 Jan 2026',
+      detail: 'Value unchanged, nothing put in or taken out',
+    });
     expect(historyCaption([{ date: '2026-01-05', totalValue: 1, invested: 1 }])).toBeNull();
   });
 });

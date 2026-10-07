@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { DashboardComponent } from './dashboard';
 import { bankInitials } from '../../core/utils/bank';
 import { FinanceService } from '../../core/services/finance.service';
-import { InvestmentsService } from '../../core/services/investments.service';
+import { InvestmentsService, PortfolioPoint } from '../../core/services/investments.service';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { MonthTotals } from '../../core/utils/month-totals';
 
@@ -81,6 +81,7 @@ describe('DashboardComponent', () => {
   const totalReturnSignal = signal(0);
   const totalReturnPctSignal = signal<number | null>(null);
   const firstBuyDateSignal = signal<string | null>(null);
+  const portfolioHistorySignal = signal<PortfolioPoint[]>([]);
   const loadPriceHistory = vi.fn();
 
   beforeEach(() => {
@@ -98,6 +99,7 @@ describe('DashboardComponent', () => {
     totalReturnSignal.set(0);
     totalReturnPctSignal.set(null);
     firstBuyDateSignal.set(null);
+    portfolioHistorySignal.set([]);
     loadPriceHistory.mockClear();
 
     TestBed.configureTestingModule({
@@ -130,7 +132,7 @@ describe('DashboardComponent', () => {
             totalReturn: totalReturnSignal,
             totalReturnPct: totalReturnPctSignal,
             firstBuyDate: firstBuyDateSignal,
-            portfolioHistory: signal([]),
+            portfolioHistory: portfolioHistorySignal,
             assetMetrics: signal([]),
             loadPriceHistory,
           },
@@ -157,6 +159,47 @@ describe('DashboardComponent', () => {
 
     it('is zero when both are zero', () => {
       expect(component.netWorth()).toBe(0);
+    });
+  });
+
+  describe('netWorthChange', () => {
+    beforeEach(() => {
+      monthTotalsSignal.set([makeTotals({ month: '2025-02', income: 1, net: 1 })]);
+      component.selectedMonth.set('2025-02');
+      statementsSignal.set([{ bank: 'BPI', periodTo: '2025-01-31', closingBalance: 1000 }]);
+      investmentAssetsSignal.set([{ lots: [{ date: '2025-01-10' }] }]);
+    });
+
+    it('splits the change into investment growth and what the accounts kept', () => {
+      totalBalanceSignal.set(2000);
+      totalCurrentValueSignal.set(600);
+      portfolioHistorySignal.set([
+        { date: '2025-01-31', totalValue: 500, invested: 500 },
+        { date: '2025-02-28', totalValue: 600, invested: 500 },
+      ]);
+      expect(component.netWorthChange()).toEqual({
+        amount: 1100,
+        since: '2025-01-31',
+        growth: 100,
+        rest: 1000,
+      });
+    });
+
+    it('moves neither part for a buy paid from cash', () => {
+      // 1,000 kept, 500 of it moved into investments that then grew by 100.
+      totalBalanceSignal.set(1500);
+      totalCurrentValueSignal.set(1100);
+      portfolioHistorySignal.set([
+        { date: '2025-01-31', totalValue: 500, invested: 500 },
+        { date: '2025-02-28', totalValue: 1100, invested: 1000 },
+      ]);
+      expect(component.netWorthChange()).toMatchObject({ amount: 1100, growth: 100, rest: 1000 });
+    });
+
+    it('has no parts without investments', () => {
+      investmentAssetsSignal.set([]);
+      totalBalanceSignal.set(1300);
+      expect(component.netWorthChange()).toMatchObject({ amount: 300, growth: null, rest: null });
     });
   });
 
@@ -258,6 +301,19 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('savings rate', () => {
+    it('gives the month’s share kept, none without income', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2500, expenses: 1700, net: 800 }),
+        makeTotals({ month: '2025-01', expenses: 50, net: -50 }),
+      ]);
+      component.selectedMonth.set('2025-02');
+      expect(component.monthSnapshot().keptShare).toBe(32);
+      component.selectedMonth.set('2025-01');
+      expect(component.monthSnapshot().keptShare).toBeNull();
+    });
+  });
+
   describe('selectedMonth', () => {
     it('starts at the latest closed month', () => {
       monthTotalsSignal.set([
@@ -332,6 +388,104 @@ describe('DashboardComponent', () => {
         '2025-04',
         '2025-03',
         '2025-02',
+      ]);
+    });
+
+    it('takes calendar months, an empty one as a zero row, none before the first', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-04', income: 100, expenses: 40, net: 60 }),
+        makeTotals({ month: '2025-02', income: 50, expenses: 10, net: 40 }),
+      ]);
+      component.selectedMonth.set('2025-04');
+      expect(component.sixMonths().map((r) => [r.month, r.income])).toEqual([
+        ['2025-04', 100],
+        ['2025-03', 0],
+        ['2025-02', 50],
+      ]);
+    });
+
+    it('nets the months together, averages them and gives the share kept', () => {
+      const cat = (name: string) => ({ name, color: '#fff' });
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2060, expenses: 1500, net: 560 }),
+        makeTotals({ month: '2025-01', income: 1000, expenses: 1220, net: -220 }),
+      ]);
+      allTransactionsSignal.set([
+        makeTx({ month: '2025-01', amount: 1000, type: 'credit', category: cat('Salary') }),
+        makeTx({ month: '2025-01', amount: 1100, category: cat('Rent') }),
+        makeTx({ month: '2025-01', amount: 120, category: cat('Dinner') }),
+        makeTx({ month: '2025-02', amount: 2000, type: 'credit', category: cat('Salary') }),
+        makeTx({ month: '2025-02', amount: 1500, category: cat('Rent') }),
+        // January's dinner paid back in February: income that month, a lower cost over both.
+        makeTx({ month: '2025-02', amount: 60, type: 'credit', category: cat('Dinner') }),
+      ]);
+      component.selectedMonth.set('2025-02');
+      expect(component.sixMonths().map((r) => r.keptShare)).toEqual([27, -22]);
+      expect(component.sixSummary()).toEqual({
+        income: 3000,
+        expenses: 2660,
+        net: 340,
+        keptShare: 11,
+        average: { income: 1500, expenses: 1330, net: 170 },
+      });
+    });
+
+    it('links the six months to Insights, unless an account is picked', () => {
+      component.selectedMonth.set('2025-02');
+      expect(component.sixLink()).toBe('/analytics');
+      expect(component.insightsQuery('Unknown', 'in', 6)).toEqual({
+        month: '2025-02',
+        side: 'in',
+        months: '6',
+        category: 'unknown',
+      });
+      component.selectedBank.set('BPI');
+      expect(component.sixLink()).toBeNull();
+    });
+
+    it('has no summary without months', () => {
+      expect(component.sixSummary()).toBeNull();
+    });
+  });
+
+  describe('sixTops', () => {
+    const cat = (name: string) => ({ name, color: `var(--${name})` });
+
+    beforeEach(() => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-03', income: 1, net: 1 }),
+        makeTotals({ month: '2025-02', income: 1, net: 1 }),
+      ]);
+      allTransactionsSignal.set([
+        makeTx({ id: 1, month: '2025-02', amount: 120, category: cat('Dinner') }),
+        makeTx({ id: 2, month: '2025-03', amount: 90, type: 'credit', category: cat('Dinner') }),
+        makeTx({ id: 3, month: '2025-03', amount: 50, category: cat('Food'), bank: 'REVOLUT' }),
+        makeTx({ id: 4, month: '2025-03', amount: 900, type: 'credit', category: cat('Salary') }),
+        makeTx({ id: 5, month: '2024-08', amount: 999, category: cat('Old') }),
+      ]);
+      component.selectedMonth.set('2025-03');
+    });
+
+    it('nets each category over the six months, a payback the next month included', () => {
+      expect(component.sixTops().spending.map((c) => [c.label, c.total])).toEqual([
+        ['Food', 50],
+        ['Dinner', 30],
+      ]);
+      expect(component.sixTops().income.map((c) => [c.label, c.total])).toEqual([['Salary', 900]]);
+    });
+
+    it('follows the picked account and the selected month', () => {
+      component.selectedBank.set('REVOLUT');
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-03', bank: 'REVOLUT', expenses: 50, net: -50 }),
+      ]);
+      expect(component.sixTops().spending.map((c) => c.label)).toEqual(['Food']);
+      expect(component.sixTops().income).toEqual([]);
+
+      component.selectedBank.set(null);
+      component.selectedMonth.set('2025-02');
+      expect(component.sixTops().spending.map((c) => [c.label, c.total])).toEqual([
+        ['Dinner', 120],
       ]);
     });
   });
@@ -493,6 +647,23 @@ describe('DashboardComponent', () => {
     it('is empty when there are no debit transactions', () => {
       allTransactionsSignal.set([]);
       expect(component.topCategories()).toHaveLength(0);
+    });
+  });
+
+  describe('insightsQuery', () => {
+    it('opens Insights on the selected month’s spending, on a category by its id', () => {
+      monthTotalsSignal.set([makeTotals({ month: '2025-03', expenses: 10, net: -10 })]);
+      allTransactionsSignal.set([
+        makeTx({ month: '2025-03', category: { id: 7, name: 'Food', color: '#fff' } }),
+      ]);
+      component.selectedMonth.set('2025-03');
+      expect(component.insightsQuery()).toEqual({ month: '2025-03', side: 'out' });
+      expect(component.insightsQuery('Food')).toEqual({
+        month: '2025-03',
+        side: 'out',
+        category: '7',
+      });
+      expect(component.insightsQuery(CATEGORY_UNKNOWN)).toMatchObject({ category: 'unknown' });
     });
   });
 

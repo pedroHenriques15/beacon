@@ -8,27 +8,30 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
-import { InvestmentsService } from '../../core/services/investments.service';
-import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
+import { InvestmentsService, valueChange } from '../../core/services/investments.service';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
+import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { categoryNet, spendingByCategory } from '../../core/utils/category-net';
 import {
   aggregateByMonth,
   daysInMonth,
+  keptShare,
+  keptShareText,
   latestClosedMonth,
   monthCells,
   monthKeyOf,
   monthName,
   monthYearLabel,
+  monthsUpTo,
   previousMonth,
 } from '../../core/utils/month-totals';
 import { eur, signedEur } from '../../core/utils/money';
 import { bankInitials } from '../../core/utils/bank';
 import { RiverChartComponent } from './river-chart';
 import { riverSeries, sparkline } from './river';
+import { windowTops } from './six-months';
 
 function lastDayOf(month: string): string {
   return `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
@@ -37,13 +40,7 @@ function lastDayOf(month: string): string {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [
-    DatePipe,
-    ConfirmDialogComponent,
-    RouterLink,
-    MonthScrubberComponent,
-    RiverChartComponent,
-  ],
+  imports: [DatePipe, RouterLink, MonthScrubberComponent, RiverChartComponent],
   templateUrl: './dashboard.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.scss',
@@ -57,13 +54,13 @@ export class DashboardComponent {
   readonly signedEur = signedEur;
   readonly monthName = monthName;
   readonly bankInitials = bankInitials;
+  readonly keptShareText = keptShareText;
+  readonly unknownLabel = CATEGORY_UNKNOWN;
 
   private readonly today = new Date();
   private readonly todayIso = `${monthKeyOf(this.today)}-${String(this.today.getDate()).padStart(2, '0')}`;
 
   selectedBank = signal<string | null>(null);
-  deleting = signal<number | null>(null);
-  confirmDeleteId = signal<number | null>(null);
 
   private cardOrder = signal<string[]>([]);
   draggedBank = signal<string | null>(null);
@@ -106,21 +103,6 @@ export class DashboardComponent {
     this.investments.loadPriceHistory(`${monthKeyOf(from)}-01`);
   }
 
-  /** Statements newest first, only the selected account's when one is picked. */
-  allStatements = computed(() => {
-    const bank = this.selectedBank();
-    return this.finance
-      .statements()
-      .filter((s) => !bank || s.bank === bank)
-      .sort((a, b) => b.periodTo.localeCompare(a.periodTo) || a.bank.localeCompare(b.bank));
-  });
-
-  showAllStatements = signal(false);
-
-  shownStatements = computed(() =>
-    this.showAllStatements() ? this.allStatements() : this.allStatements().slice(0, 6),
-  );
-
   /** Every month with counted money, all banks, newest first. */
   private allBankTotals = computed(() => this.finance.monthTotals());
 
@@ -147,20 +129,65 @@ export class DashboardComponent {
     return aggregateByMonth(this.finance.monthlySummaries().filter((s) => s.bank === selected));
   });
 
+  /**
+   * The six calendar months up to the selected one, newest first, from the first month with
+   * counted money on; a month without any shows as an empty row.
+   */
+  private sixKeys = computed(() => {
+    const rows = this.monthlyTotals();
+    const first = rows[rows.length - 1]?.month;
+    if (!first) return [];
+    return monthsUpTo(this.selectedMonth(), 6).filter((m) => m >= first);
+  });
+
   sixMonths = computed(() => {
-    const key = this.selectedMonth();
-    const rows = this.monthlyTotals()
-      .filter((r) => r.month <= key)
-      .slice(0, 6);
+    const byMonth = new Map(this.monthlyTotals().map((r) => [r.month, r]));
+    const rows = this.sixKeys().map(
+      (month) => byMonth.get(month) ?? { month, income: 0, expenses: 0, net: 0 },
+    );
     const max = Math.max(1, ...rows.flatMap((r) => [r.income, r.expenses]));
     return rows.map((r) => ({
       ...r,
       label: monthYearLabel(r.month),
       short: monthName(r.month, 'short'),
+      keptShare: keptShare(r.income, r.net),
       inPct: (r.income / max) * 100,
       outPct: (r.expenses / max) * 100,
     }));
   });
+
+  /** The counted rows of the six months, only the picked account's when one is picked. */
+  private sixRows = computed(() => {
+    const bank = this.selectedBank();
+    const months = new Set(this.sixKeys());
+    return this.finance
+      .allTransactions()
+      .filter((tx) => months.has(tx.month) && (!bank || tx.bank === bank));
+  });
+
+  /**
+   * The six months together, and as an average month; null without months. Each category nets
+   * over all six (ADR-037), as on Insights, so a payback a month after its expense cancels it
+   * here, though each month's row counts it on its own.
+   */
+  sixSummary = computed(() => {
+    const n = this.sixMonths().length;
+    if (n === 0) return null;
+    const { income, spending: expenses, net } = categoryNet(this.sixRows());
+    return {
+      income,
+      expenses,
+      net,
+      keptShare: keptShare(income, net),
+      average: { income: income / n, expenses: expenses / n, net: net / n },
+    };
+  });
+
+  /**
+   * "Top spending" and "Top income": the categories that cost and brought in the most over the
+   * six months, netted over all of them (ADR-037); the picked account's rows only, if any.
+   */
+  sixTops = computed(() => windowTops(this.sixRows(), [...this.sixKeys()].reverse()));
 
   // Net worth = cash across banks + current investment portfolio value
   cashTotal = computed(() => this.finance.totalBalance());
@@ -171,7 +198,11 @@ export class DashboardComponent {
     return total > 0 ? Math.max(0, Math.min(100, (this.cashTotal() / total) * 100)) : 100;
   });
 
-  /** Net worth's change since the end of the month before the selected one; null if unknown. */
+  /**
+   * Net worth's change since the end of the month before the selected one; null if unknown.
+   * `growth` is what investment prices added (money put in left out), `rest` the change less it:
+   * what the accounts kept. Both null without investments.
+   */
   netWorthChange = computed(() => {
     const cutoff = lastDayOf(previousMonth(this.selectedMonth()));
     const latest = new Map<string, { periodTo: string; closing: number }>();
@@ -185,6 +216,7 @@ export class DashboardComponent {
     const cash = [...latest.values()].reduce((sum, b) => sum + b.closing, 0);
 
     let invested = 0;
+    let growth: number | null = null;
     if (this.investments.assets().length > 0) {
       const history = this.investments.portfolioHistory();
       const point = [...history].reverse().find((p) => p.date <= cutoff);
@@ -193,8 +225,14 @@ export class DashboardComponent {
         .some((a) => a.lots.some((l) => l.date <= cutoff));
       if (point) invested = point.totalValue;
       else if (heldBefore) return null;
+      const last = history[history.length - 1];
+      if (last) {
+        const start = point ?? { date: cutoff, totalValue: 0, invested: 0 };
+        growth = valueChange(start, last).growth;
+      }
     }
-    return { amount: this.netWorth() - cash - invested, since: cutoff };
+    const amount = this.netWorth() - cash - invested;
+    return { amount, since: cutoff, growth, rest: growth === null ? null : amount - growth };
   });
 
   monthSnapshot = computed(() => {
@@ -220,6 +258,8 @@ export class DashboardComponent {
       expensesDelta:
         prev && prev.expenses !== 0 ? ((cur.expenses - prev.expenses) / prev.expenses) * 100 : null,
       netDelta: prev ? cur.net - prev.net : null,
+      /** The month's savings rate: Kept as a share of In. */
+      keptShare: keptShare(cur.income, cur.net),
     };
   });
 
@@ -266,20 +306,6 @@ export class DashboardComponent {
     return { count: rows.length, amount: rows.reduce((sum, tx) => sum + tx.amount, 0) };
   });
 
-  /** The last five days with counted activity up to the end of the selected month. */
-  latestDays = computed(() => {
-    const end = lastDayOf(this.selectedMonth());
-    const days: { date: string; rows: ReturnType<FinanceService['allTransactions']> }[] = [];
-    for (const tx of this.finance.allTransactions()) {
-      if (tx.datePosting > end) continue;
-      const last = days[days.length - 1];
-      if (last?.date === tx.datePosting) last.rows.push(tx);
-      else if (days.length < 5) days.push({ date: tx.datePosting, rows: [tx] });
-      else break;
-    }
-    return days.map((d) => ({ ...d, shown: d.rows.slice(0, 3), more: d.rows.length - 3 }));
-  });
-
   latestPriceDate = computed(() =>
     this.investments
       .assetMetrics()
@@ -316,6 +342,32 @@ export class DashboardComponent {
     return (val >= 0 ? '+' : '−') + Math.abs(val).toFixed(1) + '%';
   }
 
+  /** Category ids by name, from the rows, for links into Insights. */
+  private categoryIds = computed(() => {
+    const ids = new Map<string, number>();
+    for (const tx of this.finance.allTransactions())
+      if (tx.category) ids.set(tx.category.name, tx.category.id);
+    return ids;
+  });
+
+  /** Where the six months' links go: nowhere with an account picked, as Insights has no bank filter. */
+  sixLink = computed(() => (this.selectedBank() ? null : '/analytics'));
+
+  /**
+   * Insights on the selected month, or on the `months` up to it, on one side, and on one category
+   * when given.
+   */
+  insightsQuery(label?: string, side: 'in' | 'out' = 'out', months = 1): Record<string, string> {
+    const query: Record<string, string> = { month: this.selectedMonth(), side };
+    if (months > 1) query['months'] = String(months);
+    if (label === CATEGORY_UNKNOWN) query['category'] = 'unknown';
+    else if (label) {
+      const id = this.categoryIds().get(label);
+      if (id !== undefined) query['category'] = String(id);
+    }
+    return query;
+  }
+
   monthQuery(month: string): Record<string, string> {
     const queryParams: Record<string, string> = { month };
     const bank = this.selectedBank();
@@ -333,42 +385,6 @@ export class DashboardComponent {
 
   formatMonth(month: string): string {
     return monthYearLabel(month);
-  }
-
-  deleteStatement(id: number, event: MouseEvent): void {
-    event.stopPropagation();
-    this.confirmDeleteId.set(id);
-  }
-
-  onConfirmDelete(): void {
-    const id = this.confirmDeleteId();
-    if (id === null) return;
-    this.confirmDeleteId.set(null);
-    this.deleting.set(id);
-    this.finance.deleteStatement(id).subscribe({
-      next: () => {
-        this.finance.reload();
-        this.deleting.set(null);
-      },
-      error: (_err: HttpErrorResponse) => {
-        this.deleting.set(null);
-      },
-    });
-  }
-
-  openStatementFile(id: number, pdfPath: string | null): void {
-    if (!pdfPath) return;
-    this.finance.getStatementFile(id).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    });
-  }
-
-  private static readonly periodPipe = new DatePipe('en-GB');
-
-  formatPeriod(from: string, to: string): string {
-    const f = DashboardComponent.periodPipe;
-    return `${f.transform(from, 'd MMM')} – ${f.transform(to, 'd MMM yyyy')}`;
   }
 
   onDragStart(bank: string): void {

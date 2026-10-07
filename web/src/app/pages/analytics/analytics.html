@@ -31,7 +31,35 @@
         Groceries
       </button>
     </div>
+    @if (shownMonth()) {
+      <div class="tab-bar" role="group" aria-label="Months to show">
+        @for (opt of rangeOptions; track opt.value) {
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="rangeMonths() === opt.value"
+            [attr.aria-pressed]="rangeMonths() === opt.value"
+            (click)="rangeMonths.set(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    }
     @if (activeTab() === 'transactions') {
+      <div class="tab-bar" role="group" aria-label="Money in or out">
+        @for (opt of sideOptions; track opt.value) {
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="side() === opt.value"
+            [attr.aria-pressed]="side() === opt.value"
+            (click)="setSide(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
       <select
         class="field-select controls__category"
         aria-label="Category"
@@ -39,11 +67,11 @@
         (ngModelChange)="onCategoryDropdownChange($event)"
       >
         <option value="">All categories</option>
-        @for (cat of allCategories(); track cat.label) {
+        @for (cat of sideCategories(); track cat.label) {
           <option [value]="cat.label">{{ cat.label }}</option>
         }
       </select>
-      @if (!filterMonth()) {
+      @if (!filterMonth() || isRange()) {
         <button
           type="button"
           class="btn-secondary controls__average"
@@ -86,7 +114,7 @@
 
     @let monthKey = filterMonth();
     @let compare = compareName();
-    @let period = monthKey ? monthName(monthKey) : isAverages() ? 'Average month' : 'All months';
+    @let period = periodLabel();
 
     <div class="insights">
       <div class="insights__row insights__row--stretch">
@@ -117,116 +145,74 @@
         <aside class="insights__aside">
           <section class="hero" aria-labelledby="hero-h">
             <h2 id="hero-h">{{ heroLabel() }}</h2>
-            <p class="hero__total">{{ eur(totalSpending()) }}</p>
+            <p class="hero__total">{{ eur(heroTotal()) }}</p>
             <p class="hero__note">
-              @if (spendingNote(); as note) {
-                {{ note }}
+              @if (side() !== 'in') {
+                @if (spendingNote(); as note) {
+                  {{ note }}
+                }
               }
               @if (totalIncome() > 0) {
                 @if (kept() >= 0) {
-                  You kept <strong class="amount-in">{{ eur(kept()) }}</strong> of the
-                  {{ eur(totalIncome()) }} that came in.
+                  You kept <strong class="amount-in">{{ eur(kept()) }}</strong> ({{
+                    keptShareText(keptShare())
+                  }}) of the {{ eur(totalIncome()) }} that came in.
                 } @else {
-                  You spent <strong>{{ eur(kept()) }}</strong> more than the
-                  {{ eur(totalIncome()) }} that came in.
+                  You spent <strong>{{ eur(kept()) }}</strong> ({{
+                    keptShareText(-(keptShare() ?? 0))
+                  }}) more than the {{ eur(totalIncome()) }} that came in.
                 }
               } @else {
                 Nothing came in.
               }
             </p>
-          </section>
-
-          @if (moves().length > 0) {
-            <section class="moves" aria-labelledby="moves-h">
-              <h2 id="moves-h">Biggest moves since {{ compare }}</h2>
-              <ul class="lines">
-                @for (m of moves(); track m.label) {
-                  <li>
-                    <button
-                      type="button"
-                      class="line"
-                      [attr.aria-pressed]="selectedCategory()?.label === m.label"
-                      (click)="selectCategory(m.label, m.color, 'debit')"
-                    >
-                      <span class="line__name">
-                        @if (m.label === unknownLabel) {
-                          <span class="ring"></span>
-                        } @else {
-                          <span class="cat-dot" [style.--_dot]="m.color"></span>
-                        }
-                        {{ m.label }}
-                      </span>
-                      <span class="line__value">
-                        <strong [class.amount-in]="m.change < 0">{{ signedEur(m.change) }}</strong>
-                        <span class="line__pct">{{
-                          m.changePct === null ? 'new' : signedPct(m.changePct)
-                        }}</span>
-                      </span>
-                    </button>
-                  </li>
-                }
-              </ul>
-            </section>
-          }
-
-          <section class="came" aria-labelledby="came-h">
-            <h2 id="came-h">Where it came from</h2>
-            @if (incomeSplit().length > 0) {
-              <div class="split" role="img" [attr.aria-label]="incomeSplitLabel()">
-                @for (row of incomeSplit(); track row.label) {
-                  <span
-                    class="split__seg"
-                    [style.flex-grow]="row.share"
-                    [style.background]="row.color"
-                  ></span>
-                }
+            <dl class="hero__figures">
+              <div class="hero__figure">
+                <dt>In</dt>
+                <dd class="amount-in">{{ signedEur(totalIncome()) }}</dd>
               </div>
-              <ul class="lines">
-                @for (row of incomeSplit(); track row.label) {
-                  <li>
-                    <button
-                      type="button"
-                      class="line"
-                      [attr.aria-pressed]="selectedCategory()?.label === row.label"
-                      (click)="selectCategory(row.label, row.color, 'credit')"
-                    >
-                      <span class="line__name"
-                        ><span class="cat-dot" [style.--_dot]="row.color"></span
-                        >{{ row.label }}</span
-                      >
-                      <span class="line__value">
-                        <span class="line__pct">{{ row.share.toFixed(1) }}%</span>
-                        <strong class="amount-in">{{ signedEur(row.total) }}</strong>
-                      </span>
-                    </button>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <p class="empty">Nothing came in{{ monthKey ? ' in ' + period : '' }}.</p>
-            }
+              <div class="hero__figure">
+                <dt>Out</dt>
+                <dd>{{ signedEur(-totalSpending()) }}</dd>
+              </div>
+              <div class="hero__figure">
+                <dt>Kept</dt>
+                <dd [class.amount-in]="kept() >= 0">{{ signedEur(kept()) }}</dd>
+              </div>
+            </dl>
           </section>
         </aside>
       </div>
 
       <div class="insights__row">
         <section class="went" aria-labelledby="went-h">
-          <h2 id="went-h">
-            Where it went<span class="went__since">{{
-              spendingCompared() ? ', and how it moved since ' + compare : ''
-            }}</span>
-          </h2>
-          @if (spendingBars().rows.length > 0) {
+          <h2 id="went-h">{{ categoryTitle() }}</h2>
+          @if (categoryBars().rows.length > 0) {
             <app-category-bars
-              [bars]="spendingBars()"
+              [bars]="categoryBars()"
               [selected]="selectedCategory()?.label ?? null"
+              [selectedSide]="selectedSide()"
               [current]="period"
-              [previous]="spendingCompared() ? compare : null"
-              (picked)="selectCategory($event.label, $event.color, 'debit')"
+              [showShare]="side() !== 'all'"
+              (picked)="
+                selectCategory(
+                  $event.label,
+                  $event.color,
+                  $event.side === 'in' ? 'credit' : 'debit'
+                )
+              "
             />
             <p class="hint">Choose a category to see its months, merchants and transactions.</p>
           } @else {
-            <p class="empty">No spending{{ monthKey ? ' in ' + period : '' }}.</p>
+            <p class="empty">
+              {{
+                side() === 'in'
+                  ? 'Nothing came in'
+                  : side() === 'out'
+                    ? 'No spending'
+                    : 'No money in or out'
+              }}{{ monthKey ? ' in ' + period : '' }}.
+            </p>
           }
         </section>
 
@@ -307,7 +293,7 @@
             }
 
             @if (categoryTopMerchants().length) {
-              <h3 class="detail__title">Top merchants{{ periodSuffix(monthKey) }}</h3>
+              <h3 class="detail__title">Top merchants{{ periodSuffix(periodMonths()) }}</h3>
               <ul class="rows">
                 @for (m of categoryTopMerchants(); track m.description) {
                   <li class="row">
@@ -321,7 +307,7 @@
             }
 
             @if (categoryPeriodTransactions().length) {
-              <h3 class="detail__title">Transactions{{ periodSuffix(monthKey) }}</h3>
+              <h3 class="detail__title">Transactions{{ periodSuffix(periodMonths()) }}</h3>
               <ul class="rows rows--scroll">
                 @for (tx of categoryPeriodTransactions(); track tx.id) {
                   <li class="row row--dated">
@@ -355,13 +341,19 @@
   } @else {
     @let gKey = gFilterMonth();
     @let gCompare = gCompareName();
-    @let gPeriod = gKey ? monthName(gKey) : 'All months';
+    @let gPeriod = gPeriodLabel();
 
     <div class="insights">
       <div class="insights__row">
         <section class="groc" aria-labelledby="groc-h">
           <div class="groc__summary">
-            <h2 id="groc-h">{{ gKey ? 'Groceries in ' + gPeriod : 'Groceries, all months' }}</h2>
+            <h2 id="groc-h">
+              {{
+                gKey
+                  ? (gIsRange() ? 'Groceries over ' : 'Groceries in ') + gPeriod
+                  : 'Groceries, all months'
+              }}
+            </h2>
             <p class="hero__total">{{ eur(gTotalSpending()) }}</p>
             <p class="hero__note">{{ gNote() }}</p>
           </div>
@@ -416,17 +408,12 @@
 
       <div class="insights__row">
         <section class="went" aria-labelledby="gwent-h">
-          <h2 id="gwent-h">
-            By category<span class="went__since">{{
-              gCompared() ? ', and how it moved since ' + gCompare : ''
-            }}</span>
-          </h2>
+          <h2 id="gwent-h">By category</h2>
           @if (gSpendingBars().rows.length > 0) {
             <app-category-bars
               [bars]="gSpendingBars()"
               [selected]="gSelectedCategory()?.label ?? null"
               [current]="gPeriod"
-              [previous]="gCompared() ? gCompare : null"
               (picked)="selectGroceryCategory($event.label, $event.color)"
             />
             <p class="hint">Choose a category to see its months and items.</p>
@@ -502,7 +489,7 @@
             }
 
             @if (gCategoryTopItems().length) {
-              <h3 class="detail__title">Top items{{ periodSuffix(gKey) }}</h3>
+              <h3 class="detail__title">Top items{{ periodSuffix(gPeriodMonths()) }}</h3>
               <ul class="rows">
                 @for (item of gCategoryTopItems(); track item.description) {
                   <li class="row">
@@ -514,7 +501,7 @@
             }
 
             @if (gCategoryPeriodItems().length) {
-              <h3 class="detail__title">Items{{ periodSuffix(gKey) }}</h3>
+              <h3 class="detail__title">Items{{ periodSuffix(gPeriodMonths()) }}</h3>
               <ul class="rows rows--scroll">
                 @for (item of gCategoryPeriodItems(); track item.id) {
                   <li class="row row--dated">

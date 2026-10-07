@@ -1,0 +1,74 @@
+<app-confirm-dialog
+  [open]="confirmDeleteId() !== null"
+  title="Delete statement"
+  message="Delete this statement and all its transactions?"
+  (confirmed)="onConfirmDelete()"
+  (cancelled)="confirmDeleteId.set(null)"
+/>
+
+@if (statements().length > 0) {
+  <section class="statements" aria-labelledby="statements-h">
+    <h2 id="statements-h">Statements</h2>
+    <ul class="statements__list">
+      @for (s of shown(); track s.id) {
+        <li class="statement">
+          <span class="avatar" aria-hidden="true">{{ bankInitials(s.bank) }}</span>
+          <button
+            type="button"
+            class="statement__open"
+            [disabled]="!s.pdfPath"
+            [attr.aria-label]="
+              s.pdfPath
+                ? 'Open the PDF of ' + s.bank + ', ' + formatPeriod(s.periodFrom, s.periodTo)
+                : null
+            "
+            (click)="openStatementFile(s.id, s.pdfPath)"
+          >
+            <span class="statement__name">{{ s.bank }}</span>
+            <span class="statement__meta"
+              >{{ formatPeriod(s.periodFrom, s.periodTo) }},
+              {{ s.transactions.length }} transactions</span
+            >
+          </button>
+          <span class="statement__balance">{{ eur(s.closingBalance) }}</span>
+          <button
+            type="button"
+            class="btn-icon statement__delete"
+            [attr.aria-label]="
+              'Delete statement ' + s.bank + ', ' + formatPeriod(s.periodFrom, s.periodTo)
+            "
+            [disabled]="deleting() === s.id"
+            (click)="deleteStatement(s.id)"
+          >
+            @if (deleting() === s.id) {
+              …
+            } @else {
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
+              </svg>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+    @if (statements().length > 6) {
+      <button
+        type="button"
+        class="btn-secondary statements__more"
+        (click)="showAll.set(!showAll())"
+      >
+        {{ showAll() ? 'Show fewer' : 'Show all ' + statements().length + ' statements' }}
+      </button>
+    }
+  </section>
+}

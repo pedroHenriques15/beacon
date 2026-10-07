@@ -10,10 +10,11 @@ import {
   ChangeDetectionStrategy,
   Injector,
   afterNextRender,
+  untracked,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import {
   Chart,
   ChartOptions,
@@ -40,6 +41,8 @@ import {
   spendingByCategory,
 } from '../../core/utils/category-net';
 import {
+  keptShare,
+  keptShareText,
   latestClosedMonth,
   monthCells,
   monthKeyOf,
@@ -52,12 +55,17 @@ import { ChartTheme, applyChartTheme, axisOptions, withAlpha } from '../../core/
 import { CategoryBarsComponent } from './category-bars';
 import {
   CategoryTotal,
-  biggestMoves,
+  RangeChoice,
+  Side,
+  SideFilter,
   categoryBars,
+  categoryLines,
   categoryMonths,
   compareText,
   flowWindow,
   mostBought,
+  periodKeys,
+  periodName,
   signedPct,
   storeTotals,
   sumByCategory,
@@ -117,6 +125,7 @@ export class AnalyticsComponent implements OnDestroy {
   groceriesSvc = inject(GroceriesService);
   groceryCatSvc = inject(GroceryCategoriesService);
   router = inject(Router);
+  private route = inject(ActivatedRoute);
   private injector = inject(Injector);
 
   readonly eur = eur;
@@ -124,6 +133,7 @@ export class AnalyticsComponent implements OnDestroy {
   readonly signedPct = signedPct;
   readonly monthName = monthName;
   readonly unknownLabel = CATEGORY_UNKNOWN;
+  readonly keptShareText = keptShareText;
 
   private readonly nowKey = monthKeyOf(new Date());
 
@@ -137,10 +147,26 @@ export class AnalyticsComponent implements OnDestroy {
 
   activeTab = signal<'transactions' | 'groceries'>('transactions');
 
-  /** The Spending tab's month, 'YYYY-MM'; '' means all months. */
+  /** The Spending tab's month, 'YYYY-MM', the last of the period; '' means all months. */
   filterMonth = signal('');
+  /** How many months up to the selected one each tab shows. */
+  rangeMonths = signal<RangeChoice>(1);
+  readonly rangeOptions: { value: RangeChoice; label: string }[] = [
+    { value: 1, label: 'Month' },
+    { value: 3, label: '3M' },
+    { value: 6, label: '6M' },
+    { value: 12, label: '12M' },
+    { value: 'ytd', label: 'Year' },
+  ];
   /** With all months selected, show an average month instead of the totals. */
   showAverages = signal(false);
+  /** Which side "By category" lists: both, money in or money out. */
+  side = signal<SideFilter>('all');
+  readonly sideOptions: { value: SideFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'in', label: 'In' },
+    { value: 'out', label: 'Out' },
+  ];
   filterCategory = signal('');
   selectedCategory = signal<{
     label: string;
@@ -148,6 +174,9 @@ export class AnalyticsComponent implements OnDestroy {
     dominantType: 'credit' | 'debit';
   } | null>(null);
   private defaultApplied = false;
+  /** A category the URL named, kept until the categories and rows it needs have loaded. */
+  private pendingCategory = signal<{ id: string; side: Side | null } | null>(null);
+  private pendingGroceryCategory = signal<string | null>(null);
   /** "Six months of flow": money in and out per month. */
   trendChart?: Chart;
   categoryTrendChart?: Chart;
@@ -168,21 +197,44 @@ export class AnalyticsComponent implements OnDestroy {
   );
 
   pageTitle = computed(() => {
-    const month = this.shownMonth();
-    return month ? `${monthName(month)} insights` : 'Insights';
+    const keys = this.activeTab() === 'groceries' ? this.gPeriodMonths() : this.periodMonths();
+    return keys ? `${periodName(keys)} insights` : 'Insights';
   });
 
-  isAverages = computed(() => !this.filterMonth() && this.showAverages());
+  /**
+   * The Spending tab's months, oldest first: the selected one, or the range up to it, from the
+   * first month with money on; null for all months.
+   */
+  periodMonths = computed(() =>
+    periodKeys(this.filterMonth(), this.rangeMonths(), this.availableMonths().at(-1)),
+  );
 
+  /** Whether the Spending tab shows more than one month, but not all of them. */
+  isRange = computed(() => (this.periodMonths()?.length ?? 0) > 1);
+
+  /** The period in words: 'September', 'Apr – Sep 2026', 'Average month', 'All months'. */
+  periodLabel = computed(() => {
+    const keys = this.periodMonths();
+    if (this.isAverages()) return 'Average month';
+    return keys ? periodName(keys) : 'All months';
+  });
+
+  isAverages = computed(() => (!this.filterMonth() || this.isRange()) && this.showAverages());
+
+  /** The months an average divides by: the range's, or every month with money. */
   private monthCount = computed(() => {
+    const keys = this.periodMonths();
+    if (keys) return keys.length;
     const months = new Set(this.finance.allTransactions().map((tx) => tx.month));
     return Math.max(1, months.size);
   });
 
   private txFiltered = computed(() => {
-    const m = this.filterMonth();
+    const keys = this.periodMonths();
     const txs = this.finance.allTransactions();
-    return m ? txs.filter((tx) => tx.month === m) : txs;
+    if (!keys) return txs;
+    const months = new Set(keys);
+    return txs.filter((tx) => months.has(tx.month));
   });
 
   /** The period's totals, each category netted over the whole period (ADR-037). */
@@ -201,15 +253,19 @@ export class AnalyticsComponent implements OnDestroy {
   totalSpending = computed(() => this.spendingData().reduce((s, d) => s + d.total, 0));
   totalIncome = computed(() => this.incomeData().reduce((s, d) => s + d.total, 0));
   kept = computed(() => this.totalIncome() - this.totalSpending());
+  /** The savings rate: Kept as a share of what came in; null when nothing came in. */
+  keptShare = computed(() => keptShare(this.totalIncome(), this.kept()));
 
-  /** The month the selected one is compared with; null for all months. */
-  compareMonth = computed(() => (this.filterMonth() ? previousMonth(this.filterMonth()) : null));
+  /** The month a single selected month is compared with; null for a range or all months. */
+  compareMonth = computed(() =>
+    this.filterMonth() && !this.isRange() ? previousMonth(this.filterMonth()) : null,
+  );
   compareName = computed(() => {
     const prev = this.compareMonth();
     return prev ? monthName(prev) : '';
   });
 
-  /** The previous month's spending by category; null with all months or when it had none. */
+  /** The previous month's spending by category, for the hero's comparison; null without one. */
   private prevSpendingData = computed(() => {
     const prev = this.compareMonth();
     if (!prev) return null;
@@ -219,30 +275,51 @@ export class AnalyticsComponent implements OnDestroy {
     return rows.length ? rows : null;
   });
 
-  /** Whether "Where it went" compares with the previous month: a month is shown and it had spending. */
-  spendingCompared = computed(() => this.prevSpendingData() !== null);
+  /** "By category": each category's net on its side, largest first, as the side filter says. */
+  categoryRows = computed(() => categoryLines(this.netTotals(), this.side(), this.divisor()));
 
-  /** "Where it went, and how it moved": sorted bars with the previous month's tick. */
-  spendingBars = computed(() => categoryBars(this.spendingData(), this.prevSpendingData()));
+  categoryBars = computed(() => categoryBars(this.categoryRows()));
 
-  /** "Biggest moves since <previous month>"; empty with all months. */
-  moves = computed(() => {
-    const prev = this.prevSpendingData();
-    return prev ? biggestMoves(this.spendingData(), prev) : [];
+  /** The section's title: what the side filter shows. */
+  categoryTitle = computed(() => {
+    const side = this.side();
+    return side === 'in' ? 'Where it came from' : side === 'out' ? 'Where it went' : 'By category';
+  });
+
+  /** The category select's options: every category, or those on the chosen side. */
+  sideCategories = computed(() => {
+    if (this.side() === 'all') return this.allCategories();
+    const seen = new Set<string>();
+    return this.categoryRows()
+      .filter((r) => !seen.has(r.label) && seen.add(r.label))
+      .map((r) => ({ label: r.label, color: r.color }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  });
+
+  /** The side Unknown was picked from, for the bars (it can show on both). */
+  selectedSide = computed<Side | null>(() => {
+    const sel = this.selectedCategory();
+    if (!sel) return null;
+    return sel.dominantType === 'credit' ? 'in' : 'out';
   });
 
   heroLabel = computed(() => {
-    const month = this.filterMonth();
-    if (month) return `Out in ${monthName(month)}`;
-    return this.isAverages()
-      ? 'Out in an average month'
-      : `Out over ${plural(this.monthCount(), 'month')}`;
+    const word = this.side() === 'in' ? 'In' : 'Out';
+    const keys = this.periodMonths();
+    if (keys && !this.isRange()) return `${word} in ${monthName(keys[0])}`;
+    if (this.isAverages()) return `${word} in an average month`;
+    return keys
+      ? `${word} over ${periodName(keys)}`
+      : `${word} over ${plural(this.monthCount(), 'month')}`;
   });
+
+  /** The hero's figure: what came in with the In side, else what went out. */
+  heroTotal = computed(() => (this.side() === 'in' ? this.totalIncome() : this.totalSpending()));
 
   /** The sentence before "You kept …" under the hero figure. */
   spendingNote = computed(() => {
     const n = this.monthCount();
-    if (!this.filterMonth()) {
+    if (!this.filterMonth() || this.isRange()) {
       return this.isAverages()
         ? `Averaged over ${plural(n, 'month')}.`
         : `About ${eur(this.totalSpending() / n)} a month.`;
@@ -256,24 +333,12 @@ export class AnalyticsComponent implements OnDestroy {
     return text ? `${text[0].toUpperCase()}${text.slice(1)}.` : null;
   });
 
-  /** "Where it came from": income by category with its share. */
-  incomeSplit = computed(() => {
-    const total = this.totalIncome();
-    return this.incomeData().map((d) => ({ ...d, share: total > 0 ? (d.total / total) * 100 : 0 }));
+  /** The period's months, at least six up to the selected one, or the last 18 with all months. */
+  flowMonths = computed(() => {
+    const keys = this.periodMonths();
+    const count = keys ? Math.max(6, keys.length) : 18;
+    return flowWindow(this.finance.monthTotals(), this.filterMonth(), count);
   });
-
-  incomeSplitLabel = computed(
-    () =>
-      'Income by category: ' +
-      this.incomeSplit()
-        .map((d) => `${d.label} ${d.share.toFixed(1)}%`)
-        .join(', '),
-  );
-
-  /** Six months up to the selected one, or the last 18 with all months. */
-  flowMonths = computed(() =>
-    flowWindow(this.finance.monthTotals(), this.filterMonth(), this.filterMonth() ? 6 : 18),
-  );
 
   flowTitle = computed(() => {
     const n = this.flowMonths().length;
@@ -375,10 +440,10 @@ export class AnalyticsComponent implements OnDestroy {
     const avgMonthly = months.length
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
-    const currentMonth = this.filterMonth();
-    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
-    const delta = prevTotal !== null ? currentTotal - prevTotal : null;
+    const keys = this.periodMonths() ?? [];
+    const currentTotal = keys.reduce((s, k) => s + (byMonth.get(k) ?? 0), 0);
+    const compare = this.compareMonth();
+    const delta = compare ? currentTotal - (byMonth.get(compare) ?? 0) : null;
     return { avgMonthly, currentTotal, delta };
   });
 
@@ -392,11 +457,29 @@ export class AnalyticsComponent implements OnDestroy {
     return [...new Set(months)].sort().reverse();
   });
 
+  /** The Groceries tab's months, as `periodMonths` for spending. */
+  gPeriodMonths = computed(() =>
+    periodKeys(this.gFilterMonth(), this.rangeMonths(), this.gAvailableMonths().at(-1)),
+  );
+
+  gIsRange = computed(() => (this.gPeriodMonths()?.length ?? 0) > 1);
+
+  gPeriodLabel = computed(() => {
+    const keys = this.gPeriodMonths();
+    return keys ? periodName(keys) : 'All months';
+  });
+
+  /** The month a single selected month is compared with; null for a range or all months. */
+  private gCompareMonth = computed(() =>
+    this.gFilterMonth() && !this.gIsRange() ? previousMonth(this.gFilterMonth()) : null,
+  );
+
   private gItemsFiltered = computed(() => {
-    const m = this.gFilterMonth();
+    const keys = this.gPeriodMonths();
     const items = this.groceriesSvc.countedItems();
-    if (!m) return items;
-    return items.filter((i) => i.receiptDate.slice(0, 7) === m);
+    if (!keys) return items;
+    const months = new Set(keys);
+    return items.filter((i) => months.has(i.receiptDate.slice(0, 7)));
   });
 
   gSpendingData = computed(() => groceryByCategory(this.gItemsFiltered()));
@@ -404,38 +487,36 @@ export class AnalyticsComponent implements OnDestroy {
   gTotalSpending = computed(() => this.gSpendingData().reduce((s, d) => s + d.total, 0));
 
   gCompareName = computed(() => {
-    const m = this.gFilterMonth();
-    return m ? monthName(previousMonth(m)) : '';
+    const prev = this.gCompareMonth();
+    return prev ? monthName(prev) : '';
   });
 
-  /** The previous month's groceries by category; null with all months or when it had none. */
+  /** The previous month's groceries by category; null without one, or when it had none. */
   private gPrevSpendingData = computed(() => {
-    const m = this.gFilterMonth();
-    if (!m) return null;
-    const prev = previousMonth(m);
+    const prev = this.gCompareMonth();
+    if (!prev) return null;
     const rows = groceryByCategory(
       this.groceriesSvc.countedItems().filter((i) => i.receiptDate.slice(0, 7) === prev),
     );
     return rows.length ? rows : null;
   });
 
-  gCompared = computed(() => this.gPrevSpendingData() !== null);
-
-  gSpendingBars = computed(() => categoryBars(this.gSpendingData(), this.gPrevSpendingData()));
+  gSpendingBars = computed(() => categoryBars(this.gSpendingData()));
 
   gStores = computed(() => storeTotals(this.gItemsFiltered()));
   gMostBought = computed(() => mostBought(this.gItemsFiltered()));
 
   /** "4.8% more than August, read from 12 receipts." */
   gNote = computed(() => {
-    const month = this.gFilterMonth();
+    const keys = this.gPeriodMonths();
     const receipts = new Set(this.gItemsFiltered().map((i) => i.receiptId)).size;
-    if (receipts === 0) return month ? `No receipts in ${monthName(month)}.` : 'No receipts yet.';
+    if (receipts === 0) return keys ? `No receipts in ${periodName(keys)}.` : 'No receipts yet.';
     const read = `read from ${plural(receipts, 'receipt')}`;
-    if (!month) {
+    if (!keys) {
       const months = this.gAvailableMonths().length;
       return `Over ${plural(months, 'month')}, ${read}.`;
     }
+    if (this.gIsRange()) return `Over ${periodName(keys)}, ${read}.`;
     const prev = this.gPrevSpendingData();
     const text = compareText(
       this.gTotalSpending(),
@@ -512,16 +593,16 @@ export class AnalyticsComponent implements OnDestroy {
     const avgMonthly = months.length
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
-    const currentMonth = this.gFilterMonth();
-    const currentTotal = currentMonth ? (byMonth.get(currentMonth) ?? 0) : 0;
-    const prevTotal = currentMonth ? (byMonth.get(previousMonth(currentMonth)) ?? 0) : null;
-    const delta = prevTotal !== null ? currentTotal - prevTotal : null;
+    const keys = this.gPeriodMonths() ?? [];
+    const currentTotal = keys.reduce((s, k) => s + (byMonth.get(k) ?? 0), 0);
+    const compare = this.gCompareMonth();
+    const delta = compare ? currentTotal - (byMonth.get(compare) ?? 0) : null;
     return { avgMonthly, currentTotal, delta };
   });
 
-  /** ' in September' or ', all months', after a list's title. */
-  periodSuffix(month: string): string {
-    return month ? ` in ${monthName(month)}` : ', all months';
+  /** ' in September', ' in Apr – Sep 2026' or ', all months', after a list's title. */
+  periodSuffix(keys: string[] | null): string {
+    return keys ? ` in ${periodName(keys)}` : ', all months';
   }
 
   txAmount(tx: EnrichedTransaction): string {
@@ -540,7 +621,81 @@ export class AnalyticsComponent implements OnDestroy {
     return Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2).replace(/0$/, '');
   }
 
+  /**
+   * What the page shows, as its URL's query: `month` ('YYYY-MM' or 'all'), `side`, `category`
+   * (an id, or 'unknown'), and for groceries `tab` and `categoryId`. A reload or a shared link
+   * opens the same view.
+   */
+  private urlQuery = computed(() => {
+    const query: Record<string, string> = {};
+    if (this.activeTab() === 'groceries') {
+      query['tab'] = 'groceries';
+      query['month'] = this.gFilterMonth() || 'all';
+      if (this.gFilterMonth() && this.rangeMonths() !== 1)
+        query['months'] = String(this.rangeMonths());
+      const sel = this.gSelectedCategory();
+      const id = sel ? this.groceryCategoryId(sel.label) : null;
+      if (id) query['categoryId'] = id;
+      return query;
+    }
+    query['month'] = this.filterMonth() || 'all';
+    if (this.filterMonth() && this.rangeMonths() !== 1)
+      query['months'] = String(this.rangeMonths());
+    if (this.side() !== 'all') query['side'] = this.side();
+    const sel = this.selectedCategory();
+    const id = sel ? this.categoryId(sel.label) : null;
+    if (id) query['category'] = id;
+    return query;
+  });
+
   constructor() {
+    this.applyQuery(this.route.snapshot.queryParamMap);
+
+    effect(() => {
+      const query = this.urlQuery();
+      untracked(() => this.writeQuery(query));
+    });
+
+    effect(() => {
+      const pending = this.pendingCategory();
+      const categories = this.catSvc.categories();
+      const known = this.allCategories();
+      if (!pending) return;
+      const label =
+        pending.id === 'unknown'
+          ? CATEGORY_UNKNOWN
+          : categories.find((c) => String(c.id) === pending.id)?.name;
+      const cat = label ? known.find((c) => c.label === label) : undefined;
+      if (cat) {
+        untracked(() => {
+          this.pendingCategory.set(null);
+          this.selectCategory(cat.label, cat.color, pending.side === 'in' ? 'credit' : 'debit');
+        });
+      } else if (!label && categories.length > 0) {
+        untracked(() => this.pendingCategory.set(null));
+      }
+    });
+
+    effect(() => {
+      const pending = this.pendingGroceryCategory();
+      const categories = this.groceryCatSvc.categories();
+      const known = this.gAllCategories();
+      if (!pending) return;
+      const label =
+        pending === 'unknown'
+          ? CATEGORY_UNKNOWN
+          : categories.find((c) => String(c.id) === pending)?.name;
+      const cat = label ? known.find((c) => c.label === label) : undefined;
+      if (cat) {
+        untracked(() => {
+          this.pendingGroceryCategory.set(null);
+          this.selectGroceryCategory(cat.label, cat.color);
+        });
+      } else if (!label && categories.length > 0) {
+        untracked(() => this.pendingGroceryCategory.set(null));
+      }
+    });
+
     effect(() => {
       const months = this.availableMonths();
       if (months.length > 0 && !this.defaultApplied) {
@@ -561,7 +716,7 @@ export class AnalyticsComponent implements OnDestroy {
       if (this.activeTab() !== 'transactions') return;
       this.trendCanvas();
       this.flowMonths();
-      this.filterMonth();
+      this.periodMonths();
       this.renderTrendChart();
     });
 
@@ -598,6 +753,46 @@ export class AnalyticsComponent implements OnDestroy {
     this.gCategoryTrendChart?.destroy();
   }
 
+  /** Opens the view a URL asks for; anything it does not recognise is left as it is. */
+  private applyQuery(params: ParamMap): void {
+    if (params.get('tab') === 'groceries') this.activeTab.set('groceries');
+    const month = params.get('month');
+    if (month === 'all') this.selectMonth('');
+    else if (month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month)) this.selectMonth(month);
+    const range = this.rangeOptions.find((o) => String(o.value) === params.get('months'));
+    if (range) this.rangeMonths.set(range.value);
+    const side = params.get('side');
+    const picked: Side | null = side === 'in' || side === 'out' ? side : null;
+    if (picked) this.side.set(picked);
+    const category = params.get('category');
+    if (category) this.pendingCategory.set({ id: category, side: picked });
+    const groceryCategory = params.get('categoryId');
+    if (groceryCategory) this.pendingGroceryCategory.set(groceryCategory);
+  }
+
+  /** Puts the view in the URL, replacing the entry, when it changed. */
+  private writeQuery(query: Record<string, string>): void {
+    if (!this.defaultApplied) return;
+    const current = this.route.snapshot.queryParamMap;
+    const same =
+      current.keys.length === Object.keys(query).length &&
+      Object.entries(query).every(([key, value]) => current.get(key) === value);
+    if (same) return;
+    this.router.navigate([], { relativeTo: this.route, queryParams: query, replaceUrl: true });
+  }
+
+  private categoryId(label: string): string | null {
+    if (label === CATEGORY_UNKNOWN) return 'unknown';
+    const cat = this.catSvc.categories().find((c) => c.name === label);
+    return cat ? String(cat.id) : null;
+  }
+
+  private groceryCategoryId(label: string): string | null {
+    if (label === CATEGORY_UNKNOWN) return 'unknown';
+    const cat = this.groceryCatSvc.categories().find((c) => c.name === label);
+    return cat ? String(cat.id) : null;
+  }
+
   /** The scrubber (or a month in the flow chart) picks the month for both tabs. */
   selectMonth(key: string): void {
     this.defaultApplied = true;
@@ -621,13 +816,34 @@ export class AnalyticsComponent implements OnDestroy {
     this.filterCategory.set('');
   }
 
+  /** Picks the side "By category" lists, letting go of a picked category not on it. */
+  setSide(side: SideFilter): void {
+    this.side.set(side);
+    const sel = this.selectedCategory();
+    if (!sel || side === 'all') return;
+    // Unknown stays only on the side it was picked from: each side is its own rows.
+    const onSide =
+      sel.label === CATEGORY_UNKNOWN
+        ? this.selectedSide() === side
+        : this.categoryRows().some((r) => r.label === sel.label);
+    if (!onSide) this.clearCategory();
+  }
+
   onCategoryDropdownChange(value: string): void {
     if (!value) {
       this.clearCategory();
       return;
     }
-    const cat = this.allCategories().find((c) => c.label === value);
+    const cat = this.sideCategories().find((c) => c.label === value);
     if (cat) {
+      const side = this.side();
+      if (side !== 'all') {
+        const dominantType = side === 'in' ? 'credit' : 'debit';
+        this.selectedCategory.set({ label: cat.label, color: cat.color, dominantType });
+        this.filterCategory.set(value);
+        this.revealDetail();
+        return;
+      }
       const txs = this.finance
         .allTransactions()
         .filter((tx) => (tx.category?.name ?? CATEGORY_UNKNOWN) === value);
@@ -641,11 +857,11 @@ export class AnalyticsComponent implements OnDestroy {
 
   navigateToCategory(label: string, txType: 'credit' | 'debit'): void {
     const month = this.filterMonth();
-    const cat = this.catSvc.categories().find((c) => c.name === label);
     const params: Record<string, string> = {};
-    if (cat) params['category'] = String(cat.id);
-    else if (label === CATEGORY_UNKNOWN) params['category'] = 'unknown';
-    if (month) params['month'] = month;
+    const id = this.categoryId(label);
+    if (id) params['category'] = id;
+    // Activity shows one month, so a range links to every month.
+    if (month && !this.isRange()) params['month'] = month;
     // A category's money in and out net together, so its link lists both (ADR-037).
     if (label === CATEGORY_UNKNOWN) params['type'] = txType;
     this.router.navigate(['/transactions'], { queryParams: params });
@@ -681,11 +897,10 @@ export class AnalyticsComponent implements OnDestroy {
 
   navigateToGroceryCategory(label: string): void {
     const month = this.gFilterMonth();
-    const cat = this.groceryCatSvc.categories().find((c) => c.name === label);
     const params: Record<string, string> = {};
-    if (cat) params['categoryId'] = String(cat.id);
-    else if (label === CATEGORY_UNKNOWN) params['categoryId'] = 'unknown';
-    if (month) params['month'] = month;
+    const id = this.groceryCategoryId(label);
+    if (id) params['categoryId'] = id;
+    if (month && !this.gIsRange()) params['month'] = month;
     this.router.navigate(['/transactions'], { queryParams: { ...params, tab: 'groceries' } });
   }
 
@@ -731,9 +946,10 @@ export class AnalyticsComponent implements OnDestroy {
     if (!canvas || rows.length === 0) return;
 
     const theme = applyChartTheme();
-    const selected = this.filterMonth();
+    const keys = this.periodMonths();
+    const period = new Set(keys ?? []);
     const tint = (color: string, month: string) =>
-      !selected || month === selected ? color : withAlpha(color, 0.38);
+      !keys || period.has(month) ? color : withAlpha(color, 0.38);
     const years = new Set(rows.map((r) => r.month.slice(0, 4))).size;
     const labels = rows.map((r) => [
       years > 1 ? shortMonthYear(r.month) : monthName(r.month, 'short'),
