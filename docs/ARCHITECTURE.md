@@ -556,8 +556,10 @@ Conventions:
   the same for the tab's assets. The page leads with the total return in € and % "since" the
   first buy's month, its tiles split it into money put in, unrealised and realised, its
   changes start with "All time" before 1 month, 1 week and 1 day, each holding's "Return" is
-  its own total return, and the value chart opens on All. Home's Investments row shows the
-  total return after the value, and today's change after it.
+  its own total return, and the value chart opens on All. The chart's title is what prices did
+  over the shown range, the money put in or taken out left out (`valueChange`,
+  `investments.service.ts`); the line under it gives the value's change and that money. Home's
+  Investments row shows the total return after the value, and today's change after it.
 - **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
   scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
   Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already
