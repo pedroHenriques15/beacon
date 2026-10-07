@@ -417,3 +417,87 @@ an asset created from an XTB ticker is not found later by a Trade Republic ISIN,
 Republic's buys of the same ETF must come in first and its prices sync once (until then the
 asset has no prices symbol); the SDK adds a few megabytes to the deployment; and the holdings
 check is only as fresh as the latest download.
+
+## ADR-035 · A category rule matches the whole description or a part of it, as it says
+
+Since 2026-10-07 each category rule, for transactions and grocery items alike, says how its
+text matches: the whole description (the row's description, trimmed, equals the text) or a
+part of it (the description contains the text); both are ordinal, so case-sensitive. When the
+rule has an amount, the row's amount must equal it too. An empty text is no text condition, and
+a rule with neither matches nothing. Every path that applies rules uses one matcher,
+`RuleMatch.Matches`, and the client's `matchesRule` mirrors it for the rule dialogs' match
+count. Until then every rule matched a part of the description, and each import had its own
+check: the statement and meal-card imports ignored the amount (so an amount-only rule matched
+every row), and the grocery imports took the text or the amount. A partial rule catches any
+description that contains its text, so a short one matches rows it was never meant for, while
+banks put varying parts into a description (a card number, a place, a transfer number that
+changes every time), which only a partial rule covers in one go; so the choice is the rule's.
+Existing rules stay partial (the migration's default), so nothing they matched changes, and a
+request without the flag, from an older client or an older backup, means partial too; new rules
+default to the whole description in the dialogs, which fill it in from the row. Alternatives:
+whole-description matching only (every partial rule would match nothing until rewritten);
+partial matching only, with the amount honoured everywhere; regular expressions. Costs
+accepted: one more choice in every rule dialog, and a rule's behaviour depends on a flag shown
+only as "Equals" or "Contains" in the rule list.
+
+## ADR-036 · A pull request's screenshots live on a screenshot branch
+
+Since 2026-10-07 the screenshots a PR shows (a visible change at 1440 px and 390 px, from the
+demo database) are committed to an orphan branch of their own, `screenshots/NNN-work-name`,
+holding image files only, and the PR description links them through
+`raw.githubusercontent.com`. GitHub takes images in a PR description only through its web
+editor, so a PR opened with `gh`, by hand or by Claude Code, had no way to show them. The
+branch is never merged, so the images stay out of the code's history and out of `development`
+and `main`, and never deleted, since merged PRs keep linking to it. `pre-push` guards it
+(deleting it, a non-image file, a subject without `screenshots(NNN): `), because an orphan
+branch has no `.githooks/` and so no commit hook runs on it. Alternatives: uploading through
+the web editor (manual, and impossible from the command line); committing the images to
+`docs/screenshots/` on the task branch (they would ship in every checkout and the deployment);
+one shared branch for every PR (a single history to keep tidy, and a retake for one PR touches
+the branch every PR links to). Costs accepted: one more branch per visible change, kept for
+good, and images that depend on the repository staying public for the links to render.
+
+## ADR-037 · Totals net each category
+
+Since 2026-10-07 every income and spending total nets each category: within the rows a view
+counts, a category's credits less its debits is its net, income of that amount when above
+zero, spending of the absolute amount otherwise. Rows without a category are not netted: each
+credit is income and each debit spending, since nothing ties one to another. Kept (income less
+spending) does not change; income and spending both shrink by the amounts that cancel. A view
+nets across every bank it shows, since a friend may pay back into another account than the one
+that paid, and over its whole period: a month on Home and Activity, the month or the range on
+Insights. Until then every total split rows by type, so a group dinner of 100 paid back by
+three friends at 25 each showed 100 spent on the category and 75 of income, both inflated, and
+a refund counted as income. One client helper, `categoryNet` (`core/utils/category-net.ts`),
+does the netting for every total and chart, and no page keeps its own credit and debit split;
+rows are still shown by type. Alternatives: a type per category (income or spending), set by
+the owner on the Categories page, so a payback always lowers spending, even below zero (a
+migration and one more setting; its own work if the sign below reads badly); linking each
+payback to the expense it repays (exact, but a chore for every payback). Costs accepted: a
+category's side follows the sign of its net, so one that nets close to zero (a shared expense
+mostly paid back) can count as spending one month and income the next; a payback that arrives
+the month after its expense nets only in a view that holds both months, so the first month
+carries the whole expense and the second the payback, which lowers that month's spending in the
+category or counts as income; the totals of one bank, netted within that bank, no longer add up
+to the totals of every bank.
+
+## ADR-038 · Investment returns are shown since the first buy, on the money put in
+
+Since 2026-10-07 the Invest page and Home lead with the total return since the first buy, for
+the portfolio, for each tab and for each holding: the realised return of every sell plus the
+unrealised return of the units still held, in euros, and as a percentage of the money put in.
+Money put in is the cost of every buy, fees included, whether its units were sold since or not;
+the total return percentage is the total return divided by it, simple, not annualised. "Since"
+is the date of the earliest buy among the assets in view. Both parts keep the average cost basis
+(ADR-013). Until then the pages led with short periods: Home showed only today's change, and the
+Invest page's headline was the unrealised gain on the units still held, followed by the 1 day,
+1 week and 1 month changes; realised returns had a tile of their own and were in no
+percentage, so with buys through several brokers and sells along the way, no figure said what
+the investments had returned overall. A sell counts: an asset sold out keeps its row, its
+return and its buys in the totals. The shorter changes stay, after the total, and the value
+chart opens on its whole history. Alternatives: a money-weighted (XIRR) or time-weighted
+return, which account for when the money went in and can be given per year (fairer to regular
+buys, but harder to explain and to check by hand; their own work if wanted); the unrealised
+return alone, as before (leaves every sell out). Costs accepted: a buy made last month weighs
+as much as one made two years ago, so regular buys pull the percentage towards zero, and it is
+no yearly rate; distributions are not counted, since Beacon records none.

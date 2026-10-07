@@ -29,7 +29,7 @@ public class CategoriesController(
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCategoryRequest body, CancellationToken ct)
     {
-        return Ok(await createCategory.HandleAsync(new CreateCategoryCommand(body.Name, body.Color, body.Pattern, body.Value), ct));
+        return Ok(await createCategory.HandleAsync(new CreateCategoryCommand(body.Name, body.Color, body.Pattern, body.Value, body.MatchWholeDescription), ct));
     }
 
     [HttpPut("{id:int}")]
@@ -55,14 +55,14 @@ public class CategoriesController(
     [HttpPost("rules")]
     public async Task<IActionResult> CreateRule([FromBody] CreateCategoryRuleRequest body, CancellationToken ct)
     {
-        var result = await createCategoryRule.HandleAsync(new CreateCategoryRuleCommand(body.CategoryId, body.Pattern, body.Value), ct);
+        var result = await createCategoryRule.HandleAsync(new CreateCategoryRuleCommand(body.CategoryId, body.Pattern, body.Value, body.MatchWholeDescription), ct);
         return result is null ? NotFound("Category not found.") : Ok(result);
     }
 
     [HttpPut("rules/{id:int}")]
     public async Task<IActionResult> UpdateRule(int id, [FromBody] UpdateCategoryRuleRequest body, CancellationToken ct)
     {
-        var updated = await updateCategoryRule.HandleAsync(new UpdateCategoryRuleCommand(id, body.Pattern, body.Value), ct);
+        var updated = await updateCategoryRule.HandleAsync(new UpdateCategoryRuleCommand(id, body.Pattern, body.Value, body.MatchWholeDescription), ct);
         return updated ? NoContent() : NotFound();
     }
 
@@ -74,7 +74,7 @@ public class CategoriesController(
     }
 }
 
-public record CreateCategoryRequest(string Name, string? Color, string? Pattern, decimal? Value = null);
+public record CreateCategoryRequest(string Name, string? Color, string? Pattern, decimal? Value = null, bool MatchWholeDescription = false);
 public record UpdateCategoryRequest(string? Name, string? Color);
-public record CreateCategoryRuleRequest(int CategoryId, string? Pattern, decimal? Value);
-public record UpdateCategoryRuleRequest(string? Pattern, decimal? Value);
+public record CreateCategoryRuleRequest(int CategoryId, string? Pattern, decimal? Value, bool MatchWholeDescription = false);
+public record UpdateCategoryRuleRequest(string? Pattern, decimal? Value, bool MatchWholeDescription = false);

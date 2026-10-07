@@ -11,6 +11,8 @@ export interface GroceryCategoryRule {
   categoryId: number;
   pattern: string | null;
   value: number | null;
+  /** True: the pattern must equal the whole description; false: it may be any part of it. */
+  matchWholeDescription: boolean;
 }
 
 export interface GroceryReceiptSummary {

@@ -129,20 +129,31 @@
           <h2 id="value-h">{{ valueLabel() }}</h2>
           <p class="value-card__total">{{ eur(s.value) }}</p>
           <p class="value-card__gain">
-            <span class="delta" [class.delta--down]="s.unrealised < 0"
-              >{{ signedEur(s.unrealised) }}
-              @if (s.unrealisedPct !== null) {
-                ({{ signedPct(s.unrealisedPct, 1) }})
+            <span class="delta" [class.delta--down]="s.totalReturn < 0"
+              >{{ signedEur(s.totalReturn) }}
+              @if (s.totalReturnPct !== null) {
+                ({{ signedPct(s.totalReturnPct, 1) }})
               }
             </span>
-            unrealised
+            return{{ s.since ? ' since ' + monthYear(s.since) : '' }}
           </p>
         </section>
 
         <div class="tiles">
+          <div class="tile tile--wide">
+            <span class="tile__label">Money put in</span>
+            <span class="tile__value">{{ eur(s.invested) }}</span>
+          </div>
           <div class="tile">
-            <span class="tile__label">Cost basis</span>
-            <span class="tile__value">{{ eur(s.cost) }}</span>
+            <span class="tile__label">Unrealised</span>
+            <span class="tile__value" [class.amount-in]="s.unrealised > 0">{{
+              signedEur(s.unrealised)
+            }}</span>
+            @if (s.unrealisedPct !== null) {
+              <span class="tile__pct" [class.amount-in]="s.unrealisedPct > 0">{{
+                signedPct(s.unrealisedPct, 1)
+              }}</span>
+            }
           </div>
           <div class="tile">
             <span class="tile__label">Realised</span>
@@ -156,22 +167,22 @@
           <h2 id="changes-h">Change</h2>
           <dl class="changes__list">
             <div class="changes__item">
-              <dt>1 day</dt>
-              <dd [class.amount-in]="(s.change1d ?? 0) > 0">{{ signedPct(s.change1d) }}</dd>
-            </div>
-            <div class="changes__item">
-              <dt>1 week</dt>
-              <dd [class.amount-in]="(s.change1w ?? 0) > 0">{{ signedPct(s.change1w) }}</dd>
+              <dt>All time</dt>
+              <dd [class.amount-in]="(s.totalReturnPct ?? 0) > 0">
+                {{ signedPct(s.totalReturnPct) }}
+              </dd>
             </div>
             <div class="changes__item">
               <dt>1 month</dt>
               <dd [class.amount-in]="(s.change1m ?? 0) > 0">{{ signedPct(s.change1m) }}</dd>
             </div>
             <div class="changes__item">
-              <dt>Since buying</dt>
-              <dd [class.amount-in]="(s.unrealisedPct ?? 0) > 0">
-                {{ signedPct(s.unrealisedPct) }}
-              </dd>
+              <dt>1 week</dt>
+              <dd [class.amount-in]="(s.change1w ?? 0) > 0">{{ signedPct(s.change1w) }}</dd>
+            </div>
+            <div class="changes__item">
+              <dt>1 day</dt>
+              <dd [class.amount-in]="(s.change1d ?? 0) > 0">{{ signedPct(s.change1d) }}</dd>
             </div>
           </dl>
         </section>
@@ -241,7 +252,7 @@
             <span class="num">Price</span>
             <span class="num">Cost</span>
             <span class="num">Value</span>
-            <span class="num">Gain</span>
+            <span class="num">Return</span>
             <span class="num">1D</span>
             <span class="num">1W</span>
             <span class="num">1M</span>
@@ -316,12 +327,12 @@
                     m.currentValue != null ? eur(m.currentValue) : '—'
                   }}</span></span
                 >
-                <span class="cell holding__gain" [class.amount-in]="(m.unrealizedPnl ?? 0) > 0">
-                  <span class="visually-hidden">Gain</span>
-                  @if (m.unrealizedPnl != null) {
-                    <span class="cell__num">{{ signedEur(m.unrealizedPnl) }}</span>
-                    @if (m.unrealizedPct != null) {
-                      <span class="cell__pct">{{ signedPct(m.unrealizedPct, 1) }}</span>
+                <span class="cell holding__gain" [class.amount-in]="(m.totalReturn ?? 0) > 0">
+                  <span class="visually-hidden">Total return</span>
+                  @if (m.totalReturn != null) {
+                    <span class="cell__num">{{ signedEur(m.totalReturn) }}</span>
+                    @if (m.totalReturnPct != null) {
+                      <span class="cell__pct">{{ signedPct(m.totalReturnPct, 1) }}</span>
                     }
                   } @else {
                     <span class="cell__num">—</span>

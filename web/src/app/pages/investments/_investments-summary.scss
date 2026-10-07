@@ -1,7 +1,8 @@
 @use '../../../styles/mixins' as *;
 @use 'investments-base' as *;
 
-// The figures beside the chart: value, cost and realised, and the change over each period.
+// The figures beside the chart: value and total return, money put in, unrealised and realised,
+// and the change over each period.
 
 .value-card {
   display: flex;
@@ -74,11 +75,21 @@
     color: var(--text-secondary);
   }
 
+  &--wide {
+    grid-column: 1 / -1;
+  }
+
   &__value {
     @extend %figures;
     font-size: 17px;
     font-weight: 700;
     white-space: nowrap;
+  }
+
+  &__pct {
+    @extend %figures;
+    font-size: 12px;
+    font-weight: 600;
   }
 }
 

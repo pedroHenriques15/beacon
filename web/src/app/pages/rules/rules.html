@@ -180,7 +180,9 @@
               <li class="rule">
                 <span class="rule__match">
                   @if (rule.pattern) {
-                    <span class="rule__key">Contains</span>
+                    <span class="rule__key">{{
+                      rule.matchWholeDescription ? 'Equals' : 'Contains'
+                    }}</span>
                     <code class="rule__pattern">{{ rule.pattern }}</code>
                   }
                   @if (rule.value != null) {
@@ -192,7 +194,10 @@
                   <button
                     type="button"
                     class="btn-icon rule__btn"
-                    [attr.aria-label]="'Edit rule: ' + ruleSummary(rule.pattern, rule.value)"
+                    [attr.aria-label]="
+                      'Edit rule: ' +
+                      ruleSummary(rule.pattern, rule.value, rule.matchWholeDescription)
+                    "
                     (click)="editRule(rule)"
                   >
                     <svg
@@ -213,7 +218,10 @@
                   <button
                     type="button"
                     class="btn-icon rule__btn rule__btn--delete"
-                    [attr.aria-label]="'Delete rule: ' + ruleSummary(rule.pattern, rule.value)"
+                    [attr.aria-label]="
+                      'Delete rule: ' +
+                      ruleSummary(rule.pattern, rule.value, rule.matchWholeDescription)
+                    "
                     (click)="removeRule(rule.id)"
                   >
                     <svg
@@ -298,7 +306,7 @@
         }
       </select>
       <label class="field-label" for="add-rule-pattern"
-        >Pattern <span class="field-optional">(optional)</span></label
+        >Description <span class="field-optional">(optional)</span></label
       >
       <input
         id="add-rule-pattern"
@@ -309,7 +317,20 @@
         [ngModel]="newPattern()"
         (ngModelChange)="newPattern.set($event)"
       />
-      <p class="field-hint">Case-sensitive substring match on transaction description.</p>
+      <label class="field-label" for="add-rule-match">Description match</label>
+      <select
+        id="add-rule-match"
+        class="field-select"
+        [ngModel]="newWhole()"
+        (ngModelChange)="newWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Case-sensitive. Matches transactions whose description
+        {{ newWhole() ? 'is exactly' : 'contains' }} this text.
+      </p>
       <label class="field-label" for="add-rule-value"
         >Value <span class="field-optional">(optional)</span></label
       >
@@ -419,7 +440,7 @@
         </button>
       </div>
       <label class="field-label" for="edit-rule-pattern"
-        >Pattern <span class="field-optional">(optional)</span></label
+        >Description <span class="field-optional">(optional)</span></label
       >
       <input
         id="edit-rule-pattern"
@@ -430,7 +451,20 @@
         [ngModel]="editRulePattern()"
         (ngModelChange)="editRulePattern.set($event)"
       />
-      <p class="field-hint">Case-sensitive substring match on transaction description.</p>
+      <label class="field-label" for="edit-rule-match">Description match</label>
+      <select
+        id="edit-rule-match"
+        class="field-select"
+        [ngModel]="editRuleWhole()"
+        (ngModelChange)="editRuleWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Case-sensitive. Matches transactions whose description
+        {{ editRuleWhole() ? 'is exactly' : 'contains' }} this text.
+      </p>
       <label class="field-label" for="edit-rule-value"
         >Value <span class="field-optional">(optional)</span></label
       >
@@ -511,7 +545,7 @@
         }}</span>
       </div>
       <label class="field-label" for="new-cat-pattern"
-        >Auto-assign pattern <span class="field-optional">(optional)</span></label
+        >Auto-assign description <span class="field-optional">(optional)</span></label
       >
       <input
         id="new-cat-pattern"
@@ -522,8 +556,19 @@
         [ngModel]="createCatPattern()"
         (ngModelChange)="createCatPattern.set($event)"
       />
+      <label class="field-label" for="new-cat-match">Description match</label>
+      <select
+        id="new-cat-match"
+        class="field-select"
+        [ngModel]="createCatWhole()"
+        (ngModelChange)="createCatWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
       <p class="field-hint">
-        Transactions whose description contains this text will be auto-categorized.
+        Transactions whose description {{ createCatWhole() ? 'is exactly' : 'contains' }} this text
+        will be auto-categorized.
       </p>
       <label class="field-label" for="new-cat-value"
         >Auto-assign value <span class="field-optional">(optional)</span></label
@@ -595,7 +640,7 @@
         }
       </select>
       <label class="field-label" for="g-add-rule-pattern"
-        >Pattern <span class="field-optional">(optional)</span></label
+        >Description <span class="field-optional">(optional)</span></label
       >
       <input
         id="g-add-rule-pattern"
@@ -606,7 +651,20 @@
         [ngModel]="gNewPattern()"
         (ngModelChange)="gNewPattern.set($event)"
       />
-      <p class="field-hint">Case-sensitive substring match on item description.</p>
+      <label class="field-label" for="g-add-rule-match">Description match</label>
+      <select
+        id="g-add-rule-match"
+        class="field-select"
+        [ngModel]="gNewWhole()"
+        (ngModelChange)="gNewWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Case-sensitive. Matches items whose description
+        {{ gNewWhole() ? 'is exactly' : 'contains' }} this text.
+      </p>
       <label class="field-label" for="g-add-rule-value"
         >Value <span class="field-optional">(optional)</span></label
       >
@@ -725,7 +783,7 @@
         </button>
       </div>
       <label class="field-label" for="g-edit-rule-pattern"
-        >Pattern <span class="field-optional">(optional)</span></label
+        >Description <span class="field-optional">(optional)</span></label
       >
       <input
         id="g-edit-rule-pattern"
@@ -736,7 +794,20 @@
         [ngModel]="gEditRulePattern()"
         (ngModelChange)="gEditRulePattern.set($event)"
       />
-      <p class="field-hint">Case-sensitive substring match on item description.</p>
+      <label class="field-label" for="g-edit-rule-match">Description match</label>
+      <select
+        id="g-edit-rule-match"
+        class="field-select"
+        [ngModel]="gEditRuleWhole()"
+        (ngModelChange)="gEditRuleWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Case-sensitive. Matches items whose description
+        {{ gEditRuleWhole() ? 'is exactly' : 'contains' }} this text.
+      </p>
       <label class="field-label" for="g-edit-rule-value"
         >Value <span class="field-optional">(optional)</span></label
       >
@@ -821,7 +892,7 @@
         }}</span>
       </div>
       <label class="field-label" for="g-new-cat-pattern"
-        >Auto-assign pattern <span class="field-optional">(optional)</span></label
+        >Auto-assign description <span class="field-optional">(optional)</span></label
       >
       <input
         id="g-new-cat-pattern"
@@ -832,7 +903,20 @@
         [ngModel]="gCreateCatPattern()"
         (ngModelChange)="gCreateCatPattern.set($event)"
       />
-      <p class="field-hint">Items whose description contains this text will be auto-categorized.</p>
+      <label class="field-label" for="g-new-cat-match">Description match</label>
+      <select
+        id="g-new-cat-match"
+        class="field-select"
+        [ngModel]="gCreateCatWhole()"
+        (ngModelChange)="gCreateCatWhole.set($event)"
+      >
+        <option [ngValue]="true">Exactly this text</option>
+        <option [ngValue]="false">Contains this text</option>
+      </select>
+      <p class="field-hint">
+        Items whose description {{ gCreateCatWhole() ? 'is exactly' : 'contains' }} this text will
+        be auto-categorized.
+      </p>
       <label class="field-label" for="g-new-cat-value"
         >Auto-assign value <span class="field-optional">(optional)</span></label
       >

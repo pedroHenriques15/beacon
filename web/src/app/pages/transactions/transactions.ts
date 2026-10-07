@@ -186,16 +186,19 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   pendingRuleCreate = signal<PendingRuleCreate | null>(null);
   ruleCreatePattern = signal('');
+  ruleCreateWhole = signal(true);
   ruleCreateValue = signal<number | null>(null);
   ruleCreateLoading = signal(false);
 
   pendingExclude = signal<{ tx: EnrichedTransaction } | null>(null);
   excludeRulePattern = signal('');
+  excludeRuleWhole = signal(true);
   excludeRuleValue = signal<number | null>(null);
   excludeRuleLoading = signal(false);
 
   gPendingExclude = signal<{ item: GroceryItem } | null>(null);
   gExcludeRulePattern = signal('');
+  gExcludeRuleWhole = signal(true);
   gExcludeRuleValue = signal<number | null>(null);
   gExcludeRuleLoading = signal(false);
 
@@ -204,35 +207,40 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   createName = signal('');
   createColor = signal('#a855f7');
   createPattern = signal('');
+  createWhole = signal(true);
   createValue = signal<number | null>(null);
   createLoading = signal(false);
 
   ruleCreateMatchCount = computed(() => {
     const pat = this.ruleCreatePattern().trim();
     const val = this.ruleCreateValue();
+    const whole = this.ruleCreateWhole();
     if (!pat && val === null) return null;
-    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val, whole)).length;
   });
 
   excludeRuleMatchCount = computed(() => {
     const pat = this.excludeRulePattern().trim();
     const val = this.excludeRuleValue();
+    const whole = this.excludeRuleWhole();
     if (!pat && val === null) return null;
-    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val, whole)).length;
   });
 
   gExcludeRuleMatchCount = computed(() => {
     const pat = this.gExcludeRulePattern().trim();
     const val = this.gExcludeRuleValue();
+    const whole = this.gExcludeRuleWhole();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.countedItems().filter((i) => matchesRule(i, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((i) => matchesRule(i, pat, val, whole)).length;
   });
 
   createMatchCount = computed(() => {
     const pat = this.createPattern().trim();
     const val = this.createValue();
+    const whole = this.createWhole();
     if (!pat && val === null) return null;
-    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val, whole)).length;
   });
 
   confirmDeleteTx = signal<EnrichedTransaction | null>(null);
@@ -384,7 +392,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       this.activeTab() === 'transactions' ? this.availableMonths() : this.gAvailableMonths();
     const selected = this.activeMonth();
     return withMonths(
-      monthCells(this.finance.monthlySummaries()),
+      monthCells(this.finance.monthTotals()),
       selected ? [...extra, selected] : extra,
     );
   });
@@ -439,6 +447,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
 
   gPendingRuleCreate = signal<GPendingRuleCreate | null>(null);
   gRuleCreatePattern = signal('');
+  gRuleCreateWhole = signal(true);
   gRuleCreateValue = signal<number | null>(null);
   gRuleCreateLoading = signal(false);
 
@@ -447,21 +456,26 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   gCreateName = signal('');
   gCreateColor = signal('#a855f7');
   gCreatePattern = signal('');
+  gCreateWhole = signal(true);
   gCreateValue = signal<number | null>(null);
   gCreateLoading = signal(false);
 
   gRuleCreateMatchCount = computed(() => {
     const pat = this.gRuleCreatePattern().trim();
     const val = this.gRuleCreateValue();
+    const whole = this.gRuleCreateWhole();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val, whole))
+      .length;
   });
 
   gCreateMatchCount = computed(() => {
     const pat = this.gCreatePattern().trim();
     const val = this.gCreateValue();
+    const whole = this.gCreateWhole();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val, whole))
+      .length;
   });
 
   gConfirmDeleteItem = signal<GroceryItem | null>(null);
@@ -904,6 +918,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     } else if (categoryId !== null) {
       const cat = this.catSvc.categories().find((c) => c.id === categoryId);
       this.ruleCreatePattern.set(tx.description);
+      this.ruleCreateWhole.set(true);
       this.ruleCreateValue.set(null);
       this.pendingRuleCreate.set({ tx, categoryId, categoryName: cat?.name ?? '' });
     } else {
@@ -936,7 +951,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.actionError.set('Could not create the rule. Please try again.');
       };
       this.catSvc
-        .createRule(p.categoryId, this.ruleCreatePattern().trim(), this.ruleCreateValue())
+        .createRule(
+          p.categoryId,
+          this.ruleCreatePattern().trim(),
+          this.ruleCreateValue(),
+          this.ruleCreateWhole(),
+        )
         .subscribe({
           next: () => {
             this.catSvc.setTransactionCategory(p.tx.id, p.categoryId).subscribe({
@@ -968,6 +988,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.createName.set('');
     this.createColor.set('#a855f7');
     this.createPattern.set(tx.description);
+    this.createWhole.set(true);
     this.createValue.set(null);
     this.showCreateModal.set(true);
   }
@@ -983,6 +1004,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.createColor(),
         this.createPattern().trim() || undefined,
         this.createValue(),
+        this.createWhole(),
       )
       .subscribe({
         next: (cat) => {
@@ -1028,6 +1050,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   excludeTransaction(tx: EnrichedTransaction, e: MouseEvent): void {
     e.stopPropagation();
     this.excludeRulePattern.set(tx.description);
+    this.excludeRuleWhole.set(true);
     this.excludeRuleValue.set(null);
     this.pendingExclude.set({ tx });
   }
@@ -1071,7 +1094,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     ) {
       this.excludeRuleLoading.set(true);
       this.catSvc
-        .createRule(excludedCat.id, this.excludeRulePattern().trim(), this.excludeRuleValue())
+        .createRule(
+          excludedCat.id,
+          this.excludeRulePattern().trim(),
+          this.excludeRuleValue(),
+          this.excludeRuleWhole(),
+        )
         .subscribe({
           next: () => doExclude(),
           error: () => {
@@ -1087,6 +1115,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
   gExcludeItem(item: GroceryItem, e: MouseEvent): void {
     e.stopPropagation();
     this.gExcludeRulePattern.set(item.description);
+    this.gExcludeRuleWhole.set(true);
     this.gExcludeRuleValue.set(null);
     this.gPendingExclude.set({ item });
   }
@@ -1136,7 +1165,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     ) {
       this.gExcludeRuleLoading.set(true);
       this.groceryCatSvc
-        .createRule(excludedCat.id, this.gExcludeRulePattern().trim(), this.gExcludeRuleValue())
+        .createRule(
+          excludedCat.id,
+          this.gExcludeRulePattern().trim(),
+          this.gExcludeRuleValue(),
+          this.gExcludeRuleWhole(),
+        )
         .subscribe({
           next: () => doExclude(),
           error: () => {
@@ -1310,7 +1344,11 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     const ruleForItem = wasAutoAssigned
       ? this.groceryCatSvc
           .rules()
-          .find((r) => r.categoryId === item.categoryId && matchesRule(item, r.pattern, r.value))
+          .find(
+            (r) =>
+              r.categoryId === item.categoryId &&
+              matchesRule(item, r.pattern, r.value, r.matchWholeDescription),
+          )
       : null;
 
     if (wasAutoAssigned && ruleForItem) {
@@ -1323,6 +1361,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     } else if (categoryId !== null) {
       const cat = this.groceryCatSvc.categories().find((c) => c.id === categoryId);
       this.gRuleCreatePattern.set(item.description);
+      this.gRuleCreateWhole.set(true);
       this.gRuleCreateValue.set(null);
       this.gPendingRuleCreate.set({ item, categoryId, categoryName: cat?.name ?? '' });
     } else {
@@ -1355,7 +1394,12 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.actionError.set('Could not create the rule. Please try again.');
       };
       this.groceryCatSvc
-        .createRule(p.categoryId, this.gRuleCreatePattern().trim(), this.gRuleCreateValue())
+        .createRule(
+          p.categoryId,
+          this.gRuleCreatePattern().trim(),
+          this.gRuleCreateValue(),
+          this.gRuleCreateWhole(),
+        )
         .subscribe({
           next: () => {
             this.groceryCatSvc.setItemCategory(p.item.id, p.categoryId).subscribe({
@@ -1381,6 +1425,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
     this.gCreateName.set('');
     this.gCreateColor.set('#a855f7');
     this.gCreatePattern.set(item.description);
+    this.gCreateWhole.set(true);
     this.gCreateValue.set(null);
     this.gShowCreateModal.set(true);
   }
@@ -1396,6 +1441,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
         this.gCreateColor(),
         this.gCreatePattern().trim() || undefined,
         this.gCreateValue(),
+        this.gCreateWhole(),
       )
       .subscribe({
         next: (cat) => {

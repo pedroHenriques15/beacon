@@ -70,9 +70,7 @@ public class GroceryReceiptUploadService(
             {
                 var matchedRule = rules
                     .OrderBy(r => r.Id)
-                    .FirstOrDefault(r =>
-                        (!string.IsNullOrEmpty(r.Pattern) && pi.Description.Contains(r.Pattern, StringComparison.Ordinal)) ||
-                        (r.Value.HasValue && pi.Amount == r.Value.Value));
+                    .FirstOrDefault(r => RuleMatch.Matches(r.Pattern, r.MatchWholeDescription, r.Value, pi.Description, pi.Amount));
 
                 var mapping = categoryMappings.FirstOrDefault(m => m.ReceiptCategoryName == pi.ReceiptCategory);
 

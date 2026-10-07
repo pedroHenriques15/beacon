@@ -18,7 +18,7 @@ public class CreateGroceryCategoryCommandHandler(AppDbContext db, GroceryApplyRu
         GroceryCategoryRule? rule = null;
         if (!string.IsNullOrWhiteSpace(cmd.Pattern))
         {
-            rule = new GroceryCategoryRule { Pattern = cmd.Pattern.Trim(), Value = cmd.Value };
+            rule = new GroceryCategoryRule { Pattern = cmd.Pattern.Trim(), Value = cmd.Value, MatchWholeDescription = cmd.MatchWholeDescription };
             category.Rules.Add(rule);
         }
 

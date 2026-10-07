@@ -18,7 +18,7 @@ public class CreateCategoryCommandHandler(AppDbContext db, ApplyRuleService appl
         CategoryRule? rule = null;
         if (!string.IsNullOrWhiteSpace(cmd.Pattern))
         {
-            rule = new CategoryRule { Pattern = cmd.Pattern.Trim(), Value = cmd.Value };
+            rule = new CategoryRule { Pattern = cmd.Pattern.Trim(), Value = cmd.Value, MatchWholeDescription = cmd.MatchWholeDescription };
             category.Rules.Add(rule);
         }
 

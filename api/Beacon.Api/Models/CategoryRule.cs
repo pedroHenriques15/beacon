@@ -9,6 +9,9 @@ public class CategoryRule
     public string Pattern { get; set; } = string.Empty;
     public decimal? Value { get; set; }
 
+    /// <summary>True: the text must equal the whole description; false: it may be any part of it.</summary>
+    public bool MatchWholeDescription { get; set; }
+
     [JsonIgnore]
     public Category Category { get; set; } = null!;
 }

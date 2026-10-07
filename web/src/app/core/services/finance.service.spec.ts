@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { FinanceService } from './finance.service';
-import { Statement, StatementSummary } from '../models/statement.model';
+import { Statement, StatementSummary, Transaction } from '../models/statement.model';
 
 function makeSummary(overrides: Partial<StatementSummary> = {}): StatementSummary {
   return {
@@ -763,5 +763,89 @@ describe('FinanceService', () => {
     const jan = service.monthlySummaries().find((s) => s.month === '2024-01');
     expect(jan?.income).toBe(0);
     expect(jan?.expenses).toBe(100);
+  });
+  describe('category netting (ADR-037)', () => {
+    let nextId = 100;
+    const eatingOut = { id: 3, name: 'Eating out', color: '#e0806b', isProtected: false };
+    const salary = { id: 4, name: 'Salary', color: '#36ab7a', isProtected: false };
+    function tx(
+      amount: number,
+      type: 'credit' | 'debit',
+      category: typeof eatingOut | null,
+      datePosting = '2024-03-10',
+    ): Transaction {
+      return {
+        id: nextId++,
+        statementId: 1,
+        datePosting,
+        dateValue: datePosting,
+        description: 'TX',
+        amount,
+        type,
+        balance: 0,
+        categoryId: category?.id ?? null,
+        categoryRuleId: null,
+        categorySetManually: false,
+        isExcluded: false,
+        category,
+      };
+    }
+
+    function load(byBank: Record<string, Transaction[]>) {
+      service.reload();
+      flushLoadAll(
+        controller,
+        Object.entries(byBank).map(([bank, transactions], i) =>
+          makeStatement({ id: i + 1, bank, periodTo: '2024-03-31', transactions }),
+        ),
+      );
+    }
+
+    it('monthTotals() nets a dinner paid back into another bank to what it cost', () => {
+      load({
+        BPI: [tx(100, 'debit', eatingOut), tx(25, 'credit', eatingOut)],
+        REVOLUT: [tx(25, 'credit', eatingOut), tx(25, 'credit', eatingOut)],
+      });
+
+      expect(service.monthTotals()).toEqual([
+        { month: '2024-03', income: 0, expenses: 25, net: -25 },
+      ]);
+    });
+
+    it('monthlySummaries() nets each category within its bank', () => {
+      load({
+        BPI: [tx(100, 'debit', eatingOut), tx(25, 'credit', eatingOut)],
+        REVOLUT: [tx(50, 'credit', eatingOut)],
+      });
+
+      expect(service.monthlySummaries().map((s) => [s.bank, s.income, s.expenses])).toEqual([
+        ['BPI', 0, 75],
+        ['REVOLUT', 50, 0],
+      ]);
+    });
+
+    it('monthTotals() keeps what a mixed month kept, one row per month, newest first', () => {
+      const rows = [
+        tx(100, 'debit', eatingOut),
+        tx(75, 'credit', eatingOut),
+        tx(2650, 'credit', salary),
+        tx(12.4, 'debit', salary),
+        tx(42.18, 'debit', null),
+        tx(5, 'credit', null),
+        tx(9, 'debit', null, '2024-02-27'),
+      ];
+      load({ BPI: rows });
+      const march = rows.filter((r) => r.datePosting.startsWith('2024-03'));
+      const kept = march.reduce((s, r) => s + (r.type === 'credit' ? r.amount : -r.amount), 0);
+
+      const totals = service.monthTotals();
+
+      expect(totals.map((t) => t.month)).toEqual(['2024-03', '2024-02']);
+      expect(totals[0].income - totals[0].expenses).toBeCloseTo(kept, 10);
+      expect(totals[0].net).toBeCloseTo(kept, 10);
+      expect(totals[0].income).toBeCloseTo(2637.6 + 5, 10);
+      expect(totals[0].expenses).toBeCloseTo(25 + 42.18, 10);
+      expect(totals[1]).toEqual({ month: '2024-02', income: 0, expenses: 9, net: -9 });
+    });
   });
 });

@@ -13,6 +13,8 @@ export interface CategoryRule {
   categoryId: number;
   pattern: string;
   value?: number | null;
+  /** True: the pattern must equal the whole description; false: it may be any part of it. */
+  matchWholeDescription: boolean;
   category?: Category;
 }
 

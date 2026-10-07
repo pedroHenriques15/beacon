@@ -74,6 +74,7 @@ export class RulesComponent {
   showAddRule = signal(false);
   newCategoryId = signal<number | null>(null);
   newPattern = signal('');
+  newWhole = signal(true);
   newValue = signal<number | null>(null);
   saving = signal(false);
 
@@ -84,27 +85,31 @@ export class RulesComponent {
 
   editingRule = signal<CategoryRule | null>(null);
   editRulePattern = signal('');
+  editRuleWhole = signal(true);
   editRuleValue = signal<number | null>(null);
   editRuleSaving = signal(false);
 
   newRuleMatchCount = computed(() => {
     const pat = this.newPattern().trim();
     const val = this.newValue();
+    const whole = this.newWhole();
     if (!pat && val === null) return null;
-    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val, whole)).length;
   });
 
   editRuleMatchCount = computed(() => {
     const pat = this.editRulePattern().trim();
     const val = this.editRuleValue();
+    const whole = this.editRuleWhole();
     if (!pat && val === null) return null;
-    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val)).length;
+    return this.finance.allTransactions().filter((tx) => matchesRule(tx, pat, val, whole)).length;
   });
 
   showCreateCatModal = signal(false);
   createCatName = signal('');
   createCatColor = signal('#a855f7');
   createCatPattern = signal('');
+  createCatWhole = signal(true);
   createCatValue = signal<number | null>(null);
   createCatLoading = signal(false);
 
@@ -113,6 +118,7 @@ export class RulesComponent {
   gShowAddRule = signal(false);
   gNewCategoryId = signal<number | null>(null);
   gNewPattern = signal('');
+  gNewWhole = signal(true);
   gNewValue = signal<number | null>(null);
   gSaving = signal(false);
 
@@ -123,27 +129,33 @@ export class RulesComponent {
 
   gEditingRule = signal<GroceryCategoryRule | null>(null);
   gEditRulePattern = signal('');
+  gEditRuleWhole = signal(true);
   gEditRuleValue = signal<number | null>(null);
   gEditRuleSaving = signal(false);
 
   gNewRuleMatchCount = computed(() => {
     const pat = this.gNewPattern().trim();
     const val = this.gNewValue();
+    const whole = this.gNewWhole();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val, whole))
+      .length;
   });
 
   gEditRuleMatchCount = computed(() => {
     const pat = this.gEditRulePattern().trim();
     const val = this.gEditRuleValue();
+    const whole = this.gEditRuleWhole();
     if (!pat && val === null) return null;
-    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val)).length;
+    return this.groceriesSvc.countedItems().filter((item) => matchesRule(item, pat, val, whole))
+      .length;
   });
 
   gShowCreateCatModal = signal(false);
   gCreateCatName = signal('');
   gCreateCatColor = signal('#a855f7');
   gCreateCatPattern = signal('');
+  gCreateCatWhole = signal(true);
   gCreateCatValue = signal<number | null>(null);
   gCreateCatLoading = signal(false);
 
@@ -154,11 +166,12 @@ export class RulesComponent {
     if (!catId || (!pat && val === null)) return;
     this.saving.set(true);
     this.actionError.set('');
-    this.catSvc.createRule(catId, pat, val).subscribe({
+    this.catSvc.createRule(catId, pat, val, this.newWhole()).subscribe({
       next: () => {
         this.saving.set(false);
         this.showAddRule.set(false);
         this.newPattern.set('');
+        this.newWhole.set(true);
         this.newValue.set(null);
         this.newCategoryId.set(null);
         this.finance.reload();
@@ -197,6 +210,7 @@ export class RulesComponent {
   openEditRule(rule: CategoryRule): void {
     this.editingRule.set(rule);
     this.editRulePattern.set(rule.pattern ?? '');
+    this.editRuleWhole.set(rule.matchWholeDescription);
     this.editRuleValue.set(rule.value ?? null);
   }
 
@@ -208,7 +222,7 @@ export class RulesComponent {
     if (!pat && val === null) return;
     this.editRuleSaving.set(true);
     this.actionError.set('');
-    this.catSvc.updateRule(rule.id, pat, val).subscribe({
+    this.catSvc.updateRule(rule.id, pat, val, this.editRuleWhole()).subscribe({
       next: () => {
         this.editRuleSaving.set(false);
         this.editingRule.set(null);
@@ -225,6 +239,7 @@ export class RulesComponent {
     this.createCatName.set('');
     this.createCatColor.set('#a855f7');
     this.createCatPattern.set('');
+    this.createCatWhole.set(true);
     this.createCatValue.set(null);
     this.showCreateCatModal.set(true);
   }
@@ -238,6 +253,7 @@ export class RulesComponent {
         this.createCatColor(),
         this.createCatPattern().trim() || undefined,
         this.createCatValue(),
+        this.createCatWhole(),
       )
       .subscribe({
         next: () => {
@@ -281,11 +297,12 @@ export class RulesComponent {
     if (!catId || (!pat && val === null)) return;
     this.gSaving.set(true);
     this.actionError.set('');
-    this.gCatSvc.createRule(catId, pat, val).subscribe({
+    this.gCatSvc.createRule(catId, pat, val, this.gNewWhole()).subscribe({
       next: () => {
         this.gSaving.set(false);
         this.gShowAddRule.set(false);
         this.gNewPattern.set('');
+        this.gNewWhole.set(true);
         this.gNewValue.set(null);
         this.gNewCategoryId.set(null);
         this.reloadGroceries();
@@ -324,6 +341,7 @@ export class RulesComponent {
   gOpenEditRule(rule: GroceryCategoryRule): void {
     this.gEditingRule.set(rule);
     this.gEditRulePattern.set(rule.pattern ?? '');
+    this.gEditRuleWhole.set(rule.matchWholeDescription);
     this.gEditRuleValue.set(rule.value ?? null);
   }
 
@@ -335,7 +353,7 @@ export class RulesComponent {
     if (!pat && val === null) return;
     this.gEditRuleSaving.set(true);
     this.actionError.set('');
-    this.gCatSvc.updateRule(rule.id, pat, val).subscribe({
+    this.gCatSvc.updateRule(rule.id, pat, val, this.gEditRuleWhole()).subscribe({
       next: () => {
         this.gEditRuleSaving.set(false);
         this.gEditingRule.set(null);
@@ -352,6 +370,7 @@ export class RulesComponent {
     this.gCreateCatName.set('');
     this.gCreateCatColor.set('#a855f7');
     this.gCreateCatPattern.set('');
+    this.gCreateCatWhole.set(true);
     this.gCreateCatValue.set(null);
     this.gShowCreateCatModal.set(true);
   }
@@ -365,6 +384,7 @@ export class RulesComponent {
         this.gCreateCatColor(),
         this.gCreateCatPattern().trim() || undefined,
         this.gCreateCatValue(),
+        this.gCreateCatWhole(),
       )
       .subscribe({
         next: () => {

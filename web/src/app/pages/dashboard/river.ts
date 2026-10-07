@@ -1,3 +1,4 @@
+import { categoryNet } from '../../core/utils/category-net';
 import { daysInMonth, previousMonth } from '../../core/utils/month-totals';
 
 /** The fields the River chart reads from a counted transaction. */
@@ -8,7 +9,7 @@ export interface RiverTransaction {
   amount: number;
   type: 'credit' | 'debit' | 'unknown';
   categoryId: number | null;
-  category: { name: string } | null;
+  category: { name: string; color?: string | null } | null;
   bank: string;
 }
 
@@ -28,7 +29,10 @@ export interface RiverMark {
 export interface RiverSeries {
   month: string;
   previous: string;
-  /** Cumulative spending by day, index 0 is day 1; ends today for the month in progress. */
+  /**
+   * Cumulative spending by day, index 0 is day 1; ends today for the month in progress. Money
+   * paid back into a category that nets to spending takes the line down on its day.
+   */
   current: number[];
   /** The previous month, whole. */
   last: number[];
@@ -38,9 +42,28 @@ export interface RiverSeries {
   lastTotal: number;
 }
 
-function cumulative(debits: { day: number; amount: number }[], days: number): number[] {
+/**
+ * A month's spending line: what each row adds to the month's spending, summed day by day. With
+ * each category netted over the month (ADR-037), a category netting to spending adds its debits
+ * and takes off its credits, one netting to income adds nothing, and a row without a category
+ * adds its debit, so the line ends at the month's spending.
+ */
+function spendingLine(rows: RiverTransaction[], days: number): number[] {
+  const toIncome = new Set(
+    categoryNet(rows)
+      .categories.filter((c) => c.net > 0)
+      .map((c) => c.label),
+  );
   const perDay = new Array<number>(days).fill(0);
-  for (const d of debits) perDay[d.day - 1] += d.amount;
+  for (const t of rows) {
+    const day = Number(t.datePosting.slice(8, 10));
+    if (!t.category) {
+      if (t.type === 'debit') perDay[day - 1] += t.amount;
+    } else if (!toIncome.has(t.category.name)) {
+      if (t.type === 'debit') perDay[day - 1] += t.amount;
+      else if (t.type === 'credit') perDay[day - 1] -= t.amount;
+    }
+  }
   let sum = 0;
   return perDay.map((v) => (sum += v));
 }
@@ -49,7 +72,8 @@ function cumulative(debits: { day: number; amount: number }[], days: number): nu
  * The River chart's data for a month: cumulative counted spending day by day, the previous month
  * for comparison, one mark per outflow and per inflow. `transactions` must be the counted rows
  * (FinanceService.allTransactions), so excluded rows never reach a total. Rows of type 'unknown'
- * are neither in nor out and are left out, as in the monthly totals.
+ * are neither in nor out and are left out, as in the monthly totals. Every row keeps its mark;
+ * only the line nets each category.
  */
 export function riverSeries(
   transactions: RiverTransaction[],
@@ -75,13 +99,10 @@ export function riverSeries(
   const current = ofMonth(month);
   const outflows = current.filter((t) => t.type === 'debit').map(toMark);
   const inflows = current.filter((t) => t.type === 'credit').map(toMark);
-  const lastDebits = ofMonth(previous)
-    .filter((t) => t.type === 'debit')
-    .map(toMark);
 
-  const line = cumulative(outflows, days);
+  const line = spendingLine(current, days);
   for (const o of outflows) o.at = line[o.day - 1];
-  const last = cumulative(lastDebits, daysInMonth(previous));
+  const last = spendingLine(ofMonth(previous), daysInMonth(previous));
 
   return {
     month,
@@ -106,7 +127,7 @@ export function niceScale(max: number): { top: number; step: number } {
 
 /**
  * A smooth path through points that never overshoots: monotone cubic interpolation
- * (Fritsch–Carlson), so a cumulative line never dips.
+ * (Fritsch–Carlson), so the line only rises or falls where the points do.
  */
 export function smoothPath(points: [number, number][]): string {
   if (points.length === 0) return '';

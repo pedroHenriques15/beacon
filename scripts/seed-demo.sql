@@ -35,6 +35,8 @@
 --     Grocery receipt category mappings, and items filed by them
 --     Names with an accented first letter ("Ótica", "Óleos & Condimentos",
 --       "Échelle Labs (micro1)") for the DISPLAY_ORDER sort
+--     A group dinner on Revolut in February 2026 that three friends pay
+--       back, so Food & Dining nets the paybacks (category netting)
 --
 -- The dates here run from April 2025 to March 2026. scripts/seed-demo.ps1 moves every date by
 -- whole months so that March 2026 becomes the current month, keeping month ends on month ends,
@@ -162,8 +164,8 @@ VALUES
 (32,'Revolut','LT12 3250 0100 0123 4567','2025-11-01','2025-11-30','EUR',1256.11,1326.14,'revolut_2025_11.pdf',NULL,NULL,'2025-12-01 10:00:00'),
 (33,'Revolut','LT12 3250 0100 0123 4567','2025-12-01','2025-12-31','EUR',1326.14,1366.17,'revolut_2025_12.pdf',NULL,NULL,'2026-01-01 10:00:00'),
 (34,'Revolut','LT12 3250 0100 0123 4567','2026-01-01','2026-01-31','EUR',1366.17,1448.80,'revolut_2026_01.pdf',NULL,NULL,'2026-02-01 10:00:00'),
-(35,'Revolut','LT12 3250 0100 0123 4567','2026-02-01','2026-02-28','EUR',1448.80,1571.84,'revolut_2026_02.pdf',NULL,NULL,'2026-03-01 10:00:00'),
-(36,'Revolut','LT12 3250 0100 0123 4567','2026-03-01','2026-03-31','EUR',1571.84,1678.37,'revolut_2026_03.pdf',NULL,NULL,'2026-04-01 10:00:00');
+(35,'Revolut','LT12 3250 0100 0123 4567','2026-02-01','2026-02-28','EUR',1448.80,1541.84,'revolut_2026_02.pdf',NULL,NULL,'2026-03-01 10:00:00'),
+(36,'Revolut','LT12 3250 0100 0123 4567','2026-03-01','2026-03-31','EUR',1541.84,1648.37,'revolut_2026_03.pdf',NULL,NULL,'2026-04-01 10:00:00');
 
 
 -- ============================================================
@@ -460,6 +462,8 @@ VALUES
 -- 6. TRANSACTIONS — Revolut (6 per month, IDs 241–312)
 --    1 Top-up [internal] | 2 Netflix | 3 Spotify
 --    4 Amazon | 5 Steam/Subscription (varies) | 6 Misc online
+--    February 2026 adds a group dinner of 120 and three friends paying
+--    back 30 each (IDs 453–456, Food & Dining), so the category nets them
 -- ============================================================
 -- Seeding Revolut transactions...
 
@@ -541,15 +545,19 @@ VALUES
 (302,35,'2026-02-05','2026-02-05','NETFLIX INTL BV',                        13.99,'debit', 1634.81,  6,22,0,0),
 (303,35,'2026-02-07','2026-02-07','SPOTIFY AB',                              5.99,'debit', 1628.82,  6,23,0,0),
 (304,35,'2026-02-10','2026-02-10','APPLE.COM/BILL',                          5.99,'debit', 1622.83,  6,NULL,1,0),
-(305,35,'2026-02-15','2026-02-15','YOUTUBE PREMIUM',                         5.99,'debit', 1616.84,  6,NULL,1,0),
-(306,35,'2026-02-20','2026-02-20','PAYPAL TRANSFER',                        45.00,'debit', 1571.84,NULL,NULL,0,0),
+(453,35,'2026-02-13','2026-02-13','RESTAURANTE A TABERNA',                 120.00,'debit', 1502.83,  2, 8,0,0),
+(454,35,'2026-02-14','2026-02-14','PAYMENT FROM DEMO FRIEND A',             30.00,'credit',1532.83,  2,NULL,1,0),
+(455,35,'2026-02-14','2026-02-14','PAYMENT FROM DEMO FRIEND B',             30.00,'credit',1562.83,  2,NULL,1,0),
+(305,35,'2026-02-15','2026-02-15','YOUTUBE PREMIUM',                         5.99,'debit', 1556.84,  6,NULL,1,0),
+(456,35,'2026-02-16','2026-02-16','PAYMENT FROM DEMO FRIEND C',             30.00,'credit',1586.84,  2,NULL,1,0),
+(306,35,'2026-02-20','2026-02-20','PAYPAL TRANSFER',                        45.00,'debit', 1541.84,NULL,NULL,0,0),
 -- === March 2026 (Stmt 36) ===
-(307,36,'2026-03-03','2026-03-03','TOP-UP REVOLUT',                        200.00,'credit',1771.84,  9,32,0,1),
-(308,36,'2026-03-05','2026-03-05','NETFLIX INTL BV',                        13.99,'debit', 1757.85,  6,22,0,0),
-(309,36,'2026-03-07','2026-03-07','SPOTIFY AB',                              5.99,'debit', 1751.86,  6,23,0,0),
-(310,36,'2026-03-10','2026-03-10','AMAZON MARKETPLACE EU',                  38.50,'debit', 1713.36,  7,26,0,0),
-(311,36,'2026-03-15','2026-03-15','STEAM GAMES',                            14.99,'debit', 1698.37,  6,25,0,0),
-(312,36,'2026-03-20','2026-03-20','ALIEXPRESS',                             20.00,'debit', 1678.37,  7,NULL,1,0);
+(307,36,'2026-03-03','2026-03-03','TOP-UP REVOLUT',                        200.00,'credit',1741.84,  9,32,0,1),
+(308,36,'2026-03-05','2026-03-05','NETFLIX INTL BV',                        13.99,'debit', 1727.85,  6,22,0,0),
+(309,36,'2026-03-07','2026-03-07','SPOTIFY AB',                              5.99,'debit', 1721.86,  6,23,0,0),
+(310,36,'2026-03-10','2026-03-10','AMAZON MARKETPLACE EU',                  38.50,'debit', 1683.36,  7,26,0,0),
+(311,36,'2026-03-15','2026-03-15','STEAM GAMES',                            14.99,'debit', 1668.37,  6,25,0,0),
+(312,36,'2026-03-20','2026-03-20','ALIEXPRESS',                             20.00,'debit', 1648.37,  7,NULL,1,0);
 
 
 -- ============================================================

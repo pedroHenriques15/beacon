@@ -1,4 +1,9 @@
-import { AssetMetric, PortfolioPoint } from '../../core/services/investments.service';
+import {
+  AssetMetric,
+  PortfolioPoint,
+  earliestBuy,
+  returnPct,
+} from '../../core/services/investments.service';
 import { InvestmentAsset, InvestmentLot } from '../../core/models/statement.model';
 import { eurWhole, signedEur } from '../../core/utils/money';
 
@@ -10,6 +15,14 @@ export interface PortfolioSummary {
   /** Unrealised against cost; null without a cost basis. */
   unrealisedPct: number | null;
   realised: number;
+  /** Money put in: every buy with its fees, sold since or not (ADR-038). */
+  invested: number;
+  /** Realised plus unrealised. */
+  totalReturn: number;
+  /** Total return against the money put in; null with nothing put in. */
+  totalReturnPct: number | null;
+  /** The earliest buy among the tab's assets. */
+  since: string | null;
   change1d: number | null;
   change1w: number | null;
   change1m: number | null;
@@ -42,12 +55,18 @@ export function portfolioSummary(metrics: AssetMetric[]): PortfolioSummary {
   const value = metrics.reduce((s, m) => s + (m.currentValue ?? 0), 0);
   const cost = metrics.reduce((s, m) => s + m.netCostBasis, 0);
   const unrealised = value - cost;
+  const realised = metrics.reduce((s, m) => s + m.realizedPnl, 0);
+  const invested = metrics.reduce((s, m) => s + m.invested, 0);
   return {
     value,
     cost,
     unrealised,
     unrealisedPct: cost > 0 ? (unrealised / cost) * 100 : null,
-    realised: metrics.reduce((s, m) => s + m.realizedPnl, 0),
+    realised,
+    invested,
+    totalReturn: realised + unrealised,
+    totalReturnPct: returnPct(realised + unrealised, invested),
+    since: earliestBuy(metrics),
     change1d: weightedChange(metrics, (m) => m.change1d),
     change1w: weightedChange(metrics, (m) => m.change1w),
     change1m: weightedChange(metrics, (m) => m.change1m),
@@ -122,9 +141,14 @@ export function weekdayDate(iso: string, today: string): string {
   return iso.slice(0, 4) === today.slice(0, 4) ? text : `${text} ${iso.slice(0, 4)}`;
 }
 
+/** 'Jan 2026'. */
+export function monthYear(iso: string): string {
+  return sep(MONTH_YEAR.format(utc(iso)));
+}
+
 /** An x-axis label: '5 Oct' over a short span, 'Oct 2025' over a long one. */
 export function axisDate(iso: string, longSpan: boolean): string {
-  return sep((longSpan ? MONTH_YEAR : DAY_NO_YEAR).format(utc(iso)));
+  return longSpan ? monthYear(iso) : sep(DAY_NO_YEAR.format(utc(iso)));
 }
 
 /** A date as a number for a time-proportional (linear) x axis. */

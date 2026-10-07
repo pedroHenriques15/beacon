@@ -84,12 +84,18 @@ describe('ruleAmount', () => {
 
 describe('ruleSummary', () => {
   it('describes a text rule, an amount rule and a rule with both', () => {
-    expect(ruleSummary('TRF MB WAY', null)).toBe('contains TRF MB WAY');
-    expect(ruleSummary(null, 2.5)).toBe('amount €2.50');
-    expect(ruleSummary('Banana', 2.5)).toBe('contains Banana and amount €2.50');
+    expect(ruleSummary('TRF MB WAY', null, false)).toBe('contains TRF MB WAY');
+    expect(ruleSummary(null, 2.5, false)).toBe('amount €2.50');
+    expect(ruleSummary('Banana', 2.5, false)).toBe('contains Banana and amount €2.50');
+  });
+
+  it('says equals for a rule that matches the whole description', () => {
+    expect(ruleSummary('TRF MB WAY', null, true)).toBe('equals TRF MB WAY');
+    expect(ruleSummary('Banana', 2.5, true)).toBe('equals Banana and amount €2.50');
+    expect(ruleSummary(null, 2.5, true)).toBe('amount €2.50');
   });
 
   it('treats an amount of zero as an amount', () => {
-    expect(ruleSummary('', 0)).toBe('amount €0.00');
+    expect(ruleSummary('', 0, true)).toBe('amount €0.00');
   });
 });

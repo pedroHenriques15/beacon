@@ -51,7 +51,7 @@ beacon/
 │   │   │   │   └── Shared/       # TradeImportService
 │   │   │   ├── Logs/             # GetLogs, LogClientError
 │   │   │   ├── Salary/
-│   │   │   ├── Shared/           # ExcludedCategory, ProtectedEntityHelper, ValidationExtensions
+│   │   │   ├── Shared/           # ExcludedCategory, RuleMatch, ProtectedEntityHelper, ValidationExtensions
 │   │   │   ├── Statements/
 │   │   │   ├── Transactions/
 │   │   │   └── Upload/           # UnifiedUploadBatch (multi-type batch upload)
@@ -86,7 +86,7 @@ beacon/
 │           │   ├── interceptors/ # apiKeyInterceptor (adds X-Api-Key header)
 │           │   ├── models/       # TypeScript interfaces
 │           │   ├── services/     # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
-│           │   └── utils/        # bank, date-utils, http-params, money, month-totals, rule-match
+│           │   └── utils/        # bank, category-net, date-utils, http-params, money, month-totals, rule-match
 │           ├── pages/            # Lazy-loaded routed components
 │           │   ├── analytics/
 │           │   ├── calendar/     # incl. event-modal + task-modal components
@@ -118,7 +118,7 @@ beacon/
 │   ├── tasks/                    # git-ignored: private task files, one per piece of work
 │   └── screenshots/              # README images
 ├── .claude/                      # agents/ (scaffolders), skills/task/, settings.json (shared permissions)
-├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
+├── .githooks/                    # commit-msg (subject rules), pre-push (protected, task and screenshot branches)
 ├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
 ├── local/                        # git-ignored: environment.dev/.demo, beacon.db, uploads/, backups/ (demo: beacon-demo.db, uploads-demo/, backups-demo/), sample PDFs
@@ -193,10 +193,42 @@ excluding is its own action, but it stays in *filter* dropdowns so excluded rows
 findable. Rules *may* target it; both rule services and every import set the flag when
 they match.
 
+Within the rows a figure counts, income and spending net each category (ADR-037): a category's
+credits less its debits is income when above zero and spending otherwise, so money paid back (a
+shared dinner, a refund) lowers the category's spending instead of counting as income. Rows
+without a category stay gross, each credit income and each debit spending, and Kept is the same
+either way. One pure helper does it, `categoryNet` (`core/utils/category-net.ts`, with
+`spendingByCategory` and `incomeByCategory` for the per-category lists); no page keeps its own
+credit and debit split for a total. A view nets over everything it shows: Home's month and
+Activity's filters across every bank (per bank only within that bank: Home's account filter,
+Activity's "Totals by bank"), Insights over its month or its whole range, so a payback that
+arrives a month after its expense nets only there. Excluded rows and rows of an unclassified
+type never reach the helper's figures, whatever a caller passes.
+
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
 data migration (`MergeInternalTransferIntoExcluded`, before the move to SQLite) folded any
 surviving rows, rules and transactions into `Excluded` (marking them excluded) and deleted
 it. Do not re-introduce it.
+
+### Category rules
+
+A category rule (`CategoryRule`, `GroceryCategoryRule`) is a text (`Pattern`, may be empty),
+how the text matches (`MatchWholeDescription`) and an amount (`Value`, optional); creating or
+editing one needs a text or an amount. Its text matches a row whose description, trimmed,
+**equals** it when `MatchWholeDescription` is set, and a row whose description **contains** it
+otherwise; both are ordinal, so case-sensitive, and the text is trimmed on save. If the rule
+has an amount, the row's amount must equal it too. An empty text is no text condition, and a
+rule with neither matches nothing (ADR-035). Rules from before the choice existed match a part
+of the description (the migration's default), and so does a request that leaves the flag out;
+the rule dialogs offer the whole description by default, filled in from the row on the Activity
+page. Every server path uses one matcher, `RuleMatch.Matches` (`Features/Shared/RuleMatch.cs`):
+the statement upload (each parsed row, and BPI's synthetic PPR rows), the meal-card import, the
+grocery receipt upload, adding a grocery item, and `ApplyRuleService` /
+`GroceryApplyRuleService`. At import the lowest-id matching rule wins and the row records it in
+`CategoryRuleId`. Creating a rule applies it once to every row with no category; editing one
+applies nothing. The client's `matchesRule` (`core/utils/rule-match.ts`) mirrors the matcher
+for the match count the rule dialogs show. A category a rule assigns goes through
+`ExcludedCategory.ApplyCategory`, like any other.
 
 ### Bank statement parsers
 
@@ -514,6 +546,18 @@ Conventions:
 - P&L uses **average cost basis** (ADR-013), computed client-side in `investments.service.ts`
   (`assetMetrics`): buys update the weighted average (fees included), sells book realised
   P&L against it.
+- **Returns** (ADR-038) are counted since the first buy. Per asset, `assetMetrics` adds the
+  money put in (`invested`: every buy with its fees, sold since or not), `totalReturn`
+  (realised plus unrealised; null while units are held without a price), `totalReturnPct`
+  (against the money put in, simple, not annualised) and `firstBuyDate`. The portfolio's
+  `totalInvested`, `totalReturn`, `totalReturnPct` and `firstBuyDate` cover every asset, one
+  sold out included; its unrealised part is value less cost, so a held asset without a price
+  counts as worth nothing. The Invest page's `portfolioSummary` (`investments-view.ts`) does
+  the same for the tab's assets. The page leads with the total return in € and % "since" the
+  first buy's month, its tiles split it into money put in, unrealised and realised, its
+  changes start with "All time" before 1 month, 1 week and 1 day, each holding's "Return" is
+  its own total return, and the value chart opens on All. Home's Investments row shows the
+  total return after the value, and today's change after it.
 - **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
   scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
   Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already
@@ -729,7 +773,9 @@ still deploys.
 
 - `statements`: writable signal holding all loaded statements (plus `loading` / `error` signals).
 - Computed signals: `banks`, `latestPerBank`, `totalBalance`, `allTransactions`,
-  `allTransactionsRaw`, `monthlySummaries`.
+  `allTransactionsRaw`, `monthTotals` (each month's income and spending, every bank together,
+  each category netted across banks) and `monthlySummaries` (per month and bank, netted within
+  the bank, for a view of one bank; adding them up does not give `monthTotals`).
 - Call `reload()` after any mutation to refresh state.
 
 `InvestmentsService` holds the investment assets the same way, loaded once when first used
@@ -780,14 +826,20 @@ The client follows the River design (ADR-030). Everything below lives in `web/sr
   months shown. On desktop it shows as many months as its width holds (up to six) and
   "Earlier" reveals older ones; on phones the months are a sideways-scrolling row of chips. An
   "All months" choice comes last where a page allows it. Its months come from `monthCells()`
-  (`core/utils/month-totals.ts`) over `FinanceService.monthlySummaries`. Home, Activity and
+  (`core/utils/month-totals.ts`) over `FinanceService.monthTotals`. Home, Activity and
   Insights use it.
 - Charts: `core/charts/chart-theme.ts` reads the tokens with `getComputedStyle` and sets
   chart.js defaults (`applyChartTheme()`: tick and legend text, gridlines, tooltip), plus
   `axisOptions()`, `withAlpha()` and `categoryColor()`, which falls back to
   `--category-fallback`. Small charts are hand-drawn SVG: Home's River chart
   (`pages/dashboard/river-chart.ts`, its series computed by the pure, tested `river.ts`) and
-  the Investments sparkline. Sorted horizontal bars replace pies.
+  the Investments sparkline. Sorted horizontal bars replace pies. The River's line is the
+  month's spending as the totals count it (ADR-037): money paid back into a category that nets
+  to spending takes it down on its day, a category that nets to income stays off it, and it
+  ends at the month's spending; every row keeps its dot. Insights' "Where it went" lists the
+  categories netting to spending, one paid back in full last at zero (Home's leaves it out),
+  and a picked category's trend shows its net each month, above the line when it brought money
+  in and below when it cost money (Unknown, never netted, shows money in and out apart).
 - Money is formatted by `core/utils/money.ts`: outflows in neutral text with a true minus
   sign, inflows in `--credit` with a plus.
 - The scrubber and the River chart are OnPush components driven by signal inputs; the pages
@@ -1006,12 +1058,13 @@ the holdings warning on the newest only, and an XLSX that is not XTB's), `XtbExp
 workbooks written with the Open XML SDK) and `XlsxWorkbook`,
 `ParseVerifier`, `ApiKeyMiddleware`, `ExceptionHandlingMiddleware` (incl. a body over its
 limit), `RequestLoggingMiddleware`, the log files (missing or unwritable folder, retention,
-level defaults and overrides, JSON lines read back), `ApplyRuleService` (incl.
-Excluded-category rules setting `IsExcluded`), `FileStorageService`, `OrphanedPdfCleanup`
+level defaults and overrides, JSON lines read back), `RuleMatch` (whole or partial text,
+amount, both, neither), `ApplyRuleService` (incl. Excluded-category rules setting `IsExcluded`),
+`GroceryReceiptUploadService` (rules with an amount), `FileStorageService`, `OrphanedPdfCleanup`
 (relative, foreign and absolute stored paths, stored CSVs), `TradeImportService` (fees, dedup
 by trade id, tickers and prices symbols, a lot typed by hand, sells within and beyond the
 holdings), `XtbUploadService` (the holdings check), `StatementUploadService` (PPR recompute helper, Trade Republic balance chaining,
-overlap and buys), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
+overlap and buys, rules with an amount), `YahooPriceHistorySource` (chart and OpenFIGI parsing on synthetic
 responses, EUR check, retries, an unavailable source), `PriceHistorySyncService` (schedule,
 queue, turned off), `XetraCalendar` and stale prices, the price-source migration, CQRS handlers
 for Backup (incl. investment tables), Categories, Health (a missing, damaged or unmigrated

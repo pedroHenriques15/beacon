@@ -82,7 +82,7 @@ public class ImportMealCardTextCommandHandler(
         {
             var matchedRule = rules
                 .OrderBy(r => r.Id)
-                .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
+                .FirstOrDefault(r => RuleMatch.Matches(r.Pattern, r.MatchWholeDescription, r.Value, tx.Description, tx.Amount));
 
             var transaction = new Transaction
             {

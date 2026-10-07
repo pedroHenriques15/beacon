@@ -12,7 +12,7 @@ public class GetCategoryRulesQueryHandler(AppDbContext db, ILogger<GetCategoryRu
             .Include(r => r.Category)
             .OrderBy(r => EF.Functions.Collate(r.Category.Name, SqliteSetup.DisplayOrder)).ThenBy(r => EF.Functions.Collate(r.Pattern, SqliteSetup.DisplayOrder))
             .Select(r => new GetCategoryRulesResponse(
-                r.Id, r.CategoryId, r.Pattern, r.Category.Name, r.Category.Color, r.Value))
+                r.Id, r.CategoryId, r.Pattern, r.Category.Name, r.Category.Color, r.Value, r.MatchWholeDescription))
             .ToListAsync(ct);
     }
 }

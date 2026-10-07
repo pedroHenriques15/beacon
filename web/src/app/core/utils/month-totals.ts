@@ -1,4 +1,4 @@
-/** One month's counted income and spending, every bank together. */
+/** One month's counted income and spending, each category netted (ADR-037). */
 export interface MonthTotals {
   /** 'YYYY-MM' */
   month: string;
@@ -15,7 +15,11 @@ export interface MonthCell {
   expenses: number;
 }
 
-/** Sums per-bank rows into one row per month, newest first. */
+/**
+ * One row per month, newest first, summing rows of the same month. Netting happens before: sum
+ * only rows whose categories never meet (one bank's rows), never every bank's to get the whole
+ * month, which is FinanceService.monthTotals.
+ */
 export function aggregateByMonth(
   summaries: { month: string; income: number; expenses: number; net: number }[],
 ): MonthTotals[] {
@@ -33,7 +37,7 @@ export function aggregateByMonth(
     .map(([month, data]) => ({ month, ...data }));
 }
 
-/** The scrubber's months, oldest first, from the per-bank monthly summaries. */
+/** The scrubber's months, oldest first, from the month totals (FinanceService.monthTotals). */
 export function monthCells(
   summaries: { month: string; income: number; expenses: number; net: number }[],
 ): MonthCell[] {

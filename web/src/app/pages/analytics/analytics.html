@@ -264,25 +264,23 @@
               <div class="stats">
                 <div class="stat">
                   <span class="stat__label">Average month</span>
-                  <span class="stat__value">{{ eur(stats.avgMonthly) }}</span>
+                  <span class="stat__value" [class.amount-in]="stats.avgMonthly > 0">{{
+                    signedEur(stats.avgMonthly)
+                  }}</span>
                 </div>
                 @if (monthKey) {
                   <div class="stat">
                     <span class="stat__label">{{ period }}</span>
-                    <span class="stat__value" [class.amount-in]="sel.dominantType === 'credit'">{{
-                      eur(stats.currentTotal)
+                    <span class="stat__value" [class.amount-in]="stats.currentTotal > 0">{{
+                      signedEur(stats.currentTotal)
                     }}</span>
                   </div>
                   @if (stats.delta !== null) {
                     <div class="stat">
                       <span class="stat__label">vs {{ compare }}</span>
-                      <span
-                        class="stat__value"
-                        [class.amount-in]="
-                          sel.dominantType === 'debit' ? stats.delta < 0 : stats.delta > 0
-                        "
-                        >{{ signedEur(stats.delta) }}</span
-                      >
+                      <span class="stat__value" [class.amount-in]="stats.delta > 0">{{
+                        signedEur(stats.delta)
+                      }}</span>
                     </div>
                   }
                 }
@@ -294,19 +292,17 @@
                 <h3>Monthly trend</h3>
                 <span class="key">
                   <span class="key__item"
-                    ><span class="key__swatch key__swatch--out"></span>Spending</span
+                    ><span class="key__swatch key__swatch--in"></span
+                    >{{ trendIsGross() ? 'Money in' : 'Net in' }}, above the line</span
                   >
                   <span class="key__item"
-                    ><span class="key__swatch key__swatch--in"></span>Income</span
+                    ><span class="key__swatch key__swatch--out"></span
+                    >{{ trendIsGross() ? 'Money out' : 'Net out' }}, below</span
                   >
                 </span>
               </div>
               <div class="detail__chart">
-                <canvas
-                  #categoryTrendCanvas
-                  role="img"
-                  [attr.aria-label]="'Spending and income in ' + sel.label + ', month by month'"
-                ></canvas>
+                <canvas #categoryTrendCanvas role="img" [attr.aria-label]="trendLabel()"></canvas>
               </div>
             }
 

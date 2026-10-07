@@ -36,7 +36,7 @@ public class GroceryCategoriesController(
     public async Task<IActionResult> Create([FromBody] CreateGroceryCategoryRequest body, CancellationToken ct)
     {
         return Ok(await createCategory.HandleAsync(
-            new CreateGroceryCategoryCommand(body.Name, body.Color, body.Pattern, body.Value), ct));
+            new CreateGroceryCategoryCommand(body.Name, body.Color, body.Pattern, body.Value, body.MatchWholeDescription), ct));
     }
 
     [HttpPut("{id:int}")]
@@ -63,14 +63,14 @@ public class GroceryCategoriesController(
     public async Task<IActionResult> CreateRule([FromBody] CreateGroceryCategoryRuleRequest body, CancellationToken ct)
     {
         var result = await createCategoryRule.HandleAsync(
-            new CreateGroceryCategoryRuleCommand(body.CategoryId, body.Pattern, body.Value), ct);
+            new CreateGroceryCategoryRuleCommand(body.CategoryId, body.Pattern, body.Value, body.MatchWholeDescription), ct);
         return result is null ? NotFound("Grocery category not found.") : Ok(result);
     }
 
     [HttpPut("rules/{id:int}")]
     public async Task<IActionResult> UpdateRule(int id, [FromBody] UpdateGroceryCategoryRuleRequest body, CancellationToken ct)
     {
-        var updated = await updateCategoryRule.HandleAsync(new UpdateGroceryCategoryRuleCommand(id, body.Pattern, body.Value), ct);
+        var updated = await updateCategoryRule.HandleAsync(new UpdateGroceryCategoryRuleCommand(id, body.Pattern, body.Value, body.MatchWholeDescription), ct);
         return updated ? NoContent() : NotFound();
     }
 
@@ -102,8 +102,8 @@ public class GroceryCategoriesController(
     }
 }
 
-public record CreateGroceryCategoryRequest(string Name, string? Color, string? Pattern, decimal? Value = null);
+public record CreateGroceryCategoryRequest(string Name, string? Color, string? Pattern, decimal? Value = null, bool MatchWholeDescription = false);
 public record UpdateGroceryCategoryRequest(string? Name, string? Color);
-public record CreateGroceryCategoryRuleRequest(int CategoryId, string? Pattern, decimal? Value);
-public record UpdateGroceryCategoryRuleRequest(string? Pattern, decimal? Value);
+public record CreateGroceryCategoryRuleRequest(int CategoryId, string? Pattern, decimal? Value, bool MatchWholeDescription = false);
+public record UpdateGroceryCategoryRuleRequest(string? Pattern, decimal? Value, bool MatchWholeDescription = false);
 public record CreateReceiptMappingRequest(string ReceiptCategoryName, int GroceryCategoryId);

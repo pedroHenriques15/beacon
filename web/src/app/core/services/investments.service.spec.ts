@@ -241,6 +241,93 @@ describe('InvestmentsService metrics', () => {
     expect(service.totalUnrealizedPnl()).toBeCloseTo(950, 6);
   });
 
+  describe('total return since the first buy', () => {
+    it('counts every buy with its fees as money put in, and sells as realised', () => {
+      load([
+        makeAsset(
+          [
+            makeLot({ date: '2026-01-05', quantity: 10, pricePerUnit: 100, fees: 2 }),
+            makeLot({ date: '2026-02-05', quantity: 5, pricePerUnit: 110, fees: 1 }),
+            makeLot({ date: '2026-03-05', quantity: -6, pricePerUnit: 130, fees: 1.5 }),
+          ],
+          [makeSnap({ pricePerUnit: 125 })],
+        ),
+      ]);
+      const m = service.assetMetrics()[0];
+      // Average cost 1553 / 15; six sold at 130 less the fee, nine held at 125.
+      expect(m.invested).toBeCloseTo(1553, 6);
+      expect(m.realizedPnl).toBeCloseTo(780 - (6 * 1553) / 15 - 1.5, 6);
+      expect(m.unrealizedPnl).toBeCloseTo(1125 - (9 * 1553) / 15, 6);
+      // Value plus what the sell brought in, less the money put in.
+      expect(m.totalReturn).toBeCloseTo(1125 + 778.5 - 1553, 6);
+      expect(m.totalReturnPct).toBeCloseTo((350.5 / 1553) * 100, 6);
+      expect(m.firstBuyDate).toBe('2026-01-05');
+    });
+
+    it('gives an asset never sold its unrealised return on the money put in', () => {
+      load([
+        makeAsset(
+          [makeLot({ quantity: 10, pricePerUnit: 100, fees: 2.5 })],
+          [makeSnap({ pricePerUnit: 120 })],
+        ),
+      ]);
+      const m = service.assetMetrics()[0];
+      expect(m.invested).toBeCloseTo(1002.5, 6);
+      expect(m.totalReturn).toBeCloseTo(197.5, 6);
+      expect(m.totalReturnPct).toBeCloseTo((197.5 / 1002.5) * 100, 6);
+    });
+
+    it('leaves the return unknown while units are held without a price', () => {
+      load([makeAsset([makeLot({ quantity: 10, pricePerUnit: 100 })], [])]);
+      const m = service.assetMetrics()[0];
+      expect(m.invested).toBe(1000);
+      expect(m.totalReturn).toBeNull();
+      expect(m.totalReturnPct).toBeNull();
+    });
+
+    it('keeps an asset sold out in the totals, with its buys and its realised return', () => {
+      // A round trip without fees: two buys at one price, both sold at a slightly higher one,
+      // and no price for the asset since.
+      const roundTrip = makeAsset(
+        [
+          makeLot({ assetId: 1, date: '2026-05-04', quantity: 3, pricePerUnit: 162.92 }),
+          makeLot({ assetId: 1, date: '2026-05-20', quantity: 0.6459, pricePerUnit: 162.92 }),
+          makeLot({ assetId: 1, date: '2026-06-10', quantity: -3, pricePerUnit: 163.36 }),
+          makeLot({ assetId: 1, date: '2026-06-10', quantity: -0.6459, pricePerUnit: 163.36 }),
+        ],
+        [],
+        { id: 1 },
+      );
+      const gold = makeAsset(
+        [makeLot({ assetId: 2, date: '2026-01-24', quantity: 10, pricePerUnit: 120, fees: 1 })],
+        [makeSnap({ assetId: 2, pricePerUnit: 130 })],
+        { id: 2, assetType: 'Gold', ticker: null, name: 'Gold' },
+      );
+      load([roundTrip, gold]);
+
+      const sold = service.assetMetrics()[0];
+      expect(sold.totalQuantity).toBe(0);
+      expect(sold.invested).toBeCloseTo(3.6459 * 162.92, 6);
+      expect(sold.totalReturn).toBeCloseTo(3.6459 * 0.44, 6);
+      expect(sold.totalReturnPct).toBeCloseTo((0.44 / 162.92) * 100, 6);
+
+      expect(service.totalInvested()).toBeCloseTo(3.6459 * 162.92 + 1201, 6);
+      expect(service.totalReturn()).toBeCloseTo(3.6459 * 0.44 + 99, 6);
+      expect(service.totalReturnPct()).toBeCloseTo(
+        ((3.6459 * 0.44 + 99) / (3.6459 * 162.92 + 1201)) * 100,
+        6,
+      );
+      expect(service.firstBuyDate()).toBe('2026-01-24');
+    });
+
+    it('has no percentage or start without any buy', () => {
+      load([]);
+      expect(service.totalInvested()).toBe(0);
+      expect(service.totalReturnPct()).toBeNull();
+      expect(service.firstBuyDate()).toBeNull();
+    });
+  });
+
   it('computes portfolio history with net invested per date', () => {
     load([
       makeAsset(

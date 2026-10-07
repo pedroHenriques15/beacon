@@ -45,6 +45,7 @@ import {
   eurPrice,
   eurTick,
   historyCaption,
+  monthYear,
   portfolioSummary,
   recentActivity,
   shortDate,
@@ -98,6 +99,7 @@ export class InvestmentsComponent implements OnDestroy {
   readonly signedEur = signedEur;
   readonly signedPct = signedPct;
   readonly eurPrice = eurPrice;
+  readonly monthYear = monthYear;
 
   activeTab = signal<'all' | 'ETF' | 'Gold'>('all');
   expandedAssetId = signal<number | null>(null);
@@ -217,7 +219,8 @@ export class InvestmentsComponent implements OnDestroy {
 
   // ---- Value chart ----
   historyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('historyCanvas');
-  historyRange = signal<HistoryRange>('1Y');
+  /** Opens on the whole history, like the total return above it (ADR-038). */
+  historyRange = signal<HistoryRange>('All');
   readonly historyRanges = HISTORY_RANGES;
   private historyChart?: Chart;
 

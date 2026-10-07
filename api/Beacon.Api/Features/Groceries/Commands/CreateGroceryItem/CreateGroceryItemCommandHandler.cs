@@ -21,9 +21,7 @@ public class CreateGroceryItemCommandHandler(AppDbContext db, ILogger<CreateGroc
         var rules = await db.GroceryCategoryRules.ToListAsync(ct);
         var matchedRule = rules
             .OrderBy(r => r.Id)
-            .FirstOrDefault(r =>
-                (!string.IsNullOrEmpty(r.Pattern) && cmd.Description.Contains(r.Pattern, StringComparison.Ordinal)) ||
-                (r.Value.HasValue && cmd.Amount == r.Value.Value));
+            .FirstOrDefault(r => RuleMatch.Matches(r.Pattern, r.MatchWholeDescription, r.Value, cmd.Description, cmd.Amount));
 
         var item = new GroceryItem
         {
