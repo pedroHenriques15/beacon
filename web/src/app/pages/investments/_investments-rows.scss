@@ -1,7 +1,7 @@
 @use '../../../styles/mixins' as *;
 
 // Holdings as rows of a table, from 1300 px, where every column fits. The header row and
-// each holding are grids with the same columns: holding, quantity, price, cost, value, gain,
+// each holding are grids with the same columns: holding, quantity, price, cost, value, return,
 // 1D, 1W, 1M, actions.
 
 @media (min-width: 1300px) {
