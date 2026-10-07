@@ -5,7 +5,12 @@
 #   and nothing else;
 # - a task branch (prefix/NNN-work-name) needs its task file, docs/tasks/NNN-*.md or
 #   docs/tasks/done/NNN-*.md, and the task must not be dropped. Task files are git-ignored
-#   (ADR-018), so this check is skipped in a clone that has no docs/tasks/.
+#   (ADR-018), so this check is skipped in a clone that has no docs/tasks/;
+# - a screenshot branch (screenshots/NNN-work-name, ADR-036) is never deleted, needs its task
+#   file like a task branch, and takes only commits that add images, with a subject that
+#   starts with "screenshots(NNN): " and has at most 72 characters. It is an orphan branch with
+#   no .githooks/, so commit-msg never runs on it: these checks are made here, when it is
+#   pushed from a checkout that has the hooks.
 #
 # Creating 'main' or 'development' on a remote that lacks them is allowed; that is how a
 # repository is bootstrapped. Enabled by scripts/setup.ps1 or scripts/setup.sh
@@ -19,6 +24,19 @@ status=0
 refuse() {
   echo "pre-push: $1" >&2
   status=1
+}
+
+# The task file of a branch named prefix/NNN-work-name must exist and not be dropped.
+check_task_file() {
+  [ -d "$tasks" ] || return 0 # another clone: the task files are not here
+  number=${1#*/}
+  number=${number%%-*}
+  task=$(ls "$tasks/$number"-*.md "$tasks/done/$number"-*.md 2>/dev/null | head -n 1)
+  if [ -z "$task" ]; then
+    refuse "no task file for '$1': expected docs/tasks/$number-*.md or docs/tasks/done/$number-*.md."
+  elif grep -q '^status: dropped' "$task"; then
+    refuse "task $number is dropped (${task#"$tasks"/}), so its branch is not pushed."
+  fi
 }
 
 while read -r local_ref local_sha remote_ref remote_sha; do
@@ -50,15 +68,37 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     feature/[0-9][0-9][0-9]-* | fix/[0-9][0-9][0-9]-* | refactor/[0-9][0-9][0-9]-* | \
     tests/[0-9][0-9][0-9]-* | chore/[0-9][0-9][0-9]-* | merge/[0-9][0-9][0-9]-*)
       [ "$local_sha" != "$zero" ] || continue # deleting a task branch is fine
-      [ -d "$tasks" ] || continue             # another clone: the task files are not here
+      check_task_file "$branch"
+      ;;
+    screenshots/[0-9][0-9][0-9]-*)
+      if [ "$local_sha" = "$zero" ]; then
+        refuse "refusing to delete '$branch': pull requests link to its images."
+        continue
+      fi
+      check_task_file "$branch"
       number=${branch#*/}
       number=${number%%-*}
-      task=$(ls "$tasks/$number"-*.md "$tasks/done/$number"-*.md 2>/dev/null | head -n 1)
-      if [ -z "$task" ]; then
-        refuse "no task file for '$branch': expected docs/tasks/$number-*.md or docs/tasks/done/$number-*.md."
-      elif grep -q '^status: dropped' "$task"; then
-        refuse "task $number is dropped (${task#"$tasks"/}), so its branch is not pushed."
+      if [ "$remote_sha" = "$zero" ]; then
+        commits=$(git rev-list "$local_sha" --not --remotes)
+      else
+        commits=$(git rev-list "$remote_sha..$local_sha")
       fi
+      for commit in $commits; do
+        subject=$(git log -1 --format=%s "$commit")
+        case "$subject" in
+          "screenshots($number): "*) ;;
+          *) refuse "on '$branch', $(git log -1 --format=%h "$commit") must start with 'screenshots($number): '." ;;
+        esac
+        length=$(printf '%s' "$subject" | wc -m | tr -d ' ')
+        [ "$length" -le 72 ] ||
+          refuse "on '$branch', $(git log -1 --format=%h "$commit") has a subject of $length characters, the limit is 72."
+        for file in $(git diff-tree --no-commit-id --name-only -r --root "$commit"); do
+          case "$file" in
+            *.png | *.jpg | *.jpeg | *.gif | *.webp) ;;
+            *) refuse "'$branch' holds images only, but $(git log -1 --format=%h "$commit") changes '$file'." ;;
+          esac
+        done
+      done
       ;;
   esac
 done

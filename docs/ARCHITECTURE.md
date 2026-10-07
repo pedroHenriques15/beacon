@@ -118,7 +118,7 @@ beacon/
 │   ├── tasks/                    # git-ignored: private task files, one per piece of work
 │   └── screenshots/              # README images
 ├── .claude/                      # agents/ (scaffolders), skills/task/, settings.json (shared permissions)
-├── .githooks/                    # commit-msg (subject rules), pre-push (protected and task branches)
+├── .githooks/                    # commit-msg (subject rules), pre-push (protected, task and screenshot branches)
 ├── .gitattributes                # Shell scripts and hooks stay LF on every platform
 ├── .vscode/                      # tasks.json ("Beacon: Start All"), launch.json
 ├── local/                        # git-ignored: environment.dev/.demo, beacon.db, uploads/, backups/ (demo: beacon-demo.db, uploads-demo/, backups-demo/), sample PDFs
