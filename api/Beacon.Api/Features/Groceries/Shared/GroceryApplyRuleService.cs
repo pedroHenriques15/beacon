@@ -9,22 +9,16 @@ public class GroceryApplyRuleService(AppDbContext db)
 {
     public async Task ApplyAsync(GroceryCategoryRule rule)
     {
-        var hasPattern = !string.IsNullOrEmpty(rule.Pattern);
-        var hasValue = rule.Value.HasValue;
-
-        if (!hasPattern && !hasValue)
+        if (string.IsNullOrEmpty(rule.Pattern) && rule.Value is null)
             return;
 
         var uncategorized = await db.GroceryItems
             .Where(i => i.CategoryId == null)
             .ToListAsync();
 
-        var matches = uncategorized.Where(i =>
-        {
-            var patternOk = !hasPattern || i.Description.Contains(rule.Pattern!, StringComparison.Ordinal);
-            var valueOk = !hasValue || i.Amount == rule.Value!.Value;
-            return patternOk && valueOk;
-        }).ToList();
+        var matches = uncategorized
+            .Where(i => RuleMatch.Matches(rule.Pattern, rule.MatchWholeDescription, rule.Value, i.Description, i.Amount))
+            .ToList();
 
         var excludedCategoryId = await ExcludedCategory.GetGroceryIdAsync(db);
 

@@ -302,4 +302,55 @@ public class CategoryHandlerTests : IDisposable
         var rules = await db.CategoryRules.Where(r => r.CategoryId == response.Id).ToListAsync();
         Assert.Empty(rules);
     }
+
+    [Fact]
+    public async Task CreateCategoryRule_MatchingTheWholeDescription_SkipsRowsThatOnlyContainIt()
+    {
+        await using var db = CreateDb();
+
+        var (cat, _) = await SeedCategoryAndStatementAsync(db, "Groceries",
+        [
+            new Transaction { Description = "LIDL Lisboa", Amount = 30, Type = "debit", DatePosting = new DateOnly(2024, 1, 1), DateValue = new DateOnly(2024, 1, 1), Balance = 970 },
+            new Transaction { Description = "LIDL", Amount = 20, Type = "debit", DatePosting = new DateOnly(2024, 1, 2), DateValue = new DateOnly(2024, 1, 2), Balance = 950 }
+        ]);
+
+        var result = await CreateHandler(db).HandleAsync(new CreateCategoryRuleCommand(cat.Id, "LIDL", null, MatchWholeDescription: true));
+
+        Assert.NotNull(result);
+        Assert.True(result.MatchWholeDescription);
+        Assert.True((await db.CategoryRules.SingleAsync()).MatchWholeDescription);
+        Assert.Equal(cat.Id, (await db.Transactions.SingleAsync(t => t.Amount == 20)).CategoryId);
+        Assert.Null((await db.Transactions.SingleAsync(t => t.Amount == 30)).CategoryId);
+    }
+
+    [Fact]
+    public async Task UpdateCategoryRule_ChangesHowItsTextMatches()
+    {
+        await using var db = CreateDb();
+
+        var cat = new Category { Name = "Test", Color = "#aaaaaa" };
+        db.Categories.Add(cat);
+        var rule = new CategoryRule { Category = cat, Pattern = "OLD" };
+        db.CategoryRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        var handler = CreateUpdateHandler(db);
+        await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "OLD", null, MatchWholeDescription: true));
+        Assert.True((await db.CategoryRules.FindAsync(rule.Id))!.MatchWholeDescription);
+
+        await handler.HandleAsync(new UpdateCategoryRuleCommand(rule.Id, "OLD", null));
+        Assert.False((await db.CategoryRules.FindAsync(rule.Id))!.MatchWholeDescription);
+    }
+
+    [Fact]
+    public async Task CreateCategory_WithAPatternMatchingTheWholeDescription_CreatesSuchARule()
+    {
+        await using var db = CreateDb();
+
+        var response = await CreateCategoryHandler(db).HandleAsync(
+            new CreateCategoryCommand("Test", "#aaa", "MB WAY", null, MatchWholeDescription: true));
+
+        var rule = await db.CategoryRules.SingleAsync(r => r.CategoryId == response.Id);
+        Assert.True(rule.MatchWholeDescription);
+    }
 }

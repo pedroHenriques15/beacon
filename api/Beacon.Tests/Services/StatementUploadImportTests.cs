@@ -135,6 +135,90 @@ public class StatementUploadImportTests : IDisposable
         Assert.False(txs.Single(t => t.Description.Contains("PAGAMENTO SERVICOS")).IsExcluded);
     }
 
+    private static async Task<(Category First, Category Second)> SeedTwoCategoriesAsync(AppDbContext db)
+    {
+        var first = new Category { Name = "Tobacco", Color = "#aa0000" };
+        var second = new Category { Name = "Services", Color = "#00aa00" };
+        db.Categories.AddRange(first, second);
+        await db.SaveChangesAsync();
+        return (first, second);
+    }
+
+    [Fact]
+    public async Task Import_RuleWithAnotherAmount_SkipsTheRow_AndALaterRuleCategorisesIt()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var (tobacco, services) = await SeedTwoCategoriesAsync(db);
+        db.CategoryRules.Add(new CategoryRule { CategoryId = tobacco.Id, Pattern = "PAGAMENTO", Value = 5.40m });
+        await db.SaveChangesAsync();
+        var textOnly = new CategoryRule { CategoryId = services.Id, Pattern = "PAGAMENTO" };
+        db.CategoryRules.Add(textOnly);
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [ActivoBankPage()]);
+
+        var result = await service.ImportAsync(MakeFormFile("activo-rule-amount"));
+
+        Assert.Equal(1, result.UnknownCount);
+        await using var freshDb = new AppDbContext(DbOptions());
+        var payment = await freshDb.Transactions.SingleAsync(t => t.Amount == 200m);
+        Assert.Equal(services.Id, payment.CategoryId);
+        Assert.Equal(textOnly.Id, payment.CategoryRuleId);
+    }
+
+    [Fact]
+    public async Task Import_AmountOnlyRule_CategorisesOnlyRowsOfThatAmount()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var (_, services) = await SeedTwoCategoriesAsync(db);
+        db.CategoryRules.Add(new CategoryRule { CategoryId = services.Id, Pattern = string.Empty, Value = 200m });
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [ActivoBankPage()]);
+
+        var result = await service.ImportAsync(MakeFormFile("activo-amount-only-rule"));
+
+        Assert.Equal(1, result.UnknownCount);
+        await using var freshDb = new AppDbContext(DbOptions());
+        var txs = await freshDb.Transactions.ToListAsync();
+        Assert.Equal(services.Id, txs.Single(t => t.Amount == 200m).CategoryId);
+        Assert.Null(txs.Single(t => t.Amount == 500m).CategoryId);
+    }
+
+    [Fact]
+    public async Task Import_WholeDescriptionRule_SkipsARowThatOnlyContainsIt_AndAPartialRuleMatches()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var (tobacco, services) = await SeedTwoCategoriesAsync(db);
+        db.CategoryRules.Add(new CategoryRule { CategoryId = tobacco.Id, Pattern = "PAGAMENTO", MatchWholeDescription = true });
+        await db.SaveChangesAsync();
+        var partial = new CategoryRule { CategoryId = services.Id, Pattern = "PAGAMENTO" };
+        db.CategoryRules.Add(partial);
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [ActivoBankPage()]);
+
+        await service.ImportAsync(MakeFormFile("activo-whole-description-rule"));
+
+        await using var freshDb = new AppDbContext(DbOptions());
+        var payment = await freshDb.Transactions.SingleAsync(t => t.Amount == 200m);
+        Assert.Equal(services.Id, payment.CategoryId);
+        Assert.Equal(partial.Id, payment.CategoryRuleId);
+    }
+
+    [Fact]
+    public async Task Import_WholeDescriptionRule_MatchesTheWholeDescription()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var (_, services) = await SeedTwoCategoriesAsync(db);
+        db.CategoryRules.Add(new CategoryRule { CategoryId = services.Id, Pattern = "PAGAMENTO SERVICOS", MatchWholeDescription = true });
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [ActivoBankPage()]);
+
+        var result = await service.ImportAsync(MakeFormFile("activo-whole-description-match"));
+
+        Assert.Equal(1, result.UnknownCount);
+        await using var freshDb = new AppDbContext(DbOptions());
+        Assert.Equal(services.Id, (await freshDb.Transactions.SingleAsync(t => t.Amount == 200m)).CategoryId);
+    }
+
     private static string BpiPageWithPpr() => """
         EXTRACTO INTEGRADO
         IBAN: PT50 0000 0000 0000 0000 0000 0
@@ -170,6 +254,35 @@ public class StatementUploadImportTests : IDisposable
         Assert.Equal(100m, synthetic.Amount);
         Assert.Equal(excluded.Id, synthetic.CategoryId);
         Assert.True(synthetic.IsExcluded);
+    }
+
+    [Fact]
+    public async Task Import_BpiPprRow_MatchesOnlyTheRuleWithItsAmount()
+    {
+        await using var db = new AppDbContext(DbOptions());
+        var (other, gains) = await SeedTwoCategoriesAsync(db);
+        db.CategoryRules.Add(new CategoryRule { CategoryId = other.Id, Pattern = "BPI Reforma", Value = 99m });
+        await db.SaveChangesAsync();
+        var hundred = new CategoryRule { CategoryId = gains.Id, Pattern = "BPI Reforma", Value = 100m };
+        db.CategoryRules.Add(hundred);
+        db.MonthlyStatements.Add(new MonthlyStatement
+        {
+            Bank = "BPI",
+            Account = "PT50",
+            PeriodFrom = new DateOnly(2026, 1, 1),
+            PeriodTo = new DateOnly(2026, 1, 31),
+            PprBalance = 1000m,
+        });
+        await db.SaveChangesAsync();
+        var service = MakeService(db, [BpiPageWithPpr()]);
+
+        await service.ImportAsync(MakeFormFile("bpi-ppr-rule-amount"));
+
+        await using var freshDb = new AppDbContext(DbOptions());
+        var synthetic = await freshDb.Transactions.SingleAsync(t => t.Description == "BPI Reforma - Ganhos");
+        Assert.Equal(100m, synthetic.Amount);
+        Assert.Equal(gains.Id, synthetic.CategoryId);
+        Assert.Equal(hundred.Id, synthetic.CategoryRuleId);
     }
 
     // ── BPI retirement plan (PPR) movements ─────────────────────────────────────

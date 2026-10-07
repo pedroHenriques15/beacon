@@ -123,7 +123,7 @@ public class StatementUploadService(
 
                 var matchedRule = rules
                     .OrderBy(r => r.Id)
-                    .FirstOrDefault(r => tx.Description.Contains(r.Pattern, StringComparison.Ordinal));
+                    .FirstOrDefault(r => RuleMatch.Matches(r.Pattern, r.MatchWholeDescription, r.Value, tx.Description, tx.Amount));
                 transaction.CategoryRuleId = matchedRule?.Id;
                 ExcludedCategory.ApplyCategory(transaction, matchedRule?.CategoryId, excludedCategoryId);
                 return transaction;
@@ -389,10 +389,6 @@ public class StatementUploadService(
     private static Transaction NewPprRow(string description, DateOnly datePosting, DateOnly dateValue,
         decimal signedAmount, decimal pprBalance, IReadOnlyList<CategoryRule> rules, int? excludedCategoryId)
     {
-        var matchedRule = rules
-            .OrderBy(r => r.Id)
-            .FirstOrDefault(r => description.Contains(r.Pattern, StringComparison.Ordinal));
-
         var row = new Transaction
         {
             DatePosting = datePosting,
@@ -401,9 +397,12 @@ public class StatementUploadService(
             Amount = Math.Abs(signedAmount),
             Type = signedAmount >= 0 ? "credit" : "debit",
             Balance = pprBalance,
-            CategoryRuleId = matchedRule?.Id,
             CategorySetManually = false
         };
+        var matchedRule = rules
+            .OrderBy(r => r.Id)
+            .FirstOrDefault(r => RuleMatch.Matches(r.Pattern, r.MatchWholeDescription, r.Value, row.Description, row.Amount));
+        row.CategoryRuleId = matchedRule?.Id;
         ExcludedCategory.ApplyCategory(row, matchedRule?.CategoryId, excludedCategoryId);
         return row;
     }

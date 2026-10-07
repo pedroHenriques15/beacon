@@ -9,22 +9,16 @@ public class ApplyRuleService(AppDbContext db)
 {
     public async Task ApplyAsync(CategoryRule rule)
     {
-        var hasPattern = !string.IsNullOrEmpty(rule.Pattern);
-        var hasValue = rule.Value.HasValue;
-
-        if (!hasPattern && !hasValue)
+        if (string.IsNullOrEmpty(rule.Pattern) && rule.Value is null)
             return;
 
         var uncategorized = await db.Transactions
             .Where(t => t.CategoryId == null)
             .ToListAsync();
 
-        var matches = uncategorized.Where(t =>
-        {
-            var patternOk = !hasPattern || t.Description.Contains(rule.Pattern!, StringComparison.Ordinal);
-            var valueOk = !hasValue || t.Amount == rule.Value!.Value;
-            return patternOk && valueOk;
-        }).ToList();
+        var matches = uncategorized
+            .Where(t => RuleMatch.Matches(rule.Pattern, rule.MatchWholeDescription, rule.Value, t.Description, t.Amount))
+            .ToList();
 
         var excludedCategoryId = await ExcludedCategory.GetIdAsync(db);
 

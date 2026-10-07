@@ -169,6 +169,26 @@ public class ApplyRuleServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplyAsync_WholeDescriptionRule_SkipsRowsThatOnlyContainItsText()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+
+        var cat = await db.Categories.FirstAsync();
+        var partOfIt = new CategoryRule { CategoryId = cat.Id, Pattern = "LIDL", MatchWholeDescription = true };
+        var whole = new CategoryRule { CategoryId = cat.Id, Pattern = "CONTINENTE ABC", MatchWholeDescription = true };
+        db.CategoryRules.AddRange(partOfIt, whole);
+        await db.SaveChangesAsync();
+
+        var service = new ApplyRuleService(db);
+        await service.ApplyAsync(partOfIt);
+        await service.ApplyAsync(whole);
+
+        Assert.Null((await db.Transactions.FirstAsync(t => t.Description == "LIDL Lisboa")).CategoryId);
+        Assert.Equal(whole.Id, (await db.Transactions.FirstAsync(t => t.Description == "CONTINENTE ABC")).CategoryRuleId);
+    }
+
+    [Fact]
     public async Task ApplyAsync_PatternMatchIsCaseSensitive()
     {
         await using var db = CreateDb();

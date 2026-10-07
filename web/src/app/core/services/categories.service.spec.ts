@@ -13,7 +13,12 @@ const CAT_TRAVEL: Category = {
   isProtected: false,
   rules: [],
 };
-const RULE_LIDL: CategoryRule = { id: 10, categoryId: 1, pattern: 'LIDL' };
+const RULE_LIDL: CategoryRule = {
+  id: 10,
+  categoryId: 1,
+  pattern: 'LIDL',
+  matchWholeDescription: false,
+};
 
 describe('CategoriesService', () => {
   let service: CategoriesService;
@@ -64,6 +69,7 @@ describe('CategoriesService', () => {
       color: '#00ff00',
       pattern: undefined,
       value: null,
+      matchWholeDescription: false,
     });
     req.flush({ id: 3, name: 'Transport', color: '#00ff00', rules: [] });
 
@@ -146,7 +152,12 @@ describe('CategoriesService', () => {
 
     const req = controller.expectOne('/api/categories/rules');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ categoryId: 1, pattern: 'CONTINENTE', value: null });
+    expect(req.request.body).toEqual({
+      categoryId: 1,
+      pattern: 'CONTINENTE',
+      value: null,
+      matchWholeDescription: false,
+    });
     req.flush({ id: 20, categoryId: 1, pattern: 'CONTINENTE', value: null });
 
     flushLoad(controller);
@@ -156,7 +167,12 @@ describe('CategoriesService', () => {
     service.createRule(1, '', 1500).subscribe();
 
     const req = controller.expectOne('/api/categories/rules');
-    expect(req.request.body).toEqual({ categoryId: 1, pattern: '', value: 1500 });
+    expect(req.request.body).toEqual({
+      categoryId: 1,
+      pattern: '',
+      value: 1500,
+      matchWholeDescription: false,
+    });
     req.flush({ id: 22, categoryId: 1, pattern: '', value: 1500 });
 
     flushLoad(controller);
@@ -166,8 +182,29 @@ describe('CategoriesService', () => {
     service.createRule(1, 'LIDL', 30).subscribe();
 
     const req = controller.expectOne('/api/categories/rules');
-    expect(req.request.body).toEqual({ categoryId: 1, pattern: 'LIDL', value: 30 });
+    expect(req.request.body).toEqual({
+      categoryId: 1,
+      pattern: 'LIDL',
+      value: 30,
+      matchWholeDescription: false,
+    });
     req.flush({ id: 23, categoryId: 1, pattern: 'LIDL', value: 30 });
+
+    flushLoad(controller);
+  });
+
+  it('createRule() POSTs a rule that matches the whole description', () => {
+    service.createRule(1, 'LIDL LISBOA', null, true).subscribe();
+
+    const req = controller.expectOne('/api/categories/rules');
+    expect(req.request.body.matchWholeDescription).toBe(true);
+    req.flush({
+      id: 24,
+      categoryId: 1,
+      pattern: 'LIDL LISBOA',
+      value: null,
+      matchWholeDescription: true,
+    });
 
     flushLoad(controller);
   });
@@ -178,7 +215,11 @@ describe('CategoriesService', () => {
     controller
       .expectOne('/api/categories/rules')
       .flush({ id: 21, categoryId: 1, pattern: 'ZARA', value: null });
-    flushLoad(controller, [CAT_FOOD], [RULE_LIDL, { id: 21, categoryId: 1, pattern: 'ZARA' }]);
+    flushLoad(
+      controller,
+      [CAT_FOOD],
+      [RULE_LIDL, { id: 21, categoryId: 1, pattern: 'ZARA', matchWholeDescription: false }],
+    );
 
     expect(service.rules().length).toBe(2);
   });

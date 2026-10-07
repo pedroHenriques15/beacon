@@ -8,7 +8,8 @@ public class UpdateCategoryRuleCommandHandler(AppDbContext db, ILogger<UpdateCat
 {
     public async Task<bool> HandleAsync(UpdateCategoryRuleCommand cmd, CancellationToken ct = default)
     {
-        logger.LogInformation("UpdateCategoryRule: id={Id} pattern={Pattern} value={Value}", cmd.Id, cmd.Pattern, cmd.Value);
+        logger.LogInformation("UpdateCategoryRule: id={Id} pattern={Pattern} value={Value} whole={MatchWholeDescription}",
+            cmd.Id, cmd.Pattern, cmd.Value, cmd.MatchWholeDescription);
 
         new UpdateCategoryRuleCommandValidator().Validate(cmd).ThrowIfInvalid();
 
@@ -17,6 +18,7 @@ public class UpdateCategoryRuleCommandHandler(AppDbContext db, ILogger<UpdateCat
 
         rule.Pattern = string.IsNullOrWhiteSpace(cmd.Pattern) ? string.Empty : cmd.Pattern.Trim();
         rule.Value = cmd.Value;
+        rule.MatchWholeDescription = cmd.MatchWholeDescription;
         await db.SaveChangesAsync(ct);
         return true;
     }

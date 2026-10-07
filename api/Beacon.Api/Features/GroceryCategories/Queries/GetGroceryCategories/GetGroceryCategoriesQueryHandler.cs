@@ -13,7 +13,7 @@ public class GetGroceryCategoriesQueryHandler(AppDbContext db, ILogger<GetGrocer
             .OrderBy(c => EF.Functions.Collate(c.Name, SqliteSetup.DisplayOrder))
             .Select(c => new GetGroceryCategoriesResponse(
                 c.Id, c.Name, c.Color, c.IsProtected,
-                c.Rules.Select(r => new GroceryRuleDto(r.Id, r.CategoryId, r.Pattern, r.Value)).ToList()))
+                c.Rules.Select(r => new GroceryRuleDto(r.Id, r.CategoryId, r.Pattern, r.Value, r.MatchWholeDescription)).ToList()))
             .ToListAsync(ct);
     }
 }

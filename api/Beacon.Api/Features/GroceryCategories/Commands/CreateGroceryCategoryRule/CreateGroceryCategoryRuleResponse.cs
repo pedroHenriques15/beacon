@@ -1,3 +1,3 @@
 namespace Beacon.Api.Features.GroceryCategories.Commands.CreateGroceryCategoryRule;
 
-public record CreateGroceryCategoryRuleResponse(int Id, int CategoryId, string? Pattern, decimal? Value);
+public record CreateGroceryCategoryRuleResponse(int Id, int CategoryId, string? Pattern, decimal? Value, bool MatchWholeDescription);

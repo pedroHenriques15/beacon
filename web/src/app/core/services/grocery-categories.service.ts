@@ -38,6 +38,7 @@ export class GroceryCategoriesService {
     color: string,
     pattern?: string,
     value?: number | null,
+    matchWholeDescription = false,
   ): Observable<GroceryCategory> {
     return this.http
       .post<GroceryCategory>('/api/grocery-categories', {
@@ -45,6 +46,7 @@ export class GroceryCategoriesService {
         color,
         pattern,
         value: value ?? null,
+        matchWholeDescription,
       })
       .pipe(tap(() => this.load()));
   }
@@ -57,19 +59,26 @@ export class GroceryCategoriesService {
     categoryId: number,
     pattern: string,
     value?: number | null,
+    matchWholeDescription = false,
   ): Observable<GroceryCategoryRule> {
     return this.http
       .post<GroceryCategoryRule>('/api/grocery-categories/rules', {
         categoryId,
         pattern,
         value: value ?? null,
+        matchWholeDescription,
       })
       .pipe(tap(() => this.load()));
   }
 
-  updateRule(id: number, pattern: string | null, value: number | null): Observable<void> {
+  updateRule(
+    id: number,
+    pattern: string | null,
+    value: number | null,
+    matchWholeDescription = false,
+  ): Observable<void> {
     return this.http
-      .put<void>(`/api/grocery-categories/rules/${id}`, { pattern, value })
+      .put<void>(`/api/grocery-categories/rules/${id}`, { pattern, value, matchWholeDescription })
       .pipe(tap(() => this.load()));
   }
 

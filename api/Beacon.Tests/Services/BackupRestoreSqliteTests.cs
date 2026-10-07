@@ -29,7 +29,7 @@ public class BackupRestoreSqliteTests
             var category = new Category { Name = "Food", Color = "#ff0000" };
             db.Categories.Add(category);
             await db.SaveChangesAsync();
-            db.CategoryRules.Add(new CategoryRule { CategoryId = category.Id, Pattern = "LIDL" });
+            db.CategoryRules.Add(new CategoryRule { CategoryId = category.Id, Pattern = "LIDL", MatchWholeDescription = true });
 
             var statement = new MonthlyStatement
             {
@@ -143,7 +143,7 @@ public class BackupRestoreSqliteTests
             await using var verifyDb = database.CreateContext();
             Assert.Equal(1, await verifyDb.Categories.CountAsync());
             Assert.False(await verifyDb.Categories.AnyAsync(c => c.Name == "Intruder"));
-            Assert.Equal(1, await verifyDb.CategoryRules.CountAsync());
+            Assert.True((await verifyDb.CategoryRules.SingleAsync()).MatchWholeDescription);
             Assert.Equal(1, await verifyDb.MonthlyStatements.CountAsync());
 
             var restoredTx = await verifyDb.Transactions.SingleAsync();

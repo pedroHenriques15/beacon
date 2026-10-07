@@ -417,3 +417,25 @@ an asset created from an XTB ticker is not found later by a Trade Republic ISIN,
 Republic's buys of the same ETF must come in first and its prices sync once (until then the
 asset has no prices symbol); the SDK adds a few megabytes to the deployment; and the holdings
 check is only as fresh as the latest download.
+
+## ADR-035 · A category rule matches the whole description or a part of it, as it says
+
+Since 2026-10-07 each category rule, for transactions and grocery items alike, says how its
+text matches: the whole description (the row's description, trimmed, equals the text) or a
+part of it (the description contains the text); both are ordinal, so case-sensitive. When the
+rule has an amount, the row's amount must equal it too. An empty text is no text condition, and
+a rule with neither matches nothing. Every path that applies rules uses one matcher,
+`RuleMatch.Matches`, and the client's `matchesRule` mirrors it for the rule dialogs' match
+count. Until then every rule matched a part of the description, and each import had its own
+check: the statement and meal-card imports ignored the amount (so an amount-only rule matched
+every row), and the grocery imports took the text or the amount. A partial rule catches any
+description that contains its text, so a short one matches rows it was never meant for, while
+banks put varying parts into a description (a card number, a place, a transfer number that
+changes every time), which only a partial rule covers in one go; so the choice is the rule's.
+Existing rules stay partial (the migration's default), so nothing they matched changes, and a
+request without the flag, from an older client or an older backup, means partial too; new rules
+default to the whole description in the dialogs, which fill it in from the row. Alternatives:
+whole-description matching only (every partial rule would match nothing until rewritten);
+partial matching only, with the amount honoured everywhere; regular expressions. Costs
+accepted: one more choice in every rule dialog, and a rule's behaviour depends on a flag shown
+only as "Equals" or "Contains" in the rule list.

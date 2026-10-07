@@ -10,8 +10,8 @@ public class CreateGroceryCategoryRuleCommandHandler(AppDbContext db, GroceryApp
 {
     public async Task<CreateGroceryCategoryRuleResponse?> HandleAsync(CreateGroceryCategoryRuleCommand cmd, CancellationToken ct = default)
     {
-        logger.LogInformation("CreateGroceryCategoryRule: categoryId={CategoryId} pattern={Pattern} value={Value}",
-            cmd.CategoryId, cmd.Pattern, cmd.Value);
+        logger.LogInformation("CreateGroceryCategoryRule: categoryId={CategoryId} pattern={Pattern} value={Value} whole={MatchWholeDescription}",
+            cmd.CategoryId, cmd.Pattern, cmd.Value, cmd.MatchWholeDescription);
 
         new CreateGroceryCategoryRuleCommandValidator().Validate(cmd).ThrowIfInvalid();
 
@@ -19,12 +19,18 @@ public class CreateGroceryCategoryRuleCommandHandler(AppDbContext db, GroceryApp
             return null;
 
         var pattern = string.IsNullOrWhiteSpace(cmd.Pattern) ? null : cmd.Pattern.Trim();
-        var rule = new GroceryCategoryRule { CategoryId = cmd.CategoryId, Pattern = pattern, Value = cmd.Value };
+        var rule = new GroceryCategoryRule
+        {
+            CategoryId = cmd.CategoryId,
+            Pattern = pattern,
+            Value = cmd.Value,
+            MatchWholeDescription = cmd.MatchWholeDescription
+        };
         db.GroceryCategoryRules.Add(rule);
         await db.SaveChangesAsync(ct);
 
         await applyRule.ApplyAsync(rule);
 
-        return new CreateGroceryCategoryRuleResponse(rule.Id, rule.CategoryId, rule.Pattern, rule.Value);
+        return new CreateGroceryCategoryRuleResponse(rule.Id, rule.CategoryId, rule.Pattern, rule.Value, rule.MatchWholeDescription);
     }
 }
