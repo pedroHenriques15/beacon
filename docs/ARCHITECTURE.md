@@ -86,7 +86,7 @@ beacon/
 │           │   ├── interceptors/ # apiKeyInterceptor (adds X-Api-Key header)
 │           │   ├── models/       # TypeScript interfaces
 │           │   ├── services/     # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
-│           │   └── utils/        # bank, date-utils, http-params, money, month-totals, rule-match
+│           │   └── utils/        # bank, category-net, date-utils, http-params, money, month-totals, rule-match
 │           ├── pages/            # Lazy-loaded routed components
 │           │   ├── analytics/
 │           │   ├── calendar/     # incl. event-modal + task-modal components
@@ -192,6 +192,18 @@ a plain category pick (`assignableCats` / `gAssignableCats` on the Activity page
 excluding is its own action, but it stays in *filter* dropdowns so excluded rows remain
 findable. Rules *may* target it; both rule services and every import set the flag when
 they match.
+
+Within the rows a figure counts, income and spending net each category (ADR-037): a category's
+credits less its debits is income when above zero and spending otherwise, so money paid back (a
+shared dinner, a refund) lowers the category's spending instead of counting as income. Rows
+without a category stay gross, each credit income and each debit spending, and Kept is the same
+either way. One pure helper does it, `categoryNet` (`core/utils/category-net.ts`, with
+`spendingByCategory` and `incomeByCategory` for the per-category lists); no page keeps its own
+credit and debit split for a total. A view nets over everything it shows: Home's month and
+Activity's filters across every bank (per bank only within that bank: Home's account filter,
+Activity's "Totals by bank"), Insights over its month or its whole range, so a payback that
+arrives a month after its expense nets only there. Excluded rows and rows of an unclassified
+type never reach the helper's figures, whatever a caller passes.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a
 data migration (`MergeInternalTransferIntoExcluded`, before the move to SQLite) folded any
@@ -749,7 +761,9 @@ still deploys.
 
 - `statements`: writable signal holding all loaded statements (plus `loading` / `error` signals).
 - Computed signals: `banks`, `latestPerBank`, `totalBalance`, `allTransactions`,
-  `allTransactionsRaw`, `monthlySummaries`.
+  `allTransactionsRaw`, `monthTotals` (each month's income and spending, every bank together,
+  each category netted across banks) and `monthlySummaries` (per month and bank, netted within
+  the bank, for a view of one bank; adding them up does not give `monthTotals`).
 - Call `reload()` after any mutation to refresh state.
 
 `InvestmentsService` holds the investment assets the same way, loaded once when first used
@@ -800,14 +814,20 @@ The client follows the River design (ADR-030). Everything below lives in `web/sr
   months shown. On desktop it shows as many months as its width holds (up to six) and
   "Earlier" reveals older ones; on phones the months are a sideways-scrolling row of chips. An
   "All months" choice comes last where a page allows it. Its months come from `monthCells()`
-  (`core/utils/month-totals.ts`) over `FinanceService.monthlySummaries`. Home, Activity and
+  (`core/utils/month-totals.ts`) over `FinanceService.monthTotals`. Home, Activity and
   Insights use it.
 - Charts: `core/charts/chart-theme.ts` reads the tokens with `getComputedStyle` and sets
   chart.js defaults (`applyChartTheme()`: tick and legend text, gridlines, tooltip), plus
   `axisOptions()`, `withAlpha()` and `categoryColor()`, which falls back to
   `--category-fallback`. Small charts are hand-drawn SVG: Home's River chart
   (`pages/dashboard/river-chart.ts`, its series computed by the pure, tested `river.ts`) and
-  the Investments sparkline. Sorted horizontal bars replace pies.
+  the Investments sparkline. Sorted horizontal bars replace pies. The River's line is the
+  month's spending as the totals count it (ADR-037): money paid back into a category that nets
+  to spending takes it down on its day, a category that nets to income stays off it, and it
+  ends at the month's spending; every row keeps its dot. Insights' "Where it went" lists the
+  categories netting to spending, one paid back in full last at zero (Home's leaves it out),
+  and a picked category's trend shows its net each month, above the line when it brought money
+  in and below when it cost money (Unknown, never netted, shows money in and out apart).
 - Money is formatted by `core/utils/money.ts`: outflows in neutral text with a true minus
   sign, inflows in `--credit` with a plus.
 - The scrubber and the River chart are OnPush components driven by signal inputs; the pages

@@ -21,8 +21,6 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-- Totals: net each category, so money paid back (a shared dinner, a refund) lowers its spending
-  instead of counting as income.
 - Investments: show the total return since the first investment, realised and unrealised, as
   the headline on Invest and Home, ahead of the short-term changes.
 

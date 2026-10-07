@@ -14,7 +14,7 @@ import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService } from '../../core/services/investments.service';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
-import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { categoryNet, spendingByCategory } from '../../core/utils/category-net';
 import {
   aggregateByMonth,
   daysInMonth,
@@ -122,10 +122,10 @@ export class DashboardComponent {
   );
 
   /** Every month with counted money, all banks, newest first. */
-  private allBankTotals = computed(() => aggregateByMonth(this.finance.monthlySummaries()));
+  private allBankTotals = computed(() => this.finance.monthTotals());
 
   /** The month scrubber's cells, oldest first. */
-  months = computed(() => monthCells(this.finance.monthlySummaries()));
+  months = computed(() => monthCells(this.finance.monthTotals()));
 
   private defaultMonth = computed(() =>
     latestClosedMonth(
@@ -140,13 +140,11 @@ export class DashboardComponent {
    */
   selectedMonth = linkedSignal(() => this.defaultMonth());
 
-  /** Monthly rows for "Last six months", filtered by the selected account. */
+  /** Monthly rows for "Last six months", only the selected account's when one is picked. */
   monthlyTotals = computed(() => {
     const selected = this.selectedBank();
-    const summaries = selected
-      ? this.finance.monthlySummaries().filter((s) => s.bank === selected)
-      : this.finance.monthlySummaries();
-    return aggregateByMonth(summaries);
+    if (!selected) return this.allBankTotals();
+    return aggregateByMonth(this.finance.monthlySummaries().filter((s) => s.bank === selected));
   });
 
   sixMonths = computed(() => {
@@ -225,18 +223,14 @@ export class DashboardComponent {
     };
   });
 
-  /** "Where it went": the selected month's counted spending by category, largest first. */
+  /**
+   * "Where it went": the selected month's categories that net to spending, by that net, largest
+   * first (ADR-037); one paid back in full is left out.
+   */
   topCategories = computed(() => {
     const key = this.selectedMonth();
-    const map = new Map<string, { label: string; color: string; total: number }>();
-    for (const tx of this.finance.allTransactions()) {
-      if (tx.type !== 'debit' || tx.month !== key) continue;
-      const label = tx.category?.name ?? CATEGORY_UNKNOWN;
-      const color = tx.category?.color || 'var(--category-fallback)';
-      const cur = map.get(label) ?? { label, color, total: 0 };
-      map.set(label, { ...cur, total: cur.total + tx.amount });
-    }
-    const sorted = [...map.values()].sort((a, b) => b.total - a.total);
+    const rows = this.finance.allTransactions().filter((tx) => tx.month === key);
+    const sorted = spendingByCategory(categoryNet(rows));
     const max = sorted[0]?.total || 1;
     const sum = sorted.reduce((s, c) => s + c.total, 0) || 1;
     return sorted.map((c) => ({

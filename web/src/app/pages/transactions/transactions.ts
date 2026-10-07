@@ -392,7 +392,7 @@ export class TransactionsComponent implements OnInit, OnDestroy {
       this.activeTab() === 'transactions' ? this.availableMonths() : this.gAvailableMonths();
     const selected = this.activeMonth();
     return withMonths(
-      monthCells(this.finance.monthlySummaries()),
+      monthCells(this.finance.monthTotals()),
       selected ? [...extra, selected] : extra,
     );
   });

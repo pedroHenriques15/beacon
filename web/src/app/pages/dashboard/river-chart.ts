@@ -74,9 +74,11 @@ export class RiverChartComponent {
     const box = compact
       ? { h: 196, left: 34, right: w - 10, top: 22, bottom: 146, axis: 163, strip: 182 }
       : { h: 360, left: 64, right: w - 130, top: 20, bottom: 262, axis: 288, strip: 326 };
-    const scale = niceScale(Math.max(s.total, s.lastTotal, 1));
+    // Paybacks take the line down, so its top can come before the month's end.
+    const scale = niceScale(Math.max(1, ...s.current, ...s.last));
     const x = (day: number) => box.left + ((day - 1) / 30) * (box.right - box.left);
-    const y = (v: number) => box.bottom - (v / scale.top) * (box.bottom - box.top);
+    // A payback before its expense can take the line below zero; it is drawn at zero.
+    const y = (v: number) => box.bottom - (Math.max(0, v) / scale.top) * (box.bottom - box.top);
     const rScale = compact ? 0.72 : 1;
 
     const linePts = s.current.map((v, i): [number, number] => [x(i + 1), y(v)]);

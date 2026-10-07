@@ -7,6 +7,7 @@ import { bankInitials } from '../../core/utils/bank';
 import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService } from '../../core/services/investments.service';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { MonthTotals } from '../../core/utils/month-totals';
 
 interface MonthRow {
   month: string;
@@ -27,6 +28,10 @@ function makeSummary(overrides: Partial<MonthRow> = {}): MonthRow {
     closingBalance: 0,
     ...overrides,
   };
+}
+
+function makeTotals(overrides: Partial<MonthTotals> = {}): MonthTotals {
+  return { month: '2025-01', income: 0, expenses: 0, net: 0, ...overrides };
 }
 
 function makeTx(overrides: Record<string, unknown> = {}) {
@@ -65,6 +70,7 @@ describe('DashboardComponent', () => {
   const latestPerBankSignal = signal(new Map());
   const totalBalanceSignal = signal(0);
   const monthlySummariesSignal = signal<MonthRow[]>([]);
+  const monthTotalsSignal = signal<MonthTotals[]>([]);
   const allTransactionsSignal = signal<ReturnType<typeof makeTx>[]>([]);
 
   const investmentAssetsSignal = signal<unknown[]>([]);
@@ -79,6 +85,7 @@ describe('DashboardComponent', () => {
     latestPerBankSignal.set(new Map());
     totalBalanceSignal.set(0);
     monthlySummariesSignal.set([]);
+    monthTotalsSignal.set([]);
     allTransactionsSignal.set([]);
     investmentAssetsSignal.set([]);
     totalCurrentValueSignal.set(0);
@@ -100,6 +107,7 @@ describe('DashboardComponent', () => {
             latestPerBank: latestPerBankSignal,
             totalBalance: totalBalanceSignal,
             monthlySummaries: monthlySummariesSignal,
+            monthTotals: monthTotalsSignal,
             allTransactions: allTransactionsSignal,
             unknownTypeCount: signal(0),
           },
@@ -145,10 +153,10 @@ describe('DashboardComponent', () => {
 
   describe('monthSnapshot', () => {
     it('shows the latest closed month, skipping the in-progress current month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: monthKey(0), income: 999, expenses: 1, net: 998 }),
-        makeSummary({ month: monthKey(-1), income: 100, expenses: 40, net: 60 }),
-        makeSummary({ month: monthKey(-2), income: 80, expenses: 40, net: 40 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: monthKey(0), income: 999, expenses: 1, net: 998 }),
+        makeTotals({ month: monthKey(-1), income: 100, expenses: 40, net: 60 }),
+        makeTotals({ month: monthKey(-2), income: 80, expenses: 40, net: 40 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.month).toBe(monthKey(-1));
@@ -157,8 +165,8 @@ describe('DashboardComponent', () => {
     });
 
     it('falls back to the current month when it is the only month with data', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: monthKey(0), income: 999, expenses: 1, net: 998 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: monthKey(0), income: 999, expenses: 1, net: 998 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.month).toBe(monthKey(0));
@@ -166,24 +174,26 @@ describe('DashboardComponent', () => {
     });
 
     it('uses the latest closed month when the current month has no data', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 200, expenses: 80, net: 120 }),
-        makeSummary({ month: '2025-01', income: 100, expenses: 50, net: 50 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 200, expenses: 80, net: 120 }),
+        makeTotals({ month: '2025-01', income: 100, expenses: 50, net: 50 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.month).toBe('2025-02');
       expect(snap.income).toBe(200);
     });
 
-    it('aggregates multiple banks for the same month', () => {
+    it('takes every bank together from the month totals, netted across banks', () => {
+      // A dinner paid from BPI and paid back into Revolut nets only in the month totals.
       monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', bank: 'BPI', income: 100, expenses: 30, net: 70 }),
-        makeSummary({ month: '2025-02', bank: 'REVOLUT', income: 50, expenses: 20, net: 30 }),
+        makeSummary({ month: '2025-02', bank: 'BPI', income: 0, expenses: 100, net: -100 }),
+        makeSummary({ month: '2025-02', bank: 'REVOLUT', income: 75, expenses: 0, net: 75 }),
       ]);
+      monthTotalsSignal.set([makeTotals({ month: '2025-02', income: 0, expenses: 25, net: -25 })]);
       const snap = component.monthSnapshot();
-      expect(snap.income).toBe(150);
-      expect(snap.expenses).toBe(50);
-      expect(snap.net).toBe(100);
+      expect(snap.income).toBe(0);
+      expect(snap.expenses).toBe(25);
+      expect(snap.net).toBe(-25);
     });
 
     it('is not affected by the selected bank filter', () => {
@@ -191,14 +201,17 @@ describe('DashboardComponent', () => {
         makeSummary({ month: '2025-02', bank: 'BPI', income: 100, expenses: 30, net: 70 }),
         makeSummary({ month: '2025-02', bank: 'REVOLUT', income: 50, expenses: 20, net: 30 }),
       ]);
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 150, expenses: 50, net: 100 }),
+      ]);
       component.selectedBank.set('BPI');
       expect(component.monthSnapshot().income).toBe(150);
     });
 
     it('computes percentage deltas vs the previous month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 150, expenses: 60, net: 90 }),
-        makeSummary({ month: '2025-01', income: 100, expenses: 80, net: 20 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 150, expenses: 60, net: 90 }),
+        makeTotals({ month: '2025-01', income: 100, expenses: 80, net: 20 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.incomeDelta).toBeCloseTo(50);
@@ -207,9 +220,9 @@ describe('DashboardComponent', () => {
     });
 
     it('handles the January → December year boundary', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-01', income: 200, expenses: 50, net: 150 }),
-        makeSummary({ month: '2024-12', income: 100, expenses: 100, net: 0 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-01', income: 200, expenses: 50, net: 150 }),
+        makeTotals({ month: '2024-12', income: 100, expenses: 100, net: 0 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.month).toBe('2025-01');
@@ -217,9 +230,7 @@ describe('DashboardComponent', () => {
     });
 
     it('returns null deltas when there is no previous month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 150, expenses: 60, net: 90 }),
-      ]);
+      monthTotalsSignal.set([makeTotals({ month: '2025-02', income: 150, expenses: 60, net: 90 })]);
       const snap = component.monthSnapshot();
       expect(snap.incomeDelta).toBeNull();
       expect(snap.expensesDelta).toBeNull();
@@ -227,9 +238,9 @@ describe('DashboardComponent', () => {
     });
 
     it('returns null percentage deltas when the previous month value is zero', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 150, expenses: 60, net: 90 }),
-        makeSummary({ month: '2025-01', income: 0, expenses: 0, net: 0 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 150, expenses: 60, net: 90 }),
+        makeTotals({ month: '2025-01', income: 0, expenses: 0, net: 0 }),
       ]);
       const snap = component.monthSnapshot();
       expect(snap.incomeDelta).toBeNull();
@@ -240,18 +251,18 @@ describe('DashboardComponent', () => {
 
   describe('selectedMonth', () => {
     it('starts at the latest closed month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: monthKey(0), income: 5, net: 5 }),
-        makeSummary({ month: monthKey(-1), income: 3, net: 3 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: monthKey(0), income: 5, net: 5 }),
+        makeTotals({ month: monthKey(-1), income: 3, net: 3 }),
       ]);
       expect(component.selectedMonth()).toBe(monthKey(-1));
     });
 
     it('drives the snapshot when the scrubber picks another month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 200, expenses: 80, net: 120 }),
-        makeSummary({ month: '2025-01', income: 100, expenses: 50, net: 50 }),
-        makeSummary({ month: '2024-12', income: 40, expenses: 10, net: 30 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 200, expenses: 80, net: 120 }),
+        makeTotals({ month: '2025-01', income: 100, expenses: 50, net: 50 }),
+        makeTotals({ month: '2024-12', income: 40, expenses: 10, net: 30 }),
       ]);
       component.selectedMonth.set('2025-01');
       const snap = component.monthSnapshot();
@@ -261,23 +272,22 @@ describe('DashboardComponent', () => {
     });
 
     it('keeps the choice when the data reloads with the same months', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 2, net: 2 }),
-        makeSummary({ month: '2025-01', income: 1, net: 1 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2, net: 2 }),
+        makeTotals({ month: '2025-01', income: 1, net: 1 }),
       ]);
       component.selectedMonth.set('2025-01');
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 3, net: 3 }),
-        makeSummary({ month: '2025-01', income: 1, net: 1 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 3, net: 3 }),
+        makeTotals({ month: '2025-01', income: 1, net: 1 }),
       ]);
       expect(component.selectedMonth()).toBe('2025-01');
     });
 
     it('lists the scrubber months oldest first', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-02', income: 2, expenses: 1, net: 1 }),
-        makeSummary({ month: '2025-01', bank: 'BPI', income: 1, net: 1 }),
-        makeSummary({ month: '2025-01', bank: 'REVOLUT', income: 4, net: 4 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2, expenses: 1, net: 1 }),
+        makeTotals({ month: '2025-01', income: 5, net: 5 }),
       ]);
       expect(component.months()).toEqual([
         { key: '2025-01', income: 5, expenses: 0 },
@@ -285,10 +295,24 @@ describe('DashboardComponent', () => {
       ]);
     });
 
+    it('shows only the selected bank’s rows in the six months', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 150, expenses: 50, net: 100 }),
+      ]);
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-02', bank: 'BPI', income: 100, expenses: 30, net: 70 }),
+        makeSummary({ month: '2025-02', bank: 'REVOLUT', income: 50, expenses: 20, net: 30 }),
+      ]);
+      expect(component.sixMonths()[0]).toMatchObject({ income: 150, expenses: 50 });
+      component.selectedBank.set('REVOLUT');
+      expect(component.sixMonths()[0]).toMatchObject({ income: 50, expenses: 20, net: 30 });
+    });
+
     it('limits the six months to those up to the selected one', () => {
-      monthlySummariesSignal.set(
+      // Newest first, as FinanceService.monthTotals.
+      monthTotalsSignal.set(
         Array.from({ length: 9 }, (_, i) =>
-          makeSummary({ month: `2025-0${i + 1}`, income: i, net: i }),
+          makeTotals({ month: `2025-0${9 - i}`, income: i, net: i }),
         ),
       );
       component.selectedMonth.set('2025-07');
@@ -305,7 +329,7 @@ describe('DashboardComponent', () => {
 
   describe('uncategorised', () => {
     it('counts the selected month’s rows without a category', () => {
-      monthlySummariesSignal.set([makeSummary({ month: '2025-01', income: 1, net: 1 })]);
+      monthTotalsSignal.set([makeTotals({ month: '2025-01', income: 1, net: 1 })]);
       allTransactionsSignal.set([
         makeTx({ id: 1, amount: 12 }),
         makeTx({ id: 2, amount: 3, categoryId: 4, category: { name: 'Food', color: '#f00' } }),
@@ -330,7 +354,7 @@ describe('DashboardComponent', () => {
 
   describe('topCategories', () => {
     beforeEach(() => {
-      monthlySummariesSignal.set([makeSummary({ month: '2025-01', income: 1, net: 1 })]);
+      monthTotalsSignal.set([makeTotals({ month: '2025-01', income: 1, net: 1 })]);
     });
 
     it('groups debit transactions of the snapshot month by category', () => {
@@ -375,9 +399,9 @@ describe('DashboardComponent', () => {
     });
 
     it('follows the selected month', () => {
-      monthlySummariesSignal.set([
-        makeSummary({ month: '2025-01', income: 1, net: 1 }),
-        makeSummary({ month: '2024-12', income: 1, net: 1 }),
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-01', income: 1, net: 1 }),
+        makeTotals({ month: '2024-12', income: 1, net: 1 }),
       ]);
       allTransactionsSignal.set([
         makeTx({ amount: 5, category: { name: 'Food', color: '#f00' } }),
@@ -385,6 +409,35 @@ describe('DashboardComponent', () => {
       ]);
       component.selectedMonth.set('2024-12');
       expect(component.topCategories().map((c) => c.label)).toEqual(['Rent']);
+    });
+
+    it('nets a dinner paid back by friends to what it cost', () => {
+      const eatingOut = { name: 'Eating out', color: '#e0806b' };
+      allTransactionsSignal.set([
+        makeTx({ id: 1, amount: 100, category: eatingOut }),
+        makeTx({ id: 2, amount: 25, type: 'credit', category: eatingOut }),
+        makeTx({ id: 3, amount: 25, type: 'credit', category: eatingOut }),
+        makeTx({ id: 4, amount: 25, type: 'credit', category: eatingOut }),
+        makeTx({ id: 5, amount: 50, category: { name: 'Fuel', color: '#0f0' } }),
+      ]);
+      expect(component.topCategories().map((c) => [c.label, c.total])).toEqual([
+        ['Fuel', 50],
+        ['Eating out', 25],
+      ]);
+      expect(component.river().total).toBe(75);
+    });
+
+    it('leaves out a category paid back in full or netting to income', () => {
+      const gifts = { name: 'Gifts', color: '#f0f' };
+      const trips = { name: 'Trips', color: '#0ff' };
+      allTransactionsSignal.set([
+        makeTx({ id: 1, amount: 60, category: gifts }),
+        makeTx({ id: 2, amount: 60, type: 'credit', category: gifts }),
+        makeTx({ id: 3, amount: 40, category: trips }),
+        makeTx({ id: 4, amount: 90, type: 'credit', category: trips }),
+        makeTx({ id: 5, amount: 5, category: { name: 'Food', color: '#f00' } }),
+      ]);
+      expect(component.topCategories().map((c) => c.label)).toEqual(['Food']);
     });
 
     it('is empty when there are no debit transactions', () => {

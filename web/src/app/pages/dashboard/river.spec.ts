@@ -37,7 +37,13 @@ describe('riverSeries', () => {
   it('keeps money in, other months and unknown-type rows off the line', () => {
     const s = riverSeries(
       [
-        tx({ datePosting: '2026-09-30', amount: 2650, type: 'credit' }),
+        tx({
+          datePosting: '2026-09-30',
+          amount: 2650,
+          type: 'credit',
+          categoryId: 3,
+          category: { name: 'Salary' },
+        }),
         tx({ datePosting: '2026-08-31', amount: 99 }),
         tx({ datePosting: '2026-09-10', amount: 40, type: 'unknown' }),
         tx({ datePosting: '2026-09-10', amount: 5 }),
@@ -50,6 +56,63 @@ describe('riverSeries', () => {
     expect(s.inflows).toHaveLength(1);
     expect(s.inflows[0]).toMatchObject({ day: 30, amount: 2650 });
     expect(s.outflows).toHaveLength(1);
+  });
+
+  it('takes money paid back into a spending category off the line, on its day', () => {
+    const eatingOut = { categoryId: 2, category: { name: 'Eating out' } };
+    const s = riverSeries(
+      [
+        tx({ datePosting: '2026-09-01', amount: 40 }),
+        tx({ datePosting: '2026-09-02', amount: 100, ...eatingOut }),
+        tx({ datePosting: '2026-09-03', amount: 25, type: 'credit', ...eatingOut }),
+        tx({ datePosting: '2026-09-03', amount: 25, type: 'credit', ...eatingOut }),
+        tx({ datePosting: '2026-09-04', amount: 25, type: 'credit', ...eatingOut }),
+      ],
+      '2026-09',
+      '2026-10-04',
+    );
+
+    expect(s.current.slice(0, 4)).toEqual([40, 140, 90, 65]);
+    expect(s.total).toBe(65);
+    expect(s.inflows).toHaveLength(3);
+    expect(s.outflows.map((o) => o.at)).toEqual([40, 140]);
+  });
+
+  it('keeps a category that nets to income off the line, its debits too', () => {
+    const salary = { categoryId: 3, category: { name: 'Salary' } };
+    const s = riverSeries(
+      [
+        tx({ datePosting: '2026-09-25', amount: 2650, type: 'credit', ...salary }),
+        tx({ datePosting: '2026-09-26', amount: 12, ...salary }),
+        tx({ datePosting: '2026-09-10', amount: 5 }),
+        tx({
+          datePosting: '2026-09-11',
+          amount: 3,
+          type: 'credit',
+          categoryId: null,
+          category: null,
+        }),
+      ],
+      '2026-09',
+      '2026-10-04',
+    );
+
+    expect(s.total).toBe(5);
+    expect(s.outflows).toHaveLength(2);
+  });
+
+  it('nets the previous month on its own', () => {
+    const s = riverSeries(
+      [
+        tx({ datePosting: '2026-08-05', amount: 100 }),
+        tx({ datePosting: '2026-08-20', amount: 60, type: 'credit' }),
+      ],
+      '2026-09',
+      '2026-10-04',
+    );
+
+    expect(s.lastTotal).toBe(40);
+    expect(Math.max(...s.last)).toBe(100);
   });
 
   it('draws the previous month whole for comparison', () => {

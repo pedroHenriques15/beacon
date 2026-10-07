@@ -97,7 +97,7 @@ describe('matchesItemFilter', () => {
 describe('flowTotals', () => {
   it('counts money in and out, and rows without a category', () => {
     const totals = flowTotals([
-      tx({ type: 'credit', amount: 2650 }),
+      tx({ type: 'credit', amount: 2650, categoryId: 2, category: { name: 'Salary' } }),
       tx({ amount: 42.5 }),
       tx({ amount: 7.5, categoryId: null, category: null }),
     ]);
@@ -115,6 +115,27 @@ describe('flowTotals', () => {
 
     expect(totals).toEqual({ income: 0, expenses: 5, net: -5, count: 2 });
   });
+
+  it('nets a dinner paid back by friends to what it cost, across banks', () => {
+    const eatingOut = { categoryId: 3, category: { name: 'Eating out' } };
+    const totals = flowTotals([
+      tx({ amount: 100, bank: 'BPI', ...eatingOut }),
+      tx({ amount: 25, type: 'credit', bank: 'BPI', ...eatingOut }),
+      tx({ amount: 25, type: 'credit', bank: 'REVOLUT', ...eatingOut }),
+      tx({ amount: 25, type: 'credit', bank: 'REVOLUT', ...eatingOut }),
+    ]);
+
+    expect(totals).toEqual({ income: 0, expenses: 25, net: -25, count: 4 });
+  });
+
+  it('keeps rows without a category gross', () => {
+    const totals = flowTotals([
+      tx({ amount: 30, categoryId: null, category: null }),
+      tx({ amount: 10, type: 'credit', categoryId: null, category: null }),
+    ]);
+
+    expect(totals).toEqual({ income: 10, expenses: 30, net: -20, count: 2 });
+  });
 });
 
 describe('totalsByBank', () => {
@@ -122,13 +143,26 @@ describe('totalsByBank', () => {
     const banks = totalsByBank([
       tx({ bank: 'BPI', amount: 10 }),
       tx({ bank: 'REVOLUT', amount: 30 }),
-      tx({ bank: 'BPI', amount: 5, type: 'credit' }),
+      tx({ bank: 'BPI', amount: 5, type: 'credit', categoryId: 2, category: { name: 'Salary' } }),
       tx({ bank: 'CGD', amount: 99, isExcluded: true }),
     ]);
 
     expect(banks.map((b) => [b.bank, b.expenses, b.income, b.count])).toEqual([
       ['REVOLUT', 30, 0, 1],
       ['BPI', 10, 5, 2],
+    ]);
+  });
+
+  it('nets each category within its bank', () => {
+    const banks = totalsByBank([
+      tx({ bank: 'BPI', amount: 100 }),
+      tx({ bank: 'BPI', amount: 25, type: 'credit' }),
+      tx({ bank: 'REVOLUT', amount: 50, type: 'credit' }),
+    ]);
+
+    expect(banks.map((b) => [b.bank, b.expenses, b.income])).toEqual([
+      ['BPI', 75, 0],
+      ['REVOLUT', 0, 50],
     ]);
   });
 });
