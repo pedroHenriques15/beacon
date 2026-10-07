@@ -88,15 +88,15 @@ beacon/
 │           │   ├── services/     # finance, categories, salary, groceries, grocery-categories, calendar, tasks, google-auth, investments
 │           │   └── utils/        # bank, category-net, date-utils, http-params, money, month-totals, rule-match
 │           ├── pages/            # Lazy-loaded routed components
-│           │   ├── analytics/
+│           │   ├── analytics/    # Insights, incl. the category-bars component
 │           │   ├── calendar/     # incl. event-modal + task-modal components
-│           │   ├── dashboard/    # Home, incl. the River chart (river.ts computes it)
+│           │   ├── dashboard/    # Home, incl. the River chart (river.ts) and six-months.ts
 │           │   ├── investments/
 │           │   ├── rules/
 │           │   ├── salary/
 │           │   ├── settings/
 │           │   ├── transactions/
-│           │   └── upload/
+│           │   └── upload/       # incl. the statement-list component (open or delete a statement)
 │           ├── app.ts            # Root component: the shell (top nav, bottom nav, Upload button)
 │           ├── app.routes.ts     # Route definitions
 │           └── app.config.ts     # Angular bootstrap config

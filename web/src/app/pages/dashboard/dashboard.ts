@@ -8,11 +8,9 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService, valueChange } from '../../core/services/investments.service';
-import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { categoryNet, spendingByCategory } from '../../core/utils/category-net';
@@ -42,13 +40,7 @@ function lastDayOf(month: string): string {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [
-    DatePipe,
-    ConfirmDialogComponent,
-    RouterLink,
-    MonthScrubberComponent,
-    RiverChartComponent,
-  ],
+  imports: [DatePipe, RouterLink, MonthScrubberComponent, RiverChartComponent],
   templateUrl: './dashboard.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.scss',
@@ -69,8 +61,6 @@ export class DashboardComponent {
   private readonly todayIso = `${monthKeyOf(this.today)}-${String(this.today.getDate()).padStart(2, '0')}`;
 
   selectedBank = signal<string | null>(null);
-  deleting = signal<number | null>(null);
-  confirmDeleteId = signal<number | null>(null);
 
   private cardOrder = signal<string[]>([]);
   draggedBank = signal<string | null>(null);
@@ -112,21 +102,6 @@ export class DashboardComponent {
     const from = new Date(this.today.getFullYear() - 1, this.today.getMonth() - 1, 1);
     this.investments.loadPriceHistory(`${monthKeyOf(from)}-01`);
   }
-
-  /** Statements newest first, only the selected account's when one is picked. */
-  allStatements = computed(() => {
-    const bank = this.selectedBank();
-    return this.finance
-      .statements()
-      .filter((s) => !bank || s.bank === bank)
-      .sort((a, b) => b.periodTo.localeCompare(a.periodTo) || a.bank.localeCompare(b.bank));
-  });
-
-  showAllStatements = signal(false);
-
-  shownStatements = computed(() =>
-    this.showAllStatements() ? this.allStatements() : this.allStatements().slice(0, 6),
-  );
 
   /** Every month with counted money, all banks, newest first. */
   private allBankTotals = computed(() => this.finance.monthTotals());
@@ -410,42 +385,6 @@ export class DashboardComponent {
 
   formatMonth(month: string): string {
     return monthYearLabel(month);
-  }
-
-  deleteStatement(id: number, event: MouseEvent): void {
-    event.stopPropagation();
-    this.confirmDeleteId.set(id);
-  }
-
-  onConfirmDelete(): void {
-    const id = this.confirmDeleteId();
-    if (id === null) return;
-    this.confirmDeleteId.set(null);
-    this.deleting.set(id);
-    this.finance.deleteStatement(id).subscribe({
-      next: () => {
-        this.finance.reload();
-        this.deleting.set(null);
-      },
-      error: (_err: HttpErrorResponse) => {
-        this.deleting.set(null);
-      },
-    });
-  }
-
-  openStatementFile(id: number, pdfPath: string | null): void {
-    if (!pdfPath) return;
-    this.finance.getStatementFile(id).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    });
-  }
-
-  private static readonly periodPipe = new DatePipe('en-GB');
-
-  formatPeriod(from: string, to: string): string {
-    const f = DashboardComponent.periodPipe;
-    return `${f.transform(from, 'd MMM')} – ${f.transform(to, 'd MMM yyyy')}`;
   }
 
   onDragStart(bank: string): void {

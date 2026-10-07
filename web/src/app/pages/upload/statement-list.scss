@@ -1,11 +1,29 @@
 @use '../../../styles/mixins' as *;
 
-// Home's Statements list.
+// The uploaded statements, under the drop zone.
 
 .statements {
   display: flex;
   flex-direction: column;
   gap: 14px;
+
+  h2 {
+    font-size: 18px;
+  }
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 
 .statements__list {
@@ -75,6 +93,10 @@
 }
 
 @include below-desktop {
+  .statements h2 {
+    font-size: 15px;
+  }
+
   .statements__list {
     padding: 0;
     background: none;
