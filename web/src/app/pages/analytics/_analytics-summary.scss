@@ -14,6 +14,7 @@
 
 // "Out in <month>": the raised hero, and the figures the grocery summary shares.
 .hero {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -54,97 +55,37 @@
   }
 }
 
-// "Biggest moves" and "Where it came from".
-.moves,
-.came {
-  @include card(var(--radius-lg));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px 20px;
-
-  h2 {
-    font-family: var(--font-body);
-    font-size: 14px;
-    font-weight: 800;
-  }
-}
-
-.split {
-  display: flex;
+// In, Out and Kept under the hero's sentence.
+.hero__figures {
+  display: grid;
   gap: 2px;
-  height: 16px;
-  margin: 2px 0 4px;
-  border-radius: 8px;
-  overflow: hidden;
-
-  &__seg {
-    flex: 0 1 0;
-    min-width: 3px;
-  }
+  margin: 4px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
 }
 
-.lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  li:last-child .line {
-    border-bottom: none;
-  }
-}
-
-.line {
-  width: 100%;
+.hero__figure {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
-  padding: 0 8px;
-  border: none;
-  border-bottom: 1px solid var(--border-soft);
-  border-radius: 12px 12px 0 0;
-  background: none;
-  color: var(--text-primary);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
+  min-height: 32px;
 
-  &:hover,
-  &[aria-pressed='true'] {
-    background: var(--surface-raised);
-  }
-
-  &[aria-pressed='true'] {
-    border-radius: 12px;
-    box-shadow: inset 0 0 0 1.5px var(--primary);
-  }
-
-  &__name {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-
-  &__value {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    @include figures;
-    white-space: nowrap;
-
-    strong {
-      font-weight: 800;
-    }
-  }
-
-  &__pct {
-    font-size: 13px;
+  dt {
+    font-size: 14px;
     color: var(--text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    @include figures;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+
+    &.amount-in {
+      color: var(--credit);
+    }
   }
 }
 
@@ -155,9 +96,8 @@
     min-height: 0;
   }
 
-  .hero,
-  .moves,
-  .came {
+  .hero {
+    flex: none;
     padding: 0;
     background: none;
     border-radius: 0;
@@ -165,17 +105,5 @@
 
   .hero__total {
     font-size: 30px;
-  }
-
-  .moves h2,
-  .came h2 {
-    font-family: var(--font-display);
-    font-size: 15px;
-    font-weight: 500;
-  }
-
-  .split {
-    height: 20px;
-    border-radius: 10px;
   }
 }

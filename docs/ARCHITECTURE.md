@@ -839,10 +839,15 @@ The client follows the River design (ADR-030). Everything below lives in `web/sr
   the Investments sparkline. Sorted horizontal bars replace pies. The River's line is the
   month's spending as the totals count it (ADR-037): money paid back into a category that nets
   to spending takes it down on its day, a category that nets to income stays off it, and it
-  ends at the month's spending; every row keeps its dot. Insights' "Where it went" lists the
-  categories netting to spending, one paid back in full last at zero (Home's leaves it out),
-  and a picked category's trend shows its net each month, above the line when it brought money
-  in and below when it cost money (Unknown, never netted, shows money in and out apart).
+  ends at the month's spending; every row keeps its dot. Insights' "By category"
+  (`categoryLines`, `pages/analytics/insights.ts`) lists every category's net on the side it
+  falls, money in with a plus and money out with a minus, largest first, both sides together or
+  one picked with All / In / Out; a category that had money both in and out gives both, before
+  netting, under its name, one paid back in full comes last at zero on the spending side
+  (Home's "Where it went" leaves it out), and rows without a category show as Unknown on each
+  side. Nothing compares with the previous month there. A picked category's trend shows its net
+  each month, above the line when it brought money in and below when it cost money (Unknown,
+  never netted, shows money in and out apart).
 - Money is formatted by `core/utils/money.ts`: outflows in neutral text with a true minus
   sign, inflows in `--credit` with a plus.
 - The scrubber and the River chart are OnPush components driven by signal inputs; the pages

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { categoryNet } from '../../core/utils/category-net';
 import {
   CategoryTotal,
-  biggestMoves,
   categoryBars,
+  categoryLines,
   categoryMonths,
   compareText,
   flowWindow,
@@ -34,92 +35,93 @@ describe('sumByCategory', () => {
 });
 
 describe('categoryBars', () => {
-  it('gives each category its share, bar length and the previous month', () => {
-    const bars = categoryBars(
-      [cat('Rent', 750), cat('Food', 250)],
-      [cat('Rent', 750), cat('Food', 200)],
-    );
-    expect(bars.total).toBe(1000);
+  it('gives each category its share and bar length, in the order given', () => {
+    const bars = categoryBars([cat('Rent', 750), cat('Food', 250)]);
     const [rent, food] = bars.rows;
     expect(rent.share).toBeCloseTo(75);
     expect(food.share).toBeCloseTo(25);
-    expect(food.previous).toBe(200);
-    expect(food.change).toBeCloseTo(50);
-    expect(food.changePct).toBeCloseTo(25);
-    expect(rent.change).toBe(0);
-    expect(rent.changePct).toBe(0);
-  });
-
-  it('scales bars and ticks to a round top above the largest amount of either month', () => {
-    const bars = categoryBars([cat('Rent', 750)], [cat('Rent', 780)]);
     expect(bars.ticks).toEqual([0, 200, 400, 600, 800]);
-    expect(bars.rows[0].pct).toBeCloseTo(93.75);
-    expect(bars.rows[0].prevPct).toBeCloseTo(97.5);
+    expect(rent.pct).toBeCloseTo(93.75);
   });
 
-  it('keeps a category that had spending last month and none now, at zero, after the rest', () => {
-    const bars = categoryBars([cat('Food', 50)], [cat('Shopping', 400), cat('Food', 60)]);
-    expect(bars.rows.map((r) => [r.label, r.total, r.previous])).toEqual([
-      ['Food', 50, 60],
-      ['Shopping', 0, 400],
+  it('shares each row out of its own side when rows have one', () => {
+    const bars = categoryBars([
+      { ...cat('Salary', 2000), side: 'in' },
+      { ...cat('Rent', 750), side: 'out' },
+      { ...cat('Food', 250), side: 'out' },
+      { ...cat('Gifts', 500), side: 'in' },
     ]);
-    expect(bars.rows[1].share).toBe(0);
-    expect(bars.rows[1].changePct).toBeCloseTo(-100);
-  });
-
-  it('marks a category new to this month with no percentage', () => {
-    const bars = categoryBars([cat('Health', 40)], [cat('Food', 60)]);
-    const health = bars.rows.find((r) => r.label === 'Health')!;
-    expect(health.previous).toBe(0);
-    expect(health.change).toBe(40);
-    expect(health.changePct).toBeNull();
-  });
-
-  it('compares nothing without a previous month', () => {
-    const bars = categoryBars([cat('Food', 50)], null);
-    expect(bars.rows[0].previous).toBeNull();
-    expect(bars.rows[0].prevPct).toBeNull();
-    expect(bars.rows[0].change).toBeNull();
-    expect(bars.rows[0].changePct).toBeNull();
+    expect(bars.rows.map((r) => [r.label, r.share])).toEqual([
+      ['Salary', 80],
+      ['Rent', 75],
+      ['Food', 25],
+      ['Gifts', 20],
+    ]);
+    expect(bars.rows[0].pct).toBeCloseTo(100);
   });
 
   it('handles an empty period', () => {
-    const bars = categoryBars([], null);
+    const bars = categoryBars([]);
     expect(bars.rows).toEqual([]);
-    expect(bars.total).toBe(0);
     expect(bars.ticks[0]).toBe(0);
   });
 });
 
-describe('biggestMoves', () => {
-  it('lists the largest changes first, either way, up to the limit', () => {
-    const moves = biggestMoves(
-      [cat('Shopping', 184.2), cat('Dining', 148.6), cat('Health', 64.5), cat('Rent', 750)],
-      [cat('Shopping', 402.35), cat('Dining', 196.4), cat('Health', 22), cat('Rent', 750)],
-    );
-    expect(moves.map((m) => m.label)).toEqual(['Shopping', 'Dining', 'Health']);
-    expect(moves[0].change).toBeCloseTo(-218.15);
-    expect(moves[0].changePct).toBeCloseTo(-54.22, 1);
-    expect(moves[2].change).toBeCloseTo(42.5);
+describe('categoryLines', () => {
+  type Type = 'credit' | 'debit';
+  const tx = (name: string | null, amount: number, type: Type = 'debit') => ({
+    amount,
+    type,
+    category: name ? { name, color: '#123456' } : null,
   });
+  const totals = categoryNet([
+    tx('Salary', 2000, 'credit'),
+    tx('Rent', 700),
+    tx('Dinner', 100),
+    tx('Dinner', 75, 'credit'),
+    tx('Gifts', 40),
+    tx('Gifts', 40, 'credit'),
+    tx(null, 30),
+    tx(null, 10, 'credit'),
+  ]);
 
-  it('leaves out categories that did not move', () => {
-    expect(biggestMoves([cat('Rent', 750)], [cat('Rent', 750)])).toEqual([]);
-  });
-
-  it('counts a new category and one that stopped', () => {
-    const moves = biggestMoves([cat('Health', 40)], [cat('Shopping', 100)], 5);
-    expect(moves).toEqual([
-      {
-        label: 'Shopping',
-        color: '#123456',
-        total: 0,
-        previous: 100,
-        change: -100,
-        changePct: -100,
-      },
-      { label: 'Health', color: '#123456', total: 40, previous: 0, change: 40, changePct: null },
+  it('lists both sides by amount, each row with its side', () => {
+    expect(categoryLines(totals, 'all').map((r) => [r.label, r.side, r.total])).toEqual([
+      ['Salary', 'in', 2000],
+      ['Rent', 'out', 700],
+      [CATEGORY_UNKNOWN, 'out', 30],
+      ['Dinner', 'out', 25],
+      [CATEGORY_UNKNOWN, 'in', 10],
+      ['Gifts', 'out', 0],
     ]);
+  });
+
+  it('lists one side alone, the category paid back in full last on the spending side', () => {
+    expect(categoryLines(totals, 'in').map((r) => r.label)).toEqual(['Salary', CATEGORY_UNKNOWN]);
+    expect(categoryLines(totals, 'out').map((r) => r.label)).toEqual([
+      'Rent',
+      CATEGORY_UNKNOWN,
+      'Dinner',
+      'Gifts',
+    ]);
+  });
+
+  it('says what came in and went out only for a category that had both', () => {
+    const lines = categoryLines(totals, 'all');
+    const detail = (label: string, side: string) =>
+      lines.find((r) => r.label === label && r.side === side)?.detail;
+    expect(detail('Dinner', 'out')).toBe('€100.00 out, €75.00 in');
+    expect(detail('Gifts', 'out')).toBe('€40.00 out, €40.00 in');
+    expect(detail('Rent', 'out')).toBeNull();
+    expect(detail(CATEGORY_UNKNOWN, 'out')).toBeNull();
+  });
+
+  it('divides every figure for an average month', () => {
+    const [salary] = categoryLines(totals, 'in', 2);
+    expect(salary.total).toBe(1000);
+    const dinner = categoryLines(totals, 'out', 2).find((r) => r.label === 'Dinner')!;
+    expect(dinner.total).toBe(12.5);
+    expect(dinner.detail).toBe('€50.00 out, €37.50 in');
   });
 });
 

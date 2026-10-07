@@ -1,8 +1,7 @@
 @use '../../../styles/mixins' as *;
 
-// One category: name, share, the bar with last month's tick, amount and change.
+// One category: name (with what came in and went out before netting), share, bar, amount.
 .bar-row {
-  --_ground: var(--surface);
   --_track: var(--surface-raised);
   width: 100%;
   min-height: 52px;
@@ -18,7 +17,6 @@
 
   &:hover,
   &[aria-pressed='true'] {
-    --_ground: var(--surface-raised);
     --_track: var(--surface);
     background: var(--surface-raised);
   }
@@ -36,10 +34,24 @@
     font-weight: 700;
   }
 
+  &__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   &__label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &__detail {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    @include figures;
   }
 
   &__share {
@@ -70,35 +82,10 @@
     border-radius: 4px;
   }
 
-  // The previous month's amount.
-  &__tick {
-    position: absolute;
-    top: 0;
-    width: 3px;
-    height: 16px;
-    margin-left: -1.5px;
-    border-radius: 2px;
-    background: var(--text-secondary);
-    box-shadow: 0 0 0 1.5px var(--_ground);
-  }
-
   &__amount {
     text-align: right;
     @include figures;
     font-weight: 700;
     white-space: nowrap;
-  }
-
-  &__change {
-    text-align: right;
-    @include figures;
-    font-size: 13px;
-    font-weight: 700;
-    white-space: nowrap;
-    color: var(--text-primary);
-
-    &--flat {
-      color: var(--text-secondary);
-    }
   }
 }

@@ -52,8 +52,10 @@ import { ChartTheme, applyChartTheme, axisOptions, withAlpha } from '../../core/
 import { CategoryBarsComponent } from './category-bars';
 import {
   CategoryTotal,
-  biggestMoves,
+  Side,
+  SideFilter,
   categoryBars,
+  categoryLines,
   categoryMonths,
   compareText,
   flowWindow,
@@ -141,6 +143,13 @@ export class AnalyticsComponent implements OnDestroy {
   filterMonth = signal('');
   /** With all months selected, show an average month instead of the totals. */
   showAverages = signal(false);
+  /** Which side "By category" lists: both, money in or money out. */
+  side = signal<SideFilter>('all');
+  readonly sideOptions: { value: SideFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'in', label: 'In' },
+    { value: 'out', label: 'Out' },
+  ];
   filterCategory = signal('');
   selectedCategory = signal<{
     label: string;
@@ -209,7 +218,7 @@ export class AnalyticsComponent implements OnDestroy {
     return prev ? monthName(prev) : '';
   });
 
-  /** The previous month's spending by category; null with all months or when it had none. */
+  /** The previous month's spending by category, for the hero's comparison; null without one. */
   private prevSpendingData = computed(() => {
     const prev = this.compareMonth();
     if (!prev) return null;
@@ -219,25 +228,45 @@ export class AnalyticsComponent implements OnDestroy {
     return rows.length ? rows : null;
   });
 
-  /** Whether "Where it went" compares with the previous month: a month is shown and it had spending. */
-  spendingCompared = computed(() => this.prevSpendingData() !== null);
+  /** "By category": each category's net on its side, largest first, as the side filter says. */
+  categoryRows = computed(() => categoryLines(this.netTotals(), this.side(), this.divisor()));
 
-  /** "Where it went, and how it moved": sorted bars with the previous month's tick. */
-  spendingBars = computed(() => categoryBars(this.spendingData(), this.prevSpendingData()));
+  categoryBars = computed(() => categoryBars(this.categoryRows()));
 
-  /** "Biggest moves since <previous month>"; empty with all months. */
-  moves = computed(() => {
-    const prev = this.prevSpendingData();
-    return prev ? biggestMoves(this.spendingData(), prev) : [];
+  /** The section's title: what the side filter shows. */
+  categoryTitle = computed(() => {
+    const side = this.side();
+    return side === 'in' ? 'Where it came from' : side === 'out' ? 'Where it went' : 'By category';
+  });
+
+  /** The category select's options: every category, or those on the chosen side. */
+  sideCategories = computed(() => {
+    if (this.side() === 'all') return this.allCategories();
+    const seen = new Set<string>();
+    return this.categoryRows()
+      .filter((r) => !seen.has(r.label) && seen.add(r.label))
+      .map((r) => ({ label: r.label, color: r.color }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  });
+
+  /** The side Unknown was picked from, for the bars (it can show on both). */
+  selectedSide = computed<Side | null>(() => {
+    const sel = this.selectedCategory();
+    if (!sel) return null;
+    return sel.dominantType === 'credit' ? 'in' : 'out';
   });
 
   heroLabel = computed(() => {
+    const word = this.side() === 'in' ? 'In' : 'Out';
     const month = this.filterMonth();
-    if (month) return `Out in ${monthName(month)}`;
+    if (month) return `${word} in ${monthName(month)}`;
     return this.isAverages()
-      ? 'Out in an average month'
-      : `Out over ${plural(this.monthCount(), 'month')}`;
+      ? `${word} in an average month`
+      : `${word} over ${plural(this.monthCount(), 'month')}`;
   });
+
+  /** The hero's figure: what came in with the In side, else what went out. */
+  heroTotal = computed(() => (this.side() === 'in' ? this.totalIncome() : this.totalSpending()));
 
   /** The sentence before "You kept …" under the hero figure. */
   spendingNote = computed(() => {
@@ -255,20 +284,6 @@ export class AnalyticsComponent implements OnDestroy {
     );
     return text ? `${text[0].toUpperCase()}${text.slice(1)}.` : null;
   });
-
-  /** "Where it came from": income by category with its share. */
-  incomeSplit = computed(() => {
-    const total = this.totalIncome();
-    return this.incomeData().map((d) => ({ ...d, share: total > 0 ? (d.total / total) * 100 : 0 }));
-  });
-
-  incomeSplitLabel = computed(
-    () =>
-      'Income by category: ' +
-      this.incomeSplit()
-        .map((d) => `${d.label} ${d.share.toFixed(1)}%`)
-        .join(', '),
-  );
 
   /** Six months up to the selected one, or the last 18 with all months. */
   flowMonths = computed(() =>
@@ -419,9 +434,7 @@ export class AnalyticsComponent implements OnDestroy {
     return rows.length ? rows : null;
   });
 
-  gCompared = computed(() => this.gPrevSpendingData() !== null);
-
-  gSpendingBars = computed(() => categoryBars(this.gSpendingData(), this.gPrevSpendingData()));
+  gSpendingBars = computed(() => categoryBars(this.gSpendingData()));
 
   gStores = computed(() => storeTotals(this.gItemsFiltered()));
   gMostBought = computed(() => mostBought(this.gItemsFiltered()));
@@ -621,13 +634,34 @@ export class AnalyticsComponent implements OnDestroy {
     this.filterCategory.set('');
   }
 
+  /** Picks the side "By category" lists, letting go of a picked category not on it. */
+  setSide(side: SideFilter): void {
+    this.side.set(side);
+    const sel = this.selectedCategory();
+    if (!sel || side === 'all') return;
+    // Unknown stays only on the side it was picked from: each side is its own rows.
+    const onSide =
+      sel.label === CATEGORY_UNKNOWN
+        ? this.selectedSide() === side
+        : this.categoryRows().some((r) => r.label === sel.label);
+    if (!onSide) this.clearCategory();
+  }
+
   onCategoryDropdownChange(value: string): void {
     if (!value) {
       this.clearCategory();
       return;
     }
-    const cat = this.allCategories().find((c) => c.label === value);
+    const cat = this.sideCategories().find((c) => c.label === value);
     if (cat) {
+      const side = this.side();
+      if (side !== 'all') {
+        const dominantType = side === 'in' ? 'credit' : 'debit';
+        this.selectedCategory.set({ label: cat.label, color: cat.color, dominantType });
+        this.filterCategory.set(value);
+        this.revealDetail();
+        return;
+      }
       const txs = this.finance
         .allTransactions()
         .filter((tx) => (tx.category?.name ?? CATEGORY_UNKNOWN) === value);

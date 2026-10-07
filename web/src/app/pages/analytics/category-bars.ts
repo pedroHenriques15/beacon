@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
-import { eur, eurAxis } from '../../core/utils/money';
-import { CategoryBar, CategoryBars, signedPct } from './insights';
+import { eur, eurAxis, signedEur } from '../../core/utils/money';
+import { CategoryBar, CategoryBars, Side } from './insights';
 
 /**
- * "Where it went": a share bar, then one sorted bar per category with a tick at the previous
- * month's amount. Each row is a button that picks the category.
+ * Sorted bars by category: a share bar, then one bar per category. A row with a side shows its
+ * amount signed, + for money in and − for money out. Each row is a button that picks the
+ * category.
  */
 @Component({
   selector: 'app-category-bars',
@@ -18,10 +19,12 @@ export class CategoryBarsComponent {
   readonly bars = input.required<CategoryBars>();
   /** The picked category's label. */
   readonly selected = input<string | null>(null);
-  /** The shown period's name, for the legend and the amount column: 'September'. */
+  /** The side Unknown was picked from, since it can show on both. */
+  readonly selectedSide = input<Side | null>(null);
+  /** The shown period's name, for the amount column: 'September'. */
   readonly current = input('');
-  /** The compared month's name; null when nothing is compared. */
-  readonly previous = input<string | null>(null);
+  /** Whether to show the share bar above the rows (one side only). */
+  readonly showShare = input(true);
   readonly picked = output<CategoryBar>();
 
   readonly eur = eur;
@@ -37,16 +40,20 @@ export class CategoryBarsComponent {
         .join(', '),
   );
 
-  changeText(row: CategoryBar): string {
-    if (row.change === null) return '';
-    if (row.changePct !== null) return signedPct(row.changePct);
-    return 'New';
+  isSelected(row: CategoryBar): boolean {
+    if (this.selected() !== row.label) return false;
+    return row.label !== this.unknown || !this.selectedSide() || row.side === this.selectedSide();
+  }
+
+  amount(row: CategoryBar): string {
+    if (!row.side) return eur(row.total);
+    return signedEur(row.side === 'in' ? row.total : -row.total);
   }
 
   rowLabel(row: CategoryBar): string {
-    const prev = this.previous();
-    let text = `${row.label}: ${eur(row.total)}, ${row.share.toFixed(1)}% of the total`;
-    if (prev && row.previous !== null) text += `; ${eur(row.previous)} in ${prev}`;
+    const of = row.side === 'in' ? 'money in' : row.side === 'out' ? 'money out' : 'the total';
+    let text = `${row.label}: ${this.amount(row)}, ${row.share.toFixed(1)}% of ${of}`;
+    if (row.detail) text += `; ${row.detail}`;
     return text;
   }
 }

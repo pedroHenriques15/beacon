@@ -1,6 +1,14 @@
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
-import { NetRow, categoryNet } from '../../core/utils/category-net';
+import {
+  CategoryAmount,
+  NetRow,
+  NetTotals,
+  categoryNet,
+  incomeByCategory,
+  spendingByCategory,
+} from '../../core/utils/category-net';
 import { MonthCell, MonthTotals } from '../../core/utils/month-totals';
+import { eur } from '../../core/utils/money';
 import { niceScale } from '../dashboard/river';
 
 /** A category's total for a period. `color` is the category's colour, or a CSS fallback. */
@@ -10,38 +18,28 @@ export interface CategoryTotal {
   total: number;
 }
 
-/** One row of "Where it went": the period's total with the previous month's for comparison. */
-export interface CategoryBar extends CategoryTotal {
-  /** Share of the period's total, 0–100. */
+/** Money in or money out: the side of the totals a category nets to (ADR-037). */
+export type Side = 'in' | 'out';
+
+/** A category for the bars, with its side when the list holds both (Insights' Spending tab). */
+export interface CategoryLine extends CategoryTotal {
+  side?: Side;
+  /** What came in and went out before netting, when the category had both; else null. */
+  detail?: string | null;
+}
+
+/** One row of the bars. */
+export interface CategoryBar extends CategoryLine {
+  /** Share of its side's total (of every row's, without sides), 0–100. */
   share: number;
   /** Bar length as a share of the scale's top, 0–100. */
   pct: number;
-  /** The previous month's total; null when nothing is compared (all months). */
-  previous: number | null;
-  /** Where the previous month's tick sits, 0–100; null when nothing is compared. */
-  prevPct: number | null;
-  /** total − previous; null when nothing is compared. */
-  change: number | null;
-  /** The change as a percentage of the previous month; null when it had nothing. */
-  changePct: number | null;
 }
 
 export interface CategoryBars {
   rows: CategoryBar[];
-  /** The period's total over every category. */
-  total: number;
   /** The axis's values, from 0 to the scale's top. */
   ticks: number[];
-}
-
-export interface CategoryMove {
-  label: string;
-  color: string;
-  total: number;
-  previous: number;
-  change: number;
-  /** null when the category had nothing the month before. */
-  changePct: number | null;
 }
 
 /** Sums amounts per category, largest first; a category keeps the colour of its first row. */
@@ -58,71 +56,57 @@ export function sumByCategory(
 }
 
 /**
- * Sorted bars for "Where it went". With `previous`, each row carries the previous month's total
- * and change, and categories that had spending then but none now follow at zero, so a drop to
- * nothing still shows. The scale is a round number above the largest of either month.
+ * Sorted bars, in the order given. Each row's share is of its side's total, or of every row's
+ * when rows have no side. The scale is a round number above the largest row.
  */
-export function categoryBars(
-  current: CategoryTotal[],
-  previous: CategoryTotal[] | null,
-): CategoryBars {
-  const prev = new Map((previous ?? []).map((p) => [p.label, p.total]));
-  const labels = new Set(current.map((c) => c.label));
-  const gone = (previous ?? [])
-    .filter((p) => !labels.has(p.label) && p.total > 0)
-    .map((p) => ({ label: p.label, color: p.color, total: 0 }));
-  const rows = [...current, ...gone];
-
-  const total = current.reduce((sum, c) => sum + c.total, 0);
-  const max = Math.max(0, ...rows.map((r) => Math.max(r.total, prev.get(r.label) ?? 0)));
-  const { top, step } = niceScale(max);
+export function categoryBars(rows: CategoryLine[]): CategoryBars {
+  const sideTotal = new Map<Side | undefined, number>();
+  for (const r of rows) sideTotal.set(r.side, (sideTotal.get(r.side) ?? 0) + r.total);
+  const { top, step } = niceScale(Math.max(0, ...rows.map((r) => r.total)));
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
-  const toPct = (v: number) => Math.max(0, Math.min(100, (v / top) * 100));
-
   return {
-    total,
     ticks,
     rows: rows.map((r) => {
-      const before = previous ? (prev.get(r.label) ?? 0) : null;
-      const change = before === null ? null : r.total - before;
+      const total = sideTotal.get(r.side) ?? 0;
       return {
         ...r,
         share: total > 0 ? (r.total / total) * 100 : 0,
-        pct: toPct(r.total),
-        previous: before,
-        prevPct: before === null ? null : toPct(before),
-        change,
-        changePct: change !== null && before ? (change / before) * 100 : null,
+        pct: Math.max(0, Math.min(100, (r.total / top) * 100)),
       };
     }),
   };
 }
 
-/** The categories whose spending changed most since the previous month, largest change first. */
-export function biggestMoves(
-  current: CategoryTotal[],
-  previous: CategoryTotal[],
-  limit = 3,
-): CategoryMove[] {
-  const byLabel = new Map<
-    string,
-    { label: string; color: string; total: number; previous: number }
-  >();
-  for (const p of previous)
-    byLabel.set(p.label, { label: p.label, color: p.color, total: 0, previous: p.total });
-  for (const c of current) {
-    const known = byLabel.get(c.label);
-    if (known) Object.assign(known, { color: c.color, total: c.total });
-    else byLabel.set(c.label, { label: c.label, color: c.color, total: c.total, previous: 0 });
-  }
-  return [...byLabel.values()]
-    .map((m) => {
-      const change = m.total - m.previous;
-      return { ...m, change, changePct: m.previous > 0 ? (change / m.previous) * 100 : null };
-    })
-    .filter((m) => Math.abs(m.change) >= 0.005)
-    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change) || a.label.localeCompare(b.label))
-    .slice(0, limit);
+/** Which categories "By category" lists: both sides, or one. */
+export type SideFilter = 'all' | Side;
+
+/**
+ * "By category": each category netted over the period (ADR-037) on the side its net falls,
+ * largest first, both sides together with 'all'. The spending side keeps a category paid back
+ * in full last, at zero. Rows without a category are Unknown on either side, kept gross, so
+ * Unknown can appear twice. A category that had money both in and out says so in `detail`.
+ * Every figure is divided by `months` (an average month).
+ */
+export function categoryLines(totals: NetTotals, filter: SideFilter, months = 1): CategoryLine[] {
+  const nets = new Map(totals.categories.map((c) => [c.label, c]));
+  const detail = (label: string): string | null => {
+    const c = label === CATEGORY_UNKNOWN ? undefined : nets.get(label);
+    if (!c || c.received <= 0 || c.spent <= 0) return null;
+    return `${eur(c.spent / months)} out, ${eur(c.received / months)} in`;
+  };
+  const line = (side: Side) => (c: CategoryAmount) => ({
+    ...c,
+    total: c.total / months,
+    side,
+    detail: detail(c.label),
+  });
+  const lines = [
+    ...(filter === 'out' ? [] : incomeByCategory(totals).map(line('in'))),
+    ...(filter === 'in' ? [] : spendingByCategory(totals, true).map(line('out'))),
+  ];
+  return lines.sort(
+    (a, b) => b.total - a.total || a.side.localeCompare(b.side) || a.label.localeCompare(b.label),
+  );
 }
 
 /** One month of a category: what it netted, with what came in and went out before netting. */
