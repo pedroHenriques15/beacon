@@ -48,8 +48,11 @@ title, status, priority) from `docs/tasks/` and say which one is next.
    remove that line from ROADMAP.md on the branch, so the PR carries it. Add an ADR to
    DECISIONS.md for any lasting decision.
 3. Draft the PR: title `prefix(NNN): summary`; description with What, Why, How tested, and
-   either screenshots (1440 px and 390 px, demo database) or the line `No visual change.` The
-   description is public: summarise the work, don't paste the task file.
+   either screenshots or the line `No visual change.` The description is public: summarise the
+   work, don't paste the task file. Screenshots are taken at 1440 px and 390 px against the demo
+   database (`scripts/run-backend-demo.ps1`), committed to the task's
+   `screenshots/NNN-work-name` branch, pushed with the task branch and linked from the
+   description (CLAUDE.md, "Git workflow", "Screenshot branches").
 4. Once the user says the PR is merged: set `status: done` and move the file to
    `docs/tasks/done/`.
 
