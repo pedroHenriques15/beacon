@@ -456,3 +456,27 @@ the web editor (manual, and impossible from the command line); committing the im
 one shared branch for every PR (a single history to keep tidy, and a retake for one PR touches
 the branch every PR links to). Costs accepted: one more branch per visible change, kept for
 good, and images that depend on the repository staying public for the links to render.
+
+## ADR-037 · Totals net each category
+
+Since 2026-10-07 every income and spending total nets each category: within the rows a view
+counts, a category's credits less its debits is its net, income of that amount when above
+zero, spending of the absolute amount otherwise. Rows without a category are not netted: each
+credit is income and each debit spending, since nothing ties one to another. Kept (income less
+spending) does not change; income and spending both shrink by the amounts that cancel. A view
+nets across every bank it shows, since a friend may pay back into another account than the one
+that paid, and over its whole period: a month on Home and Activity, the month or the range on
+Insights. Until then every total split rows by type, so a group dinner of 100 paid back by
+three friends at 25 each showed 100 spent on the category and 75 of income, both inflated, and
+a refund counted as income. One client helper, `categoryNet` (`core/utils/category-net.ts`),
+does the netting for every total and chart, and no page keeps its own credit and debit split;
+rows are still shown by type. Alternatives: a type per category (income or spending), set by
+the owner on the Categories page, so a payback always lowers spending, even below zero (a
+migration and one more setting; its own work if the sign below reads badly); linking each
+payback to the expense it repays (exact, but a chore for every payback). Costs accepted: a
+category's side follows the sign of its net, so one that nets close to zero (a shared expense
+mostly paid back) can count as spending one month and income the next; a payback that arrives
+the month after its expense nets only in a view that holds both months, so the first month
+carries the whole expense and the second the payback, which lowers that month's spending in the
+category or counts as income; the totals of one bank, netted within that bank, no longer add up
+to the totals of every bank.

@@ -9,6 +9,7 @@ import { EnrichedTransaction, FinanceService } from '../../core/services/finance
 import { CategoriesService } from '../../core/services/categories.service';
 import { GroceryItem, GroceryCategory } from '../../core/models/grocery.model';
 import { CATEGORY_EXCLUDED, CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { MonthTotals } from '../../core/utils/month-totals';
 
 function makeItem(overrides: Partial<GroceryItem> = {}): GroceryItem {
   return {
@@ -69,11 +70,13 @@ describe('AnalyticsComponent', () => {
   const groceryCatsSignal = signal<GroceryCategory[]>([]);
   // FinanceService.allTransactions: the counted rows, excluded ones already left out.
   const transactionsSignal = signal<EnrichedTransaction[]>([]);
+  const monthTotalsSignal = signal<MonthTotals[]>([]);
 
   beforeEach(() => {
     allItemsSignal.set([]);
     groceryCatsSignal.set([]);
     transactionsSignal.set([]);
+    monthTotalsSignal.set([]);
 
     TestBed.configureTestingModule({
       imports: [AnalyticsComponent],
@@ -92,7 +95,7 @@ describe('AnalyticsComponent', () => {
           provide: FinanceService,
           useValue: {
             allTransactions: transactionsSignal,
-            monthlySummaries: signal([]),
+            monthTotals: monthTotalsSignal,
             unknownTypeCount: signal(0),
             loading: signal(false),
           },
@@ -384,6 +387,136 @@ describe('AnalyticsComponent', () => {
     expect(component.spendingCompared()).toBe(false);
   });
 
+  describe('category netting (ADR-037)', () => {
+    /** A dinner of 100 and three friends paying back 25 each. */
+    const dinner = (month: string) => [
+      makeTx(month, 'Eating out', 100),
+      makeTx(month, 'Eating out', 25, 'credit'),
+      makeTx(month, 'Eating out', 25, 'credit'),
+      makeTx(month, 'Eating out', 25, 'credit'),
+    ];
+
+    it('nets a dinner paid back by friends to what it cost, with nothing as income', () => {
+      transactionsSignal.set([...dinner('2026-09'), makeTx('2026-09', 'Salary', 2000, 'credit')]);
+      component.selectMonth('2026-09');
+
+      expect(component.spendingData().map((d) => [d.label, d.total])).toEqual([['Eating out', 25]]);
+      expect(component.incomeData().map((d) => [d.label, d.total])).toEqual([['Salary', 2000]]);
+      expect(component.totalSpending()).toBe(25);
+      expect(component.totalIncome()).toBe(2000);
+      expect(component.kept()).toBe(1975);
+    });
+
+    it('counts a category as income when more came back than went out', () => {
+      transactionsSignal.set([
+        makeTx('2026-09', 'Gifts', 40),
+        makeTx('2026-09', 'Gifts', 100, 'credit'),
+        makeTx('2026-09', 'Rent', 700),
+      ]);
+      component.selectMonth('2026-09');
+
+      expect(component.spendingBars().rows.map((r) => r.label)).toEqual(['Rent']);
+      expect(component.incomeSplit()).toEqual([
+        expect.objectContaining({ label: 'Gifts', total: 60, share: 100 }),
+      ]);
+    });
+
+    it('shows a category paid back in full at zero, last of the spending bars only', () => {
+      transactionsSignal.set([
+        makeTx('2026-09', 'Gifts', 60),
+        makeTx('2026-09', 'Gifts', 60, 'credit'),
+        makeTx('2026-09', 'Rent', 700),
+      ]);
+      component.selectMonth('2026-09');
+
+      const rows = component.spendingBars().rows;
+      expect(rows.map((r) => [r.label, r.total])).toEqual([
+        ['Rent', 700],
+        ['Gifts', 0],
+      ]);
+      expect(rows[1].share).toBe(0);
+      expect(component.incomeData()).toEqual([]);
+      expect(component.totalSpending()).toBe(700);
+    });
+
+    it('keeps rows without a category gross', () => {
+      transactionsSignal.set([makeTx('2026-09', null, 30), makeTx('2026-09', null, 10, 'credit')]);
+      component.selectMonth('2026-09');
+
+      expect(component.spendingData()).toEqual([
+        expect.objectContaining({ label: CATEGORY_UNKNOWN, total: 30 }),
+      ]);
+      expect(component.incomeData()).toEqual([
+        expect.objectContaining({ label: CATEGORY_UNKNOWN, total: 10 }),
+      ]);
+    });
+
+    it('nets over the whole range and divides the nets for an average month', () => {
+      // August's payback arrives in September: it nets only with all months shown.
+      transactionsSignal.set([
+        makeTx('2026-08', 'Eating out', 100),
+        makeTx('2026-09', 'Eating out', 60, 'credit'),
+        makeTx('2026-09', 'Eating out', 20),
+      ]);
+      component.selectMonth('2026-09');
+      expect(component.incomeData().map((d) => [d.label, d.total])).toEqual([['Eating out', 40]]);
+
+      component.selectMonth('');
+      expect(component.totalSpending()).toBe(60);
+      component.showAverages.set(true);
+      expect(component.totalSpending()).toBe(30);
+      expect(component.spendingData()[0].total).toBe(30);
+    });
+
+    it('trends and sums up the picked category by its net each month', () => {
+      transactionsSignal.set([
+        ...dinner('2026-09'),
+        makeTx('2026-08', 'Eating out', 40),
+        makeTx('2026-08', 'Eating out', 10, 'credit'),
+      ]);
+      component.selectMonth('2026-09');
+      component.selectCategory('Eating out', '#36ab7a', 'debit');
+
+      expect(component.categoryTrendData()).toEqual([
+        { month: '2026-08', net: -30, received: 10, spent: 40 },
+        { month: '2026-09', net: -25, received: 75, spent: 100 },
+      ]);
+      expect(component.trendIsGross()).toBe(false);
+      expect(component.categoryStats()).toEqual({ avgMonthly: -27.5, currentTotal: -25, delta: 5 });
+    });
+
+    it('sums up Unknown by the side it was picked from', () => {
+      transactionsSignal.set([
+        makeTx('2026-09', null, 30),
+        makeTx('2026-09', null, 10, 'credit'),
+        makeTx('2026-08', null, 50),
+      ]);
+      component.selectMonth('2026-09');
+      component.selectCategory(CATEGORY_UNKNOWN, '#000', 'debit');
+
+      expect(component.trendIsGross()).toBe(true);
+      expect(component.categoryStats()).toEqual({ avgMonthly: -40, currentTotal: -30, delta: 20 });
+    });
+
+    it('links a category to all its rows, and Unknown to the side picked', () => {
+      const spy = vi.spyOn(router, 'navigate');
+      (TestBed.inject(CategoriesService).categories as any).set([
+        { id: 5, name: 'Eating out', color: '#fff', isProtected: false },
+      ]);
+      component.selectMonth('2026-09');
+
+      component.navigateToCategory('Eating out', 'debit');
+      expect(spy).toHaveBeenLastCalledWith(['/transactions'], {
+        queryParams: { category: '5', month: '2026-09' },
+      });
+
+      component.navigateToCategory(CATEGORY_UNKNOWN, 'credit');
+      expect(spy).toHaveBeenLastCalledWith(['/transactions'], {
+        queryParams: { category: 'unknown', month: '2026-09', type: 'credit' },
+      });
+    });
+  });
+
   it('the monthly average divides all-month totals by the number of months', () => {
     transactionsSignal.set([makeTx('2026-09', 'Food', 50), makeTx('2026-08', 'Food', 40)]);
     component.selectMonth('');
@@ -397,15 +530,8 @@ describe('AnalyticsComponent', () => {
 
   it('flowMonths shows six months up to the selected one', () => {
     const months = ['2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
-    (TestBed.inject(FinanceService).monthlySummaries as any).set(
-      months.map((month) => ({
-        month,
-        bank: 'BPI',
-        income: 100,
-        expenses: 50,
-        net: 50,
-        closingBalance: 0,
-      })),
+    monthTotalsSignal.set(
+      [...months].reverse().map((month) => ({ month, income: 100, expenses: 50, net: 50 })),
     );
     component.selectMonth('2026-07');
     expect(component.flowMonths().map((m) => m.month)).toEqual(months.slice(0, 6));

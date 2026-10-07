@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { buildParams } from '../utils/http-params';
 import { Observable, forkJoin, of, switchMap } from 'rxjs';
 import { CATEGORY_EXCLUDED } from '../constants/categories';
+import { categoryNet } from '../utils/category-net';
+import { MonthTotals } from '../utils/month-totals';
 import {
   MonthlySummary,
   PagedTransactionsResult,
@@ -223,8 +225,13 @@ export class FinanceService {
       .sort((a, b) => b.datePosting.localeCompare(a.datePosting)),
   );
 
+  /**
+   * Per month and bank, oldest first: income and spending with each category netted within the
+   * bank (ADR-037), for a view of one bank. Every bank together is `monthTotals`, never these
+   * rows added up: a payback into another bank nets only there.
+   */
   monthlySummaries = computed<MonthlySummary[]>(() => {
-    const rows = new Map<string, MonthlySummary>();
+    const rows = new Map<string, { month: string; bank: string; txs: Transaction[] }>();
     const latestClosing = new Map<string, { periodTo: string; closing: number }>();
 
     for (const s of this.statements()) {
@@ -235,14 +242,9 @@ export class FinanceService {
         const month = tx.datePosting.slice(0, 7);
         const key = `${month}|${s.bank}`;
 
-        let row = rows.get(key);
-        if (!row) {
-          row = { month, bank: s.bank, income: 0, expenses: 0, net: 0, closingBalance: 0 };
-          rows.set(key, row);
-        }
-        if (tx.type === 'credit') row.income += tx.amount;
-        else row.expenses += tx.amount;
-        row.net = row.income - row.expenses;
+        const row = rows.get(key) ?? { month, bank: s.bank, txs: [] };
+        row.txs.push(tx);
+        rows.set(key, row);
 
         const cur = latestClosing.get(key);
         if (!cur || s.periodTo.localeCompare(cur.periodTo) > 0)
@@ -250,10 +252,35 @@ export class FinanceService {
       }
     }
 
-    for (const [key, row] of rows) row.closingBalance = latestClosing.get(key)?.closing ?? 0;
+    return [...rows.entries()]
+      .map(([key, { month, bank, txs }]) => {
+        const totals = categoryNet(txs);
+        return {
+          month,
+          bank,
+          income: totals.income,
+          expenses: totals.spending,
+          net: totals.net,
+          closingBalance: latestClosing.get(key)?.closing ?? 0,
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month) || a.bank.localeCompare(b.bank));
+  });
 
-    return [...rows.values()].sort(
-      (a, b) => a.month.localeCompare(b.month) || a.bank.localeCompare(b.bank),
-    );
+  /** Every bank together, newest first, each category netted across the banks (ADR-037). */
+  monthTotals = computed<MonthTotals[]>(() => {
+    const byMonth = new Map<string, EnrichedTransaction[]>();
+    for (const tx of this.allTransactions()) {
+      if (tx.type !== 'credit' && tx.type !== 'debit') continue;
+      const txs = byMonth.get(tx.month) ?? [];
+      txs.push(tx);
+      byMonth.set(tx.month, txs);
+    }
+    return [...byMonth.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([month, txs]) => {
+        const totals = categoryNet(txs);
+        return { month, income: totals.income, expenses: totals.spending, net: totals.net };
+      });
   });
 }

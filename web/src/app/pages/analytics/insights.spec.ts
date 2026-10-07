@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import {
   CategoryTotal,
   biggestMoves,
   categoryBars,
+  categoryMonths,
   compareText,
   flowWindow,
   mostBought,
@@ -118,6 +120,43 @@ describe('biggestMoves', () => {
       },
       { label: 'Health', color: '#123456', total: 40, previous: 0, change: 40, changePct: null },
     ]);
+  });
+});
+
+describe('categoryMonths', () => {
+  const row = (
+    month: string,
+    amount: number,
+    type: 'credit' | 'debit' | 'unknown',
+    name: string | null,
+  ) => ({ month, amount, type, category: name ? { name } : null });
+
+  it('nets the category each month on its own, keeping what came in and went out', () => {
+    const months = categoryMonths(
+      [
+        row('2026-09', 100, 'debit', 'Eating out'),
+        row('2026-09', 75, 'credit', 'Eating out'),
+        row('2026-08', 40, 'debit', 'Eating out'),
+        row('2026-08', 90, 'credit', 'Eating out'),
+        row('2026-09', 500, 'debit', 'Rent'),
+        row('2026-07', 8, 'unknown', 'Eating out'),
+      ],
+      'Eating out',
+    );
+
+    expect(months).toEqual([
+      { month: '2026-08', net: 50, received: 90, spent: 40 },
+      { month: '2026-09', net: -25, received: 75, spent: 100 },
+    ]);
+  });
+
+  it('gives the rows without a category under Unknown, kept apart', () => {
+    const months = categoryMonths(
+      [row('2026-09', 30, 'debit', null), row('2026-09', 10, 'credit', null)],
+      CATEGORY_UNKNOWN,
+    );
+
+    expect(months).toEqual([{ month: '2026-09', net: -20, received: 10, spent: 30 }]);
   });
 });
 

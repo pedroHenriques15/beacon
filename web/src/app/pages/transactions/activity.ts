@@ -1,4 +1,5 @@
 import { CATEGORY_EXCLUDED } from '../../core/constants/categories';
+import { categoryNet } from '../../core/utils/category-net';
 import { MonthCell } from '../../core/utils/month-totals';
 import { eur, signedEur } from '../../core/utils/money';
 
@@ -113,25 +114,21 @@ export interface FlowTotals {
   count: number;
 }
 
-/** Money in and out; excluded rows and rows of an unclassified type add nothing. */
+/**
+ * Money in and out with each category netted across the rows (ADR-037); excluded rows and rows
+ * of an unclassified type add nothing.
+ */
 export function flowTotals(rows: readonly ActivityTx[]): FlowTotals {
-  let income = 0;
-  let expenses = 0;
-  let count = 0;
-  for (const tx of rows) {
-    if (isExcludedTx(tx)) continue;
-    count++;
-    if (tx.type === 'credit') income += tx.amount;
-    else if (tx.type === 'debit') expenses += tx.amount;
-  }
-  return { income, expenses, net: income - expenses, count };
+  const { income, spending, net } = categoryNet(rows);
+  const count = rows.filter((tx) => !isExcludedTx(tx)).length;
+  return { income, expenses: spending, net, count };
 }
 
 export interface BankTotals extends FlowTotals {
   bank: string;
 }
 
-/** flowTotals per bank, the bank with the most money out first. */
+/** flowTotals per bank, netted within the bank, the bank with the most money out first. */
 export function totalsByBank(rows: readonly ActivityTx[]): BankTotals[] {
   const byBank = new Map<string, ActivityTx[]>();
   for (const tx of rows) {

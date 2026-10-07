@@ -34,7 +34,12 @@ import { availableMonths } from '../../core/utils/date-utils';
 import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
 import {
-  aggregateByMonth,
+  CategoryAmount,
+  categoryNet,
+  incomeByCategory,
+  spendingByCategory,
+} from '../../core/utils/category-net';
+import {
   latestClosedMonth,
   monthCells,
   monthKeyOf,
@@ -49,6 +54,7 @@ import {
   CategoryTotal,
   biggestMoves,
   categoryBars,
+  categoryMonths,
   compareText,
   flowWindow,
   mostBought,
@@ -73,12 +79,9 @@ const MONTH_WORDS = [
   'Six months',
 ];
 
-function txCategory(tx: EnrichedTransaction) {
-  return {
-    label: tx.category?.name ?? CATEGORY_UNKNOWN,
-    color: tx.category?.color || FALLBACK,
-    amount: tx.amount,
-  };
+/** A period's amounts as an average month's: each divided by the number of months. */
+function perMonth(rows: CategoryAmount[], months: number): CategoryAmount[] {
+  return months === 1 ? rows : rows.map((d) => ({ ...d, total: d.total / months }));
 }
 
 function groceryByCategory(items: GroceryItem[]): CategoryTotal[] {
@@ -153,7 +156,7 @@ export class AnalyticsComponent implements OnDestroy {
 
   /** The scrubber's months, oldest first: every month with money, statements or receipts. */
   months = computed(() =>
-    withMonths(monthCells(this.finance.monthlySummaries()), [
+    withMonths(monthCells(this.finance.monthTotals()), [
       ...this.availableMonths(),
       ...this.gAvailableMonths(),
     ]),
@@ -182,23 +185,18 @@ export class AnalyticsComponent implements OnDestroy {
     return m ? txs.filter((tx) => tx.month === m) : txs;
   });
 
-  private byCategory(
-    type: 'credit' | 'debit',
-    txs: EnrichedTransaction[],
-    divisor = 1,
-  ): CategoryTotal[] {
-    return sumByCategory(txs.filter((tx) => tx.type === type).map(txCategory)).map((d) =>
-      divisor === 1 ? d : { ...d, total: d.total / divisor },
-    );
-  }
+  /** The period's totals, each category netted over the whole period (ADR-037). */
+  private netTotals = computed(() => categoryNet(this.txFiltered()));
 
+  private divisor = computed(() => (this.isAverages() ? this.monthCount() : 1));
+
+  /** Categories netting to spending, largest first; one paid back in full last, at zero. */
   spendingData = computed(() =>
-    this.byCategory('debit', this.txFiltered(), this.isAverages() ? this.monthCount() : 1),
+    perMonth(spendingByCategory(this.netTotals(), true), this.divisor()),
   );
 
-  incomeData = computed(() =>
-    this.byCategory('credit', this.txFiltered(), this.isAverages() ? this.monthCount() : 1),
-  );
+  /** Categories netting to income, largest first. */
+  incomeData = computed(() => perMonth(incomeByCategory(this.netTotals()), this.divisor()));
 
   totalSpending = computed(() => this.spendingData().reduce((s, d) => s + d.total, 0));
   totalIncome = computed(() => this.incomeData().reduce((s, d) => s + d.total, 0));
@@ -215,9 +213,8 @@ export class AnalyticsComponent implements OnDestroy {
   private prevSpendingData = computed(() => {
     const prev = this.compareMonth();
     if (!prev) return null;
-    const rows = this.byCategory(
-      'debit',
-      this.finance.allTransactions().filter((tx) => tx.month === prev),
+    const rows = spendingByCategory(
+      categoryNet(this.finance.allTransactions().filter((tx) => tx.month === prev)),
     );
     return rows.length ? rows : null;
   });
@@ -273,12 +270,9 @@ export class AnalyticsComponent implements OnDestroy {
         .join(', '),
   );
 
-  /** Every month, all banks, newest first. */
-  private monthTotals = computed(() => aggregateByMonth(this.finance.monthlySummaries()));
-
   /** Six months up to the selected one, or the last 18 with all months. */
   flowMonths = computed(() =>
-    flowWindow(this.monthTotals(), this.filterMonth(), this.filterMonth() ? 6 : 18),
+    flowWindow(this.finance.monthTotals(), this.filterMonth(), this.filterMonth() ? 6 : 18),
   );
 
   flowTitle = computed(() => {
@@ -306,22 +300,30 @@ export class AnalyticsComponent implements OnDestroy {
       .sort((a, b) => a.label.localeCompare(b.label));
   });
 
-  categoryTrendData = computed(() => {
+  /** The picked category's months, all of them, oldest first, each netted (ADR-037). */
+  private pickedMonths = computed(() => {
     const sel = this.selectedCategory();
-    if (!sel) return [];
-    const map = new Map<string, { spending: number; income: number }>();
-    for (const tx of this.finance.allTransactions()) {
-      const label = tx.category?.name ?? CATEGORY_UNKNOWN;
-      if (label !== sel.label) continue;
-      const cur = map.get(tx.month) ?? { spending: 0, income: 0 };
-      if (tx.type === 'debit') cur.spending += tx.amount;
-      else if (tx.type === 'credit') cur.income += tx.amount;
-      map.set(tx.month, cur);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-18)
-      .map(([month, data]) => ({ month, ...data }));
+    return sel ? categoryMonths(this.finance.allTransactions(), sel.label) : [];
+  });
+
+  /** "Monthly trend": the picked category's last 18 months. */
+  categoryTrendData = computed(() => this.pickedMonths().slice(-18));
+
+  /** Unknown is never netted: its trend shows what came in and went out apart. */
+  trendIsGross = computed(() => this.selectedCategory()?.label === CATEGORY_UNKNOWN);
+
+  trendLabel = computed(() => {
+    const label = this.selectedCategory()?.label ?? '';
+    const months = this.categoryTrendData()
+      .map((m) =>
+        this.trendIsGross()
+          ? `${monthYearLabel(m.month)}: in ${eur(m.received)}, out ${eur(m.spent)}`
+          : `${monthYearLabel(m.month)}: ${signedEur(m.net)}`,
+      )
+      .join('; ');
+    return this.trendIsGross()
+      ? `Money in and out without a category, month by month. ${months}`
+      : `What ${label} netted, month by month: in above the line, out below. ${months}`;
   });
 
   categoryTopMerchants = computed(() => {
@@ -353,18 +355,23 @@ export class AnalyticsComponent implements OnDestroy {
     return this.txFiltered().filter((tx) => (tx.category?.name ?? CATEGORY_UNKNOWN) === sel.label);
   });
 
+  /**
+   * The picked category's figures, signed: + when it brought money in, − when it cost money. A
+   * category counts its net; Unknown, never netted, counts the side it was picked from.
+   */
   categoryStats = computed(() => {
     const sel = this.selectedCategory();
     if (!sel) return null;
-    const allTx = this.finance
-      .allTransactions()
-      .filter(
-        (tx) =>
-          (tx.category?.name ?? CATEGORY_UNKNOWN) === sel.label && tx.type === sel.dominantType,
-      );
-    const byMonth = new Map<string, number>();
-    for (const tx of allTx) byMonth.set(tx.month, (byMonth.get(tx.month) ?? 0) + tx.amount);
-    const months = [...byMonth.keys()].sort();
+    const value = (m: { net: number; received: number; spent: number }) =>
+      sel.label !== CATEGORY_UNKNOWN
+        ? m.net
+        : sel.dominantType === 'credit'
+          ? m.received
+          : -m.spent;
+    const months = this.pickedMonths().filter(
+      (m) => sel.label !== CATEGORY_UNKNOWN || value(m) !== 0,
+    );
+    const byMonth = new Map(months.map((m) => [m.month, value(m)]));
     const avgMonthly = months.length
       ? [...byMonth.values()].reduce((s, v) => s + v, 0) / months.length
       : 0;
@@ -639,7 +646,8 @@ export class AnalyticsComponent implements OnDestroy {
     if (cat) params['category'] = String(cat.id);
     else if (label === CATEGORY_UNKNOWN) params['category'] = 'unknown';
     if (month) params['month'] = month;
-    params['type'] = txType;
+    // A category's money in and out net together, so its link lists both (ADR-037).
+    if (label === CATEGORY_UNKNOWN) params['type'] = txType;
     this.router.navigate(['/transactions'], { queryParams: params });
   }
 
@@ -795,6 +803,11 @@ export class AnalyticsComponent implements OnDestroy {
     });
   }
 
+  /**
+   * "Monthly trend": a category's net each month, above the line when it brought money in and
+   * below when it cost money, with what came in and went out in the tooltip. Unknown, never
+   * netted, shows money in above and money out below.
+   */
   private renderCategoryTrendChart(): void {
     const canvas = this.categoryTrendCanvas()?.nativeElement;
     if (!canvas) return;
@@ -803,27 +816,69 @@ export class AnalyticsComponent implements OnDestroy {
 
     const data = this.categoryTrendData();
     const theme = applyChartTheme();
-
-    this.categoryTrendChart = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels: data.map((d) => shortMonthYear(d.month)),
-        datasets: [
+    const base = this.barOptions(theme);
+    const y = axisOptions(theme);
+    const datasets = this.trendIsGross()
+      ? [
           {
-            label: 'Spending',
-            data: data.map((d) => d.spending),
-            backgroundColor: theme.debit,
-            borderRadius: 4,
-          },
-          {
-            label: 'Income',
-            data: data.map((d) => d.income),
+            label: 'Money in',
+            data: data.map((d) => d.received),
             backgroundColor: theme.credit,
             borderRadius: 4,
           },
-        ],
+          {
+            label: 'Money out',
+            data: data.map((d) => -d.spent),
+            backgroundColor: theme.debit,
+            borderRadius: 4,
+          },
+        ]
+      : [
+          {
+            label: 'Net',
+            data: data.map((d) => d.net),
+            backgroundColor: data.map((d) => (d.net > 0 ? theme.credit : theme.debit)),
+            borderRadius: 4,
+          },
+        ];
+
+    this.categoryTrendChart = new Chart(canvas, {
+      type: 'bar',
+      data: { labels: data.map((d) => shortMonthYear(d.month)), datasets },
+      options: {
+        ...base,
+        plugins: {
+          ...base.plugins,
+          tooltip: {
+            callbacks: {
+              title: (items) => monthYearLabel(data[items[0].dataIndex].month),
+              label: (ctx) => ` ${ctx.dataset.label}: ${signedEur(ctx.parsed.y as number)}`,
+              afterLabel: (ctx) => {
+                if (this.trendIsGross()) return '';
+                const d = data[ctx.dataIndex];
+                return ` Out ${eur(d.spent)}, in ${eur(d.received)}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ...axisOptions(theme, false), stacked: true },
+          y: {
+            ...y,
+            stacked: true,
+            grid: {
+              ...y.grid,
+              color: (c: ScriptableScaleContext) =>
+                c.tick?.value === 0 ? theme.neutral : theme.grid,
+            },
+            ticks: {
+              ...y.ticks,
+              maxTicksLimit: 5,
+              callback: (v) => eurAxis(Math.abs(Number(v))),
+            },
+          },
+        },
       },
-      options: this.barOptions(theme),
     });
   }
 

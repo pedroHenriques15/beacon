@@ -1,3 +1,5 @@
+import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
+import { NetRow, categoryNet } from '../../core/utils/category-net';
 import { MonthCell, MonthTotals } from '../../core/utils/month-totals';
 import { niceScale } from '../dashboard/river';
 
@@ -121,6 +123,44 @@ export function biggestMoves(
     .filter((m) => Math.abs(m.change) >= 0.005)
     .sort((a, b) => Math.abs(b.change) - Math.abs(a.change) || a.label.localeCompare(b.label))
     .slice(0, limit);
+}
+
+/** One month of a category: what it netted, with what came in and went out before netting. */
+export interface CategoryMonth {
+  /** 'YYYY-MM' */
+  month: string;
+  /** received − spent. */
+  net: number;
+  received: number;
+  spent: number;
+}
+
+/**
+ * The months of one category (by label), oldest first, each netted on its own (ADR-037). For
+ * Unknown, the rows without a category, which are never netted, `received` and `spent` are the
+ * figures; `net` is only their difference.
+ */
+export function categoryMonths(
+  rows: readonly (NetRow & { month: string })[],
+  label: string,
+): CategoryMonth[] {
+  const byMonth = new Map<string, NetRow[]>();
+  for (const r of rows) {
+    if ((r.category?.name ?? CATEGORY_UNKNOWN) !== label) continue;
+    if (r.type !== 'credit' && r.type !== 'debit') continue;
+    const list = byMonth.get(r.month) ?? [];
+    list.push(r);
+    byMonth.set(r.month, list);
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, list]) => {
+      const totals = categoryNet(list);
+      const cat = totals.categories[0];
+      if (cat) return { month, net: cat.net, received: cat.received, spent: cat.spent };
+      const { income, spending } = totals.uncategorised;
+      return { month, net: income - spending, received: income, spent: spending };
+    });
 }
 
 /**
