@@ -374,7 +374,17 @@
           }
         </div>
         <div class="tile tile--kept">
-          <span class="tile__label">Kept</span>
+          <span class="tile__label tile__label--split"
+            >Kept
+            @if (snap.keptShare !== null) {
+              <span
+                class="tile__share"
+                [class.amount-in]="snap.keptShare > 0"
+                title="Kept as a share of what came in"
+                >{{ keptShareText(snap.keptShare) }}</span
+              >
+            }
+          </span>
           <span class="tile__value" [class.amount-in]="snap.net >= 0">{{
             signedEur(snap.net)
           }}</span>

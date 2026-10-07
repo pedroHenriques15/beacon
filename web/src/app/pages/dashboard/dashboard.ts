@@ -283,6 +283,8 @@ export class DashboardComponent {
       expensesDelta:
         prev && prev.expenses !== 0 ? ((cur.expenses - prev.expenses) / prev.expenses) * 100 : null,
       netDelta: prev ? cur.net - prev.net : null,
+      /** The month's savings rate: Kept as a share of In. */
+      keptShare: keptShare(cur.income, cur.net),
     };
   });
 

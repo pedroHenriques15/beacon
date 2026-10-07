@@ -301,6 +301,19 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('savings rate', () => {
+    it('gives the month’s share kept, none without income', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2500, expenses: 1700, net: 800 }),
+        makeTotals({ month: '2025-01', expenses: 50, net: -50 }),
+      ]);
+      component.selectedMonth.set('2025-02');
+      expect(component.monthSnapshot().keptShare).toBe(32);
+      component.selectedMonth.set('2025-01');
+      expect(component.monthSnapshot().keptShare).toBeNull();
+    });
+  });
+
   describe('selectedMonth', () => {
     it('starts at the latest closed month', () => {
       monthTotalsSignal.set([

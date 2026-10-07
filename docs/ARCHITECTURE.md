@@ -797,7 +797,10 @@ Insights shows one month, a range of calendar months ending at the scrubber's mo
 12, or the year so far; `periodKeys` in `pages/analytics/insights.ts`, from the first month
 with money on), or all months; a range has no comparison with the previous month. Home's "Last
 six months" are the same six calendar months (a month without money is an empty row), so
-Home's totals match Insights' six months for the same end month.
+Home's totals match Insights' six months for the same end month. The savings rate, Kept as a
+share of In rounded to a whole percent, comes from one helper, `keptShare`
+(`core/utils/month-totals.ts`): Home's Kept tile and six-month table and Insights' headline use
+it.
 
 Activity and Insights take their view from the URL's query, so other pages can link to one.
 Activity reads `month`, `category` (an id, or `unknown`), `bank`, `type`, and for groceries

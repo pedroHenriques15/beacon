@@ -154,11 +154,13 @@
               }
               @if (totalIncome() > 0) {
                 @if (kept() >= 0) {
-                  You kept <strong class="amount-in">{{ eur(kept()) }}</strong> of the
-                  {{ eur(totalIncome()) }} that came in.
+                  You kept <strong class="amount-in">{{ eur(kept()) }}</strong> ({{
+                    keptShareText(keptShare())
+                  }}) of the {{ eur(totalIncome()) }} that came in.
                 } @else {
-                  You spent <strong>{{ eur(kept()) }}</strong> more than the
-                  {{ eur(totalIncome()) }} that came in.
+                  You spent <strong>{{ eur(kept()) }}</strong> ({{
+                    keptShareText(-(keptShare() ?? 0))
+                  }}) more than the {{ eur(totalIncome()) }} that came in.
                 }
               } @else {
                 Nothing came in.

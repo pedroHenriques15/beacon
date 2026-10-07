@@ -417,6 +417,21 @@ describe('AnalyticsComponent', () => {
     });
   });
 
+  it('gives the savings rate of the month and of all months', () => {
+    transactionsSignal.set([
+      makeTx('2026-09', 'Salary', 2000, 'credit'),
+      makeTx('2026-09', 'Rent', 1500),
+      makeTx('2026-08', 'Salary', 2000, 'credit'),
+      makeTx('2026-08', 'Rent', 2100),
+    ]);
+    component.selectMonth('2026-09');
+    expect(component.keptShare()).toBe(25);
+    component.selectMonth('2026-08');
+    expect(component.keptShare()).toBe(-5);
+    component.selectMonth('');
+    expect(component.keptShare()).toBe(10);
+  });
+
   describe('ranges', () => {
     beforeEach(() => {
       transactionsSignal.set([

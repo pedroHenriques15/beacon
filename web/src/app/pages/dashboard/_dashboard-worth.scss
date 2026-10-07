@@ -111,6 +111,12 @@
   &__label {
     font-size: 12px;
     color: var(--text-secondary);
+
+    &--split {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
   }
 
   &__value {
@@ -125,5 +131,16 @@
     font-size: 11px;
     color: var(--text-secondary);
     @include figures;
+  }
+
+  // The savings rate beside "Kept".
+  &__share {
+    @include figures;
+    font-weight: 700;
+    color: var(--text-primary);
+
+    &.amount-in {
+      color: var(--credit);
+    }
   }
 }

@@ -41,6 +41,8 @@ import {
   spendingByCategory,
 } from '../../core/utils/category-net';
 import {
+  keptShare,
+  keptShareText,
   latestClosedMonth,
   monthCells,
   monthKeyOf,
@@ -131,6 +133,7 @@ export class AnalyticsComponent implements OnDestroy {
   readonly signedPct = signedPct;
   readonly monthName = monthName;
   readonly unknownLabel = CATEGORY_UNKNOWN;
+  readonly keptShareText = keptShareText;
 
   private readonly nowKey = monthKeyOf(new Date());
 
@@ -250,6 +253,8 @@ export class AnalyticsComponent implements OnDestroy {
   totalSpending = computed(() => this.spendingData().reduce((s, d) => s + d.total, 0));
   totalIncome = computed(() => this.incomeData().reduce((s, d) => s + d.total, 0));
   kept = computed(() => this.totalIncome() - this.totalSpending());
+  /** The savings rate: Kept as a share of what came in; null when nothing came in. */
+  keptShare = computed(() => keptShare(this.totalIncome(), this.kept()));
 
   /** The month a single selected month is compared with; null for a range or all months. */
   compareMonth = computed(() =>
