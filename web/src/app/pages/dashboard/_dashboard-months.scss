@@ -33,6 +33,7 @@
 
   > span {
     padding: 12px;
+    white-space: nowrap;
   }
 
   > span:first-child,
@@ -127,6 +128,12 @@
 
     &--selected {
       background: none;
+    }
+
+    // Six months' figures run to five digits: a size down keeps them on one line.
+    &--sum,
+    &--avg {
+      font-size: 12px;
     }
   }
 
