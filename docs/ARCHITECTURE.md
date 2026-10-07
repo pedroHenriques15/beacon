@@ -546,6 +546,18 @@ Conventions:
 - P&L uses **average cost basis** (ADR-013), computed client-side in `investments.service.ts`
   (`assetMetrics`): buys update the weighted average (fees included), sells book realised
   P&L against it.
+- **Returns** (ADR-038) are counted since the first buy. Per asset, `assetMetrics` adds the
+  money put in (`invested`: every buy with its fees, sold since or not), `totalReturn`
+  (realised plus unrealised; null while units are held without a price), `totalReturnPct`
+  (against the money put in, simple, not annualised) and `firstBuyDate`. The portfolio's
+  `totalInvested`, `totalReturn`, `totalReturnPct` and `firstBuyDate` cover every asset, one
+  sold out included; its unrealised part is value less cost, so a held asset without a price
+  counts as worth nothing. The Invest page's `portfolioSummary` (`investments-view.ts`) does
+  the same for the tab's assets. The page leads with the total return in € and % "since" the
+  first buy's month, its tiles split it into money put in, unrealised and realised, its
+  changes start with "All time" before 1 month, 1 week and 1 day, each holding's "Return" is
+  its own total return, and the value chart opens on All. Home's Investments row shows the
+  total return after the value, and today's change after it.
 - **Trade import** (ADR-031, ADR-034): `TradeImportService` (`Features/Investments/Shared/`,
   scoped) runs after `StatementUploadService` persists a statement whose parser found buys (the
   Trade Republic CSV's `BUY` rows, savings plans and one-off buys alike; their rows are already

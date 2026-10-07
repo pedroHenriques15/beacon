@@ -78,6 +78,9 @@ describe('DashboardComponent', () => {
   const totalUnrealizedPnlSignal = signal(0);
   const totalUnrealizedPctSignal = signal<number | null>(null);
   const portfolioChange1dSignal = signal<number | null>(null);
+  const totalReturnSignal = signal(0);
+  const totalReturnPctSignal = signal<number | null>(null);
+  const firstBuyDateSignal = signal<string | null>(null);
   const loadPriceHistory = vi.fn();
 
   beforeEach(() => {
@@ -92,6 +95,9 @@ describe('DashboardComponent', () => {
     totalUnrealizedPnlSignal.set(0);
     totalUnrealizedPctSignal.set(null);
     portfolioChange1dSignal.set(null);
+    totalReturnSignal.set(0);
+    totalReturnPctSignal.set(null);
+    firstBuyDateSignal.set(null);
     loadPriceHistory.mockClear();
 
     TestBed.configureTestingModule({
@@ -121,6 +127,9 @@ describe('DashboardComponent', () => {
             totalUnrealizedPnl: totalUnrealizedPnlSignal,
             totalUnrealizedPct: totalUnrealizedPctSignal,
             portfolioChange1d: portfolioChange1dSignal,
+            totalReturn: totalReturnSignal,
+            totalReturnPct: totalReturnPctSignal,
+            firstBuyDate: firstBuyDateSignal,
             portfolioHistory: signal([]),
             assetMetrics: signal([]),
             loadPriceHistory,
@@ -341,6 +350,47 @@ describe('DashboardComponent', () => {
 
   it('loads a year of prices for the Investments sparkline', () => {
     expect(loadPriceHistory).toHaveBeenCalledTimes(1);
+  });
+
+  describe('Investments row', () => {
+    function text(selector: string): string {
+      const el: HTMLElement | null = fixture.nativeElement.querySelector(selector);
+      return el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    }
+
+    it('shows the total return since the first buy after the value, then today’s change', () => {
+      investmentAssetsSignal.set([{}]);
+      totalCurrentValueSignal.set(2210);
+      totalReturnSignal.set(350);
+      totalReturnPctSignal.set(17.5);
+      firstBuyDateSignal.set('2026-01-24');
+      portfolioChange1dSignal.set(0.4);
+      fixture.detectChanges();
+
+      const parts = [...fixture.nativeElement.querySelectorAll('.invest-row__text > span')].map(
+        (el: HTMLElement) => el.className,
+      );
+      expect(parts).toEqual([
+        'invest-row__label',
+        'invest-row__value',
+        'invest-row__return',
+        'invest-row__meta',
+      ]);
+      expect(text('.invest-row__value')).toBe('€2,210.00');
+      expect(text('.invest-row__return')).toBe('+€350.00 (+17.5%) return since Jan 2026');
+      expect(text('.invest-row__meta')).toBe('+0.4% today');
+    });
+
+    it('marks a loss and leaves the percentage out without money put in', () => {
+      investmentAssetsSignal.set([{}]);
+      totalReturnSignal.set(-12.3);
+      fixture.detectChanges();
+
+      expect(text('.invest-row__return')).toBe('−€12.30 return');
+      expect(
+        fixture.nativeElement.querySelector('.invest-row__return .invest-row__change--down'),
+      ).not.toBeNull();
+    });
   });
 
   describe('bankInitials', () => {

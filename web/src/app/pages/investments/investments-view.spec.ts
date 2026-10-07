@@ -10,6 +10,7 @@ import {
   eurPrice,
   eurTick,
   historyCaption,
+  monthYear,
   portfolioSummary,
   recentActivity,
   shortDate,
@@ -61,7 +62,10 @@ function metric(overrides: Partial<AssetMetric> = {}): AssetMetric {
     unrealizedPnl: 200,
     unrealizedPct: 20,
     realizedPnl: 0,
+    invested: 1000,
     totalReturn: 200,
+    totalReturnPct: 20,
+    firstBuyDate: '2026-01-05',
     latestPriceDate: '2026-07-22',
     pricesStale: false,
     change1d: null,
@@ -117,6 +121,41 @@ describe('portfolioSummary', () => {
     expect(s.change1w).toBeCloseTo(10, 10);
     expect(s.change1m).toBeNull();
   });
+
+  it('gives the total return since the first buy, realised included, on the money put in', () => {
+    const s = portfolioSummary([
+      metric({
+        currentValue: 1200,
+        netCostBasis: 1000,
+        realizedPnl: 50,
+        invested: 1500,
+        firstBuyDate: '2026-03-02',
+      }),
+      // Sold out: no value or cost left, its buys and realised return still count.
+      metric({
+        totalQuantity: 0,
+        currentValue: 0,
+        netCostBasis: 0,
+        realizedPnl: 2,
+        invested: 600,
+        firstBuyDate: '2026-01-24',
+      }),
+    ]);
+
+    expect(s.invested).toBe(2100);
+    expect(s.totalReturn).toBe(252);
+    expect(s.totalReturnPct).toBeCloseTo(12, 10);
+    expect(s.since).toBe('2026-01-24');
+  });
+
+  it('has no return percentage or start with nothing put in', () => {
+    const s = portfolioSummary([]);
+
+    expect(s.invested).toBe(0);
+    expect(s.totalReturn).toBe(0);
+    expect(s.totalReturnPct).toBeNull();
+    expect(s.since).toBeNull();
+  });
 });
 
 describe('signedPct', () => {
@@ -144,6 +183,11 @@ describe('formatting', () => {
     expect(eurTick(6540)).toBe('€6,540');
     expect(eurTick(137.5)).toBe('€137.5');
     expect(eurTick(0)).toBe('€0');
+  });
+
+  it('names a month by its short name and year', () => {
+    expect(monthYear('2026-01-24')).toBe('Jan 2026');
+    expect(monthYear('2025-09-30')).toBe('Sep 2025');
   });
 
   it('formats dates the same in every time zone', () => {

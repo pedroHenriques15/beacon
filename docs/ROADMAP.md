@@ -21,8 +21,7 @@ Nothing is in progress; the next items come from "Next".
 
 ## Next
 
-- Investments: show the total return since the first investment, realised and unrealised, as
-  the headline on Invest and Home, ahead of the short-term changes.
+Nothing is queued; the next items come from "Later".
 
 ## Later
 

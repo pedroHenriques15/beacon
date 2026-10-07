@@ -480,3 +480,24 @@ the month after its expense nets only in a view that holds both months, so the f
 carries the whole expense and the second the payback, which lowers that month's spending in the
 category or counts as income; the totals of one bank, netted within that bank, no longer add up
 to the totals of every bank.
+
+## ADR-038 · Investment returns are shown since the first buy, on the money put in
+
+Since 2026-10-07 the Invest page and Home lead with the total return since the first buy, for
+the portfolio, for each tab and for each holding: the realised return of every sell plus the
+unrealised return of the units still held, in euros, and as a percentage of the money put in.
+Money put in is the cost of every buy, fees included, whether its units were sold since or not;
+the total return percentage is the total return divided by it, simple, not annualised. "Since"
+is the date of the earliest buy among the assets in view. Both parts keep the average cost basis
+(ADR-013). Until then the pages led with short periods: Home showed only today's change, and the
+Invest page's headline was the unrealised gain on the units still held, followed by the 1 day,
+1 week and 1 month changes; realised returns had a tile of their own and were in no
+percentage, so with buys through several brokers and sells along the way, no figure said what
+the investments had returned overall. A sell counts: an asset sold out keeps its row, its
+return and its buys in the totals. The shorter changes stay, after the total, and the value
+chart opens on its whole history. Alternatives: a money-weighted (XIRR) or time-weighted
+return, which account for when the money went in and can be given per year (fairer to regular
+buys, but harder to explain and to check by hand; their own work if wanted); the unrealised
+return alone, as before (leaves every sell out). Costs accepted: a buy made last month weighs
+as much as one made two years ago, so regular buys pull the percentage towards zero, and it is
+no yearly rate; distributions are not counted, since Beacon records none.

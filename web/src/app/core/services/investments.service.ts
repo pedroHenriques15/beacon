@@ -22,7 +22,14 @@ export interface AssetMetric {
   unrealizedPnl: number | null;
   unrealizedPct: number | null;
   realizedPnl: number;
+  /** Money put in: every buy with its fees, sold since or not. */
+  invested: number;
+  /** Realised plus unrealised; null while units are held without a price. */
   totalReturn: number | null;
+  /** Total return against the money put in, simple (ADR-038); null without either. */
+  totalReturnPct: number | null;
+  /** Date of the earliest buy. */
+  firstBuyDate: string | null;
   /** Date of the latest price, the close the current price comes from. */
   latestPriceDate: string | null;
   /** Held, and its latest price is too old or missing, or its last sync failed. */
@@ -59,6 +66,21 @@ export function isPriceStale(latestDate: string | null, today: string): boolean 
 function changePct(current: number | null, ref: number | null): number | null {
   if (current == null || ref == null || ref === 0) return null;
   return ((current - ref) / ref) * 100;
+}
+
+/** A total return as a percentage of the money put in (ADR-038). */
+export function returnPct(totalReturn: number | null, invested: number): number | null {
+  return totalReturn != null && invested > 0 ? (totalReturn / invested) * 100 : null;
+}
+
+/** The earliest of the assets' first buys. */
+export function earliestBuy(metrics: AssetMetric[]): string | null {
+  return (
+    metrics
+      .map((m) => m.firstBuyDate)
+      .filter((d): d is string => d != null)
+      .sort()[0] ?? null
+  );
 }
 
 @Injectable({ providedIn: 'root' })
@@ -201,9 +223,13 @@ export class InvestmentsService {
       let avgCost = 0;
       let totalHeld = 0;
       let realizedPnl = 0;
+      let invested = 0;
+      let firstBuyDate: string | null = null;
       for (const lot of lotsAsc) {
         const fee = lot.fees ?? 0;
         if (lot.quantity > 0) {
+          invested += lot.quantity * lot.pricePerUnit + fee;
+          firstBuyDate ??= lot.date;
           avgCost =
             totalHeld > 0
               ? (totalHeld * avgCost + lot.quantity * lot.pricePerUnit + fee) /
@@ -226,7 +252,8 @@ export class InvestmentsService {
       const unrealizedPnl = currentValue != null ? currentValue - netCostBasis : null;
       const unrealizedPct =
         netCostBasis > 0 && unrealizedPnl != null ? (unrealizedPnl / netCostBasis) * 100 : null;
-      const totalReturn = unrealizedPnl != null ? realizedPnl + unrealizedPnl : realizedPnl;
+      const totalReturn =
+        unrealizedPnl == null && totalQuantity > 0 ? null : realizedPnl + (unrealizedPnl ?? 0);
 
       const latestDate = snapshots[0]?.date ?? null;
       const priorClose =
@@ -253,7 +280,10 @@ export class InvestmentsService {
         unrealizedPnl,
         unrealizedPct,
         realizedPnl,
+        invested,
         totalReturn,
+        totalReturnPct: returnPct(totalReturn, invested),
+        firstBuyDate,
         latestPriceDate: latestDate,
         pricesStale:
           totalQuantity > 0 &&
@@ -281,6 +311,10 @@ export class InvestmentsService {
     return cost > 0 ? (this.totalUnrealizedPnl() / cost) * 100 : null;
   });
   totalReturn = computed(() => this.totalRealizedPnl() + this.totalUnrealizedPnl());
+  /** Money put in across every asset, those sold out included. */
+  totalInvested = computed(() => this.assetMetrics().reduce((s, m) => s + m.invested, 0));
+  totalReturnPct = computed(() => returnPct(this.totalReturn(), this.totalInvested()));
+  firstBuyDate = computed(() => earliestBuy(this.assetMetrics()));
 
   portfolioChange1d = computed(() => this.portfolioChange(null));
   portfolioChange1w = computed(() => this.portfolioChange(7));
