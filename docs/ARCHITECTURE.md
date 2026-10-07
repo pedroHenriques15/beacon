@@ -199,10 +199,11 @@ shared dinner, a refund) lowers the category's spending instead of counting as i
 without a category stay gross, each credit income and each debit spending, and Kept is the same
 either way. One pure helper does it, `categoryNet` (`core/utils/category-net.ts`, with
 `spendingByCategory` and `incomeByCategory` for the per-category lists); no page keeps its own
-credit and debit split for a total. A view nets over everything it shows: Home's month and
-Activity's filters across every bank (per bank only within that bank: Home's account filter,
-Activity's "Totals by bank"), Insights over its month or its whole range, so a payback that
-arrives a month after its expense nets only there. Excluded rows and rows of an unclassified
+credit and debit split for a total. A view nets over everything it shows: Home's month, Home's
+last six months (its "Top spending" and "Top income", netted once over the six) and Activity's
+filters across every bank (per bank only within that bank: Home's account filter, Activity's
+"Totals by bank"), Insights over its month or its whole range, so a payback that arrives a
+month after its expense nets only in a view that holds both months. Excluded rows and rows of an unclassified
 type never reach the helper's figures, whatever a caller passes.
 
 There is no `Internal Transfer` category. It was the pre-rename name of this concept; a

@@ -69,56 +69,6 @@
         </div>
       </section>
 
-      @if (latestDays().length > 0) {
-        <section class="latest" aria-labelledby="latest-h">
-          <div class="block-head">
-            <h2 id="latest-h">Latest days</h2>
-            <a class="link-btn" routerLink="/transactions" [queryParams]="monthQuery(snap.month)"
-              >All {{ monthLong }} activity</a
-            >
-          </div>
-          <ol class="timeline">
-            @for (day of latestDays(); track day.date) {
-              <li class="timeline__day">
-                <span class="timeline__node" aria-hidden="true"></span>
-                <span class="timeline__date">
-                  <span class="timeline__label">{{ day.date | date: 'd MMM' }}</span>
-                  <span class="timeline__weekday">{{ day.date | date: 'EEEE' }}</span>
-                </span>
-                <div class="timeline__rows">
-                  @for (tx of day.shown; track tx.id) {
-                    <div class="tx-row">
-                      @if (tx.categoryId === null) {
-                        <span class="ring" aria-label="Needs a category"></span>
-                      } @else {
-                        <span class="cat-dot" [style.--_dot]="tx.category?.color"></span>
-                      }
-                      <span class="tx-row__text">
-                        <span class="tx-row__desc">{{ tx.description }}</span>
-                        <span class="tx-row__meta"
-                          >{{ tx.category?.name ?? 'No category' }}, {{ tx.bank }}</span
-                        >
-                      </span>
-                      <span class="tx-row__amount" [class.amount-in]="tx.type === 'credit'">{{
-                        signedEur(tx.type === 'credit' ? tx.amount : -tx.amount)
-                      }}</span>
-                    </div>
-                  }
-                  @if (day.more > 0) {
-                    <a
-                      class="timeline__more"
-                      routerLink="/transactions"
-                      [queryParams]="monthQuery(day.date.slice(0, 7))"
-                      >{{ day.more }} more that day</a
-                    >
-                  }
-                </div>
-              </li>
-            }
-          </ol>
-        </section>
-      }
-
       <section class="six" aria-labelledby="six-h">
         <div class="block-head">
           <h2 id="six-h">Last six months</h2>
@@ -137,6 +87,9 @@
             <span role="columnheader" class="num">In</span>
             <span role="columnheader" class="num">Out</span>
             <span role="columnheader" class="num">Kept</span>
+            <span role="columnheader" class="num" title="Kept as a share of what came in"
+              >Kept %</span
+            >
             <span role="columnheader" class="six__flow">Flow</span>
           </div>
           @for (row of sixMonths(); track row.month) {
@@ -156,6 +109,7 @@
               <span role="cell" class="num six__kept" [class.amount-in]="row.net >= 0">{{
                 signedEur(row.net)
               }}</span>
+              <span role="cell" class="num six__share">{{ keptShareText(row.keptShare) }}</span>
               <span role="cell" class="six__flow" aria-hidden="true">
                 <span class="six__bar six__bar--in" [style.width.%]="row.inPct"></span>
                 <span class="six__bar six__bar--out" [style.width.%]="row.outPct"></span>
@@ -164,7 +118,110 @@
           } @empty {
             <p class="empty">No months with counted money yet.</p>
           }
+          @if (sixSummary(); as sum) {
+            <div class="six__row six__row--sum" role="row">
+              <span role="rowheader" class="six__month">Total</span>
+              <span role="cell" class="num">{{ signedEur(sum.income) }}</span>
+              <span role="cell" class="num">{{ signedEur(-sum.expenses) }}</span>
+              <span role="cell" class="num six__kept" [class.amount-in]="sum.net >= 0">{{
+                signedEur(sum.net)
+              }}</span>
+              <span role="cell" class="num six__share">{{ keptShareText(sum.keptShare) }}</span>
+              <span role="cell" class="six__flow"></span>
+            </div>
+            <div class="six__row six__row--avg" role="row">
+              <span role="rowheader" class="six__month"
+                ><span class="six__long">Average month</span
+                ><span class="six__short">Avg</span></span
+              >
+              <span role="cell" class="num">{{ signedEur(sum.average.income) }}</span>
+              <span role="cell" class="num">{{ signedEur(-sum.average.expenses) }}</span>
+              <span role="cell" class="num six__kept" [class.amount-in]="sum.average.net >= 0">{{
+                signedEur(sum.average.net)
+              }}</span>
+              <span role="cell" class="num six__share"></span>
+              <span role="cell" class="six__flow"></span>
+            </div>
+          }
         </div>
+
+        @let tops = sixTops();
+        @if (tops.spending.length > 0 || tops.income.length > 0) {
+          <div class="tops">
+            <section class="tops__side" aria-labelledby="top-out-h">
+              <h3 id="top-out-h" class="tops__title">Top spending</h3>
+              @if (tops.spending.length > 0) {
+                <ol class="tops__list">
+                  @for (cat of tops.spending; track cat.label) {
+                    <li class="top">
+                      <span class="top__name">
+                        @if (cat.label === unknownLabel) {
+                          <span class="ring"></span>
+                        } @else {
+                          <span class="cat-dot" [style.--_dot]="cat.color"></span>
+                        }
+                        <span class="top__label">{{ cat.label }}</span>
+                      </span>
+                      <span class="top__months" aria-hidden="true">
+                        @for (m of cat.months; track m.month) {
+                          <span class="top__month"
+                            ><span
+                              class="top__bar"
+                              [style.height.%]="m.pct"
+                              [style.background]="cat.color"
+                            ></span
+                          ></span>
+                        }
+                      </span>
+                      <span class="top__figures">
+                        <span class="top__total">{{ signedEur(-cat.total) }}</span>
+                        <span class="top__avg">{{ eur(cat.average) }} a month</span>
+                      </span>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <p class="empty">No spending in these months.</p>
+              }
+            </section>
+            <section class="tops__side" aria-labelledby="top-in-h">
+              <h3 id="top-in-h" class="tops__title">Top income</h3>
+              @if (tops.income.length > 0) {
+                <ol class="tops__list">
+                  @for (cat of tops.income; track cat.label) {
+                    <li class="top">
+                      <span class="top__name">
+                        @if (cat.label === unknownLabel) {
+                          <span class="ring"></span>
+                        } @else {
+                          <span class="cat-dot" [style.--_dot]="cat.color"></span>
+                        }
+                        <span class="top__label">{{ cat.label }}</span>
+                      </span>
+                      <span class="top__months" aria-hidden="true">
+                        @for (m of cat.months; track m.month) {
+                          <span class="top__month"
+                            ><span
+                              class="top__bar"
+                              [style.height.%]="m.pct"
+                              [style.background]="cat.color"
+                            ></span
+                          ></span>
+                        }
+                      </span>
+                      <span class="top__figures">
+                        <span class="top__total amount-in">{{ signedEur(cat.total) }}</span>
+                        <span class="top__avg">{{ eur(cat.average) }} a month</span>
+                      </span>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <p class="empty">Nothing came in in these months.</p>
+              }
+            </section>
+          </div>
+        }
       </section>
 
       @if (allStatements().length > 0) {

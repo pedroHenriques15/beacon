@@ -334,6 +334,81 @@ describe('DashboardComponent', () => {
         '2025-02',
       ]);
     });
+
+    it('takes calendar months, an empty one as a zero row, none before the first', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-04', income: 100, expenses: 40, net: 60 }),
+        makeTotals({ month: '2025-02', income: 50, expenses: 10, net: 40 }),
+      ]);
+      component.selectedMonth.set('2025-04');
+      expect(component.sixMonths().map((r) => [r.month, r.income])).toEqual([
+        ['2025-04', 100],
+        ['2025-03', 0],
+        ['2025-02', 50],
+      ]);
+    });
+
+    it('sums the months, averages them and gives the share kept', () => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-02', income: 2000, expenses: 1500, net: 500 }),
+        makeTotals({ month: '2025-01', income: 1000, expenses: 1100, net: -100 }),
+      ]);
+      component.selectedMonth.set('2025-02');
+      expect(component.sixMonths().map((r) => r.keptShare)).toEqual([25, -10]);
+      expect(component.sixSummary()).toEqual({
+        income: 3000,
+        expenses: 2600,
+        net: 400,
+        keptShare: 13,
+        average: { income: 1500, expenses: 1300, net: 200 },
+      });
+    });
+
+    it('has no summary without months', () => {
+      expect(component.sixSummary()).toBeNull();
+    });
+  });
+
+  describe('sixTops', () => {
+    const cat = (name: string) => ({ name, color: `var(--${name})` });
+
+    beforeEach(() => {
+      monthTotalsSignal.set([
+        makeTotals({ month: '2025-03', income: 1, net: 1 }),
+        makeTotals({ month: '2025-02', income: 1, net: 1 }),
+      ]);
+      allTransactionsSignal.set([
+        makeTx({ id: 1, month: '2025-02', amount: 120, category: cat('Dinner') }),
+        makeTx({ id: 2, month: '2025-03', amount: 90, type: 'credit', category: cat('Dinner') }),
+        makeTx({ id: 3, month: '2025-03', amount: 50, category: cat('Food'), bank: 'REVOLUT' }),
+        makeTx({ id: 4, month: '2025-03', amount: 900, type: 'credit', category: cat('Salary') }),
+        makeTx({ id: 5, month: '2024-08', amount: 999, category: cat('Old') }),
+      ]);
+      component.selectedMonth.set('2025-03');
+    });
+
+    it('nets each category over the six months, a payback the next month included', () => {
+      expect(component.sixTops().spending.map((c) => [c.label, c.total])).toEqual([
+        ['Food', 50],
+        ['Dinner', 30],
+      ]);
+      expect(component.sixTops().income.map((c) => [c.label, c.total])).toEqual([['Salary', 900]]);
+    });
+
+    it('follows the picked account and the selected month', () => {
+      component.selectedBank.set('REVOLUT');
+      monthlySummariesSignal.set([
+        makeSummary({ month: '2025-03', bank: 'REVOLUT', expenses: 50, net: -50 }),
+      ]);
+      expect(component.sixTops().spending.map((c) => c.label)).toEqual(['Food']);
+      expect(component.sixTops().income).toEqual([]);
+
+      component.selectedBank.set(null);
+      component.selectedMonth.set('2025-02');
+      expect(component.sixTops().spending.map((c) => [c.label, c.total])).toEqual([
+        ['Dinner', 120],
+      ]);
+    });
   });
 
   describe('uncategorised', () => {

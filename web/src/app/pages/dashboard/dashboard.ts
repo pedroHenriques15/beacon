@@ -14,21 +14,26 @@ import { FinanceService } from '../../core/services/finance.service';
 import { InvestmentsService } from '../../core/services/investments.service';
 import { ConfirmDialogComponent } from '../../core/components/confirm-dialog/confirm-dialog';
 import { MonthScrubberComponent } from '../../core/components/month-scrubber/month-scrubber';
+import { CATEGORY_UNKNOWN } from '../../core/constants/categories';
 import { categoryNet, spendingByCategory } from '../../core/utils/category-net';
 import {
   aggregateByMonth,
   daysInMonth,
+  keptShare,
+  keptShareText,
   latestClosedMonth,
   monthCells,
   monthKeyOf,
   monthName,
   monthYearLabel,
+  monthsUpTo,
   previousMonth,
 } from '../../core/utils/month-totals';
 import { eur, signedEur } from '../../core/utils/money';
 import { bankInitials } from '../../core/utils/bank';
 import { RiverChartComponent } from './river-chart';
 import { riverSeries, sparkline } from './river';
+import { windowTops } from './six-months';
 
 function lastDayOf(month: string): string {
   return `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
@@ -57,6 +62,8 @@ export class DashboardComponent {
   readonly signedEur = signedEur;
   readonly monthName = monthName;
   readonly bankInitials = bankInitials;
+  readonly keptShareText = keptShareText;
+  readonly unknownLabel = CATEGORY_UNKNOWN;
 
   private readonly today = new Date();
   private readonly todayIso = `${monthKeyOf(this.today)}-${String(this.today.getDate()).padStart(2, '0')}`;
@@ -147,19 +154,58 @@ export class DashboardComponent {
     return aggregateByMonth(this.finance.monthlySummaries().filter((s) => s.bank === selected));
   });
 
+  /**
+   * The six calendar months up to the selected one, newest first, from the first month with
+   * counted money on; a month without any shows as an empty row.
+   */
+  private sixKeys = computed(() => {
+    const rows = this.monthlyTotals();
+    const first = rows[rows.length - 1]?.month;
+    if (!first) return [];
+    return monthsUpTo(this.selectedMonth(), 6).filter((m) => m >= first);
+  });
+
   sixMonths = computed(() => {
-    const key = this.selectedMonth();
-    const rows = this.monthlyTotals()
-      .filter((r) => r.month <= key)
-      .slice(0, 6);
+    const byMonth = new Map(this.monthlyTotals().map((r) => [r.month, r]));
+    const rows = this.sixKeys().map(
+      (month) => byMonth.get(month) ?? { month, income: 0, expenses: 0, net: 0 },
+    );
     const max = Math.max(1, ...rows.flatMap((r) => [r.income, r.expenses]));
     return rows.map((r) => ({
       ...r,
       label: monthYearLabel(r.month),
       short: monthName(r.month, 'short'),
+      keptShare: keptShare(r.income, r.net),
       inPct: (r.income / max) * 100,
       outPct: (r.expenses / max) * 100,
     }));
+  });
+
+  /** The six months summed, and as an average month; null without months. */
+  sixSummary = computed(() => {
+    const rows = this.sixMonths();
+    if (rows.length === 0) return null;
+    const income = rows.reduce((s, r) => s + r.income, 0);
+    const expenses = rows.reduce((s, r) => s + r.expenses, 0);
+    const net = income - expenses;
+    const n = rows.length;
+    return {
+      income,
+      expenses,
+      net,
+      keptShare: keptShare(income, net),
+      average: { income: income / n, expenses: expenses / n, net: net / n },
+    };
+  });
+
+  /**
+   * "Top spending" and "Top income": the categories that cost and brought in the most over the
+   * six months, netted over all of them (ADR-037); the picked account's rows only, if any.
+   */
+  sixTops = computed(() => {
+    const bank = this.selectedBank();
+    const rows = this.finance.allTransactions().filter((tx) => !bank || tx.bank === bank);
+    return windowTops(rows, [...this.sixKeys()].reverse());
   });
 
   // Net worth = cash across banks + current investment portfolio value
@@ -264,20 +310,6 @@ export class DashboardComponent {
       .allTransactions()
       .filter((tx) => tx.month === key && tx.categoryId === null && tx.type !== 'unknown');
     return { count: rows.length, amount: rows.reduce((sum, tx) => sum + tx.amount, 0) };
-  });
-
-  /** The last five days with counted activity up to the end of the selected month. */
-  latestDays = computed(() => {
-    const end = lastDayOf(this.selectedMonth());
-    const days: { date: string; rows: ReturnType<FinanceService['allTransactions']> }[] = [];
-    for (const tx of this.finance.allTransactions()) {
-      if (tx.datePosting > end) continue;
-      const last = days[days.length - 1];
-      if (last?.date === tx.datePosting) last.rows.push(tx);
-      else if (days.length < 5) days.push({ date: tx.datePosting, rows: [tx] });
-      else break;
-    }
-    return days.map((d) => ({ ...d, shown: d.rows.slice(0, 3), more: d.rows.length - 3 }));
   });
 
   latestPriceDate = computed(() =>
