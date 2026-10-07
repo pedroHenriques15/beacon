@@ -176,8 +176,8 @@ Before a task's PR:
   and this file for workflow and conventions.
 - A change to anything a deploy relies on (README.md, "Deployment") says so in its PR.
 - A visible change is shown in the PR at 1440 px and 390 px wide, captured against the demo
-  database (`scripts/run-backend-demo.ps1`), never real data. Otherwise the description says
-  `No visual change.`
+  database (`scripts/run-backend-demo.ps1`), never real data, and kept on the task's
+  screenshot branch (see "Git workflow"). Otherwise the description says `No visual change.`
 
 ## Git workflow
 
@@ -188,7 +188,8 @@ Before a task's PR:
 - **`development` is integration.** Task branches are cut from it and come back through a PR,
   squash-merged.
 - **Branch names**: `prefix/NNN-work-name`, for example `fix/012-upload-timeout`.
-  Prefixes: `feature`, `fix`, `refactor`, `tests`, `chore`, `merge`.
+  Prefixes: `feature`, `fix`, `refactor`, `tests`, `chore`, `merge`. A PR's images go on a
+  `screenshots/NNN-work-name` branch (below), never merged.
 - **Commit subjects and PR titles**: `prefix(NNN): imperative summary`, at most 72
   characters, for example `fix(012): stop large uploads timing out`. The body says why,
   not what. A squash-merged PR's title becomes the commit subject.
@@ -207,6 +208,15 @@ Before a task's PR:
   branch with someone else's commit, and `@dependabot recreate` would drop the fix. An update
   that needs real code changes becomes a task instead, and so does a major that is needed
   (an unsupported version, a security fix only in a major).
+- **Screenshot branches** hold a PR's images (ADR-036): `screenshots/NNN-work-name`, the
+  task's number and work name, an orphan branch with image files only, at its root, named
+  `{page}-{state}-{width}.png` (`rules-add-rule-whole-390.png`). Create it in a worktree
+  outside the repository, `git worktree add --orphan -b screenshots/NNN-work-name <folder>`,
+  commit there with a subject that starts with `screenshots(NNN): `, remove the worktree, and
+  push from the main checkout, where `pre-push` checks it. The PR links each image as
+  `https://raw.githubusercontent.com/<owner>/<repo>/screenshots/NNN-work-name/<file>`, since
+  `gh` cannot upload images to a PR. The branch is never merged and never deleted, as merged
+  PRs keep linking to it; a retake is a new commit on it.
 - **Never push directly to `main` or `development`**, with one exception: a planning commit,
   which changes only `docs/ROADMAP.md`, may go straight to `development` (subject like
   `chore: update roadmap`), so updating the plan needs no PR.
@@ -214,9 +224,12 @@ Before a task's PR:
   `scripts/setup.ps1` or `scripts/setup.sh`. `commit-msg` rejects a subject over 72
   characters and, on a task branch, one that does not start with the branch's
   `prefix(NNN): `. `pre-push` refuses deleting `main` or `development`, any push to `main`,
-  a push to `development` with anything but planning commits, and a task branch whose task
-  file is missing or `dropped` (skipped in a clone without `docs/tasks/`). Never bypass them
-  with `--no-verify`.
+  a push to `development` with anything but planning commits, and a task or screenshot
+  branch whose task file is missing or `dropped` (skipped in a clone without `docs/tasks/`).
+  On a screenshot branch it also refuses deleting it, a commit that changes anything but
+  images, and a subject that does not start with `screenshots(NNN): ` or is over 72
+  characters; no commit hook runs there, since the orphan branch has no `.githooks/`. Never
+  bypass them with `--no-verify`.
 - **Pull requests** open with `.github/pull_request_template.md` (What, Why, How tested,
   screenshots or `No visual change.`). CI audits the dependencies (any vulnerable NuGet
   package, or an npm advisory rated high or critical, fails it), checks formatting, runs the

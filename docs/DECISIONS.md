@@ -417,3 +417,20 @@ an asset created from an XTB ticker is not found later by a Trade Republic ISIN,
 Republic's buys of the same ETF must come in first and its prices sync once (until then the
 asset has no prices symbol); the SDK adds a few megabytes to the deployment; and the holdings
 check is only as fresh as the latest download.
+
+## ADR-036 · A pull request's screenshots live on a screenshot branch
+
+Since 2026-10-07 the screenshots a PR shows (a visible change at 1440 px and 390 px, from the
+demo database) are committed to an orphan branch of their own, `screenshots/NNN-work-name`,
+holding image files only, and the PR description links them through
+`raw.githubusercontent.com`. GitHub takes images in a PR description only through its web
+editor, so a PR opened with `gh`, by hand or by Claude Code, had no way to show them. The
+branch is never merged, so the images stay out of the code's history and out of `development`
+and `main`, and never deleted, since merged PRs keep linking to it. `pre-push` guards it
+(deleting it, a non-image file, a subject without `screenshots(NNN): `), because an orphan
+branch has no `.githooks/` and so no commit hook runs on it. Alternatives: uploading through
+the web editor (manual, and impossible from the command line); committing the images to
+`docs/screenshots/` on the task branch (they would ship in every checkout and the deployment);
+one shared branch for every PR (a single history to keep tidy, and a retake for one PR touches
+the branch every PR links to). Costs accepted: one more branch per visible change, kept for
+good, and images that depend on the repository staying public for the links to render.
