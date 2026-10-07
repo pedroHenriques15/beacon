@@ -3,9 +3,10 @@ import {
   PortfolioPoint,
   earliestBuy,
   returnPct,
+  valueChange,
 } from '../../core/services/investments.service';
 import { InvestmentAsset, InvestmentLot } from '../../core/models/statement.model';
-import { eurWhole, signedEur } from '../../core/utils/money';
+import { eurWhole } from '../../core/utils/money';
 
 /** The figures at the top of the page, for the holdings of the active tab. */
 export interface PortfolioSummary {
@@ -176,29 +177,29 @@ export interface HistoryCaption {
 }
 
 /**
- * What the value chart shows, in words: how much the value moved over the shown points, and
- * how much of that was money put in (or taken out) and how much came from prices.
+ * What the value chart shows, in words: the title is what prices did over the shown points,
+ * leaving out the money put in or taken out; the detail gives the value's change and that money.
  */
 export function historyCaption(points: PortfolioPoint[]): HistoryCaption | null {
   if (points.length < 2) return null;
   const first = points[0];
-  const last = points[points.length - 1];
-  const change = last.totalValue - first.totalValue;
-  const putIn = last.invested - first.invested;
-  const growth = change - putIn;
+  const { change, putIn, growth } = valueChange(first, points[points.length - 1]);
   const since = `since ${shortDate(first.date)}`;
   const title =
+    Math.abs(growth) < 0.5
+      ? `No change from prices ${since}`
+      : `${growth > 0 ? 'Up' : 'Down'} ${eurWhole(growth)} from prices ${since}`;
+  const value =
     Math.abs(change) < 0.5
-      ? `No change ${since}`
-      : `${change > 0 ? 'Up' : 'Down'} ${eurWhole(change)} ${since}`;
-  const prices = `${signedEur(growth, true)} from price moves`;
-  const detail =
+      ? 'Value unchanged'
+      : `Value ${change > 0 ? 'up' : 'down'} ${eurWhole(change)}`;
+  const money =
     putIn >= 0.5
-      ? `${eurWhole(putIn)} put in, ${prices}`
+      ? `with ${eurWhole(putIn)} put in`
       : putIn <= -0.5
-        ? `${eurWhole(putIn)} taken out, ${prices}`
-        : prices;
-  return { title, detail };
+        ? `with ${eurWhole(putIn)} taken out`
+        : 'nothing put in or taken out';
+  return { title, detail: `${value}, ${money}` };
 }
 
 export interface AllocationSlice {

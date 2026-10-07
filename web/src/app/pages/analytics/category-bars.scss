@@ -21,45 +21,12 @@
   }
 }
 
-.key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  font-size: 13px;
-  color: var(--text-secondary);
-
-  &__item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  &__tick {
-    width: 3px;
-    height: 14px;
-    border-radius: 2px;
-    background: var(--text-secondary);
-  }
-
-  &__bar {
-    width: 18px;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--text-primary);
-  }
-}
-
 .bars__head,
 .bar-row {
   display: grid;
   grid-template-columns: minmax(110px, 170px) 56px minmax(0, 1fr) 104px;
   align-items: center;
   gap: 16px;
-}
-
-.bars--compare .bars__head,
-.bars--compare .bar-row {
-  grid-template-columns: minmax(110px, 170px) 56px minmax(0, 1fr) 104px 84px;
 }
 
 .bars__head {
@@ -96,20 +63,13 @@
     display: none;
   }
 
-  .bar-row,
-  .bars--compare .bar-row {
+  .bar-row {
     grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
       'name share amount'
       'track track track';
     gap: 8px 12px;
     padding: 10px 6px 12px;
-  }
-
-  .bars--compare .bar-row {
-    grid-template-areas:
-      'name share amount'
-      'track track change';
   }
 
   .bar-row__name {
@@ -124,8 +84,5 @@
   }
   .bar-row__track {
     grid-area: track;
-  }
-  .bar-row__change {
-    grid-area: change;
   }
 }

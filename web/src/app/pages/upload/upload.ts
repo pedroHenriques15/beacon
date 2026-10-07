@@ -83,11 +83,12 @@ const ITEM_TYPE_COLORS: Record<'income' | 'deduction' | 'tax', string> = {
 
 /** The hourly-rate formula a profile created from a slip starts with, by the slip's parser. */
 const NEW_PROFILE_FORMULA: Partial<Record<string, HourlyRateFormula>> = { Mercor: 'hours' };
+import { StatementListComponent } from './statement-list';
 
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, StatementListComponent],
   templateUrl: './upload.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './upload.scss',

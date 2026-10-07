@@ -21,7 +21,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { InvestmentsService } from '../../core/services/investments.service';
+import { InvestmentsService, valueChange } from '../../core/services/investments.service';
 import {
   InvestmentAsset,
   InvestmentLot,
@@ -234,9 +234,10 @@ export class InvestmentsComponent implements OnDestroy {
     const points = this.filteredHistory();
     if (points.length < 2) return '';
     const last = points[points.length - 1];
+    const { growth } = valueChange(points[0], last);
     return (
       `Value against money put in, ${shortDate(points[0].date)} to ${shortDate(last.date)}, ` +
-      `ending at ${eur(last.totalValue)}`
+      `ending at ${eur(last.totalValue)}, ${signedEur(growth)} from prices`
     );
   });
 

@@ -46,6 +46,22 @@ export interface PortfolioPoint {
   invested: number;
 }
 
+/** How the value moved between two points, split into the money moved and the price moves. */
+export interface ValueChange {
+  /** The value's change. */
+  change: number;
+  /** Money put in less money taken out. */
+  putIn: number;
+  /** The change less the money: what prices did. */
+  growth: number;
+}
+
+export function valueChange(first: PortfolioPoint, last: PortfolioPoint): ValueChange {
+  const change = last.totalValue - first.totalValue;
+  const putIn = last.invested - first.invested;
+  return { change, putIn, growth: change - putIn };
+}
+
 function addDays(isoDate: string, days: number): string {
   const d = new Date(isoDate + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);

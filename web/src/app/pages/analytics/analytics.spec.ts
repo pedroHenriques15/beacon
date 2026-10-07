@@ -339,52 +339,246 @@ describe('AnalyticsComponent', () => {
     expect(component.months().map((m) => m.key)).toEqual(['2024-03']);
   });
 
-  it('spendingBars compares each category with the previous month', () => {
+  describe('By category', () => {
+    beforeEach(() => {
+      transactionsSignal.set([
+        makeTx('2026-09', 'Rent', 700),
+        makeTx('2026-09', 'Food', 50),
+        makeTx('2026-08', 'Food', 40),
+        makeTx('2026-09', 'Salary', 2000, 'credit'),
+        makeTx('2026-09', null, 30),
+        makeTx('2026-09', null, 10, 'credit'),
+      ]);
+      component.selectMonth('2026-09');
+    });
+
+    it('lists money in and out together by amount, with no previous month', () => {
+      expect(component.categoryBars().rows.map((r) => [r.label, r.side, r.total])).toEqual([
+        ['Salary', 'in', 2000],
+        ['Rent', 'out', 700],
+        ['Food', 'out', 50],
+        [CATEGORY_UNKNOWN, 'out', 30],
+        [CATEGORY_UNKNOWN, 'in', 10],
+      ]);
+      expect(component.categoryTitle()).toBe('By category');
+      expect(component.categoryBars().rows[0]).not.toHaveProperty('previous');
+    });
+
+    it('filters to one side, and the select lists only its categories', () => {
+      component.setSide('in');
+      expect(component.categoryBars().rows.map((r) => r.label)).toEqual([
+        'Salary',
+        CATEGORY_UNKNOWN,
+      ]);
+      expect(component.sideCategories().map((c) => c.label)).toEqual(['Salary', CATEGORY_UNKNOWN]);
+      expect(component.categoryTitle()).toBe('Where it came from');
+
+      component.setSide('out');
+      expect(component.categoryBars().rows.map((r) => r.label)).toEqual([
+        'Rent',
+        'Food',
+        CATEGORY_UNKNOWN,
+      ]);
+      expect(component.categoryTitle()).toBe('Where it went');
+    });
+
+    it('lets go of a picked category that is not on the chosen side', () => {
+      component.selectCategory('Rent', '#fff', 'debit');
+      component.setSide('out');
+      expect(component.selectedCategory()?.label).toBe('Rent');
+      component.setSide('in');
+      expect(component.selectedCategory()).toBeNull();
+    });
+
+    it('keeps Unknown only on the side it was picked from', () => {
+      component.selectCategory(CATEGORY_UNKNOWN, '#000', 'credit');
+      expect(component.selectedSide()).toBe('in');
+      component.setSide('in');
+      expect(component.selectedCategory()?.label).toBe(CATEGORY_UNKNOWN);
+      component.setSide('out');
+      expect(component.selectedCategory()).toBeNull();
+    });
+
+    it('picks a category from the select on the chosen side', () => {
+      component.setSide('in');
+      component.onCategoryDropdownChange(CATEGORY_UNKNOWN);
+      expect(component.selectedCategory()).toMatchObject({
+        label: CATEGORY_UNKNOWN,
+        dominantType: 'credit',
+      });
+    });
+
+    it('leads the hero with money in on the In side', () => {
+      expect(component.heroLabel()).toBe('Out in September');
+      expect(component.heroTotal()).toBe(780);
+      component.setSide('in');
+      expect(component.heroLabel()).toBe('In in September');
+      expect(component.heroTotal()).toBe(2010);
+    });
+  });
+
+  it('gives the savings rate of the month and of all months', () => {
     transactionsSignal.set([
-      makeTx('2026-09', 'Rent', 700),
-      makeTx('2026-09', 'Food', 50),
-      makeTx('2026-08', 'Food', 40),
       makeTx('2026-09', 'Salary', 2000, 'credit'),
+      makeTx('2026-09', 'Rent', 1500),
+      makeTx('2026-08', 'Salary', 2000, 'credit'),
+      makeTx('2026-08', 'Rent', 2100),
     ]);
     component.selectMonth('2026-09');
-    const rows = component.spendingBars().rows;
-    expect(rows.map((r) => r.label)).toEqual(['Rent', 'Food']);
-    expect(rows[1].previous).toBe(40);
-    expect(rows[1].change).toBeCloseTo(10);
-    expect(rows[0].previous).toBe(0);
-    expect(component.spendingCompared()).toBe(true);
-    expect(component.compareName()).toBe('August');
-  });
-
-  it('spendingBars compares nothing with all months selected', () => {
-    transactionsSignal.set([makeTx('2026-09', 'Food', 50), makeTx('2026-08', 'Food', 40)]);
+    expect(component.keptShare()).toBe(25);
+    component.selectMonth('2026-08');
+    expect(component.keptShare()).toBe(-5);
     component.selectMonth('');
-    expect(component.spendingBars().rows[0].total).toBeCloseTo(90);
-    expect(component.spendingBars().rows[0].previous).toBeNull();
-    expect(component.spendingCompared()).toBe(false);
-    expect(component.moves()).toEqual([]);
+    expect(component.keptShare()).toBe(10);
   });
 
-  it('moves lists the categories that changed most since the previous month', () => {
-    transactionsSignal.set([
-      makeTx('2026-09', 'Rent', 700),
-      makeTx('2026-08', 'Rent', 700),
-      makeTx('2026-09', 'Food', 50),
-      makeTx('2026-08', 'Food', 140),
-      makeTx('2026-09', 'Health', 30),
-    ]);
-    component.selectMonth('2026-09');
-    expect(component.moves().map((m) => [m.label, m.change])).toEqual([
-      ['Food', -90],
-      ['Health', 30],
-    ]);
+  describe('ranges', () => {
+    beforeEach(() => {
+      transactionsSignal.set([
+        makeTx('2026-07', 'Rent', 700),
+        makeTx('2026-08', 'Eating out', 100),
+        makeTx('2026-09', 'Eating out', 60, 'credit'),
+        makeTx('2026-09', 'Rent', 700),
+        makeTx('2026-09', 'Salary', 2000, 'credit'),
+      ]);
+      component.selectMonth('2026-09');
+    });
+
+    it('shows the months up to the selected one, netted over all of them', () => {
+      component.rangeMonths.set(3);
+      expect(component.periodMonths()).toEqual(['2026-07', '2026-08', '2026-09']);
+      expect(component.isRange()).toBe(true);
+      expect(component.spendingData().map((d) => [d.label, d.total])).toEqual([
+        ['Rent', 1400],
+        ['Eating out', 40],
+      ]);
+      expect(component.heroLabel()).toBe('Out over Jul – Sep 2026');
+      expect(component.pageTitle()).toBe('Jul – Sep 2026 insights');
+      expect(component.compareMonth()).toBeNull();
+    });
+
+    it('starts no earlier than the first month with money', () => {
+      component.rangeMonths.set(12);
+      expect(component.periodMonths()).toEqual(['2026-07', '2026-08', '2026-09']);
+      component.rangeMonths.set('ytd');
+      expect(component.periodMonths()?.[0]).toBe('2026-07');
+    });
+
+    it('averages over the range’s months', () => {
+      component.rangeMonths.set(3);
+      component.showAverages.set(true);
+      expect(component.isAverages()).toBe(true);
+      expect(component.totalSpending()).toBeCloseTo(480);
+      expect(component.periodLabel()).toBe('Average month');
+      expect(component.spendingNote()).toBe('Averaged over 3 months.');
+    });
+
+    it('sums a picked category over the range, with no previous month', () => {
+      component.rangeMonths.set(3);
+      component.selectCategory('Rent', '#fff', 'debit');
+      expect(component.categoryStats()).toMatchObject({ currentTotal: -1400, delta: null });
+    });
+
+    it('shows at least six months of flow, and every month of a longer range', () => {
+      const months = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(Date.UTC(2025, 7 + i, 1));
+        return d.toISOString().slice(0, 7);
+      });
+      monthTotalsSignal.set(
+        [...months].reverse().map((month) => ({ month, income: 1, expenses: 1, net: 0 })),
+      );
+      component.rangeMonths.set(3);
+      expect(component.flowMonths().length).toBe(6);
+      // A range starts at the first month with transactions.
+      transactionsSignal.update((rows) => [...rows, makeTx('2025-08', 'Rent', 700)]);
+      component.rangeMonths.set(12);
+      expect(component.flowMonths().length).toBe(12);
+    });
+
+    it('links a category to every month of Activity, which shows one month', () => {
+      const spy = vi.spyOn(router, 'navigate');
+      component.rangeMonths.set(3);
+      component.navigateToCategory(CATEGORY_UNKNOWN, 'debit');
+      expect(spy).toHaveBeenLastCalledWith(['/transactions'], {
+        queryParams: { category: 'unknown', type: 'debit' },
+      });
+    });
+
+    it('takes the range on the Groceries tab too', () => {
+      allItemsSignal.set([
+        makeItem({ receiptId: 1, receiptDate: '2026-08-10', categoryName: 'Food', amount: 20 }),
+        makeItem({ receiptId: 2, receiptDate: '2026-09-10', categoryName: 'Food', amount: 30 }),
+      ]);
+      component.selectMonth('2026-09');
+      component.rangeMonths.set(3);
+      expect(component.gTotalSpending()).toBeCloseTo(50);
+      expect(component.gNote()).toBe('Over Aug – Sep 2026, read from 2 receipts.');
+    });
   });
 
-  it('moves is empty when the previous month had no spending', () => {
-    transactionsSignal.set([makeTx('2026-09', 'Food', 50)]);
-    component.selectMonth('2026-09');
-    expect(component.moves()).toEqual([]);
-    expect(component.spendingCompared()).toBe(false);
+  describe('URL', () => {
+    async function openAt(url: string) {
+      await router.navigateByUrl(url);
+      const fx = TestBed.createComponent(AnalyticsComponent);
+      const page = fx.componentInstance;
+      vi.spyOn(page as any, 'renderTrendChart').mockImplementation(() => {});
+      vi.spyOn(page as any, 'renderCategoryTrendChart').mockImplementation(() => {});
+      vi.spyOn(page as any, 'renderGroceryCategoryTrendChart').mockImplementation(() => {});
+      fx.detectChanges();
+      await fx.whenStable();
+      return { fx, page };
+    }
+
+    beforeEach(() => {
+      (TestBed.inject(CategoriesService).categories as any).set([
+        { id: 5, name: 'Rent', color: '#fff', isProtected: false },
+      ]);
+      transactionsSignal.set([
+        makeTx('2026-08', 'Rent', 700),
+        makeTx('2026-09', 'Rent', 700),
+        makeTx('2026-09', null, 10, 'credit'),
+      ]);
+    });
+
+    it('opens on the month, side and category it names', async () => {
+      const { page } = await openAt('/?month=2026-08&side=out&category=5');
+      expect(page.filterMonth()).toBe('2026-08');
+      expect(page.side()).toBe('out');
+      expect(page.selectedCategory()).toMatchObject({ label: 'Rent', dominantType: 'debit' });
+    });
+
+    it('picks Unknown on the side it names', async () => {
+      const { page } = await openAt('/?month=2026-09&side=in&category=unknown');
+      expect(page.selectedCategory()).toMatchObject({
+        label: CATEGORY_UNKNOWN,
+        dominantType: 'credit',
+      });
+    });
+
+    it('opens all months, and ignores a category it does not know', async () => {
+      const { page } = await openAt('/?month=all&category=99');
+      expect(page.filterMonth()).toBe('');
+      expect(page.selectedCategory()).toBeNull();
+    });
+
+    it('opens on the range it names', async () => {
+      const { fx, page } = await openAt('/?month=2026-09&months=6');
+      expect(page.rangeMonths()).toBe(6);
+      expect(page.periodMonths()).toEqual(['2026-08', '2026-09']);
+      page.rangeMonths.set('ytd');
+      fx.detectChanges();
+      await fx.whenStable();
+      expect(router.url).toBe('/?month=2026-09&months=ytd');
+    });
+
+    it('puts a change on the page in the URL', async () => {
+      const { fx, page } = await openAt('/?month=2026-09');
+      page.setSide('in');
+      page.selectCategory(CATEGORY_UNKNOWN, '#000', 'credit');
+      fx.detectChanges();
+      await fx.whenStable();
+      expect(router.url).toBe('/?month=2026-09&side=in&category=unknown');
+    });
   });
 
   describe('category netting (ADR-037)', () => {
@@ -415,9 +609,11 @@ describe('AnalyticsComponent', () => {
       ]);
       component.selectMonth('2026-09');
 
-      expect(component.spendingBars().rows.map((r) => r.label)).toEqual(['Rent']);
-      expect(component.incomeSplit()).toEqual([
-        expect.objectContaining({ label: 'Gifts', total: 60, share: 100 }),
+      component.setSide('out');
+      expect(component.categoryBars().rows.map((r) => r.label)).toEqual(['Rent']);
+      component.setSide('in');
+      expect(component.categoryBars().rows).toEqual([
+        expect.objectContaining({ label: 'Gifts', total: 60, share: 100, side: 'in' }),
       ]);
     });
 
@@ -429,7 +625,7 @@ describe('AnalyticsComponent', () => {
       ]);
       component.selectMonth('2026-09');
 
-      const rows = component.spendingBars().rows;
+      const rows = component.categoryBars().rows;
       expect(rows.map((r) => [r.label, r.total])).toEqual([
         ['Rent', 700],
         ['Gifts', 0],
@@ -538,15 +734,16 @@ describe('AnalyticsComponent', () => {
     expect(component.flowTitle()).toBe('Six months of flow');
   });
 
-  it('gSpendingBars compares grocery categories with the previous month', () => {
+  it('gSpendingBars lists grocery categories without comparing months', () => {
     allItemsSignal.set([
       makeItem({ receiptDate: '2024-02-10', categoryName: 'Food', amount: 30, quantity: 1 }),
       makeItem({ receiptDate: '2024-01-10', categoryName: 'Food', amount: 10, quantity: 2 }),
     ]);
     component.gFilterMonth.set('2024-02');
-    const food = component.gSpendingBars().rows[0];
+    const [food] = component.gSpendingBars().rows;
     expect(food.total).toBeCloseTo(30);
-    expect(food.previous).toBeCloseTo(20);
-    expect(component.gCompared()).toBe(true);
+    expect(food.share).toBe(100);
+    expect(food.side).toBeUndefined();
+    expect(food).not.toHaveProperty('previous');
   });
 });

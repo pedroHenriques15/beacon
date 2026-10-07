@@ -1,8 +1,9 @@
 @use '../../../styles/mixins' as *;
 @use 'dashboard-river' as *;
-@use 'dashboard-timeline' as *;
 @use 'dashboard-months' as *;
+@use 'dashboard-tops' as *;
 @use 'dashboard-worth' as *;
+@use 'dashboard-invest' as *;
 @use 'dashboard-accounts' as *;
 
 .home-scrubber {
@@ -116,12 +117,6 @@ h2 {
   }
   .six {
     order: 8;
-  }
-  .latest {
-    order: 9;
-  }
-  .statements {
-    order: 10;
   }
 
   h2 {

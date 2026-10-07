@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { InvestmentsService, isPriceStale } from './investments.service';
+import { InvestmentsService, isPriceStale, valueChange } from './investments.service';
 import { InvestmentAsset, InvestmentLot, InvestmentPriceSnapshot } from '../models/statement.model';
 
 let nextId = 1;
@@ -557,5 +557,25 @@ describe('InvestmentsService metrics', () => {
     latest.flush([{ assetId: 1, dates: ['2011-10-04'], prices: [30] }]);
     older.flush([{ assetId: 1, dates: ['2025-10-01'], prices: [100] }]);
     expect(service.priceHistory()![0].dates).toEqual(['2011-10-04']);
+  });
+});
+
+describe('valueChange', () => {
+  it('splits a change in value into the money moved and what prices did', () => {
+    expect(
+      valueChange(
+        { date: '2026-01-05', totalValue: 1000, invested: 900 },
+        { date: '2026-03-10', totalValue: 1500, invested: 1300 },
+      ),
+    ).toEqual({ change: 500, putIn: 400, growth: 100 });
+  });
+
+  it('counts money taken out as negative money put in', () => {
+    expect(
+      valueChange(
+        { date: '2026-01-05', totalValue: 1000, invested: 1000 },
+        { date: '2026-03-10', totalValue: 650, invested: 700 },
+      ),
+    ).toEqual({ change: -350, putIn: -300, growth: -50 });
   });
 });
