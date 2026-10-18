@@ -258,6 +258,12 @@ public class UnifiedUploadBatchTests : IDisposable
         var pdfPath = item.SalaryResult.PdfPath;
         Assert.Equal(Path.GetFileName(pdfPath), pdfPath);
         Assert.True(File.Exists(_fileStorage.GetFullPath(pdfPath)));
+
+        // The Deel withdrawal is stored too, and comes back as the slip's further file (ADR-039).
+        var withdrawal = Assert.Single(item.SalaryResult.Files);
+        Assert.Equal("withdrawal.pdf", withdrawal.SourceFile);
+        Assert.Equal(Path.GetFileName(withdrawal.PdfPath), withdrawal.PdfPath);
+        Assert.Equal(WithdrawalText(), File.ReadAllText(_fileStorage.GetFullPath(withdrawal.PdfPath)));
     }
 
     [Fact]

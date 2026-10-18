@@ -119,7 +119,7 @@ public class SalaryController(
                 body.LineItems.Select(li => new CreateLineItemRequest(
                     li.SalaryItemCategoryId, li.Amount, li.SortOrder,
                     li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase)).ToList(),
-                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie), ct);
+                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie, body.Files), ct);
 
         if (error is not null) return BadRequest(error);
         return Created($"/api/salary/slips/{result!.Id}", result);
@@ -153,7 +153,7 @@ public class SalaryController(
                 body.LineItems.Select(li => new CreateLineItemRequest(
                     li.SalaryItemCategoryId, li.Amount, li.SortOrder,
                     li.Quantity, li.UnitValue, li.Percentage, li.IncidenciaBase)).ToList(),
-                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie), ct);
+                body.BaseAmount, body.HoursWorked, body.HourlyRate, body.TotalEspecie, body.Files), ct);
 
         if (result is null && error is null) return NotFound();
         if (error is not null) return BadRequest(error);
@@ -225,7 +225,8 @@ public record CreateSalarySlipRequest(
     decimal? BaseAmount = null,
     decimal? HoursWorked = null,
     decimal? HourlyRate = null,
-    decimal? TotalEspecie = null);
+    decimal? TotalEspecie = null,
+    List<SlipFile>? Files = null);
 
 public record UpdateSalarySlipRequest(
     DateOnly Period,
@@ -250,7 +251,8 @@ public record MergeSalarySlipRequest(
     decimal? BaseAmount = null,
     decimal? HoursWorked = null,
     decimal? HourlyRate = null,
-    decimal? TotalEspecie = null);
+    decimal? TotalEspecie = null,
+    List<SlipFile>? Files = null);
 
 public record CreateSalaryItemCategoryRequest(int SalaryProfileId, string Name, string Color, string ItemType);
 public record UpdateSalaryItemCategoryRequest(string Name, string Color, string ItemType);

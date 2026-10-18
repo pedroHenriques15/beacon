@@ -33,6 +33,7 @@ public class CreateBackupCommandHandler(AppDbContext db, IConfiguration config, 
             SalaryItemCategories = await db.SalaryItemCategories.AsNoTracking().ToListAsync(ct),
             SalarySlips = await db.SalarySlips.AsNoTracking().ToListAsync(ct),
             SalaryLineItems = await db.SalaryLineItems.AsNoTracking().ToListAsync(ct),
+            SalarySlipFiles = await db.SalarySlipFiles.AsNoTracking().ToListAsync(ct),
             GroceryCategories = await db.GroceryCategories.AsNoTracking().ToListAsync(ct),
             GroceryReceiptCategoryMappings = await db.GroceryReceiptCategoryMappings.AsNoTracking().ToListAsync(ct),
             GroceryReceipts = await db.GroceryReceipts.AsNoTracking().ToListAsync(ct),
@@ -60,6 +61,7 @@ internal sealed class BackupPayload
     public List<SalaryItemCategory> SalaryItemCategories { get; set; } = [];
     public List<SalarySlip> SalarySlips { get; set; } = [];
     public List<SalaryLineItem> SalaryLineItems { get; set; } = [];
+    public List<SalarySlipFile> SalarySlipFiles { get; set; } = [];
     public List<GroceryCategory> GroceryCategories { get; set; } = [];
     public List<GroceryReceiptCategoryMapping> GroceryReceiptCategoryMappings { get; set; } = [];
     public List<GroceryReceipt> GroceryReceipts { get; set; } = [];

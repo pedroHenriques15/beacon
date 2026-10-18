@@ -87,6 +87,22 @@ public class OrphanedPdfCleanupTests : IDisposable
     }
 
     [Fact]
+    public async Task FileReferencedOnlyAsASlipsFurtherFile_Survives()
+    {
+        await using var db = CreateDb();
+        var slipPdf = StoredPdf(Old);
+        var withdrawal = StoredPdf(Old);
+        AddSalarySlip(db, Path.GetFileName(slipPdf));
+        db.SalarySlips.Local.Single().Files.Add(new SalarySlipFile { PdfPath = Path.GetFileName(withdrawal) });
+        await db.SaveChangesAsync();
+
+        await CreateCleanup(db).RunAsync();
+
+        Assert.True(File.Exists(slipPdf));
+        Assert.True(File.Exists(withdrawal));
+    }
+
+    [Fact]
     public async Task FileReferencedByAnotherMachinesLinuxPath_Survives()
     {
         await using var db = CreateDb();

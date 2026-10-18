@@ -15,6 +15,34 @@ public record CreateLineItemRequest(
     decimal? Percentage = null,
     decimal? IncidenciaBase = null);
 
+/// <summary>A stored PDF (its file name) and the name it was uploaded under.</summary>
+public record SlipFile(string PdfPath, string? SourceFile);
+
+/// <summary>
+/// The further PDFs a slip is built from, beside its own <c>PdfPath</c> (ADR-039): a Deel withdrawal
+/// confirmation, a second pay run's PDF. Create and merge keep every one of them.
+/// </summary>
+public static class SlipFiles
+{
+    private const int SourceFileMaxLength = 500;
+
+    /// <summary>Records a stored file by its name; one the slip already holds is not added twice.</summary>
+    public static void Attach(SalarySlip slip, string? pdfPath, string? sourceFile)
+    {
+        var fileName = FileStorageService.FileNameOf(pdfPath);
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+        if (string.Equals(FileStorageService.FileNameOf(slip.PdfPath), fileName, StringComparison.OrdinalIgnoreCase)) return;
+        if (slip.Files.Any(f => string.Equals(f.PdfPath, fileName, StringComparison.OrdinalIgnoreCase))) return;
+
+        var name = sourceFile?.Trim();
+        slip.Files.Add(new SalarySlipFile
+        {
+            PdfPath = fileName,
+            SourceFile = name is { Length: > SourceFileMaxLength } ? name[..SourceFileMaxLength] : name,
+        });
+    }
+}
+
 public record CreateSalarySlipCommand(
     int SalaryProfileId,
     DateOnly Period,
@@ -27,7 +55,8 @@ public record CreateSalarySlipCommand(
     decimal? BaseAmount = null,
     decimal? HoursWorked = null,
     decimal? HourlyRate = null,
-    decimal? TotalEspecie = null);
+    decimal? TotalEspecie = null,
+    List<SlipFile>? Files = null);
 
 public class CreateSalarySlipCommandHandler(AppDbContext db)
 {
@@ -76,6 +105,8 @@ public class CreateSalarySlipCommandHandler(AppDbContext db)
                 IncidenciaBase = li.IncidenciaBase,
             }).ToList()
         };
+        foreach (var file in command.Files ?? [])
+            SlipFiles.Attach(slip, file.PdfPath, file.SourceFile);
 
         db.SalarySlips.Add(slip);
         await db.SaveChangesAsync(ct);

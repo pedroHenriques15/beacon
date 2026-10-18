@@ -42,6 +42,7 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
         await db.GroceryReceipts.ExecuteDeleteAsync(ct);
         await db.GroceryCategories.ExecuteDeleteAsync(ct);
         await db.SalaryLineItems.ExecuteDeleteAsync(ct);
+        await db.SalarySlipFiles.ExecuteDeleteAsync(ct);
         await db.SalarySlips.ExecuteDeleteAsync(ct);
         await db.SalaryItemCategories.ExecuteDeleteAsync(ct);
         await db.Transactions.ExecuteDeleteAsync(ct);
@@ -58,6 +59,7 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
         await InsertKeepingIds(db, payload.SalaryItemCategories, ct);
         await InsertKeepingIds(db, payload.SalarySlips, ct);
         await InsertKeepingIds(db, payload.SalaryLineItems, ct);
+        await InsertKeepingIds(db, payload.SalarySlipFiles, ct);
         await InsertKeepingIds(db, payload.GroceryCategories, ct);
         await InsertKeepingIds(db, payload.GroceryReceiptCategoryMappings, ct);
         await InsertKeepingIds(db, payload.GroceryReceipts, ct);
@@ -84,6 +86,8 @@ public class RestoreBackupCommandHandler(AppDbContext db, IConfiguration config,
             statement.PdfPath = FileStorageService.FileNameOf(statement.PdfPath);
         foreach (var slip in payload.SalarySlips)
             slip.PdfPath = FileStorageService.FileNameOf(slip.PdfPath);
+        foreach (var file in payload.SalarySlipFiles)
+            file.PdfPath = FileStorageService.FileNameOf(file.PdfPath);
         foreach (var receipt in payload.GroceryReceipts)
             receipt.PdfPath = FileStorageService.FileNameOf(receipt.PdfPath);
     }

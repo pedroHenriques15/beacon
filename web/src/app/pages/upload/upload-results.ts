@@ -1,6 +1,7 @@
 import {
   BatchUploadItemResult,
   ParsedSlipResponse,
+  SlipFile,
   UnifiedMercorResult,
   UnifiedUploadItemResult,
 } from '../../core/models/statement.model';
@@ -17,6 +18,8 @@ export interface SalaryQueueItem {
   status: 'pending' | 'uploading' | 'parsing' | 'needs-eur' | 'ready' | 'saved' | 'error';
   pdfPath?: string;
   fileName?: string;
+  /** Further stored PDFs saved with the slip (a micro1 invoice's Deel withdrawal). */
+  files?: SlipFile[];
   parsed?: ParsedSlipResponse;
   mercor?: UnifiedMercorResult;
   error?: string;
