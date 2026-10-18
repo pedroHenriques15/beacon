@@ -26,6 +26,7 @@ import {
   SalaryItemCategory,
   SalaryProfile,
   SalarySlip,
+  SlipFile,
   TransferCandidate,
   UnifiedUploadItemResult,
   UploadResult,
@@ -190,6 +191,8 @@ export class UploadComponent implements OnInit {
   slipError = signal('');
   slipPdfPath = signal<string | null>(null);
   slipSourceFile = signal<string | null>(null);
+  /** Further stored PDFs the slip under review is built from; saved with it. */
+  private slipFiles = signal<SlipFile[]>([]);
   slipBaseAmount = signal<number | null>(null);
   slipHoursWorked = signal<number | null>(null);
   slipHourlyRate = signal<number | null>(null);
@@ -496,6 +499,7 @@ export class UploadComponent implements OnInit {
                   status: r.salaryResult ? ('ready' as const) : ('error' as const),
                   pdfPath: r.salaryResult?.pdfPath,
                   fileName: r.salaryResult?.fileName ?? r.fileName,
+                  files: r.salaryResult?.files,
                   parsed: r.salaryResult?.parsed,
                   error: r.error ?? undefined,
                 },
@@ -640,6 +644,7 @@ export class UploadComponent implements OnInit {
     this.slipError.set('');
     this.slipPdfPath.set(pdfPath);
     this.slipSourceFile.set(fileName);
+    this.slipFiles.set(this.salaryQueue()[queueIdx]?.files ?? []);
     this.slipBaseAmount.set(parsed.baseAmount ?? null);
     this.slipHoursWorked.set(parsed.hoursWorked ?? null);
     this.slipHourlyRate.set(parsed.hourlyRate ?? null);
@@ -885,6 +890,7 @@ export class UploadComponent implements OnInit {
             hourlyRate: this.slipHourlyRate() ?? undefined,
             totalEspecie: this.slipTotalEspecie() ?? undefined,
             lineItems,
+            files: this.slipFiles(),
           };
 
           return mergeTarget

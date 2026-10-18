@@ -164,10 +164,18 @@ export interface ParsedLineItemResponse {
   incidenciaBase: number | null;
 }
 
+/** A stored PDF (its file name) and the name it was uploaded under. */
+export interface SlipFile {
+  pdfPath: string;
+  sourceFile: string | null;
+}
+
 export interface UnifiedSalaryResult {
   pdfPath: string;
   fileName: string;
   parsed: ParsedSlipResponse;
+  /** Further PDFs the slip is built from (a micro1 invoice's Deel withdrawal), already stored. */
+  files: SlipFile[];
 }
 
 /** A Mercor credit imported from a bank, counted in the EUR a Mercor statement suggests. */

@@ -670,6 +670,32 @@ namespace Beacon.Api.Migrations
                     b.ToTable("SalarySlips");
                 });
 
+            modelBuilder.Entity("Beacon.Api.Models.SalarySlipFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PdfPath")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("SalarySlipId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceFile")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SalarySlipId");
+
+                    b.ToTable("SalarySlipFiles");
+                });
+
             modelBuilder.Entity("Beacon.Api.Models.Transaction", b =>
                 {
                     b.Property<int>("Id")
@@ -840,6 +866,17 @@ namespace Beacon.Api.Migrations
                     b.Navigation("SalaryProfile");
                 });
 
+            modelBuilder.Entity("Beacon.Api.Models.SalarySlipFile", b =>
+                {
+                    b.HasOne("Beacon.Api.Models.SalarySlip", "SalarySlip")
+                        .WithMany("Files")
+                        .HasForeignKey("SalarySlipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SalarySlip");
+                });
+
             modelBuilder.Entity("Beacon.Api.Models.Transaction", b =>
                 {
                     b.HasOne("Beacon.Api.Models.Category", "Category")
@@ -899,6 +936,8 @@ namespace Beacon.Api.Migrations
 
             modelBuilder.Entity("Beacon.Api.Models.SalarySlip", b =>
                 {
+                    b.Navigation("Files");
+
                     b.Navigation("LineItems");
                 });
 #pragma warning restore 612, 618

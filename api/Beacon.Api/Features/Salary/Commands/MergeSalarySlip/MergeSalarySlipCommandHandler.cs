@@ -7,10 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Beacon.Api.Features.Salary.Commands.MergeSalarySlip;
 
-public class MergeSalarySlipCommandHandler(
-    AppDbContext db,
-    FileStorageService fileStorage,
-    ILogger<MergeSalarySlipCommandHandler> logger)
+public class MergeSalarySlipCommandHandler(AppDbContext db)
 {
     private const int SourceFileMaxLength = 500;
 
@@ -19,6 +16,7 @@ public class MergeSalarySlipCommandHandler(
     {
         var slip = await db.SalarySlips
             .Include(s => s.LineItems)
+            .Include(s => s.Files)
             .FirstOrDefaultAsync(s => s.Id == command.Id, ct);
         if (slip is null) return (null, null);
 
@@ -47,7 +45,9 @@ public class MergeSalarySlipCommandHandler(
         slip.SourceFile = MergeSourceFile(slip.SourceFile, command.SourceFile);
 
         MergeLineItems(slip, command.LineItems);
-        MergePdf(slip, command.PdfPath);
+        MergePdf(slip, command.PdfPath, command.SourceFile);
+        foreach (var file in command.Files ?? [])
+            SlipFiles.Attach(slip, file.PdfPath, file.SourceFile);
 
         await db.SaveChangesAsync(ct);
 
@@ -105,10 +105,11 @@ public class MergeSalarySlipCommandHandler(
     }
 
     /// <summary>
-    /// A slip holds a single PDF. The first one imported stays authoritative; a second PDF is dropped
-    /// from storage rather than left behind unreferenced (its name is kept in <c>SourceFile</c>).
+    /// The first PDF imported stays the slip's own; a second pay run's PDF is kept beside it as a
+    /// further file (ADR-039), so no PDF the month was built from is lost. The same file under an
+    /// older full path is recognised by its name and not added again.
     /// </summary>
-    private void MergePdf(SalarySlip slip, string? incomingPdfPath)
+    private static void MergePdf(SalarySlip slip, string? incomingPdfPath, string? incomingSourceFile)
     {
         if (incomingPdfPath is null) return;
 
@@ -118,15 +119,7 @@ public class MergeSalarySlipCommandHandler(
             return;
         }
 
-        // By name: one side may still be a full path written before PDF paths became file names.
-        if (FileStorageService.FileNameOf(slip.PdfPath) == FileStorageService.FileNameOf(incomingPdfPath)) return;
-
-        try { fileStorage.Delete(incomingPdfPath); }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not delete superseded PDF {Path} while merging into salary slip {Id}",
-                incomingPdfPath, slip.Id);
-        }
+        SlipFiles.Attach(slip, incomingPdfPath, incomingSourceFile);
     }
 
     private static decimal? MergeHourlyRate(SalarySlip slip, MergeSalarySlipCommand command)

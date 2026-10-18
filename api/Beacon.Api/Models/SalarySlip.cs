@@ -18,4 +18,5 @@ public class SalarySlip
     public decimal? HourlyRate { get; set; }
     public decimal? TotalEspecie { get; set; }
     public ICollection<SalaryLineItem> LineItems { get; set; } = [];
+    public ICollection<SalarySlipFile> Files { get; set; } = [];
 }

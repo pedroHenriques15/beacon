@@ -50,6 +50,7 @@ public class BackupHandlerTests : IDisposable
                 new MonthlyStatement { PdfPath = null },
             ],
             SalarySlips = [new SalarySlip { PdfPath = "/workspaces/beacon/local/uploads/slip.pdf" }],
+            SalarySlipFiles = [new SalarySlipFile { PdfPath = "/workspaces/beacon/local/uploads/withdrawal.pdf" }],
             GroceryReceipts = [new GroceryReceipt { PdfPath = "receipt.pdf" }],
         };
 
@@ -57,6 +58,7 @@ public class BackupHandlerTests : IDisposable
 
         Assert.Equal(["statement.pdf", null], payload.MonthlyStatements.Select(s => s.PdfPath));
         Assert.Equal("slip.pdf", Assert.Single(payload.SalarySlips).PdfPath);
+        Assert.Equal("withdrawal.pdf", Assert.Single(payload.SalarySlipFiles).PdfPath);
         Assert.Equal("receipt.pdf", Assert.Single(payload.GroceryReceipts).PdfPath);
     }
 
@@ -103,7 +105,7 @@ public class BackupHandlerTests : IDisposable
             "groceryitems", "groceryreceiptcategorymappings", "groceryreceipts",
             "investmentassets", "investmentlots", "investmentpricesnapshots",
             "monthlystatements", "salaryitemcategories", "salarylineitems",
-            "salaryprofiles", "salaryslips", "transactions",
+            "salaryprofiles", "salaryslipfiles", "salaryslips", "transactions",
         };
         Assert.Equal(expected, keys);
     }

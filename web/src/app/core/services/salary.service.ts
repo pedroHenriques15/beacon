@@ -7,6 +7,7 @@ import {
   SalaryItemCategory,
   SalaryProfile,
   SalarySlip,
+  SlipFile,
 } from '../models/statement.model';
 
 export interface SlipLineItemBody {
@@ -31,6 +32,8 @@ export interface SlipBody {
   hourlyRate?: number;
   totalEspecie?: number;
   lineItems: SlipLineItemBody[];
+  /** Further PDFs the slip is built from, kept beside its own (create and merge only). */
+  files?: SlipFile[];
 }
 
 @Injectable({ providedIn: 'root' })

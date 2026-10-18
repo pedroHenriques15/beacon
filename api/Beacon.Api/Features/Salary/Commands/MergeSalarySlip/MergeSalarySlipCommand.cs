@@ -19,4 +19,5 @@ public record MergeSalarySlipCommand(
     decimal? BaseAmount = null,
     decimal? HoursWorked = null,
     decimal? HourlyRate = null,
-    decimal? TotalEspecie = null);
+    decimal? TotalEspecie = null,
+    List<SlipFile>? Files = null);

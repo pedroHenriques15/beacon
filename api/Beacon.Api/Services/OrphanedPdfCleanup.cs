@@ -5,7 +5,7 @@ namespace Beacon.Api.Services;
 
 /// <summary>
 /// Runs at startup: deletes every stored upload (a PDF, or a CSV export) in the storage root that
-/// no statement, salary slip or grocery receipt references and that is older than
+/// no statement, salary slip (its own PDF or a further one) or grocery receipt references and that is older than
 /// <see cref="MinimumAge"/> (a younger one may belong to an upload whose row is not saved yet). A row protects the file its <c>PdfPath</c> ends in, so a
 /// relative path, an absolute path under the root and an absolute path written on another machine
 /// (a restored backup) all keep their file. When the database references none of the files in the
@@ -26,6 +26,7 @@ public class OrphanedPdfCleanup(AppDbContext db, IConfiguration config, ILogger<
             .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct));
         storedPaths.AddRange(await db.SalarySlips
             .Where(s => s.PdfPath != null).Select(s => s.PdfPath!).ToListAsync(ct));
+        storedPaths.AddRange(await db.SalarySlipFiles.Select(f => f.PdfPath).ToListAsync(ct));
         storedPaths.AddRange(await db.GroceryReceipts
             .Where(r => r.PdfPath != null).Select(r => r.PdfPath!).ToListAsync(ct));
         var referenced = storedPaths

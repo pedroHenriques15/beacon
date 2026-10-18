@@ -85,6 +85,12 @@ public class BackupRestoreSqliteTests
                 Amount = 1000m,
                 SortOrder = 0
             });
+            db.SalarySlipFiles.Add(new SalarySlipFile
+            {
+                SalarySlipId = slip.Id,
+                PdfPath = @"C:\beacon\local\uploads\withdrawal.pdf",
+                SourceFile = "withdrawal_abc.pdf"
+            });
 
             var groceryCategory = new GroceryCategory { Name = "Fruit", Color = "#a855f7" };
             db.GroceryCategories.Add(groceryCategory);
@@ -155,6 +161,8 @@ public class BackupRestoreSqliteTests
             Assert.Equal(1, await verifyDb.SalaryItemCategories.CountAsync());
             Assert.Equal(1, await verifyDb.SalarySlips.CountAsync());
             Assert.Equal(1, await verifyDb.SalaryLineItems.CountAsync());
+            var restoredFile = await verifyDb.SalarySlipFiles.SingleAsync();
+            Assert.Equal("withdrawal_abc.pdf", restoredFile.SourceFile);
             Assert.Equal(1, await verifyDb.GroceryCategories.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryCategoryRules.CountAsync());
             Assert.Equal(1, await verifyDb.GroceryReceiptCategoryMappings.CountAsync());
@@ -164,6 +172,7 @@ public class BackupRestoreSqliteTests
             // A backup holds the paths the other machine wrote; the restore keeps only file names.
             Assert.Equal("statement.pdf", (await verifyDb.MonthlyStatements.SingleAsync()).PdfPath);
             Assert.Equal("slip.pdf", (await verifyDb.SalarySlips.SingleAsync()).PdfPath);
+            Assert.Equal("withdrawal.pdf", restoredFile.PdfPath);
             Assert.Equal("receipt.pdf", (await verifyDb.GroceryReceipts.SingleAsync()).PdfPath);
 
             var restoredAsset = await verifyDb.InvestmentAssets.SingleAsync();

@@ -200,7 +200,7 @@ public class SalaryHandlerTests : IDisposable
             NullLogger<FileStorageService>.Instance);
 
     [Fact]
-    public async Task DeleteSlip_DeletesPdfStoredAsFileName()
+    public async Task DeleteSlip_DeletesItsPdfAndItsFurtherFiles()
     {
         await using var db = CreateDb();
         var (_, _, slip) = await SeedSlipAsync(db);
@@ -210,8 +210,11 @@ public class SalaryHandlerTests : IDisposable
         try
         {
             var fileName = $"{Guid.NewGuid()}.pdf";
+            var furtherFile = $"{Guid.NewGuid()}.pdf";
             await File.WriteAllBytesAsync(Path.Combine(storageRoot, fileName), "pdf"u8.ToArray());
+            await File.WriteAllBytesAsync(Path.Combine(storageRoot, furtherFile), "pdf"u8.ToArray());
             slip.PdfPath = fileName;
+            slip.Files.Add(new SalarySlipFile { PdfPath = furtherFile });
             await db.SaveChangesAsync();
 
             var handler = new DeleteSalarySlipCommandHandler(db, StorageAt(storageRoot), NullLogger<DeleteSalarySlipCommandHandler>.Instance);
@@ -219,6 +222,8 @@ public class SalaryHandlerTests : IDisposable
 
             Assert.True(deleted);
             Assert.False(File.Exists(Path.Combine(storageRoot, fileName)));
+            Assert.False(File.Exists(Path.Combine(storageRoot, furtherFile)));
+            Assert.Empty(await db.SalarySlipFiles.ToListAsync());
         }
         finally
         {
@@ -227,7 +232,7 @@ public class SalaryHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteProfile_DeletesSlipPdfsStoredAsFileNames()
+    public async Task DeleteProfile_DeletesItsSlipsPdfsAndFurtherFiles()
     {
         await using var db = CreateDb();
         var (profile, _, slip) = await SeedSlipAsync(db);
@@ -237,8 +242,11 @@ public class SalaryHandlerTests : IDisposable
         try
         {
             var fileName = $"{Guid.NewGuid()}.pdf";
+            var furtherFile = $"{Guid.NewGuid()}.pdf";
             await File.WriteAllBytesAsync(Path.Combine(storageRoot, fileName), "pdf"u8.ToArray());
+            await File.WriteAllBytesAsync(Path.Combine(storageRoot, furtherFile), "pdf"u8.ToArray());
             slip.PdfPath = fileName;
+            slip.Files.Add(new SalarySlipFile { PdfPath = furtherFile });
             await db.SaveChangesAsync();
 
             var handler = new DeleteSalaryProfileCommandHandler(db, StorageAt(storageRoot), NullLogger<DeleteSalaryProfileCommandHandler>.Instance);
@@ -246,6 +254,7 @@ public class SalaryHandlerTests : IDisposable
 
             Assert.True(deleted);
             Assert.False(File.Exists(Path.Combine(storageRoot, fileName)));
+            Assert.False(File.Exists(Path.Combine(storageRoot, furtherFile)));
         }
         finally
         {
@@ -267,6 +276,27 @@ public class SalaryHandlerTests : IDisposable
         Assert.Null(error);
         var persisted = await db.SalarySlips.AsNoTracking().SingleAsync(s => s.Period == new DateOnly(2026, 4, 1));
         Assert.Equal("april.pdf", persisted.PdfPath);
+    }
+
+    [Fact]
+    public async Task CreateSlip_KeepsTheFurtherFiles_ByFileName()
+    {
+        await using var db = CreateDb();
+        var (profile, _, _) = await SeedSlipAsync(db);
+
+        var handler = new CreateSalarySlipCommandHandler(db);
+        var (_, error) = await handler.HandleAsync(new CreateSalarySlipCommand(
+            profile.Id, new DateOnly(2026, 5, 1), 500m, 480m, null, "invoice.pdf", "invoice-may1-15.pdf", [],
+            Files: [new SlipFile("/srv/beacon/statements/withdrawal.pdf", "withdrawal_abc.pdf")]));
+
+        Assert.Null(error);
+        var persisted = await db.SalarySlips.AsNoTracking()
+            .Include(s => s.Files)
+            .SingleAsync(s => s.Period == new DateOnly(2026, 5, 1));
+        Assert.Equal("invoice.pdf", persisted.PdfPath);
+        var file = Assert.Single(persisted.Files);
+        Assert.Equal("withdrawal.pdf", file.PdfPath);
+        Assert.Equal("withdrawal_abc.pdf", file.SourceFile);
     }
 
     [Fact]

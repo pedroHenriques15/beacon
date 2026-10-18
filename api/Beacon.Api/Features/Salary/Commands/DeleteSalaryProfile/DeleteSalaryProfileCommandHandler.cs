@@ -17,6 +17,10 @@ public class DeleteSalaryProfileCommandHandler(AppDbContext db, FileStorageServi
             .Where(s => s.SalaryProfileId == command.Id && s.PdfPath != null)
             .Select(s => s.PdfPath!)
             .ToListAsync(ct);
+        pdfPaths.AddRange(await db.SalarySlipFiles
+            .Where(f => f.SalarySlip.SalaryProfileId == command.Id)
+            .Select(f => f.PdfPath)
+            .ToListAsync(ct));
 
         db.SalaryProfiles.Remove(profile);
         await db.SaveChangesAsync(ct);

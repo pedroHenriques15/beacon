@@ -501,3 +501,17 @@ buys, but harder to explain and to check by hand; their own work if wanted); the
 return alone, as before (leaves every sell out). Costs accepted: a buy made last month weighs
 as much as one made two years ago, so regular buys pull the percentage towards zero, and it is
 no yearly rate; distributions are not counted, since Beacon records none.
+
+## ADR-039 · A salary slip keeps every PDF it is built from
+
+Since 2026-10-18 a salary slip keeps, beside its own PDF, every further PDF it was built from:
+the Deel withdrawal confirmation that gives a micro1 invoice its euros (ADR-007), and the PDF of
+a second pay run merged into the month (ADR-008), with that run's own withdrawal. They live in
+`SalarySlipFiles`, one row per stored file, and go when the slip or its profile is deleted.
+Until then a slip held one PDF: a merge deleted the second pay run's PDF, and a withdrawal was
+read and never stored, so documents Beacon had imported, and that proved an income, had to be
+fetched again from the employer or Deel when they were needed. Alternatives: keep every PDF in
+the new table and drop `PdfPath` (one place for all of them, but every reader of `PdfPath`
+changes, the backups and the cleanup with them); store the PDFs and record them nowhere (the
+orphaned-file cleanup would delete them). Cost accepted: a slip's PDFs are in two places, its
+own `PdfPath` and the further files.
