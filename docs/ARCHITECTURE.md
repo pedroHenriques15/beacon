@@ -357,8 +357,9 @@ never be imported as fake EUR.
 The pairing happens **inside `UnifiedUploadBatchCommandHandler`** (the multi-file bulk-upload
 handler), not via the `/api/salary/*` endpoints: it classifies each file once, then
 correlates invoices and withdrawals by **cent-equal USD amount** (invoice `Total USD` ==
-withdrawal `Source amount`). A matched pair becomes one `SalarySlip` result (stored under the
-invoice PDF); an unpaired or amount-ambiguous micro1 file is emitted as a **`Micro1Unpaired`**
+withdrawal `Source amount`). A matched pair becomes one `SalarySlip` result, stored under the
+invoice PDF; the withdrawal's PDF is stored too and comes back in the result's `files`, which
+the upload page sends with the slip so it is kept as a further file (ADR-039). An unpaired or amount-ambiguous micro1 file is emitted as a **`Micro1Unpaired`**
 result, flagged and **never imported** (shown in a dedicated blocked section on the upload
 page).
 
@@ -443,9 +444,11 @@ existing `SortOrder`), and per-unit detail (`UnitValue`, `Percentage`) survives 
 sides agree. A subsidy-only slip parses with no hours and no base, so merging it leaves the
 month's as they were, and its subsidy lines join the month under their own categories.
 `Period` and `SalaryProfileId` are never touched, and incoming line-item categories are
-validated against the target slip's profile exactly as in `CreateSalarySlip`. A slip holds
-**one** PDF: the first stays authoritative and a superseded second PDF is deleted from
-storage rather than orphaned, with both file names kept in `SourceFile` (`"a.pdf; b.pdf"`).
+validated against the target slip's profile exactly as in `CreateSalarySlip`. No PDF is lost
+(ADR-039): the first stays the slip's own `PdfPath`, and the second pay run's PDF and any
+`files` it brings (a micro1 half's Deel withdrawal) become `SalarySlipFiles` rows beside it,
+with both upload names kept in `SourceFile` (`"a.pdf; b.pdf"`). A file the slip already
+holds, by name, is not added twice; a slip with no PDF of its own adopts the incoming one.
 
 The upload page drives this: when the slip review modal opens it re-fetches that profile's
 slips (an earlier review *in the same batch* may have just created the slip this one merges
@@ -497,10 +500,16 @@ anything else as `.pdf`. `GetFile` serves each with its content type (`applicati
 `text/csv`). The column keeps the name `PdfPath`. An XLSX export (XTB, ADR-034) is not stored:
 its trades become lots, and no row would reference the file.
 
-- `PdfPath` (`MonthlyStatements`, `SalarySlips`, `GroceryReceipts`) holds only the file name
-  (ADR-023). `SaveAsync` writes the file and returns its name, which the upload flows store and
-  `upload-pdf` returns to the client; no absolute server path leaves the API. Create, update
-  and merge of a salary slip store `FileNameOf` whatever `pdfPath` the client sends.
+- `PdfPath` (`MonthlyStatements`, `SalarySlips`, `SalarySlipFiles`, `GroceryReceipts`) holds
+  only the file name (ADR-023). `SaveAsync` writes the file and returns its name, which the
+  upload flows store and `upload-pdf` returns to the client; no absolute server path leaves the
+  API. Create, update and merge of a salary slip store `FileNameOf` whatever `pdfPath` the
+  client sends, and create and merge do the same for each of its `files`.
+- A salary slip keeps every PDF it is built from (ADR-039): its own in `PdfPath`, and each
+  further one in `SalarySlipFiles` (`SalarySlipId`, `PdfPath`, `SourceFile`; cascade-deleted
+  with the slip): a micro1 invoice's Deel withdrawal, a merged second pay run's PDF.
+  `SlipFiles.Attach` (next to `CreateSalarySlipCommand`) adds one. Deleting a slip or its
+  profile deletes all of its stored files, and the backup carries the table.
 - `GetFullPath`, `GetFile` and `Delete` resolve a file name (or a legacy absolute path) under
   the storage root and refuse anything that resolves outside it. Anything that opens a stored
   file goes through them: `parse-pdf` hands the extractor `GetFullPath(pdfPath)`.
@@ -903,8 +912,8 @@ the window's errors and unhandled rejections to it.
 SQLite (ADR-024): one file, named by `ConnectionStrings__DefaultConnection`
 (`Data Source=<path>`); its folder is created if missing.
 
-Schema (17 tables): `MonthlyStatements`, `Transactions`, `Categories`, `CategoryRules`,
-`SalaryProfiles`, `SalarySlips`, `SalaryItemCategories`, `SalaryLineItems`,
+Schema (18 tables): `MonthlyStatements`, `Transactions`, `Categories`, `CategoryRules`,
+`SalaryProfiles`, `SalarySlips`, `SalarySlipFiles`, `SalaryItemCategories`, `SalaryLineItems`,
 `GroceryReceipts`, `GroceryItems`, `GroceryCategories`, `GroceryCategoryRules`,
 `GroceryReceiptCategoryMappings`, `GoogleOAuthTokens`, `InvestmentAssets`, `InvestmentLots`,
 `InvestmentPriceSnapshots`.

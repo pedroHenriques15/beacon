@@ -2,10 +2,7 @@ using Beacon.Api.Data;
 using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Commands.MergeSalarySlip;
 using Beacon.Api.Models;
-using Beacon.Api.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Beacon.Tests.Handlers;
@@ -23,16 +20,7 @@ public class MergeSalarySlipTests : IDisposable
 
     private AppDbContext CreateDb() => _database.CreateContext();
 
-    private static MergeSalarySlipCommandHandler CreateHandler(AppDbContext db, string? storageRoot = null)
-    {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Path"] = storageRoot })
-            .Build();
-        return new MergeSalarySlipCommandHandler(
-            db,
-            new FileStorageService(config, NullLogger<FileStorageService>.Instance),
-            NullLogger<MergeSalarySlipCommandHandler>.Instance);
-    }
+    private static MergeSalarySlipCommandHandler CreateHandler(AppDbContext db) => new(db);
 
     private sealed record Seed(SalaryProfile Profile, SalaryItemCategory BasePay, SalaryItemCategory Fee, SalarySlip Slip);
 
@@ -228,87 +216,83 @@ public class MergeSalarySlipTests : IDisposable
     }
 
     [Fact]
-    public async Task Merge_KeepsFirstPdfAndDeletesTheSupersededOne()
+    public async Task Merge_KeepsTheFirstPdf_AndTheSecondBesideIt()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_merge_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(storageRoot);
-        try
+        await using var db = CreateDb();
+        var seed = await SeedFirstHalfAsync(db);
+        var slip = await db.SalarySlips.FirstAsync();
+        slip.PdfPath = "first.pdf";
+        await db.SaveChangesAsync();
+
+        var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = "second.pdf" };
+        var (result, _) = await CreateHandler(db).HandleAsync(command);
+
+        Assert.Equal("first.pdf", result!.PdfPath);
+        await using var verifyDb = CreateDb();
+        var file = Assert.Single(await verifyDb.SalarySlipFiles.ToListAsync());
+        Assert.Equal(seed.Slip.Id, file.SalarySlipId);
+        Assert.Equal("second.pdf", file.PdfPath);
+        Assert.Equal("invoice-jul16-31.pdf", file.SourceFile);
+    }
+
+    [Fact]
+    public async Task Merge_KeepsTheIncomingFurtherFiles()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedFirstHalfAsync(db);
+        var slip = await db.SalarySlips.FirstAsync();
+        slip.PdfPath = "invoice-1.pdf";
+        slip.Files.Add(new SalarySlipFile { PdfPath = "withdrawal-1.pdf", SourceFile = "withdrawal_a.pdf" });
+        await db.SaveChangesAsync();
+
+        var command = SecondHalf(seed, seed.Slip.Id) with
         {
-            await using var db = CreateDb();
-            var seed = await SeedFirstHalfAsync(db);
+            PdfPath = "invoice-2.pdf",
+            Files = [new SlipFile("withdrawal-2.pdf", "withdrawal_b.pdf")],
+        };
+        await CreateHandler(db).HandleAsync(command);
 
-            var firstPdf = Path.Combine(storageRoot, "first.pdf");
-            var secondPdf = Path.Combine(storageRoot, "second.pdf");
-            await File.WriteAllTextAsync(firstPdf, "first");
-            await File.WriteAllTextAsync(secondPdf, "second");
-
-            var slip = await db.SalarySlips.FirstAsync();
-            slip.PdfPath = firstPdf;
-            await db.SaveChangesAsync();
-
-            var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = secondPdf };
-            var (result, _) = await CreateHandler(db, storageRoot).HandleAsync(command);
-
-            Assert.Equal(firstPdf, result!.PdfPath);
-            Assert.True(File.Exists(firstPdf));
-            Assert.False(File.Exists(secondPdf));
-        }
-        finally
-        {
-            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
-        }
+        await using var verifyDb = CreateDb();
+        var files = await verifyDb.SalarySlipFiles.OrderBy(f => f.Id).ToListAsync();
+        Assert.Equal(
+            ["withdrawal-1.pdf", "invoice-2.pdf", "withdrawal-2.pdf"],
+            files.Select(f => f.PdfPath));
+        Assert.Equal("withdrawal_b.pdf", files[2].SourceFile);
     }
 
     [Fact]
     public async Task Merge_AdoptsIncomingPdf_WhenExistingSlipHasNone()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_merge_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(storageRoot);
-        try
-        {
-            await using var db = CreateDb();
-            var seed = await SeedFirstHalfAsync(db);
+        await using var db = CreateDb();
+        var seed = await SeedFirstHalfAsync(db);
 
-            var incomingPdf = Path.Combine(storageRoot, "incoming.pdf");
-            await File.WriteAllTextAsync(incomingPdf, "incoming");
+        var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = "/srv/beacon/statements/incoming.pdf" };
+        var (result, _) = await CreateHandler(db).HandleAsync(command);
 
-            var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = incomingPdf };
-            var (result, _) = await CreateHandler(db, storageRoot).HandleAsync(command);
-
-            Assert.Equal("incoming.pdf", result!.PdfPath);
-            Assert.True(File.Exists(incomingPdf));
-        }
-        finally
-        {
-            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
-        }
+        Assert.Equal("incoming.pdf", result!.PdfPath);
+        await using var verifyDb = CreateDb();
+        Assert.Empty(await verifyDb.SalarySlipFiles.ToListAsync());
     }
 
     [Fact]
-    public async Task Merge_SamePdfUnderAnOldFullPath_IsKept()
+    public async Task Merge_SamePdfUnderAnOldFullPath_IsNotKeptTwice()
     {
-        var storageRoot = Path.Combine(Path.GetTempPath(), $"beacon_merge_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(storageRoot);
-        try
+        await using var db = CreateDb();
+        var seed = await SeedFirstHalfAsync(db);
+        var slip = await db.SalarySlips.FirstAsync();
+        slip.PdfPath = "/workspaces/beacon/local/uploads/slip.pdf";
+        slip.Files.Add(new SalarySlipFile { PdfPath = "withdrawal.pdf" });
+        await db.SaveChangesAsync();
+
+        var command = SecondHalf(seed, seed.Slip.Id) with
         {
-            await using var db = CreateDb();
-            var seed = await SeedFirstHalfAsync(db);
+            PdfPath = "slip.pdf",
+            Files = [new SlipFile("withdrawal.pdf", "withdrawal.pdf")],
+        };
+        await CreateHandler(db).HandleAsync(command);
 
-            var pdf = Path.Combine(storageRoot, "slip.pdf");
-            await File.WriteAllTextAsync(pdf, "slip");
-            var slip = await db.SalarySlips.FirstAsync();
-            slip.PdfPath = "/workspaces/beacon/local/uploads/slip.pdf";
-            await db.SaveChangesAsync();
-
-            var command = SecondHalf(seed, seed.Slip.Id) with { PdfPath = "slip.pdf" };
-            await CreateHandler(db, storageRoot).HandleAsync(command);
-
-            Assert.True(File.Exists(pdf));
-        }
-        finally
-        {
-            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
-        }
+        await using var verifyDb = CreateDb();
+        Assert.Equal(["withdrawal.pdf"], await verifyDb.SalarySlipFiles.Select(f => f.PdfPath).ToListAsync());
     }
 
     [Fact]

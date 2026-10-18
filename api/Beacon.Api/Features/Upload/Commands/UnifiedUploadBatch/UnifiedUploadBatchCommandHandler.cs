@@ -1,4 +1,5 @@
 using Beacon.Api.Data;
+using Beacon.Api.Features.Salary.Commands.CreateSalarySlip;
 using Beacon.Api.Features.Salary.Commands.ParseSalarySlip;
 using Beacon.Api.Services;
 using Beacon.Api.Services.Parsing;
@@ -114,7 +115,7 @@ public class UnifiedUploadBatchCommandHandler(
                 try
                 {
                     var withdrawal = withdrawalParser.Parse(pages);
-                    withdrawals.Add(new PendingWithdrawal(index, fileName, withdrawal));
+                    withdrawals.Add(new PendingWithdrawal(index, fileName, content, withdrawal));
                     return null;
                 }
                 catch (Exception ex)
@@ -195,7 +196,7 @@ public class UnifiedUploadBatchCommandHandler(
 
                 logger.LogInformation("Unified upload: {File} detected as SalarySlip ({Parser})", fileName, salaryParser.ParserName);
                 return new UnifiedUploadItemResult(fileName, "SalarySlip", true, false, null,
-                    null, null, new UnifiedSalaryResult(savedPath, fileName, parsed));
+                    null, null, new UnifiedSalaryResult(savedPath, fileName, parsed, []));
             }
             catch (Exception ex)
             {
@@ -324,17 +325,20 @@ public class UnifiedUploadBatchCommandHandler(
         return results;
     }
 
-    // On success the withdrawal is folded into the invoice's SalarySlip row (one result per pair, by design).
+    // On success the withdrawal is folded into the invoice's SalarySlip row (one result per pair, by design),
+    // and both PDFs are stored: the withdrawal as the slip's further file (ADR-039).
     // On failure both files get their own blocked row, so an uploaded PDF never silently vanishes from results.
     private async Task<List<(int, UnifiedUploadItemResult)>> ReconcileAsync(
         PendingInvoice invoice, PendingWithdrawal withdrawal)
     {
         string? savedPath = null;
+        string? withdrawalPath = null;
         try
         {
             invoice.Content.Seek(0, SeekOrigin.Begin);
-            var formFile = BuildFormFile(invoice.Content, invoice.FileName);
-            savedPath = await fileStorage.SaveAsync(formFile);
+            savedPath = await fileStorage.SaveAsync(BuildFormFile(invoice.Content, invoice.FileName));
+            withdrawal.Content.Seek(0, SeekOrigin.Begin);
+            withdrawalPath = await fileStorage.SaveAsync(BuildFormFile(withdrawal.Content, withdrawal.FileName));
 
             var slip = Micro1Reconciler.Reconcile(invoice.InvoiceUsd, withdrawal.Withdrawal);
             var warnings = ParseVerifier.VerifySalarySlip(slip);
@@ -344,11 +348,13 @@ public class UnifiedUploadBatchCommandHandler(
                 invoice.FileName, withdrawal.FileName);
 
             return [(invoice.Index, new UnifiedUploadItemResult(invoice.FileName, "SalarySlip", true, false, null,
-                null, null, new UnifiedSalaryResult(savedPath, invoice.FileName, parsed)))];
+                null, null, new UnifiedSalaryResult(savedPath, invoice.FileName, parsed,
+                    [new SlipFile(withdrawalPath, withdrawal.FileName)])))];
         }
         catch (Exception ex)
         {
             if (savedPath is not null) fileStorage.Delete(savedPath);
+            if (withdrawalPath is not null) fileStorage.Delete(withdrawalPath);
             logger.LogError(ex, "micro1 reconciliation failed for {File} + {Withdrawal}", invoice.FileName, withdrawal.FileName);
             var reason = $"Failed to combine this micro1 paycheck's two PDFs: {ex.Message}";
             return
@@ -440,7 +446,7 @@ public class UnifiedUploadBatchCommandHandler(
         };
 
     private sealed record PendingInvoice(int Index, string FileName, MemoryStream Content, ParsedSalarySlip InvoiceUsd);
-    private sealed record PendingWithdrawal(int Index, string FileName, DeelWithdrawal Withdrawal);
+    private sealed record PendingWithdrawal(int Index, string FileName, MemoryStream Content, DeelWithdrawal Withdrawal);
     private sealed record PendingMercor(int Index, string FileName, string PdfPath, MercorStatement Statement);
     private sealed record PendingXtb(int Index, string FileName, XtbExport Export);
 }

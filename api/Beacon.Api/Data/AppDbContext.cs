@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SalaryProfile> SalaryProfiles => Set<SalaryProfile>();
     public DbSet<SalarySlip> SalarySlips => Set<SalarySlip>();
     public DbSet<SalaryLineItem> SalaryLineItems => Set<SalaryLineItem>();
+    public DbSet<SalarySlipFile> SalarySlipFiles => Set<SalarySlipFile>();
     public DbSet<SalaryItemCategory> SalaryItemCategories => Set<SalaryItemCategory>();
     public DbSet<GroceryReceipt> GroceryReceipts => Set<GroceryReceipt>();
     public DbSet<GroceryItem> GroceryItems => Set<GroceryItem>();
@@ -155,6 +156,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .HasForeignKey(s => s.SalaryProfileId)
              .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(s => new { s.SalaryProfileId, s.Period }).IsUnique();
+        });
+
+        modelBuilder.Entity<SalarySlipFile>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.SourceFile).HasMaxLength(500);
+            e.HasOne(f => f.SalarySlip)
+             .WithMany(s => s.Files)
+             .HasForeignKey(f => f.SalarySlipId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SalaryLineItem>(e =>
